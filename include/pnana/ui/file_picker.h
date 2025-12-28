@@ -70,6 +70,7 @@ private:
     std::vector<std::string> filterItems(const std::vector<std::string>& items, const std::string& filter) const;
     void updatePathFromInput();  // 从路径输入更新当前路径
     std::string resolvePath(const std::string& input_path) const;  // 解析路径（支持相对路径）
+    void completePath();  // Tab 键路径补全
 };
 
 } // namespace ui
