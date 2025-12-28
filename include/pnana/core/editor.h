@@ -13,11 +13,13 @@
 #include "ui/help.h"
 #include "ui/dialog.h"
 #include "ui/file_picker.h"
+#include "ui/split_dialog.h"
 #include "features/search.h"
 #include "features/file_browser.h"
 #include "features/syntax_highlighter.h"
 #include "features/command_palette.h"
 #include "features/terminal.h"
+#include "features/split_view.h"
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <memory>
@@ -120,6 +122,15 @@ public:
     void zoomOut();
     void zoomReset();
     
+    // 分屏操作
+    void showSplitDialog();
+    void splitView(features::SplitDirection direction);
+    void closeSplitRegion(size_t region_index);  // 关闭指定分屏区域
+    void focusLeftRegion();
+    void focusRightRegion();
+    void focusUpRegion();
+    void focusDownRegion();
+    
     // 主题
     void setTheme(const std::string& theme_name);
     
@@ -146,6 +157,7 @@ private:
     ui::Help help_;
     ui::Dialog dialog_;
     ui::FilePicker file_picker_;
+    ui::SplitDialog split_dialog_;
     
     // 功能模块
     features::SearchEngine search_engine_;
@@ -153,6 +165,7 @@ private:
     features::SyntaxHighlighter syntax_highlighter_;
     features::CommandPalette command_palette_;
     features::Terminal terminal_;
+    features::SplitViewManager split_view_manager_;
     
     // 编辑器状态
     EditorMode mode_;
@@ -211,6 +224,8 @@ private:
     ftxui::Element renderUI();
     ftxui::Element renderTabbar();
     ftxui::Element renderEditor();
+    ftxui::Element renderSplitEditor();  // 分屏编辑器渲染
+    ftxui::Element renderEditorRegion(const features::ViewRegion& region, Document* doc);  // 渲染单个区域
     ftxui::Element renderWelcomeScreen();
     ftxui::Element renderLine(size_t line_num, bool is_current);
     ftxui::Element renderLineNumber(size_t line_num, bool is_current);
@@ -231,7 +246,7 @@ private:
     void adjustViewOffset();
     void setStatusMessage(const std::string& message);
     std::string getFileType() const;
-    void executeSearch();
+    void executeSearch(bool move_cursor = true);
     void executeReplace();
     void executeGotoLine();
     

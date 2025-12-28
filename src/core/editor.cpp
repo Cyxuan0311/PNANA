@@ -21,10 +21,12 @@ Editor::Editor()
       help_(theme_),
       dialog_(theme_),
       file_picker_(theme_),
+      split_dialog_(theme_),
       search_engine_(),
       file_browser_(theme_),
       syntax_highlighter_(theme_),
       terminal_(theme_),
+      split_view_manager_(),
       mode_(EditorMode::NORMAL),
       cursor_row_(0),
       cursor_col_(0),
@@ -444,6 +446,15 @@ void Editor::initializeCommandPalette() {
         [this]() { startReplace(); }
     ));
     
+    // 注册分屏命令
+    command_palette_.registerCommand(Command(
+        "view.split",
+        "Split View",
+        "Split editor window",
+        {"split", "side", "view", "window"},
+        [this]() { showSplitDialog(); }
+    ));
+    
     command_palette_.registerCommand(Command(
         "navigation.goto_line",
         "Go to Line",
@@ -685,6 +696,223 @@ void Editor::handleFilePickerInput(ftxui::Event event) {
     if (file_picker_.handleInput(event)) {
         return;
     }
+}
+
+// 分屏操作
+void Editor::showSplitDialog() {
+    // 如果已经有分屏，显示关闭分屏对话框
+    if (split_view_manager_.hasSplits()) {
+        // 收集所有分屏信息
+        std::vector<ui::SplitInfo> splits;
+        const auto& regions = split_view_manager_.getRegions();
+        auto tabs = document_manager_.getAllTabs();
+        
+        for (size_t i = 0; i < regions.size(); ++i) {
+            const auto& region = regions[i];
+            std::string doc_name = "[No Document]";
+            bool is_modified = false;
+            
+            if (region.document_index < tabs.size()) {
+                doc_name = tabs[region.document_index].filename;
+                if (doc_name.empty()) {
+                    doc_name = "[Untitled]";
+                }
+                is_modified = tabs[region.document_index].is_modified;
+            }
+            
+            splits.emplace_back(i, region.document_index, doc_name, 
+                              region.is_active, is_modified);
+        }
+        
+        split_dialog_.showClose(
+            splits,
+            [this](size_t region_index) {
+                closeSplitRegion(region_index);
+            },
+            [this]() {
+                setStatusMessage("Close split cancelled");
+            }
+        );
+    } else {
+        // 没有分屏，显示创建分屏对话框
+        split_dialog_.showCreate(
+            [this](features::SplitDirection direction) {
+                splitView(direction);
+            },
+            [this]() {
+                setStatusMessage("Split cancelled");
+            }
+        );
+    }
+}
+
+void Editor::closeSplitRegion(size_t region_index) {
+    // 检查该区域的文档是否已保存
+    const auto& regions = split_view_manager_.getRegions();
+    if (region_index >= regions.size()) {
+        setStatusMessage("Invalid region index");
+        return;
+    }
+    
+    const auto& region = regions[region_index];
+    auto tabs = document_manager_.getAllTabs();
+    
+    // 检查该区域关联的文档是否已修改
+    if (region.document_index < tabs.size()) {
+        if (tabs[region.document_index].is_modified) {
+            setStatusMessage("Cannot close: document has unsaved changes. Save first (Ctrl+S)");
+            return;
+        }
+    }
+    
+    // 如果关闭的是当前激活的区域，需要切换到其他区域
+    if (region.is_active && regions.size() > 1) {
+        // 找到另一个区域并激活
+        for (size_t i = 0; i < regions.size(); ++i) {
+            if (i != region_index) {
+                // 切换到该区域的文档
+                if (regions[i].document_index < tabs.size()) {
+                    document_manager_.switchToDocument(regions[i].document_index);
+                }
+                break;
+            }
+        }
+    }
+    
+    // 关闭区域
+    split_view_manager_.closeRegion(region_index);
+    
+    // 如果只剩下一个区域，重置分屏管理器
+    if (!split_view_manager_.hasSplits()) {
+        split_view_manager_.reset();
+        setStatusMessage("Split closed, back to single view");
+    } else {
+        setStatusMessage("Split region closed");
+    }
+}
+
+void Editor::splitView(features::SplitDirection direction) {
+    // 确保当前有文档
+    Document* current_doc = getCurrentDocument();
+    if (!current_doc) {
+        setStatusMessage("No document to split");
+        return;
+    }
+    
+    // 找到当前文档索引
+    auto tabs = document_manager_.getAllTabs();
+    size_t current_doc_index = 0;
+    for (size_t i = 0; i < tabs.size(); ++i) {
+        if (tabs[i].filepath == current_doc->getFilePath()) {
+            current_doc_index = i;
+            break;
+        }
+    }
+    
+    // 如果没有分屏，先初始化第一个区域
+    if (!split_view_manager_.hasSplits()) {
+        split_view_manager_.setCurrentDocumentIndex(current_doc_index);
+    }
+    
+    int screen_width = screen_.dimx();
+    int screen_height = screen_.dimy();
+    
+    // 如果文件浏览器打开，需要减去文件浏览器的宽度
+    if (file_browser_.isVisible()) {
+        screen_width -= file_browser_width_ + 1;  // +1 for separator
+    }
+    
+    // 减去状态栏和标签栏的高度
+    screen_height -= 6;  // 标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1)
+    
+    // 执行分屏
+    if (direction == features::SplitDirection::VERTICAL) {
+        split_view_manager_.splitVertical(screen_width, screen_height);
+        setStatusMessage("Split vertically");
+    } else {
+        split_view_manager_.splitHorizontal(screen_width, screen_height);
+        setStatusMessage("Split horizontally");
+    }
+    
+    // 更新新创建区域的文档索引（新区域显示相同的文档）
+    auto& regions = const_cast<std::vector<features::ViewRegion>&>(split_view_manager_.getRegions());
+    for (auto& region : regions) {
+        // 新创建的区域（document_index 可能无效）设置为当前文档
+        if (region.document_index >= tabs.size() || !split_view_manager_.hasSplits()) {
+            region.document_index = current_doc_index;
+        }
+    }
+    
+    // 更新区域尺寸
+    split_view_manager_.updateRegionSizes(screen_width, screen_height);
+}
+
+void Editor::focusLeftRegion() {
+    if (!split_view_manager_.hasSplits()) {
+        return;
+    }
+    split_view_manager_.focusLeftRegion();
+    
+    // 切换到激活区域的文档
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        auto tabs = document_manager_.getAllTabs();
+        if (active_region->document_index < tabs.size()) {
+            document_manager_.switchToDocument(active_region->document_index);
+        }
+    }
+    setStatusMessage("Focus left region");
+}
+
+void Editor::focusRightRegion() {
+    if (!split_view_manager_.hasSplits()) {
+        return;
+    }
+    split_view_manager_.focusRightRegion();
+    
+    // 切换到激活区域的文档
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        auto tabs = document_manager_.getAllTabs();
+        if (active_region->document_index < tabs.size()) {
+            document_manager_.switchToDocument(active_region->document_index);
+        }
+    }
+    setStatusMessage("Focus right region");
+}
+
+void Editor::focusUpRegion() {
+    if (!split_view_manager_.hasSplits()) {
+        return;
+    }
+    split_view_manager_.focusUpRegion();
+    
+    // 切换到激活区域的文档
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        auto tabs = document_manager_.getAllTabs();
+        if (active_region->document_index < tabs.size()) {
+            document_manager_.switchToDocument(active_region->document_index);
+        }
+    }
+    setStatusMessage("Focus up region");
+}
+
+void Editor::focusDownRegion() {
+    if (!split_view_manager_.hasSplits()) {
+        return;
+    }
+    split_view_manager_.focusDownRegion();
+    
+    // 切换到激活区域的文档
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        auto tabs = document_manager_.getAllTabs();
+        if (active_region->document_index < tabs.size()) {
+            document_manager_.switchToDocument(active_region->document_index);
+        }
+    }
+    setStatusMessage("Focus down region");
 }
 
 } // namespace core

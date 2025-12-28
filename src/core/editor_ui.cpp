@@ -1,8 +1,12 @@
 // UI渲染相关实现
 #include "core/editor.h"
 #include "ui/icons.h"
+#include "ui/terminal_ui.h"
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
+#include <map>
+#include <algorithm>
+#include <climits>
 
 using namespace ftxui;
 
@@ -104,6 +108,15 @@ Element Editor::renderUI() {
         return dbox(picker_elements);
     }
     
+    // 如果分屏对话框打开，叠加显示
+    if (split_dialog_.isVisible()) {
+        Elements split_elements = {
+            main_ui | dim,
+            split_dialog_.render() | center
+        };
+        return dbox(split_elements);
+    }
+    
     return main_ui;
 }
 
@@ -122,6 +135,12 @@ Element Editor::renderTabbar() {
 }
 
 Element Editor::renderEditor() {
+    // 如果启用了分屏（区域数量 > 1），使用分屏渲染
+    if (split_view_manager_.hasSplits()) {
+        return renderSplitEditor();
+    }
+    
+    // 单视图渲染（没有分屏）
     Document* doc = getCurrentDocument();
     // 如果没有文档，显示欢迎界面
     if (!doc) {
@@ -159,6 +178,164 @@ Element Editor::renderEditor() {
     
     // 填充空行
     for (int i = lines.size(); i < screen_height; ++i) {
+        Elements empty_line;
+        if (show_line_numbers_) {
+            empty_line.push_back(text("    ~") | color(theme_.getColors().comment));
+        } else {
+            empty_line.push_back(text("~") | color(theme_.getColors().comment));
+        }
+        lines.push_back(hbox(empty_line));
+    }
+    
+    return vbox(lines);
+}
+
+Element Editor::renderSplitEditor() {
+    int screen_width = screen_.dimx();
+    int screen_height = screen_.dimy() - 6;  // 减去标签栏、状态栏等
+    
+    // 更新分屏视图的尺寸
+    split_view_manager_.updateRegionSizes(screen_width, screen_height);
+    
+    // 获取所有区域
+    const auto& regions = split_view_manager_.getRegions();
+    
+    if (regions.empty()) {
+        return renderEditor();  // 如果没有区域，回退到单视图
+    }
+    
+    using namespace ftxui;
+    
+    // 如果只有一个区域，检查是否需要重置
+    if (regions.size() == 1) {
+        const auto& region = regions[0];
+        // 如果区域尺寸无效，重置分屏管理器
+        if (region.width == 0 || region.height == 0) {
+            split_view_manager_.reset();
+            // 回退到正常渲染
+            Document* doc = getCurrentDocument();
+            if (!doc) {
+                return renderWelcomeScreen();
+            }
+            // 继续正常渲染流程（会回到 renderEditor，但 hasSplits() 会返回 false）
+        } else {
+            // 区域有效，正常渲染该区域
+            Document* doc = nullptr;
+            if (region.document_index < document_manager_.getDocumentCount()) {
+                doc = document_manager_.getDocument(region.document_index);
+            }
+            if (region.is_active && doc) {
+                document_manager_.switchToDocument(region.document_index);
+            }
+            return renderEditorRegion(region, doc) | size(WIDTH, EQUAL, region.width) 
+                                                  | size(HEIGHT, EQUAL, region.height);
+        }
+    }
+    
+    // 多个区域：构建布局
+    // 找到所有区域的边界
+    int min_x = INT_MAX, min_y = INT_MAX;
+    int max_x = 0, max_y = 0;
+    for (const auto& region : regions) {
+        min_x = std::min(min_x, region.x);
+        min_y = std::min(min_y, region.y);
+        max_x = std::max(max_x, region.x + region.width);
+        max_y = std::max(max_y, region.y + region.height);
+    }
+    
+    // 创建布局网格（简化：使用固定布局）
+    // 按 y 坐标分组（行）
+    std::map<int, std::vector<const features::ViewRegion*>> rows;
+    for (const auto& region : regions) {
+        rows[region.y].push_back(&region);
+    }
+    
+    Elements row_elements;
+    for (auto& [y, row_regions] : rows) {
+        // 按 x 坐标排序
+        std::sort(row_regions.begin(), row_regions.end(), 
+                  [](const features::ViewRegion* a, const features::ViewRegion* b) {
+                      return a->x < b->x;
+                  });
+        
+        Elements col_elements;
+        for (size_t i = 0; i < row_regions.size(); ++i) {
+            const auto* region = row_regions[i];
+            
+            // 获取该区域关联的文档
+            Document* doc = nullptr;
+            if (region->document_index < document_manager_.getDocumentCount()) {
+                doc = document_manager_.getDocument(region->document_index);
+            }
+            
+            // 如果区域是激活的，更新当前文档
+            if (region->is_active && doc) {
+                document_manager_.switchToDocument(region->document_index);
+            }
+            
+            // 渲染该区域的编辑器内容
+            Element region_content = renderEditorRegion(*region, doc);
+            region_content = region_content | size(WIDTH, EQUAL, region->width) 
+                                          | size(HEIGHT, EQUAL, region->height);
+            
+            col_elements.push_back(region_content);
+            
+            // 如果不是最后一个，添加竖直分屏线
+            if (i < row_regions.size() - 1) {
+                Elements line_chars;
+                for (int j = 0; j < region->height; ++j) {
+                    line_chars.push_back(text("│") | color(Color::GrayDark));
+                }
+                col_elements.push_back(vbox(line_chars) | size(WIDTH, EQUAL, 1));
+            }
+        }
+        
+        row_elements.push_back(hbox(col_elements));
+        
+        // 如果不是最后一行，添加横向分屏线
+        auto next_row = rows.upper_bound(y);
+        if (next_row != rows.end()) {
+            Elements line_chars;
+            int line_width = max_x - min_x;
+            for (int j = 0; j < line_width; ++j) {
+                line_chars.push_back(text("─") | color(Color::GrayDark));
+            }
+            row_elements.push_back(hbox(line_chars) | size(HEIGHT, EQUAL, 1));
+        }
+    }
+    
+    return vbox(row_elements);
+}
+
+Element Editor::renderEditorRegion(const features::ViewRegion& region, Document* doc) {
+    // 如果没有文档，显示空区域
+    if (!doc) {
+        Elements empty_lines;
+        for (int i = 0; i < region.height; ++i) {
+            empty_lines.push_back(text("~") | color(theme_.getColors().comment));
+        }
+        return vbox(empty_lines);
+    }
+    
+    Elements lines;
+    
+    // 计算该区域应该显示的行数
+    size_t total_lines = doc->lineCount();
+    int region_height = region.height;
+    
+    // 如果区域是激活的，使用当前的视图偏移
+    // 否则，每个区域可以有自己的视图偏移（简化实现：所有区域共享视图偏移）
+    size_t start_line = view_offset_row_;
+    size_t max_lines = std::min(start_line + region_height, total_lines);
+    
+    // 渲染可见行
+    for (size_t i = start_line; i < max_lines && i < start_line + region_height; ++i) {
+        bool is_current = (region.is_active && i == cursor_row_);
+        lines.push_back(renderLine(i, is_current));
+    }
+    
+    // 填充空行
+    for (int i = lines.size(); i < region_height; ++i) {
         Elements empty_line;
         if (show_line_numbers_) {
             empty_line.push_back(text("    ~") | color(theme_.getColors().comment));
@@ -339,75 +516,197 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
     // 行内容
     std::string content = getCurrentDocument()->getLine(line_num);
     
-    Element content_elem;
-    
-    // 使用语法高亮
-    if (syntax_highlighting_) {
-        if (is_current && cursor_col_ <= content.length()) {
-            // 当前行有光标，使用块状光标覆盖模式
-            std::string before = content.substr(0, cursor_col_);
-            std::string cursor_char = cursor_col_ < content.length() ? 
-                                      content.substr(cursor_col_, 1) : " ";
-            std::string after = cursor_col_ < content.length() ? 
-                                content.substr(cursor_col_ + 1) : "";
-            
-            Elements parts;
-            if (!before.empty()) {
-                parts.push_back(syntax_highlighter_.highlightLine(before));
+    // 获取当前行的搜索匹配
+    std::vector<features::SearchMatch> line_matches;
+    if (search_engine_.hasMatches()) {
+        const auto& all_matches = search_engine_.getAllMatches();
+        for (const auto& match : all_matches) {
+            if (match.line == line_num) {
+                line_matches.push_back(match);
             }
-            // 块状光标：使用明确的背景色块覆盖，文字颜色反转以保持可见
-            auto& colors = theme_.getColors();
-            if (!content.empty() && cursor_col_ < content.length()) {
-                // 光标位置有字符：使用前景色作为背景，背景色作为文字颜色，创建块状覆盖
-                // 这样文字仍然可见，但被块状背景覆盖
-                parts.push_back(
-                    text(cursor_char) | 
-                    bgcolor(colors.foreground) | 
-                    color(colors.background) | 
-                    bold
-                );
-            } else {
-                // 光标在行尾：显示空格块
-                parts.push_back(
-                    text(" ") | 
-                    bgcolor(colors.foreground) | 
-                    color(colors.background) | 
-                    bold
-                );
-            }
-            if (!after.empty()) {
-                parts.push_back(syntax_highlighter_.highlightLine(after));
-            }
-            content_elem = hbox(parts);
-        } else {
-            content_elem = syntax_highlighter_.highlightLine(content);
-        }
-    } else {
-        // 不使用语法高亮
-        if (is_current && cursor_col_ <= content.length()) {
-            // 块状光标覆盖模式：保持文字完整，光标位置使用背景色块覆盖
-            std::string before = content.substr(0, cursor_col_);
-            std::string cursor_char = cursor_col_ < content.length() ? 
-                                      content.substr(cursor_col_, 1) : " ";
-            std::string after = cursor_col_ < content.length() ? 
-                                content.substr(cursor_col_ + 1) : "";
-            
-            Elements parts;
-            parts.push_back(text(before) | color(theme_.getColors().foreground));
-            // 块状光标：使用明确的背景色块覆盖，文字颜色反转以保持可见
-            auto& colors = theme_.getColors();
-            parts.push_back(
-                text(cursor_char) | 
-                bgcolor(colors.foreground) | 
-                color(colors.background) | 
-                bold
-            );
-            parts.push_back(text(after) | color(theme_.getColors().foreground));
-            content_elem = hbox(parts);
-        } else {
-            content_elem = text(content) | color(theme_.getColors().foreground);
         }
     }
+    
+    Element content_elem;
+    
+    // 渲染带搜索高亮的行内容
+    auto renderLineWithHighlights = [&](const std::string& line_content, size_t cursor_pos, bool has_cursor) -> Element {
+        Elements parts;
+        auto& colors = theme_.getColors();
+        
+        if (line_matches.empty()) {
+            // 没有搜索匹配，正常渲染
+            if (has_cursor && cursor_pos <= line_content.length()) {
+                std::string before = line_content.substr(0, cursor_pos);
+                std::string cursor_char = cursor_pos < line_content.length() ? 
+                                          line_content.substr(cursor_pos, 1) : " ";
+                std::string after = cursor_pos < line_content.length() ? 
+                                    line_content.substr(cursor_pos + 1) : "";
+                
+                if (syntax_highlighting_) {
+                    if (!before.empty()) {
+                        parts.push_back(syntax_highlighter_.highlightLine(before));
+                    }
+                    if (!content.empty() && cursor_pos < line_content.length()) {
+                        parts.push_back(
+                            text(cursor_char) | 
+                            bgcolor(colors.foreground) | 
+                            color(colors.background) | 
+                            bold
+                        );
+                    } else {
+                        parts.push_back(
+                            text(" ") | 
+                            bgcolor(colors.foreground) | 
+                            color(colors.background) | 
+                            bold
+                        );
+                    }
+                    if (!after.empty()) {
+                        parts.push_back(syntax_highlighter_.highlightLine(after));
+                    }
+                } else {
+                    parts.push_back(text(before) | color(colors.foreground));
+                    parts.push_back(
+                        text(cursor_char) | 
+                        bgcolor(colors.foreground) | 
+                        color(colors.background) | 
+                        bold
+                    );
+                    parts.push_back(text(after) | color(colors.foreground));
+                }
+            } else {
+                if (syntax_highlighting_) {
+                    parts.push_back(syntax_highlighter_.highlightLine(line_content));
+                } else {
+                    parts.push_back(text(line_content) | color(colors.foreground));
+                }
+            }
+        } else {
+            // 有搜索匹配，需要高亮显示
+            size_t pos = 0;
+            size_t match_idx = 0;
+            
+            while (pos < line_content.length()) {
+                // 检查是否有匹配从当前位置开始
+                bool found_match = false;
+                for (size_t i = match_idx; i < line_matches.size(); ++i) {
+                    if (line_matches[i].column == pos) {
+                        // 找到匹配，高亮显示
+                        size_t match_len = line_matches[i].length;
+                        std::string match_text = line_content.substr(pos, match_len);
+                        
+                        // 检查光标是否在匹配范围内
+                        bool cursor_in_match = has_cursor && cursor_pos >= pos && cursor_pos < pos + match_len;
+                        
+                        if (cursor_in_match) {
+                            // 光标在匹配内，需要分割匹配文本
+                            size_t before_cursor = cursor_pos - pos;
+                            size_t after_cursor = pos + match_len - cursor_pos;
+                            
+                            if (before_cursor > 0) {
+                                std::string before = match_text.substr(0, before_cursor);
+                                parts.push_back(
+                                    text(before) | 
+                                    bgcolor(Color::GrayDark) | 
+                                    color(colors.foreground)
+                                );
+                            }
+                            
+                            // 光标位置的字符
+                            std::string cursor_char = match_text.substr(before_cursor, 1);
+                            parts.push_back(
+                                text(cursor_char) | 
+                                bgcolor(colors.foreground) | 
+                                color(colors.background) | 
+                                bold
+                            );
+                            
+                            if (after_cursor > 1) {
+                                std::string after = match_text.substr(before_cursor + 1);
+                                parts.push_back(
+                                    text(after) | 
+                                    bgcolor(Color::GrayDark) | 
+                                    color(colors.foreground)
+                                );
+                            }
+                        } else {
+                            // 光标不在匹配内，正常高亮匹配
+                            parts.push_back(
+                                text(match_text) | 
+                                bgcolor(Color::GrayDark) | 
+                                color(colors.foreground)
+                            );
+                        }
+                        
+                        pos += match_len;
+                        match_idx = i + 1;
+                        found_match = true;
+                        break;
+                    }
+                }
+                
+                if (!found_match) {
+                    // 没有匹配，找到下一个匹配的位置
+                    size_t next_match_pos = line_content.length();
+                    for (size_t i = match_idx; i < line_matches.size(); ++i) {
+                        if (line_matches[i].column > pos && line_matches[i].column < next_match_pos) {
+                            next_match_pos = line_matches[i].column;
+                        }
+                    }
+                    
+                    std::string segment = line_content.substr(pos, next_match_pos - pos);
+                    
+                    // 检查光标是否在这个段内
+                    if (has_cursor && cursor_pos >= pos && cursor_pos < next_match_pos) {
+                        size_t before_cursor = cursor_pos - pos;
+                        std::string before = segment.substr(0, before_cursor);
+                        std::string cursor_char = before_cursor < segment.length() ? 
+                                                  segment.substr(before_cursor, 1) : " ";
+                        std::string after = before_cursor < segment.length() ? 
+                                            segment.substr(before_cursor + 1) : "";
+                        
+                        if (syntax_highlighting_) {
+                            if (!before.empty()) {
+                                parts.push_back(syntax_highlighter_.highlightLine(before));
+                            }
+                            parts.push_back(
+                                text(cursor_char) | 
+                                bgcolor(colors.foreground) | 
+                                color(colors.background) | 
+                                bold
+                            );
+                            if (!after.empty()) {
+                                parts.push_back(syntax_highlighter_.highlightLine(after));
+                            }
+                        } else {
+                            parts.push_back(text(before) | color(colors.foreground));
+                            parts.push_back(
+                                text(cursor_char) | 
+                                bgcolor(colors.foreground) | 
+                                color(colors.background) | 
+                                bold
+                            );
+                            parts.push_back(text(after) | color(colors.foreground));
+                        }
+                    } else {
+                        // 没有光标，正常渲染
+                        if (syntax_highlighting_) {
+                            parts.push_back(syntax_highlighter_.highlightLine(segment));
+                        } else {
+                            parts.push_back(text(segment) | color(colors.foreground));
+                        }
+                    }
+                    
+                    pos = next_match_pos;
+                }
+            }
+        }
+        
+        return hbox(parts);
+    };
+    
+    content_elem = renderLineWithHighlights(content, cursor_col_, is_current);
     
     line_elements.push_back(content_elem);
     
@@ -758,7 +1057,7 @@ Element Editor::renderCommandPalette() {
 
 Element Editor::renderTerminal() {
     int height = screen_.dimy() / 3;
-    return terminal_.render(height);
+    return ui::renderTerminal(terminal_, height);
 }
 
 Element Editor::renderFilePicker() {

@@ -48,7 +48,12 @@ void Editor::handleInput(Event event) {
     
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
-    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_;
+    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ || split_dialog_.isVisible();
+    
+    // 如果当前在搜索模式，优先处理搜索输入（除了 Escape 和 Return）
+    bool in_search_mode = (mode_ == EditorMode::SEARCH);
+    bool should_skip_shortcuts = in_search_mode && (event != Event::Escape && event != Event::Return);
+    
     if (in_dialog) {
         // 对话框内的输入处理在下面
         // 但文件选择器仍然可以打开
@@ -57,8 +62,9 @@ void Editor::handleInput(Event event) {
                 return;
             }
         }
-    } else if (action != KeyAction::UNKNOWN) {
-        // 不在对话框中，处理其他全局快捷键
+    } else if (action != KeyAction::UNKNOWN && action != KeyAction::SPLIT_VIEW && !should_skip_shortcuts) {
+        // 不在对话框中，处理其他全局快捷键（除了 SPLIT_VIEW，它在文件浏览器中处理）
+        // 搜索模式下跳过（除了 Escape）
         if (action_executor_.execute(action)) {
             return;
         }
@@ -178,6 +184,55 @@ void Editor::handleInput(Event event) {
         }
     }
     
+    // 优先处理分屏对话框输入
+    if (split_dialog_.isVisible()) {
+        if (split_dialog_.handleInput(event)) {
+            return;
+        }
+    }
+    
+    // 处理鼠标事件（用于拖动分屏线）
+    if (event.is_mouse() && split_view_manager_.hasSplits()) {
+        int screen_width = screen_.dimx();
+        int screen_height = screen_.dimy();
+        
+        // 计算编辑器区域的偏移（考虑文件浏览器、标签栏等）
+        int editor_x_offset = 0;
+        int editor_y_offset = 1;  // 标签栏
+        
+        if (file_browser_.isVisible()) {
+            editor_x_offset = file_browser_width_ + 1;  // 文件浏览器宽度 + 分隔符
+        }
+        
+        // 计算编辑器区域尺寸（偏移在 handleMouseEvent 中处理）
+        int editor_width = screen_width - editor_x_offset;
+        int editor_height = screen_height - 6;  // 减去标签栏、状态栏等
+        
+        if (split_view_manager_.handleMouseEvent(event, editor_width, editor_height, editor_x_offset, editor_y_offset)) {
+            return;
+        }
+    }
+    
+    // Ctrl+L: 如果已经有分屏，显示关闭分屏对话框（在代码区也可以使用）
+    if (event == Event::CtrlL && split_view_manager_.hasSplits()) {
+        showSplitDialog();
+        return;
+    }
+    
+    // 如果有分屏，优先处理分屏导航快捷键（Ctrl+方向键）
+    if (split_view_manager_.hasSplits()) {
+        using namespace pnana::input;
+        KeyAction nav_action = key_binding_manager_.getAction(event);
+        if (nav_action == KeyAction::FOCUS_LEFT_REGION || 
+            nav_action == KeyAction::FOCUS_RIGHT_REGION ||
+            nav_action == KeyAction::FOCUS_UP_REGION ||
+            nav_action == KeyAction::FOCUS_DOWN_REGION) {
+            if (action_executor_.execute(nav_action)) {
+                return;
+            }
+        }
+    }
+    
     // 如果文件浏览器打开，处理文件浏览器输入
     // 但全局快捷键（如 Alt+A, Alt+F）应该优先处理
     if (file_browser_.isVisible()) {
@@ -195,7 +250,8 @@ void Editor::handleInput(Event event) {
     
     // 再次检查全局快捷键（如果之前没有处理）
     // 这确保在非对话框模式下，所有快捷键都能正常工作
-    if (action != KeyAction::UNKNOWN) {
+    // 但搜索模式下不处理（除了 Escape）
+    if (action != KeyAction::UNKNOWN && !should_skip_shortcuts) {
         if (action_executor_.execute(action)) {
             return;
         }
@@ -427,8 +483,9 @@ void Editor::handleNormalMode(Event event) {
 }
 
 void Editor::handleSearchMode(Event event) {
+    // 在搜索模式下，阻止所有字符输入到文档
     if (event == Event::Return) {
-        executeSearch();
+        executeSearch(true);  // 按 Enter 时移动光标
         mode_ = EditorMode::NORMAL;
     } else if (event == Event::Escape) {
         mode_ = EditorMode::NORMAL;
@@ -437,12 +494,29 @@ void Editor::handleSearchMode(Event event) {
     } else if (event == Event::Backspace) {
         if (!input_buffer_.empty()) {
             input_buffer_.pop_back();
-            setStatusMessage("Search: " + input_buffer_);
+            // 实时执行搜索（如果还有输入）
+            if (!input_buffer_.empty()) {
+                executeSearch(false);  // 实时搜索时不移动光标
+            } else {
+                search_engine_.clearSearch();
+                setStatusMessage("Search: ");
+            }
+        } else {
+            setStatusMessage("Search: ");
         }
     } else if (event.is_character()) {
-        input_buffer_ += event.character();
-        setStatusMessage("Search: " + input_buffer_);
+        // 只接受可打印字符
+        std::string ch = event.character();
+        if (ch.length() == 1) {
+            char c = ch[0];
+            if (c >= 32 && c < 127) {
+                input_buffer_ += ch;
+                // 实时执行搜索（不移动光标，只高亮）
+                executeSearch(false);
+            }
+        }
     }
+    // 其他事件（如方向键等）在搜索模式下被忽略，不会传递到文档编辑
 }
 
 void Editor::handleReplaceMode(Event event) {
@@ -496,6 +570,35 @@ void Editor::handleFileBrowserInput(Event event) {
     KeyAction action = key_binding_manager_.getAction(event);
     if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER) {
         if (action_executor_.execute(action)) {
+            return;
+        }
+    }
+    
+    // Ctrl+L: 在文件浏览器中选择文件后，触发分屏或关闭分屏
+    // 直接检查事件，因为 Ctrl+L 不在全局快捷键中
+    if (event == Event::CtrlL) {
+        // 如果已经有分屏，直接显示关闭分屏对话框
+        if (split_view_manager_.hasSplits()) {
+            showSplitDialog();
+            return;
+        }
+        
+        // 没有分屏，检查是否有选中的文件
+        if (file_browser_.hasSelection()) {
+            std::string selected_file = file_browser_.getSelectedFile();
+            if (!selected_file.empty()) {
+                // 有选中的文件，打开分屏对话框
+                // 先打开文件，然后分屏
+                openFile(selected_file);
+                showSplitDialog();
+                return;
+            } else {
+                // 选中的是目录，提示用户选择文件
+                setStatusMessage("Please select a file first, then press Ctrl+L to split");
+                return;
+            }
+        } else {
+            setStatusMessage("Please select a file first, then press Ctrl+L to split");
             return;
         }
     }
@@ -681,7 +784,7 @@ void Editor::replaceAll() {
     setStatusMessage("Replace All not yet implemented");
 }
 
-void Editor::executeSearch() {
+void Editor::executeSearch(bool move_cursor) {
     if (input_buffer_.empty()) {
         setStatusMessage("Empty search pattern");
         return;
@@ -693,9 +796,12 @@ void Editor::executeSearch() {
     if (search_engine_.hasMatches()) {
         const auto* match = search_engine_.getCurrentMatch();
         if (match) {
-            cursor_row_ = match->line;
-            cursor_col_ = match->column;
-            adjustViewOffset();
+            if (move_cursor) {
+                // 只在按 Enter 时移动光标
+                cursor_row_ = match->line;
+                cursor_col_ = match->column;
+                adjustViewOffset();
+            }
             
             std::ostringstream oss;
             oss << "Found " << search_engine_.getTotalMatches() << " matches";
