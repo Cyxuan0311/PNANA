@@ -653,6 +653,21 @@ void Editor::openFilePicker() {
     // 显示文件选择器（默认选择文件和文件夹）
     file_picker_.show(start_path, ui::FilePickerType::BOTH,
         [this](const std::string& path) {
+            // 检查路径是否是目录
+            try {
+                if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+                    // 如果是目录，更新文件浏览器的当前目录
+                    if (file_browser_.openDirectory(path)) {
+                        setStatusMessage("Changed to directory: " + path);
+                    } else {
+                        setStatusMessage("Failed to open directory: " + path);
+                    }
+                    return;
+                }
+            } catch (...) {
+                // 如果检查失败，继续尝试打开（可能是新文件）
+            }
+            
             // 选择文件后打开
             if (openFile(path)) {
                 setStatusMessage("Opened: " + path);

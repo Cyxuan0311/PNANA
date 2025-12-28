@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
+#include <filesystem>
 
 namespace pnana {
 namespace core {
@@ -26,6 +27,16 @@ Document::Document(const std::string& filepath)
 }
 
 bool Document::load(const std::string& filepath) {
+    // 检查路径是否是目录
+    try {
+        if (std::filesystem::exists(filepath) && std::filesystem::is_directory(filepath)) {
+            last_error_ = "Cannot open directory as file: " + filepath;
+            return false;
+        }
+    } catch (...) {
+        // 如果检查失败，继续尝试打开（可能是新文件）
+    }
+    
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
         // 如果文件不存在，创建新文件
