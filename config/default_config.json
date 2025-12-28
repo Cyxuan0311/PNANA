@@ -1,0 +1,41 @@
+{
+  "editor": {
+    "theme": "monokai",
+    "font_size": 12,
+    "tab_size": 4,
+    "insert_spaces": true,
+    "word_wrap": false,
+    "auto_indent": true
+  },
+  "display": {
+    "show_line_numbers": true,
+    "relative_line_numbers": false,
+    "highlight_current_line": true,
+    "show_whitespace": false
+  },
+  "files": {
+    "encoding": "UTF-8",
+    "line_ending": "LF",
+    "trim_trailing_whitespace": true,
+    "insert_final_newline": true,
+    "auto_save": false,
+    "auto_save_interval": 60
+  },
+  "search": {
+    "case_sensitive": false,
+    "whole_word": false,
+    "regex": false,
+    "wrap_around": true
+  },
+  "themes": {
+    "available": [
+      "monokai",
+      "dracula",
+      "solarized-dark",
+      "solarized-light",
+      "onedark",
+      "nord"
+    ]
+  }
+}
+
