@@ -1,1 +1,5 @@
 build/
+lib/
+logs/
+
+优化.md
