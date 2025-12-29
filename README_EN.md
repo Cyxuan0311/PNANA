@@ -159,22 +159,6 @@ This project is inspired by the following excellent projects:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🙏 Contributing
-
-Issues and Pull Requests are welcome!
-
-### How to Contribute
-1. Fork this repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-**Development Plans**: See [Development Roadmap](docs/ROADMAP.md)
-
-## 👥 Authors
-
-The Linux Command Pro Team
 
 ## 🌟 Star History
 

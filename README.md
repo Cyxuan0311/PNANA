@@ -159,23 +159,6 @@ pnana --readonly file.txt
 
 本项目采用MIT许可证 - 详见LICENSE文件。
 
-## 🙏 贡献
-
-欢迎提交Issue和Pull Request！
-
-### 如何贡献
-1. Fork本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启Pull Request
-
-**开发计划**：请查看 [开发路线图](docs/ROADMAP.md)
-
-## 👥 作者
-
-The Linux Command Pro Team
-
 ## 🌟 Star History
 
 如果这个项目对你有帮助，请给个star⭐️！
