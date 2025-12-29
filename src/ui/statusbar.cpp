@@ -72,8 +72,8 @@ Element Statusbar::render(
     );
     }
     
-    // 文件类型图标和文件名
-    std::string file_display = filename.empty() ? "[未命名]" : filename;
+    // 文件 type icon and filename
+    std::string file_display = filename.empty() ? "[Untitled]" : filename;
     std::string file_icon = getFileTypeIcon(file_type);
     if (!file_icon.empty()) {
         left_elements.push_back(

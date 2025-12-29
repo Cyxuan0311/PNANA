@@ -58,69 +58,94 @@ Element renderTerminal(features::Terminal& terminal, int height) {
     
     Elements input_elements;
     
-    // 第一部分：用户名@主机名（绿色）
-    std::string user_host = terminal.getUsername() + "@" + terminal.getHostname();
+    // 优化后的提示符样式（类似 zsh/powerlevel10k）
+    // 第一部分：用户名（绿色，粗体）
+    std::string username = terminal.getUsername();
     input_elements.push_back(
-        text(user_host) | color(Color::Green) | bold
+        text(username) | color(Color::Green) | bold
     );
     
-    // 第二部分：时间戳（浅蓝色）
+    // @ 符号（白色）
+    input_elements.push_back(
+        text("@") | color(Color::White) | dim
+    );
+    
+    // 主机名（绿色）
+    std::string hostname = terminal.getHostname();
+    input_elements.push_back(
+        text(hostname) | color(Color::Green) | bold
+    );
+    
+    // 分隔符（白色点）
+    input_elements.push_back(
+        text(" · ") | color(Color::White) | dim
+    );
+    
+    // 第二部分：时间戳（浅蓝色，小写）
     std::string time_str = terminal.getCurrentTime();
-    input_elements.push_back(text(" ") | color(Color::White));
     input_elements.push_back(
         text(time_str) | color(Color::Cyan) | dim
     );
     
-    // 第三部分：目录路径（浅蓝色）
+    // 分隔符
+    input_elements.push_back(
+        text(" · ") | color(Color::White) | dim
+    );
+    
+    // 第三部分：目录路径（蓝色，高亮）
     std::string dir = terminal.getCurrentDir();
     const char* home = getenv("HOME");
     if (home && dir.find(home) == 0) {
         dir = "~" + dir.substr(strlen(home));
     }
     // 如果目录名太长，只显示最后一部分
-    if (dir.length() > 30) {
+    if (dir.length() > 25) {
         size_t last_slash = dir.find_last_of('/');
         if (last_slash != std::string::npos && last_slash < dir.length() - 1) {
             dir = "..." + dir.substr(last_slash);
         }
     }
-    input_elements.push_back(text(" ") | color(Color::White));
     input_elements.push_back(
-        text(dir) | color(Color::Cyan)
+        text(dir) | color(Color::Blue) | bold
     );
     
-    // 第四部分：Git 分支（红色，如果有）
+    // 第四部分：Git 分支（如果有，使用更醒目的颜色）
     std::string git_branch = terminal.getGitBranch();
     if (!git_branch.empty()) {
-        input_elements.push_back(text(" ") | color(Color::White));
         input_elements.push_back(
-            text(git_branch) | color(Color::Red) | bold
+            text(" · ") | color(Color::White) | dim
+        );
+        // Git 分支图标和名称
+        input_elements.push_back(
+            text("git:") | color(Color::Yellow) | dim
+        );
+        input_elements.push_back(
+            text(" " + git_branch) | color(Color::Yellow) | bold
         );
     }
     
-    // 提示符结束符号（绿色箭头）
-    input_elements.push_back(text(" ") | color(Color::White));
+    // 提示符结束符号（绿色箭头，更醒目）
     input_elements.push_back(
-        text(">") | color(Color::Green) | bold
+        text(" → ") | color(Color::Green) | bold
     );
-    input_elements.push_back(text(" ") | color(Color::White));
     
-    // 用户输入
-    input_elements.push_back(text(before_cursor) | color(colors.foreground));
-    // 块状光标
+    // 用户输入（白色，更清晰）
+    input_elements.push_back(text(before_cursor) | color(Color::White));
+    
+    // 块状光标（更醒目的样式）
     if (cursor_position < current_input.length()) {
         input_elements.push_back(
             text(cursor_char) | 
-            bgcolor(colors.foreground) | 
-            color(colors.background) | 
+            bgcolor(Color::Green) | 
+            color(Color::Black) | 
             bold
         );
-        input_elements.push_back(text(after_cursor) | color(colors.foreground));
+        input_elements.push_back(text(after_cursor) | color(Color::White));
     } else {
-        // 光标在行尾（显示为闪烁的竖线）
+        // 光标在行尾（显示为绿色竖线）
         input_elements.push_back(
             text("│") | 
-            color(colors.foreground) | 
+            color(Color::Green) | 
             bold
         );
     }

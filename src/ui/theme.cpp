@@ -1,4 +1,5 @@
 #include "ui/theme.h"
+#include <vector>
 
 using namespace ftxui;
 
@@ -432,6 +433,13 @@ ThemeColors Theme::GitHub() {
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
     
+    // 首先检查是否是自定义主题
+    if (custom_themes_.find(name) != custom_themes_.end()) {
+        colors_ = custom_themes_[name];
+        return;
+    }
+    
+    // 否则使用预设主题
     if (name == "monokai") {
         colors_ = Monokai();
     } else if (name == "dracula") {
@@ -459,6 +467,81 @@ void Theme::setTheme(const std::string& name) {
     } else {
         colors_ = Monokai(); // 默认主题
     }
+}
+
+bool Theme::loadCustomTheme(const std::string& name, const ThemeColors& colors) {
+    custom_themes_[name] = colors;
+    return true;
+}
+
+bool Theme::loadThemeFromConfig(const std::vector<int>& background,
+                                const std::vector<int>& foreground,
+                                const std::vector<int>& current_line,
+                                const std::vector<int>& selection,
+                                const std::vector<int>& line_number,
+                                const std::vector<int>& line_number_current,
+                                const std::vector<int>& statusbar_bg,
+                                const std::vector<int>& statusbar_fg,
+                                const std::vector<int>& menubar_bg,
+                                const std::vector<int>& menubar_fg,
+                                const std::vector<int>& helpbar_bg,
+                                const std::vector<int>& helpbar_fg,
+                                const std::vector<int>& helpbar_key,
+                                const std::vector<int>& keyword,
+                                const std::vector<int>& string,
+                                const std::vector<int>& comment,
+                                const std::vector<int>& number,
+                                const std::vector<int>& function,
+                                const std::vector<int>& type,
+                                const std::vector<int>& operator_color,
+                                const std::vector<int>& error,
+                                const std::vector<int>& warning,
+                                const std::vector<int>& info,
+                                const std::vector<int>& success) {
+    ThemeColors colors;
+    
+    if (background.size() >= 3) colors.background = rgbToColor(background);
+    if (foreground.size() >= 3) colors.foreground = rgbToColor(foreground);
+    if (current_line.size() >= 3) colors.current_line = rgbToColor(current_line);
+    if (selection.size() >= 3) colors.selection = rgbToColor(selection);
+    if (line_number.size() >= 3) colors.line_number = rgbToColor(line_number);
+    if (line_number_current.size() >= 3) colors.line_number_current = rgbToColor(line_number_current);
+    if (statusbar_bg.size() >= 3) colors.statusbar_bg = rgbToColor(statusbar_bg);
+    if (statusbar_fg.size() >= 3) colors.statusbar_fg = rgbToColor(statusbar_fg);
+    if (menubar_bg.size() >= 3) colors.menubar_bg = rgbToColor(menubar_bg);
+    if (menubar_fg.size() >= 3) colors.menubar_fg = rgbToColor(menubar_fg);
+    if (helpbar_bg.size() >= 3) colors.helpbar_bg = rgbToColor(helpbar_bg);
+    if (helpbar_fg.size() >= 3) colors.helpbar_fg = rgbToColor(helpbar_fg);
+    if (helpbar_key.size() >= 3) colors.helpbar_key = rgbToColor(helpbar_key);
+    if (keyword.size() >= 3) colors.keyword = rgbToColor(keyword);
+    if (string.size() >= 3) colors.string = rgbToColor(string);
+    if (comment.size() >= 3) colors.comment = rgbToColor(comment);
+    if (number.size() >= 3) colors.number = rgbToColor(number);
+    if (function.size() >= 3) colors.function = rgbToColor(function);
+    if (type.size() >= 3) colors.type = rgbToColor(type);
+    if (operator_color.size() >= 3) colors.operator_color = rgbToColor(operator_color);
+    if (error.size() >= 3) colors.error = rgbToColor(error);
+    if (warning.size() >= 3) colors.warning = rgbToColor(warning);
+    if (info.size() >= 3) colors.info = rgbToColor(info);
+    if (success.size() >= 3) colors.success = rgbToColor(success);
+    
+    colors_ = colors;
+    return true;
+}
+
+ftxui::Color Theme::rgbToColor(const std::vector<int>& rgb) {
+    if (rgb.size() >= 3) {
+        return Color::RGB(rgb[0], rgb[1], rgb[2]);
+    }
+    return Color::Default;
+}
+
+std::vector<std::string> Theme::getAvailableThemes() {
+    return {
+        "monokai", "dracula", "solarized-dark", "solarized-light",
+        "onedark", "nord", "gruvbox", "tokyo-night",
+        "catppuccin", "material", "ayu", "github"
+    };
 }
 
 } // namespace ui
