@@ -3,6 +3,7 @@
 
 #include <ftxui/screen/color.hpp>
 #include <string>
+#include <vector>
 #include <map>
 
 namespace pnana {
@@ -64,12 +65,51 @@ public:
     static ThemeColors GitHub();      // GitHub
     
     void setTheme(const std::string& name);
+    
+    // 从配置加载自定义主题
+    bool loadCustomTheme(const std::string& name, const ThemeColors& colors);
+    
+    // 从颜色配置结构加载主题
+    bool loadThemeFromConfig(const std::vector<int>& background,
+                            const std::vector<int>& foreground,
+                            const std::vector<int>& current_line,
+                            const std::vector<int>& selection,
+                            const std::vector<int>& line_number,
+                            const std::vector<int>& line_number_current,
+                            const std::vector<int>& statusbar_bg,
+                            const std::vector<int>& statusbar_fg,
+                            const std::vector<int>& menubar_bg,
+                            const std::vector<int>& menubar_fg,
+                            const std::vector<int>& helpbar_bg,
+                            const std::vector<int>& helpbar_fg,
+                            const std::vector<int>& helpbar_key,
+                            const std::vector<int>& keyword,
+                            const std::vector<int>& string,
+                            const std::vector<int>& comment,
+                            const std::vector<int>& number,
+                            const std::vector<int>& function,
+                            const std::vector<int>& type,
+                            const std::vector<int>& operator_color,
+                            const std::vector<int>& error,
+                            const std::vector<int>& warning,
+                            const std::vector<int>& info,
+                            const std::vector<int>& success);
+    
     const ThemeColors& getColors() const { return colors_; }
     std::string getCurrentThemeName() const { return current_theme_; }
+    
+    // 获取所有可用的主题名称
+    static std::vector<std::string> getAvailableThemes();
     
 private:
     ThemeColors colors_;
     std::string current_theme_;
+    
+    // 自定义主题存储
+    std::map<std::string, ThemeColors> custom_themes_;
+    
+    // 辅助方法：从 RGB 数组创建 Color
+    static ftxui::Color rgbToColor(const std::vector<int>& rgb);
 };
 
 } // namespace ui
