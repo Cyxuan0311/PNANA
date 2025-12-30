@@ -1,10 +1,7 @@
 #include "features/file_browser.h"
-#include "ui/icons.h"
+#include "ui/file_browser_view.h"
 #include <algorithm>
 #include <cctype>
-#include <ftxui/dom/elements.hpp>
-
-using namespace ftxui;
 
 namespace pnana {
 namespace features {
@@ -271,308 +268,25 @@ std::string FileBrowser::getSelectedName() const {
     return flat_items_[selected_index_]->name;
 }
 
+bool FileBrowser::selectItemByName(const std::string& name) {
+    // 在展平的项目列表中查找匹配名称的项目
+    for (size_t i = 0; i < flat_items_.size(); ++i) {
+        if (flat_items_[i]->name == name) {
+            selected_index_ = i;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool FileBrowser::hasSelection() const {
     return !flat_items_.empty() && selected_index_ < flat_items_.size();
 }
 
-std::string FileBrowser::truncateMiddle(const std::string& str, size_t max_length) const {
-    if (str.length() <= max_length) {
-        return str;
-    }
-    
-    if (max_length < 5) {
-        return str.substr(0, max_length);
-    }
-    
-    // 计算两端保留的长度
-    size_t left_len = (max_length - 3) / 2;
-    size_t right_len = max_length - 3 - left_len;
-    
-    return str.substr(0, left_len) + "..." + str.substr(str.length() - right_len);
-}
-
-Element FileBrowser::render(int height) {
-    auto& colors = theme_.getColors();
-    
-    Elements content;
-    
-    // 标题栏（Neovim 风格）
-    content.push_back(
-        hbox({
-            text(" "),
-            text(ui::icons::FOLDER_OPEN) | color(colors.function),
-            text(" "),
-            text(current_directory_) | bold | color(colors.foreground),
-            filler(),
-            text(" ") | color(colors.comment)
-        }) | bgcolor(colors.menubar_bg)
-    );
-    
-    content.push_back(separator());
-    
-    // 文件列表
-    size_t visible_start = 0;
-    size_t visible_count = static_cast<size_t>(height - 5);  // 减去标题、分隔符和底部状态栏（2行）
-    
-    // 调整滚动位置
-    if (selected_index_ >= visible_start + visible_count) {
-        visible_start = selected_index_ - visible_count + 1;
-    }
-    if (selected_index_ < visible_start) {
-        visible_start = selected_index_;
-    }
-    
-    // 渲染文件列表（Neovim 风格）
-    for (size_t i = visible_start; 
-         i < flat_items_.size() && i < visible_start + visible_count; 
-         ++i) {
-        FileItem* item = flat_items_[i];
-        
-        std::string icon = getFileIcon(*item);
-        Color item_color = getFileColor(*item);
-        
-        // 构建树形结构连接线（Neovim 风格）
-        std::string tree_prefix = "";
-        for (int d = 0; d < item->depth; ++d) {
-            // 检查这个深度层级是否有后续兄弟节点
-            bool has_sibling = false;
-            for (size_t j = i + 1; j < flat_items_.size(); ++j) {
-                if (flat_items_[j]->depth == d) {
-                    has_sibling = true;
-                    break;
-                }
-                if (flat_items_[j]->depth < d) {
-                    break;
-                }
-            }
-            
-            if (has_sibling) {
-                tree_prefix += "│ ";  // 有后续兄弟，显示竖线
-            } else {
-                tree_prefix += "  ";  // 没有后续兄弟，显示空格
-            }
-        }
-        
-        // 展开/折叠图标和连接线（Neovim 风格）
-        std::string expand_prefix = "";
-        std::string expand_icon = "";
-        
-        // 检查是否有后续兄弟节点（同深度）
-        bool has_sibling = false;
-        for (size_t j = i + 1; j < flat_items_.size(); ++j) {
-            if (flat_items_[j]->depth == item->depth) {
-                has_sibling = true;
-                break;
-            }
-            if (flat_items_[j]->depth < item->depth) {
-                break;
-            }
-        }
-        
-        if (item->is_directory) {
-            if (item->expanded) {
-                expand_prefix = has_sibling ? "├─" : "└─";  // 展开状态
-                expand_icon = "▼";
-            } else {
-                expand_prefix = has_sibling ? "├─" : "└─";  // 折叠状态
-                expand_icon = "▶";
-            }
-        } else {
-            // 文件使用相同的连接线
-            expand_prefix = has_sibling ? "├─" : "└─";
-            expand_icon = " ";
-        }
-        
-        std::string display_name = item->name;
-        
-        // 构建行元素（Neovim 风格）
-        Elements row_elements = {
-            text(" "),
-            text(tree_prefix) | color(colors.comment),
-            text(expand_prefix) | color(colors.comment),
-            text(expand_icon) | color(item_color),
-            text(" "),
-            text(icon) | color(item_color),
-            text(" "),
-            text(display_name) | color(item_color)
-        };
-        
-        auto item_text = hbox(row_elements);
-        
-        // 选中项高亮（Neovim 风格）
-        if (i == selected_index_) {
-            item_text = item_text | bgcolor(colors.selection) | bold;
-        } else {
-            item_text = item_text | bgcolor(colors.background);
-        }
-        
-        content.push_back(item_text);
-    }
-    
-    // 填充空行（留出底部状态栏空间）
-    while (content.size() < static_cast<size_t>(height - 2)) {
-        content.push_back(text(""));
-    }
-    
-    // Bottom status bar: show selected file's full path
-    content.push_back(separator());
-    
-    std::string selected_path_display = "";
-    if (hasSelection()) {
-        std::string full_path = getSelectedPath();
-        // Limit path length to 40 characters, truncate middle if exceeded
-        selected_path_display = truncateMiddle(full_path, 40);
-    } else {
-        selected_path_display = "No selection";
-    }
-    
-    content.push_back(
-        hbox({
-            text(" "),
-            text(ui::icons::LOCATION) | color(colors.keyword),
-            text(" "),
-            text(selected_path_display) | color(colors.comment)
-        }) | bgcolor(colors.menubar_bg)
-    );
-    
-    return vbox(content) | bgcolor(colors.background);
-}
-
-std::string FileBrowser::getFileIcon(const FileItem& item) const {
-    if (item.is_directory) {
-        if (item.name == "..") {
-            return ui::icons::FOLDER_UP; // 上级目录
-        }
-        return ui::icons::FOLDER; // 文件夹图标
-    }
-    
-    std::string ext = getFileExtension(item.name);
-    std::string name_lower = item.name;
-    std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
-    
-    // 根据扩展名返回图标（使用 JetBrains Nerd Font 图标）
-    
-    // C/C++ 文件
-    if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "c++") return ui::icons::CPP;
-    if (ext == "h" || ext == "hpp" || ext == "hxx" || ext == "hh") return ui::icons::CPP;
-    if (ext == "c") return ui::icons::C;
-    
-    // 脚本语言
-    if (ext == "py" || ext == "pyw" || ext == "pyi") return ui::icons::PYTHON;
-    if (ext == "js" || ext == "jsx" || ext == "mjs") return ui::icons::JAVASCRIPT;
-    if (ext == "ts" || ext == "tsx") return ui::icons::TYPESCRIPT;
-    if (ext == "rb" || ext == "rbw") return ui::icons::RUBY;
-    if (ext == "php" || ext == "php3" || ext == "php4" || ext == "php5" || ext == "phtml") return ui::icons::PHP;
-    if (ext == "sh" || ext == "bash" || ext == "zsh" || ext == "fish") return ui::icons::SHELL;
-    if (name_lower == "makefile" || name_lower == "makefile.am" || name_lower == "makefile.in") return ui::icons::MAKEFILE;
-    
-    // 编译语言
-    if (ext == "java" || ext == "class" || ext == "jar") return ui::icons::JAVA;
-    if (ext == "go") return ui::icons::GO;
-    if (ext == "rs") return ui::icons::RUST;
-    
-    // Web 技术
-    if (ext == "html" || ext == "htm" || ext == "xhtml") return ui::icons::HTML;
-    if (ext == "css" || ext == "scss" || ext == "sass" || ext == "less") return ui::icons::CSS;
-    
-    // 数据格式
-    if (ext == "json" || ext == "jsonc") return ui::icons::JSON;
-    if (ext == "xml" || ext == "xsd" || ext == "xsl") return ui::icons::XML;
-    if (ext == "yml" || ext == "yaml") return ui::icons::YAML;
-    if (ext == "toml") return ui::icons::CONFIG;
-    
-    // 文档
-    if (ext == "md" || ext == "markdown") return ui::icons::MARKDOWN;
-    if (ext == "txt" || ext == "log") return ui::icons::FILE_TEXT;
-    if (ext == "pdf") return ui::icons::PDF;
-    
-    // 数据库
-    if (ext == "sql") return ui::icons::SQL;
-    if (ext == "db" || ext == "sqlite" || ext == "sqlite3" || ext == "db3") return ui::icons::DATABASE;
-    
-    // 图片
-    if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "gif" || 
-        ext == "bmp" || ext == "svg" || ext == "ico" || ext == "webp") {
-        return ui::icons::IMAGE;
-    }
-    
-    // 视频
-    if (ext == "mp4" || ext == "avi" || ext == "mov" || ext == "wmv" || 
-        ext == "flv" || ext == "mkv" || ext == "webm") {
-        return ui::icons::VIDEO;
-    }
-    
-    // 音频
-    if (ext == "mp3" || ext == "wav" || ext == "flac" || ext == "aac" || 
-        ext == "ogg" || ext == "m4a") {
-        return ui::icons::AUDIO;
-    }
-    
-    // 压缩包
-    if (ext == "zip" || ext == "tar" || ext == "gz" || ext == "bz2" || 
-        ext == "xz" || ext == "7z" || ext == "rar" || ext == "z") {
-        return ui::icons::ARCHIVE;
-    }
-    
-    // 配置文件
-    if (ext == "conf" || ext == "config" || ext == "ini" || ext == "cfg" || 
-        ext == "properties" || name_lower == ".gitignore" || name_lower == ".gitconfig" ||
-        name_lower == ".gitattributes") {
-        return ui::icons::CONFIG;
-    }
-    
-    // Git 相关
-    if (name_lower == ".gitignore" || name_lower == ".gitattributes" || 
-        name_lower == ".gitmodules" || name_lower == ".gitconfig") {
-        return ui::icons::GITIGNORE;
-    }
-    
-    // CMake
-    if (ext == "cmake" || name_lower == "cmakelists.txt") return ui::icons::CMAKE;
-    
-    // Docker
-    if (name_lower == "dockerfile" || ext == "dockerignore") return ui::icons::DOCKER;
-    
-    // 可执行文件（Unix）
-    if (ext == "exe" || ext == "bin" || ext == "out" || ext == "app") {
-        return ui::icons::EXECUTABLE;
-    }
-    
-    return ui::icons::FILE; // 默认文件图标
-}
-
-std::string FileBrowser::getFileExtension(const std::string& filename) const {
-    size_t pos = filename.find_last_of('.');
-    if (pos != std::string::npos && pos > 0) {
-        return filename.substr(pos + 1);
-    }
-    return "";
-}
-
-Color FileBrowser::getFileColor(const FileItem& item) const {
-    auto& colors = theme_.getColors();
-    
-    if (item.is_directory) {
-        return colors.function;  // 蓝色
-    }
-    
-    std::string ext = getFileExtension(item.name);
-    
-    // 根据文件类型返回颜色
-    if (ext == "cpp" || ext == "c" || ext == "h" || ext == "hpp") {
-        return colors.keyword;  // 紫色
-    }
-    if (ext == "py" || ext == "js" || ext == "ts" || ext == "java") {
-        return colors.string;  // 绿色
-    }
-    if (ext == "md" || ext == "txt") {
-        return colors.foreground;  // 白色
-    }
-    if (ext == "json" || ext == "xml" || ext == "yml") {
-        return colors.number;  // 橙色
-    }
-    
-    return colors.comment;  // 灰色
+// 为了保持向后兼容，保留 render 方法，但使用 FileBrowserView
+ftxui::Element FileBrowser::render(int height) {
+    static ui::FileBrowserView view(theme_);
+    return view.render(*this, height);
 }
 
 bool FileBrowser::renameSelected(const std::string& new_name) {

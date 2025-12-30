@@ -4,6 +4,36 @@
 
 using namespace ftxui;
 
+namespace {
+    // UTF-8字符边界检测辅助函数
+    // 返回UTF-8字符的字节数（1-4）
+    inline size_t getUtf8CharLength(unsigned char first_byte) {
+        if ((first_byte & 0x80) == 0) return 1;  // ASCII字符
+        if ((first_byte & 0xE0) == 0xC0) return 2;  // 2字节字符
+        if ((first_byte & 0xF0) == 0xE0) return 3;  // 3字节字符
+        if ((first_byte & 0xF8) == 0xF0) return 4;  // 4字节字符
+        return 1;  // 无效的UTF-8，按单字节处理
+    }
+    
+    // 检查字符是否是ASCII字母或数字（用于标识符）
+    inline bool isAsciiAlnum(unsigned char c) {
+        return std::isalnum(c) && c < 128;
+    }
+    
+    // 检查字符是否是ASCII字母（用于标识符）
+    inline bool isAsciiAlpha(unsigned char c) {
+        return std::isalpha(c) && c < 128;
+    }
+    
+    // 安全地获取字符（处理UTF-8多字节字符）
+    inline size_t skipUtf8Char(const std::string& str, size_t pos) {
+        if (pos >= str.length()) return pos;
+        unsigned char c = static_cast<unsigned char>(str[pos]);
+        size_t len = getUtf8CharLength(c);
+        return std::min(pos + len, str.length());
+    }
+}
+
 namespace pnana {
 namespace features {
 
@@ -87,11 +117,25 @@ ftxui::Element SyntaxHighlighter::highlightLine(const std::string& line) {
         return text("");
     }
     
+    // 对于超长行，限制处理长度以提高性能（支持长行但不卡顿）
+    const size_t MAX_LINE_LENGTH = 10000;  // 最大处理长度
+    std::string processed_line = line;
+    bool is_truncated = false;
+    if (line.length() > MAX_LINE_LENGTH) {
+        processed_line = line.substr(0, MAX_LINE_LENGTH);
+        is_truncated = true;
+    }
+    
     // 根据文件类型分词
-    std::vector<Token> tokens = tokenize(line);
+    std::vector<Token> tokens = tokenize(processed_line);
     
     if (tokens.empty()) {
-        return text(line) | color(theme_.getColors().foreground);
+        Element result = text(processed_line) | color(theme_.getColors().foreground);
+        if (is_truncated) {
+            // 如果被截断，添加省略号
+            return hbox({result, text("...") | color(theme_.getColors().comment)});
+        }
+        return result;
     }
     
     // 渲染每个token
@@ -99,6 +143,11 @@ ftxui::Element SyntaxHighlighter::highlightLine(const std::string& line) {
     for (const auto& token : tokens) {
         Color token_color = getColorForToken(token.type);
         elements.push_back(text(token.text) | color(token_color));
+    }
+    
+    // 如果被截断，添加省略号
+    if (is_truncated) {
+        elements.push_back(text("...") | color(theme_.getColors().comment));
     }
     
     return hbox(elements);
@@ -177,8 +226,18 @@ std::vector<Token> SyntaxHighlighter::tokenizeCpp(const std::string& line) {
             i++;
             // 跳过空白
             while (i < line.length() && std::isspace(line[i])) i++;
-            // 读取指令
-            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_')) i++;
+            // 读取指令（只匹配ASCII字符）
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    // UTF-8多字节字符，停止
+                    break;
+                } else {
+                    break;
+                }
+            }
             // 读取参数（直到行尾或注释）
             while (i < line.length() && line[i] != '\n' && 
                    !(i + 1 < line.length() && line[i] == '/' && line[i + 1] == '/')) {
@@ -270,10 +329,23 @@ std::vector<Token> SyntaxHighlighter::tokenizeCpp(const std::string& line) {
             continue;
         }
         
-        // 标识符/关键字
-        if (std::isalpha(line[i]) || line[i] == '_') {
+        // 标识符/关键字（支持ASCII字符，正确处理UTF-8多字节字符如中文）
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (isAsciiAlpha(c) || line[i] == '_') {
             size_t start = i;
-            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_')) i++;
+            // 只匹配ASCII字母数字和下划线，跳过UTF-8多字节字符（如中文）
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
+                    break;
+                } else {
+                    // 其他ASCII字符，停止
+                    break;
+                }
+            }
             std::string word = line.substr(start, i - start);
             
             TokenType type = TokenType::NORMAL;
@@ -479,10 +551,23 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
             }
         }
         
-        // 标识符/关键字
-        if (std::isalpha(line[i]) || line[i] == '_') {
+        // 标识符/关键字（支持ASCII字符，正确处理UTF-8多字节字符如中文）
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (isAsciiAlpha(c) || line[i] == '_') {
             size_t start = i;
-            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_')) i++;
+            // 只匹配ASCII字母数字和下划线，跳过UTF-8多字节字符（如中文）
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
+                    break;
+                } else {
+                    // 其他ASCII字符，停止
+                    break;
+                }
+            }
             std::string word = line.substr(start, i - start);
             
             TokenType type = TokenType::NORMAL;
@@ -633,10 +718,23 @@ std::vector<Token> SyntaxHighlighter::tokenizeJavaScript(const std::string& line
             continue;
         }
         
-        // 标识符/关键字
-        if (std::isalpha(line[i]) || line[i] == '_' || line[i] == '$') {
+        // 标识符/关键字（支持ASCII字符，正确处理UTF-8多字节字符如中文）
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (isAsciiAlpha(c) || line[i] == '_' || line[i] == '$') {
             size_t start = i;
-            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_' || line[i] == '$')) i++;
+            // 只匹配ASCII字母数字、下划线和$，跳过UTF-8多字节字符（如中文）
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_' || ch == '$') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
+                    break;
+                } else {
+                    // 其他ASCII字符，停止
+                    break;
+                }
+            }
             std::string word = line.substr(start, i - start);
             
             TokenType type = TokenType::NORMAL;
@@ -749,6 +847,8 @@ std::vector<Token> SyntaxHighlighter::tokenizeMarkdown(const std::string& line) 
     
     // 行内代码 `code`
     while (i < line.length()) {
+        size_t old_i = i;  // 记录当前位置，防止无限循环
+        
         if (line[i] == '`') {
             size_t start = i;
             i++;
@@ -818,6 +918,11 @@ std::vector<Token> SyntaxHighlighter::tokenizeMarkdown(const std::string& line) 
                     i++;
                 }
                 continue;
+            } else {
+                // 没有匹配的]，作为普通字符处理
+                tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+                i++;
+                continue;
             }
         }
         
@@ -837,6 +942,12 @@ std::vector<Token> SyntaxHighlighter::tokenizeMarkdown(const std::string& line) 
         }
         if (i > text_start) {
             tokens.push_back({line.substr(text_start, i - text_start), TokenType::NORMAL, text_start, i});
+        }
+        
+        // 防止无限循环：如果i没有增加，强制增加1
+        if (i == old_i) {
+            tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+            i++;
         }
     }
     
@@ -889,10 +1000,23 @@ std::vector<Token> SyntaxHighlighter::tokenizeShell(const std::string& line) {
             continue;
         }
         
-        // 命令/关键字
-        if (std::isalpha(line[i])) {
+        // 命令/关键字（支持ASCII字符，正确处理UTF-8多字节字符如中文）
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (isAsciiAlpha(c)) {
             size_t start = i;
-            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_' || line[i] == '-')) i++;
+            // 只匹配ASCII字母数字、下划线和-，跳过UTF-8多字节字符（如中文）
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_' || ch == '-') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
+                    break;
+                } else {
+                    // 其他ASCII字符，停止
+                    break;
+                }
+            }
             std::string word = line.substr(start, i - start);
             
             TokenType type = isKeyword(word) ? TokenType::KEYWORD : TokenType::NORMAL;
