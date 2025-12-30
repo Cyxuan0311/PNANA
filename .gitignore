@@ -1,5 +1,8 @@
 build/
 lib/
 logs/
+.cache/
 
 优化.md
+pnana.log
+C++ 终端编辑器 LSP 客户端与 jsonrpccpp 的集成方案.md
