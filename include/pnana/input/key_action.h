@@ -34,6 +34,7 @@ enum class KeyAction {
     INDENT_LINE,
     UNINDENT_LINE,
     TOGGLE_COMMENT,
+    TRIGGER_COMPLETION,  // 触发代码补全
     
     // 搜索和导航
     SEARCH,
