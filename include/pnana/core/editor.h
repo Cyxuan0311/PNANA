@@ -16,16 +16,29 @@
 #include "ui/file_picker.h"
 #include "ui/split_dialog.h"
 #include "ui/ssh_dialog.h"
+#include "ui/welcome_screen.h"
+#include "ui/theme_menu.h"
+#include "ui/create_folder_dialog.h"
+#include "ui/save_as_dialog.h"
 #include "features/search.h"
 #include "features/file_browser.h"
 #include "features/syntax_highlighter.h"
 #include "features/command_palette.h"
 #include "features/terminal.h"
 #include "features/split_view.h"
+#ifdef BUILD_LSP_SUPPORT
+#include "features/lsp/lsp_server_manager.h"
+#include "ui/completion_popup.h"
+#endif
+#ifdef BUILD_LUA_SUPPORT
+#include "plugins/plugin_manager.h"
+#endif
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <memory>
 #include <vector>
+#include <map>
+#include <string>
 
 namespace pnana {
 namespace core {
@@ -42,6 +55,10 @@ enum class EditorMode {
 class Editor {
     // 友元类：允许ActionExecutor访问私有方法
     friend class input::ActionExecutor;
+#ifdef BUILD_LUA_SUPPORT
+    // 友元类：允许LuaAPI访问私有方法
+    friend class plugins::LuaAPI;
+#endif
     
 public:
     Editor();
@@ -162,6 +179,10 @@ private:
     ui::FilePicker file_picker_;
     ui::SplitDialog split_dialog_;
     ui::SSHDialog ssh_dialog_;
+    ui::WelcomeScreen welcome_screen_;
+    ui::ThemeMenu theme_menu_;
+    ui::CreateFolderDialog create_folder_dialog_;
+    ui::SaveAsDialog save_as_dialog_;
     
     // 功能模块
     features::SearchEngine search_engine_;
@@ -170,6 +191,20 @@ private:
     features::CommandPalette command_palette_;
     features::Terminal terminal_;
     features::SplitViewManager split_view_manager_;
+    
+#ifdef BUILD_LSP_SUPPORT
+    // LSP 服务器管理器（支持多语言）
+    std::unique_ptr<features::LspServerManager> lsp_manager_;
+    ui::CompletionPopup completion_popup_;
+    bool lsp_enabled_;
+    std::map<std::string, std::string> file_language_map_;  // 文件路径 -> 语言ID
+    std::string last_completion_trigger_;  // 上次触发补全的字符
+    int completion_trigger_delay_;  // 补全触发延迟计数
+#endif
+#ifdef BUILD_LUA_SUPPORT
+    // 插件管理器
+    std::unique_ptr<plugins::PluginManager> plugin_manager_;
+#endif
     
     // 编辑器状态
     EditorMode mode_;
@@ -180,19 +215,15 @@ private:
     
     // 主题选择
     bool show_theme_menu_;
-    size_t selected_theme_index_;
-    std::vector<std::string> available_themes_;
     
     // 帮助窗口
     bool show_help_;
     
     // 创建文件夹弹窗
     bool show_create_folder_;
-    std::string folder_name_input_;
     
     // 另存为弹窗
     bool show_save_as_;
-    std::string save_as_input_;
     
     // 选择
     bool selection_active_;
@@ -230,16 +261,12 @@ private:
     ftxui::Element renderEditor();
     ftxui::Element renderSplitEditor();  // 分屏编辑器渲染
     ftxui::Element renderEditorRegion(const features::ViewRegion& region, Document* doc);  // 渲染单个区域
-    ftxui::Element renderWelcomeScreen();
     ftxui::Element renderLine(size_t line_num, bool is_current);
     ftxui::Element renderLineNumber(size_t line_num, bool is_current);
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();
     ftxui::Element renderInputBox();
-    ftxui::Element renderThemeMenu();
     ftxui::Element renderFileBrowser();
-    ftxui::Element renderCreateFolderDialog();  // 创建文件夹对话框
-    ftxui::Element renderSaveAsDialog();  // 另存为对话框
     ftxui::Element renderHelp();
     ftxui::Element renderCommandPalette();  // 命令面板
     ftxui::Element renderTerminal();  // 终端
@@ -295,9 +322,28 @@ private:
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
     
+#ifdef BUILD_LSP_SUPPORT
+    // LSP 相关方法
+    void initializeLsp();
+    void shutdownLsp();
+    std::string detectLanguageId(const std::string& filepath);
+    std::string filepathToUri(const std::string& filepath);
+    void triggerCompletion();
+    void handleCompletionInput(ftxui::Event event);
+    void applyCompletion();
+    void updateLspDocument();
+    ftxui::Element renderCompletionPopup();
+#endif
+    
     // 获取当前文档（便捷方法）
     Document* getCurrentDocument();
     const Document* getCurrentDocument() const;
+    
+#ifdef BUILD_LUA_SUPPORT
+    // 插件系统
+    void initializePlugins();
+    plugins::PluginManager* getPluginManager() { return plugin_manager_.get(); }
+#endif
 };
 
 } // namespace core
