@@ -57,6 +57,10 @@ static void initializeActionInfos() {
         "unindent_line", "Unindent line", std::vector<std::string>{"shift_tab"});
     action_infos_.emplace_back(KeyAction::TOGGLE_COMMENT, ActionGroup::EDIT_OPS,
         "toggle_comment", "Toggle comment", std::vector<std::string>{"ctrl_slash"});
+#ifdef BUILD_LSP_SUPPORT
+    action_infos_.emplace_back(KeyAction::TRIGGER_COMPLETION, ActionGroup::EDIT_OPS,
+        "trigger_completion", "Trigger code completion", std::vector<std::string>{"ctrl_space"});
+#endif
     
     // 搜索和导航
     action_infos_.emplace_back(KeyAction::SEARCH, ActionGroup::SEARCH_NAV,

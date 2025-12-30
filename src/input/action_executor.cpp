@@ -1,5 +1,7 @@
 #include "input/action_executor.h"
 #include "core/editor.h"
+#include "utils/logger.h"
+#include <iostream>
 
 namespace pnana {
 namespace input {
@@ -38,6 +40,10 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::UNINDENT_LINE:
         case KeyAction::TOGGLE_COMMENT:
             return executeEditOperation(action);
+#ifdef BUILD_LSP_SUPPORT
+        case KeyAction::TRIGGER_COMPLETION:
+            return executeEditOperation(action);
+#endif
             
         case KeyAction::SEARCH:
         case KeyAction::REPLACE:
@@ -152,7 +158,9 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
             editor_->moveLineDown();
             return true;
         case KeyAction::INDENT_LINE:
+            LOG("ActionExecutor: Executing INDENT_LINE");
             editor_->indentLine();
+            LOG("ActionExecutor: indentLine() completed");
             return true;
         case KeyAction::UNINDENT_LINE:
             editor_->unindentLine();
@@ -160,6 +168,11 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
         case KeyAction::TOGGLE_COMMENT:
             editor_->toggleComment();
             return true;
+#ifdef BUILD_LSP_SUPPORT
+        case KeyAction::TRIGGER_COMPLETION:
+            editor_->triggerCompletion();
+            return true;
+#endif
         default:
             return false;
     }

@@ -47,8 +47,14 @@ std::string EventParser::parseCtrlKey(const ftxui::Event& event) const {
     if (event == ftxui::Event::CtrlF) return "ctrl_f";
     if (event == ftxui::Event::CtrlG) return "ctrl_g";
     if (event == ftxui::Event::CtrlH) return "ctrl_h";
-    if (event == ftxui::Event::CtrlI) return "ctrl_i";  // Tab 的别名
-    if (event == ftxui::Event::CtrlJ) return "ctrl_j";  // Enter 的别名
+    // 注意：Ctrl+I 在终端中通常是 Tab 键的别名（ASCII 9）
+    // 但我们应该让 parseSpecialKey() 优先处理 Tab，所以这里不处理 Ctrl+I
+    // 如果确实需要 Ctrl+I 作为快捷键，可以在这里添加，但会与 Tab 冲突
+    // if (event == ftxui::Event::CtrlI) return "ctrl_i";  // 注释掉，避免与 Tab 冲突
+    
+    // 注意：Ctrl+J 在终端中通常是 Enter 键的别名（ASCII 10）
+    // 但我们应该让 parseSpecialKey() 优先处理 Enter，所以这里不处理 Ctrl+J
+    // if (event == ftxui::Event::CtrlJ) return "ctrl_j";  // 注释掉，避免与 Enter 冲突
     if (event == ftxui::Event::CtrlK) {
         if (isCtrlShift(event)) return "ctrl_shift_k";
         return "ctrl_k";
@@ -240,7 +246,14 @@ std::string EventParser::parseCtrlSpecialChar(const ftxui::Event& event) const {
 std::string EventParser::eventToKey(const ftxui::Event& event) const {
     // 按优先级顺序解析
     
-    // 1. Ctrl 组合键（最高优先级）
+    // 0. 特殊键（Tab、Shift+Tab等）优先处理，避免被 Ctrl 组合键误识别
+    // 注意：Tab 键在终端中可能被编码为 Ctrl+I，但我们应该优先识别为 Tab
+    if (event == ftxui::Event::Tab || event == ftxui::Event::TabReverse) {
+        std::string key = parseSpecialKey(event);
+        if (!key.empty()) return key;
+    }
+    
+    // 1. Ctrl 组合键（但排除 Tab，因为 Tab 已经在上面处理了）
     std::string key = parseCtrlKey(event);
     if (!key.empty()) return key;
     
@@ -256,7 +269,7 @@ std::string EventParser::eventToKey(const ftxui::Event& event) const {
     key = parseArrowKey(event);
     if (!key.empty()) return key;
     
-    // 5. 特殊键
+    // 5. 特殊键（Tab 已经在上面处理，这里处理其他特殊键）
     key = parseSpecialKey(event);
     if (!key.empty()) return key;
     

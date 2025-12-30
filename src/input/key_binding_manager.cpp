@@ -1,5 +1,6 @@
 #include "input/key_binding_manager.h"
 #include "input/key_action.h"
+#include "utils/logger.h"
 #include <algorithm>
 
 namespace pnana {
@@ -44,6 +45,9 @@ void KeyBindingManager::initializeEditOperationBindings() {
     bindKey("tab", KeyAction::INDENT_LINE);
     bindKey("shift_tab", KeyAction::UNINDENT_LINE);
     bindKey("ctrl_slash", KeyAction::TOGGLE_COMMENT);
+#ifdef BUILD_LSP_SUPPORT
+    bindKey("ctrl_space", KeyAction::TRIGGER_COMPLETION);
+#endif
 }
 
 void KeyBindingManager::initializeSearchNavigationBindings() {
@@ -82,6 +86,35 @@ void KeyBindingManager::initializeTabOperationBindings() {
 
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
     std::string key = parser_.eventToKey(event);
+    
+    // 添加调试日志（仅对 Tab 键）
+    if (event == ftxui::Event::Tab) {
+        LOG("KeyBindingManager::getAction() - Tab key detected");
+        LOG("eventToKey() returned: '" + key + "'");
+        LOG("Key string empty: " + std::string(key.empty() ? "yes" : "no"));
+        
+        if (!key.empty()) {
+            auto it = key_to_action_.find(key);
+            if (it != key_to_action_.end()) {
+                LOG("Found action in key_to_action_ map: " + std::to_string(static_cast<int>(it->second)));
+            } else {
+                LOG_ERROR("Key '" + key + "' not found in key_to_action_ map!");
+                LOG_ERROR("Total keys in map: " + std::to_string(key_to_action_.size()));
+                // 检查 "tab" 键是否存在
+                LOG("Checking if 'tab' key exists in map...");
+                int tab_count = 0;
+                for (const auto& pair : key_to_action_) {
+                    if (pair.first == "tab") {
+                        LOG("Found 'tab' key in map! Action: " + std::to_string(static_cast<int>(pair.second)));
+                        tab_count++;
+                    }
+                }
+                if (tab_count == 0) {
+                    LOG_ERROR("'tab' key NOT found in map at all!");
+                }
+            }
+        }
+    }
     
     if (key.empty()) {
         return KeyAction::UNKNOWN;
