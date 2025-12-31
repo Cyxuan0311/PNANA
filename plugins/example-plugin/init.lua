@@ -75,4 +75,3 @@ end)
 
 -- 插件初始化完成（已禁用输出，避免干扰用户）
 -- print("Example plugin initialized successfully!")
-
