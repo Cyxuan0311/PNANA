@@ -54,6 +54,7 @@ enum class KeyAction {
     TOGGLE_HELP,
     TOGGLE_LINE_NUMBERS,
     SPLIT_VIEW,          // 分屏视图
+    OPEN_PLUGIN_MANAGER, // 打开插件管理器
     
     // 标签页操作
     NEXT_TAB,

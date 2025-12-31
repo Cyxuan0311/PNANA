@@ -63,6 +63,9 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::COMMAND_PALETTE:
         case KeyAction::SPLIT_VIEW:
         case KeyAction::SSH_CONNECT:
+#ifdef BUILD_LUA_SUPPORT
+        case KeyAction::OPEN_PLUGIN_MANAGER:
+#endif
             return executeViewOperation(action);
             
         case KeyAction::NEXT_TAB:
@@ -235,6 +238,11 @@ bool ActionExecutor::executeViewOperation(KeyAction action) {
         case KeyAction::SSH_CONNECT:
             editor_->showSSHDialog();
             return true;
+#ifdef BUILD_LUA_SUPPORT
+        case KeyAction::OPEN_PLUGIN_MANAGER:
+            editor_->openPluginManager();
+            return true;
+#endif
         default:
             return false;
     }

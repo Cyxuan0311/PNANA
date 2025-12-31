@@ -68,6 +68,9 @@ void KeyBindingManager::initializeViewOperationBindings() {
     bindKey("ctrl_shift_l", KeyAction::TOGGLE_LINE_NUMBERS);
     bindKey("f3", KeyAction::COMMAND_PALETTE);
     bindKey("f4", KeyAction::SSH_CONNECT);
+#ifdef BUILD_LUA_SUPPORT
+    bindKey("alt_p", KeyAction::OPEN_PLUGIN_MANAGER);
+#endif
     // Ctrl+L 现在只在文件浏览器中处理，不在这里绑定
     
     // 分屏导航（使用 Ctrl+方向键，类似 tmux）
