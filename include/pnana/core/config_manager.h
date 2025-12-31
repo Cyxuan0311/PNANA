@@ -25,6 +25,12 @@ struct DisplayConfig {
     bool relative_line_numbers = false;
     bool highlight_current_line = true;
     bool show_whitespace = false;
+    
+    // 光标配置
+    std::string cursor_style = "block";      // block, underline, bar, hollow
+    std::string cursor_color = "255,255,255"; // RGB格式，逗号分隔
+    int cursor_blink_rate = 500;              // 闪烁频率（毫秒），0表示不闪烁
+    bool cursor_smooth = false;               // 流动光标效果
 };
 
 // 文件配置结构

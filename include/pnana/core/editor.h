@@ -23,8 +23,13 @@
 #include "ui/theme_menu.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/save_as_dialog.h"
+#include "ui/cursor_config_dialog.h"
+#ifdef BUILD_LUA_SUPPORT
+#include "ui/plugin_manager_dialog.h"
+#endif
 #include "features/search.h"
 #include "features/file_browser.h"
+#include "features/image_preview.h"
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/command_palette.h"
 #include "features/terminal.h"
@@ -227,10 +232,15 @@ private:
     pnana::ui::ThemeMenu theme_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
+    pnana::ui::CursorConfigDialog cursor_config_dialog_;
+#ifdef BUILD_LUA_SUPPORT
+    pnana::ui::PluginManagerDialog plugin_manager_dialog_;
+#endif
     
     // 功能模块
     features::SearchEngine search_engine_;
     features::FileBrowser file_browser_;
+    features::ImagePreview image_preview_;
     features::SyntaxHighlighter syntax_highlighter_;
     features::CommandPalette command_palette_;
     features::Terminal terminal_;
@@ -360,6 +370,24 @@ private:
     
     // 帮助系统
     void toggleHelp();
+    
+    // 光标配置
+    void openCursorConfig();
+    void applyCursorConfig();
+    
+#ifdef BUILD_LUA_SUPPORT
+    // 插件管理
+    void openPluginManager();
+#endif
+    
+    // 获取光标配置（用于渲染）
+    ::pnana::ui::CursorStyle getCursorStyle() const;
+    ftxui::Color getCursorColor() const;
+    int getCursorBlinkRate() const;
+    bool getCursorSmooth() const;
+    
+    // 渲染光标元素
+    ftxui::Element renderCursorElement(const std::string& cursor_char, size_t cursor_pos, size_t line_length) const;
     
     // 命令面板
     void openCommandPalette();

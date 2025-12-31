@@ -87,6 +87,7 @@ public:
     
 private:
     std::vector<std::string> lines_;
+    std::vector<std::string> original_lines_;  // 保存原始内容（用于判断是否修改）
     std::string filepath_;
     std::string encoding_;
     LineEnding line_ending_;
@@ -107,6 +108,8 @@ private:
     // 辅助方法
     void detectLineEnding(const std::string& content);
     std::string applyLineEnding(const std::string& line) const;
+    void saveOriginalContent();  // 保存当前内容作为原始内容
+    bool isContentSameAsOriginal() const;  // 检查当前内容是否与原始内容相同
 };
 
 } // namespace core
