@@ -193,6 +193,7 @@ set(SOURCES
     src/ui/welcome_screen.cpp
     src/ui/theme_menu.cpp
     src/ui/create_folder_dialog.cpp
+    src/ui/cursor_config_dialog.cpp
     src/ui/save_as_dialog.cpp
     src/ui/help.cpp
     src/ui/dialog.cpp
@@ -208,6 +209,7 @@ set(SOURCES
     # 功能模块
     src/features/search.cpp
     src/features/file_browser.cpp
+    src/features/image_preview.cpp
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/terminal/terminal.cpp
@@ -254,7 +256,12 @@ endif()
 
 # 插件系统模块（如果启用）
 if(BUILD_LUA_SUPPORT)
-    # 插件系统源文件已在上面添加
+    list(APPEND SOURCES
+        src/ui/plugin_manager_dialog.cpp
+    )
+    list(APPEND HEADERS
+        include/pnana/ui/plugin_manager_dialog.h
+    )
     message(STATUS "Plugin system enabled with Lua support")
 endif()
 
@@ -290,6 +297,7 @@ set(HEADERS
     include/pnana/ui/theme_menu.h
     include/pnana/ui/create_folder_dialog.h
     include/pnana/ui/save_as_dialog.h
+    include/pnana/ui/cursor_config_dialog.h
     include/pnana/ui/dialog.h
     include/pnana/ui/file_picker.h
     include/pnana/ui/file_browser_view.h
@@ -378,11 +386,42 @@ else()
 endif()
 
 # 链接FTXUI库
+# 查找 FFmpeg 库（用于图片预览，可选）
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(LIBAV QUIET
+        libavformat
+        libavcodec
+        libswscale
+        libavutil
+    )
+endif()
+
+if(LIBAV_FOUND)
+    set(BUILD_IMAGE_PREVIEW_SUPPORT ON)
+    message(STATUS "✓ FFmpeg found - image preview enabled")
+    message(STATUS "  Libraries: ${LIBAV_LIBRARIES}")
+    message(STATUS "  Include dirs: ${LIBAV_INCLUDE_DIRS}")
+else()
+    set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
+    message(WARNING "✗ FFmpeg not found, image preview will be disabled")
+    message(STATUS "  Install with: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
+    message(STATUS "  After installation, run: rm -rf build && mkdir build && cd build && cmake ..")
+endif()
+
 target_link_libraries(pnana
     PRIVATE ftxui::screen
     PRIVATE ftxui::dom
     PRIVATE ftxui::component
 )
+
+# 只在找到 FFmpeg 时链接
+if(BUILD_IMAGE_PREVIEW_SUPPORT)
+    target_link_libraries(pnana PRIVATE ${LIBAV_LIBRARIES})
+    target_include_directories(pnana PRIVATE ${LIBAV_INCLUDE_DIRS})
+    target_compile_options(pnana PRIVATE ${LIBAV_CFLAGS_OTHER})
+    target_compile_definitions(pnana PRIVATE BUILD_IMAGE_PREVIEW_SUPPORT)
+endif()
 
 # 链接 jsonrpccxx 和 nlohmann/json (如果启用 LSP 支持)
 if(BUILD_LSP_SUPPORT)
@@ -490,10 +529,55 @@ install(TARGETS pnana RUNTIME DESTINATION bin)
 # 设置版本信息
 set_target_properties(pnana PROPERTIES
     VERSION ${PROJECT_VERSION}
-    SOVERSION 1
+    SOVERSION 0.0.3
 )
 
 # 可选：添加配置文件安装
 install(FILES config/default_config.json
         DESTINATION share/pnana
         OPTIONAL)
+
+# 安装插件到系统目录（作为模板）
+if(EXISTS "${CMAKE_SOURCE_DIR}/plugins")
+    install(DIRECTORY plugins/
+            DESTINATION share/pnana/plugins
+            PATTERN ".git" EXCLUDE
+            PATTERN ".gitignore" EXCLUDE
+            PATTERN "*.md" EXCLUDE
+            PATTERN "CMakeLists.txt" EXCLUDE
+    )
+    message(STATUS "Plugins will be installed to: share/pnana/plugins")
+endif()
+
+# 创建安装后脚本，将插件复制到用户主目录
+if(UNIX AND EXISTS "${CMAKE_SOURCE_DIR}/plugins")
+    # 使用 install(CODE ...) 执行 CMake 代码来运行 shell 脚本
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/install_plugins.sh.in"
+        "${CMAKE_BINARY_DIR}/install_plugins.sh"
+        @ONLY
+    )
+    
+    # 设置脚本可执行权限
+    file(CHMOD "${CMAKE_BINARY_DIR}/install_plugins.sh"
+         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE
+    )
+    
+    # 使用 install(CODE ...) 执行 shell 脚本
+    install(CODE "
+        message(STATUS \"Running plugin installation script...\")
+        execute_process(
+            COMMAND bash \"${CMAKE_BINARY_DIR}/install_plugins.sh\"
+            RESULT_VARIABLE INSTALL_RESULT
+        )
+        if(INSTALL_RESULT)
+            message(WARNING \"Plugin installation script returned error: \${INSTALL_RESULT}\")
+        else()
+            message(STATUS \"Plugins installed to user directory successfully\")
+        endif()
+    ")
+    message(STATUS "Plugin installation script configured")
+    message(STATUS "  Plugins will be copied to: ~/.config/pnana/plugins")
+endif()
