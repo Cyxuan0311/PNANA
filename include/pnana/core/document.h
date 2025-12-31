@@ -11,17 +11,23 @@ namespace core {
 
 // 文档修改记录（用于撤销/重做）
 struct DocumentChange {
-    enum class Type { INSERT, DELETE, REPLACE };
+    enum class Type { INSERT, DELETE, REPLACE, NEWLINE };
     
     Type type;
     size_t row;
     size_t col;
     std::string old_content;
     std::string new_content;
+    std::string after_cursor;  // 用于 NEWLINE 类型：光标后的内容
     
     DocumentChange(Type t, size_t r, size_t c, 
                    const std::string& old_c, const std::string& new_c)
-        : type(t), row(r), col(c), old_content(old_c), new_content(new_c) {}
+        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor("") {}
+    
+    // NEWLINE 类型的构造函数
+    DocumentChange(Type t, size_t r, size_t c, 
+                   const std::string& old_c, const std::string& new_c, const std::string& after)
+        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(after) {}
 };
 
 // 文档类 - 管理单个文件的内容
@@ -85,6 +91,9 @@ public:
     // 错误信息
     std::string getLastError() const { return last_error_; }
     
+    // 二进制文件检测
+    bool isBinary() const { return is_binary_; }
+    
 private:
     std::vector<std::string> lines_;
     std::vector<std::string> original_lines_;  // 保存原始内容（用于判断是否修改）
@@ -104,6 +113,9 @@ private:
     
     // 错误信息
     std::string last_error_;
+    
+    // 二进制文件标志
+    bool is_binary_;
     
     // 辅助方法
     void detectLineEnding(const std::string& content);

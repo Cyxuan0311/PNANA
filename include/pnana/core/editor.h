@@ -24,6 +24,7 @@
 #include "ui/create_folder_dialog.h"
 #include "ui/save_as_dialog.h"
 #include "ui/cursor_config_dialog.h"
+#include "ui/binary_file_view.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "ui/plugin_manager_dialog.h"
 #endif
@@ -233,6 +234,7 @@ private:
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
+    pnana::ui::BinaryFileView binary_file_view_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
