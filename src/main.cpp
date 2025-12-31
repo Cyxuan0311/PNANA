@@ -11,17 +11,19 @@ void printHelp() {
     std::cout << "pnana - Modern Terminal Text Editor\n\n";
     std::cout << "Usage: pnana [OPTIONS] [FILE...]\n\n";
     std::cout << "Options:\n";
-    std::cout << "  -h, --help          Show this help message\n";
-    std::cout << "  -v, --version       Show version information\n";
-    std::cout << "  -t, --theme THEME   Set theme (monokai, dracula, nord, etc.)\n";
-    std::cout << "  -r, --readonly      Open file in read-only mode\n";
-    std::cout << "  -l, --log           Enable logging to pnana.log file\n";
+    std::cout << "  -h, --help              Show this help message\n";
+    std::cout << "  -v, --version           Show version information\n";
+    std::cout << "  -t, --theme THEME       Set theme (monokai, dracula, nord, etc.)\n";
+    std::cout << "  -c, --config PATH       Specify custom configuration file path\n";
+    std::cout << "  -r, --readonly          Open file in read-only mode\n";
+    std::cout << "  -l, --log               Enable logging to pnana.log file\n";
     std::cout << "\nExamples:\n";
-    std::cout << "  pnana                    Start with empty file\n";
-    std::cout << "  pnana file.txt           Open file.txt\n";
-    std::cout << "  pnana file1 file2        Open multiple files\n";
-    std::cout << "  pnana -t dracula file.txt Open with Dracula theme\n";
-    std::cout << "  pnana -l file.txt        Open file with logging enabled\n";
+    std::cout << "  pnana                        Start with empty file\n";
+    std::cout << "  pnana file.txt               Open file.txt\n";
+    std::cout << "  pnana file1 file2            Open multiple files\n";
+    std::cout << "  pnana -t dracula file.txt    Open with Dracula theme\n";
+    std::cout << "  pnana -c ~/.config/pnana/custom.json  Use custom config file\n";
+    std::cout << "  pnana -l file.txt            Open file with logging enabled\n";
     std::cout << "\nKeyboard Shortcuts:\n";
     std::cout << "  Ctrl+S    Save file\n";
     std::cout << "  Ctrl+Q    Quit\n";
@@ -66,6 +68,7 @@ int main(int argc, char* argv[]) {
         
         std::vector<std::string> files;
         std::string theme = "monokai";
+        std::string config_path = "";
         bool enable_logging = false;
         
         // 解析命令行参数
@@ -83,6 +86,13 @@ int main(int argc, char* argv[]) {
                     theme = argv[++i];
                 } else {
                     std::cerr << "Error: --theme requires an argument\n";
+                    return 1;
+                }
+            } else if (arg == "-c" || arg == "--config") {
+                if (i + 1 < argc) {
+                    config_path = argv[++i];
+                } else {
+                    std::cerr << "Error: --config requires an argument\n";
                     return 1;
                 }
             } else if (arg == "-r" || arg == "--readonly") {
@@ -104,10 +114,17 @@ int main(int argc, char* argv[]) {
             pnana::utils::Logger::getInstance().initialize("pnana.log");
         }
         
-        // 创建编辑器
+        // 创建编辑器（会自动加载默认配置）
         pnana::core::Editor editor;
         
-        // 设置主题
+        // 如果指定了自定义配置文件路径，加载它（如果不存在会自动创建）
+        if (!config_path.empty()) {
+            editor.loadConfig(config_path);
+        }
+        // 如果没有指定配置文件，Editor 构造函数已经加载了默认配置
+        // 此时配置文件应该已经存在于 ~/.config/pnana/config.json
+        
+        // 设置主题（如果通过命令行指定，会覆盖配置文件中的主题）
         if (theme != "monokai") {
             editor.setTheme(theme);
         }
