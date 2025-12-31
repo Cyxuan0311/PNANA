@@ -101,7 +101,7 @@ Element FileBrowserView::renderFileList(const features::FileBrowser& browser,
          ++i) {
         const features::FileItem* item = flat_items[i];
         if (item) {
-            content.push_back(renderFileItem(item, i, selected_index, flat_items));
+        content.push_back(renderFileItem(item, i, selected_index, flat_items));
         }
     }
     
@@ -246,6 +246,7 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
     if (ext == "ts" || ext == "tsx") return icons::TYPESCRIPT;
     if (ext == "rb" || ext == "rbw") return icons::RUBY;
     if (ext == "php" || ext == "php3" || ext == "php4" || ext == "php5" || ext == "phtml") return icons::PHP;
+    if (ext == "lua") return icons::LUA;
     if (ext == "sh" || ext == "bash" || ext == "zsh" || ext == "fish") return icons::SHELL;
     if (name_lower == "makefile" || name_lower == "makefile.am" || name_lower == "makefile.in") return icons::MAKEFILE;
     
@@ -259,14 +260,50 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
     if (ext == "css" || ext == "scss" || ext == "sass" || ext == "less") return icons::CSS;
     
     // 数据格式
-    if (ext == "json" || ext == "jsonc") return icons::JSON;
-    if (ext == "xml" || ext == "xsd" || ext == "xsl") return icons::XML;
-    if (ext == "yml" || ext == "yaml") return icons::YAML;
-    if (ext == "toml") return icons::CONFIG;
+    if (ext == "json" || ext == "jsonc") {
+        // 特殊 JSON 文件
+        if (name_lower == "package.json") return icons::PACKAGE_JSON;
+        if (name_lower == "package-lock.json") return icons::PACKAGE_LOCK;
+        if (name_lower == "composer.json") return icons::COMPOSER;
+        if (name_lower == "tsconfig.json" || name_lower == "tsconfig.base.json") return icons::TSCONFIG;
+        if (name_lower == ".prettierrc" || name_lower == ".prettierrc.json") return icons::PRETTIER;
+        if (name_lower == ".eslintrc" || name_lower == ".eslintrc.json" || name_lower == "eslint.config.json") return icons::ESLINT;
+        if (name_lower == ".babelrc" || name_lower == ".babelrc.json") return icons::BABEL;
+        return icons::JSON;
+    }
+    if (ext == "xml" || ext == "xsd" || ext == "xsl") {
+        if (name_lower == "pom.xml") return icons::MAVEN;
+        return icons::XML;
+    }
+    if (ext == "yml" || ext == "yaml") {
+        if (name_lower == ".travis.yml") return icons::TRAVIS;
+        if (name_lower == "docker-compose.yml" || name_lower == "docker-compose.yaml") return icons::DOCKER_COMPOSE;
+        if (name_lower == ".github/workflows" || name_lower.find(".github") != std::string::npos) return icons::GITHUB_ACTIONS;
+        return icons::YAML;
+    }
+    if (ext == "toml") {
+        if (name_lower == "cargo.toml") return icons::CARGO;
+        if (name_lower == "pyproject.toml") return icons::POETRY;
+        return icons::CONFIG;
+    }
+    // Cargo 和 Poetry lock 文件（无扩展名或不同扩展名）
+    if (name_lower == "cargo.lock") return icons::CARGO;
+    if (name_lower == "poetry.lock") return icons::POETRY;
     
     // 文档
-    if (ext == "md" || ext == "markdown") return icons::MARKDOWN;
-    if (ext == "txt" || ext == "log") return icons::FILE_TEXT;
+    if (ext == "md" || ext == "markdown") {
+        if (name_lower == "readme.md" || name_lower == "readme") return icons::README;
+        if (name_lower == "changelog.md" || name_lower == "changelog") return icons::CHANGELOG;
+        if (name_lower == "contributing.md" || name_lower == "contributing") return icons::CONTRIBUTING;
+        return icons::MARKDOWN;
+    }
+    if (ext == "txt") {
+        if (name_lower == "license" || name_lower == "license.txt") return icons::LICENSE;
+        if (name_lower == "authors" || name_lower == "authors.txt") return icons::AUTHORS;
+        if (name_lower == "todo" || name_lower == "todo.txt") return icons::TODO;
+        return icons::FILE_TEXT;
+    }
+    if (ext == "log") return icons::LOG;
     if (ext == "pdf") return icons::PDF;
     
     // 数据库
@@ -297,16 +334,23 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         return icons::ARCHIVE;
     }
     
+    // 环境配置文件
+    if (name_lower == ".env" || name_lower == ".env.local" || name_lower == ".env.development" ||
+        name_lower == ".env.production" || name_lower == ".env.test" || 
+        (name_lower.length() > 5 && name_lower.substr(0, 5) == ".env.")) {
+        return icons::ENV;
+    }
+    
     // 配置文件
     if (ext == "conf" || ext == "config" || ext == "ini" || ext == "cfg" || 
-        ext == "properties" || name_lower == ".gitignore" || name_lower == ".gitconfig" ||
-        name_lower == ".gitattributes") {
+        ext == "properties" || name_lower == ".editorconfig") {
+        if (name_lower == ".editorconfig") return icons::EDITORCONFIG;
         return icons::CONFIG;
     }
     
     // Git 相关
     if (name_lower == ".gitignore" || name_lower == ".gitattributes" || 
-        name_lower == ".gitmodules" || name_lower == ".gitconfig") {
+        name_lower == ".gitmodules" || name_lower == ".gitconfig" || name_lower == ".gitkeep") {
         return icons::GITIGNORE;
     }
     
@@ -314,7 +358,80 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
     if (ext == "cmake" || name_lower == "cmakelists.txt") return icons::CMAKE;
     
     // Docker
-    if (name_lower == "dockerfile" || ext == "dockerignore") return icons::DOCKER;
+    if (name_lower == "dockerfile" || 
+        (name_lower.length() > 11 && name_lower.substr(0, 11) == "dockerfile.") ||
+        ext == "dockerignore" || name_lower == ".dockerignore") {
+        return icons::DOCKER;
+    }
+    
+    // 构建和依赖管理文件
+    if (name_lower == "requirements.txt" || name_lower == "requirements-dev.txt" ||
+        name_lower == "requirements-prod.txt" || name_lower == "setup.py" ||
+        name_lower == "setup.cfg" || name_lower == "pipfile" || name_lower == "pipfile.lock") {
+        return icons::PIP;
+    }
+    if (name_lower == "gemfile" || name_lower == "gemfile.lock") {
+        if (name_lower == "gemfile.lock") return icons::GEMFILE_LOCK;
+        return icons::GEMFILE;
+    }
+    if (name_lower == "go.mod") return icons::GO_MOD;
+    if (name_lower == "go.sum") return icons::GO_SUM;
+    if (name_lower == "build.gradle" || name_lower == "build.gradle.kts" ||
+        name_lower == "settings.gradle" || name_lower == "gradlew" || name_lower == "gradle.properties") {
+        return icons::GRADLE;
+    }
+    if (name_lower == "yarn.lock") return icons::YARN_LOCK;
+    if (name_lower == "pnpm-lock.yaml") return icons::PNPM_LOCK;
+    
+    // 测试文件
+    if (name_lower.find("test") != std::string::npos || name_lower.find("spec") != std::string::npos ||
+        ext == "test" || ext == "spec") {
+        if (ext == "spec" || name_lower.find(".spec.") != std::string::npos) return icons::SPEC;
+        return icons::TEST;
+    }
+    
+    // 数据文件
+    if (ext == "csv") return icons::CSV;
+    if (ext == "tsv") return icons::TSV;
+    if (ext == "xls" || ext == "xlsx" || ext == "xlsm") return icons::EXCEL;
+    
+    // CI/CD 配置文件
+    if (name_lower == "jenkinsfile" || name_lower == "jenkinsfile.groovy") return icons::JENKINS;
+    if (name_lower.find(".github/workflows") != std::string::npos || 
+        name_lower.find("workflows") != std::string::npos) {
+        return icons::GITHUB_ACTIONS;
+    }
+    if (name_lower == ".circleci" || name_lower.find("circle") != std::string::npos) return icons::CI;
+    
+    // 证书和密钥文件
+    if (ext == "pem" || ext == "key" || ext == "crt" || ext == "cer" || ext == "cert") {
+        if (ext == "key") return icons::KEY;
+        return icons::CERTIFICATE;
+    }
+    
+    // 字体文件
+    if (ext == "ttf" || ext == "otf" || ext == "woff" || ext == "woff2" || ext == "eot") {
+        return icons::FONT;
+    }
+    
+    // 样式文件扩展
+    if (ext == "styl" || ext == "stylus") return icons::STYLUS;
+    if (ext == "sass" || (name_lower.length() > 5 && name_lower.substr(name_lower.length() - 5) == ".sass")) {
+        return icons::SASS;
+    }
+    
+    // 临时和缓存文件
+    if (ext == "tmp" || ext == "temp" || 
+        (name_lower.length() > 0 && name_lower[0] == '~') || 
+        (name_lower.length() > 4 && name_lower.substr(0, 4) == ".swp")) {
+        return icons::TEMP;
+    }
+    if (name_lower.find("cache") != std::string::npos || ext == "cache") {
+        return icons::CACHE;
+    }
+    
+    // 特殊目录（通过名称判断，但这里只处理文件）
+    // 如果是目录，会在上面的 is_directory 判断中处理
     
     // 可执行文件（Unix）
     if (ext == "exe" || ext == "bin" || ext == "out" || ext == "app") {
