@@ -63,6 +63,22 @@ public:
     static ThemeColors Material();     // Material
     static ThemeColors Ayu();          // Ayu
     static ThemeColors GitHub();      // GitHub
+    static ThemeColors VSCodeDark();   // VS Code Dark+
+    static ThemeColors NightOwl();     // Night Owl
+    static ThemeColors Palenight();    // Material Palenight
+    static ThemeColors OceanicNext();  // Oceanic Next
+    static ThemeColors Snazzy();       // Snazzy
+    static ThemeColors TomorrowNight(); // Tomorrow Night
+    static ThemeColors TomorrowNightBlue(); // Tomorrow Night Blue
+    static ThemeColors Cobalt();       // Cobalt
+    static ThemeColors Zenburn();      // Zenburn
+    static ThemeColors Base16Dark();   // Base16 Dark
+    static ThemeColors PaperColor();   // PaperColor Dark
+    static ThemeColors Hybrid();       // Hybrid
+    static ThemeColors Molokai();      // Molokai
+    static ThemeColors Jellybeans();   // Jellybeans
+    static ThemeColors Desert();       // Desert
+    static ThemeColors Slate();        // Slate
     
     void setTheme(const std::string& name);
     

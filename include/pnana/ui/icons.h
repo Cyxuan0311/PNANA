@@ -29,6 +29,7 @@ constexpr const char* GO = "\ue627";               // nf-dev-go
 constexpr const char* RUST = "\ue7a8";             // nf-dev-rust
 constexpr const char* RUBY = "\ue739";             // nf-dev-ruby
 constexpr const char* PHP = "\ue73d";              // nf-dev-php
+constexpr const char* LUA = "\ue620";              // nf-dev-lua
 constexpr const char* HTML = "\ue736";             // nf-dev-html5
 constexpr const char* CSS = "\ue749";              // nf-dev-css3
 constexpr const char* JSON = "\ue60b";             // nf-dev-json
@@ -103,6 +104,84 @@ constexpr const char* DATABASE = "\uf1c0";      // nf-fa-database (数据库)
 constexpr const char* CONFIG = "\uf013";        // nf-fa-cog (配置文件)
 constexpr const char* LOCK = "\uf023";          // nf-fa-lock (锁定文件)
 constexpr const char* EXECUTABLE = "\uf292";    // nf-fa-terminal (可执行文件)
+
+// 构建和依赖管理文件
+constexpr const char* PACKAGE_JSON = "\ue60e";   // nf-dev-npm (npm/package.json)
+constexpr const char* PACKAGE_LOCK = "\ue60e";   // nf-dev-npm (package-lock.json)
+constexpr const char* YARN = "\uf1e6";           // nf-fa-yarn (yarn.lock)
+constexpr const char* CARGO = "\ue7a8";          // nf-dev-rust (Cargo.toml)
+constexpr const char* PIP = "\ue63c";            // nf-dev-python (requirements.txt)
+constexpr const char* MAVEN = "\ue256";          // nf-dev-java (pom.xml)
+constexpr const char* GRADLE = "\ue256";         // nf-dev-java (build.gradle)
+constexpr const char* GEMFILE = "\ue739";        // nf-dev-ruby (Gemfile)
+constexpr const char* COMPOSER = "\ue73d";       // nf-dev-php (composer.json)
+constexpr const char* GO_MOD = "\ue627";         // nf-dev-go (go.mod)
+constexpr const char* GO_SUM = "\ue627";         // nf-dev-go (go.sum)
+
+// 环境配置文件
+constexpr const char* ENV = "\uf462";            // nf-mdi-key (环境变量文件)
+constexpr const char* DOCKERIGNORE = "\ue7b0";   // nf-dev-docker (.dockerignore)
+constexpr const char* EDITORCONFIG = "\uf013";   // nf-fa-cog (.editorconfig)
+constexpr const char* PRETTIER = "\ue60b";       // nf-dev-json (.prettierrc)
+constexpr const char* ESLINT = "\ue60b";         // nf-dev-json (.eslintrc)
+constexpr const char* BABEL = "\ue60b";         // nf-dev-json (.babelrc)
+constexpr const char* TSCONFIG = "\ue628";       // nf-dev-typescript (tsconfig.json)
+
+// 文档文件
+constexpr const char* README = "\ue73e";         // nf-dev-markdown (README)
+constexpr const char* LICENSE = "\uf1c9";        // nf-fa-file_text_o (LICENSE)
+constexpr const char* CHANGELOG = "\uf1c9";      // nf-fa-file_text_o (CHANGELOG)
+constexpr const char* CONTRIBUTING = "\uf1c9";   // nf-fa-file_text_o (CONTRIBUTING)
+constexpr const char* AUTHORS = "\uf1c9";        // nf-fa-file_text_o (AUTHORS)
+constexpr const char* TODO = "\uf0ae";           // nf-fa-tasks (TODO)
+
+// 测试文件
+constexpr const char* TEST = "\uf188";           // nf-fa-flask (测试文件)
+constexpr const char* SPEC = "\uf188";           // nf-fa-flask (spec文件)
+
+// 数据文件
+constexpr const char* CSV = "\uf1c3";            // nf-fa-file_text_o (CSV)
+constexpr const char* TSV = "\uf1c3";            // nf-fa-file_text_o (TSV)
+constexpr const char* EXCEL = "\uf1c3";          // nf-fa-file_excel_o (Excel)
+
+// 特殊配置文件
+constexpr const char* TRAVIS = "\ue77e";         // nf-dev-travis (.travis.yml)
+constexpr const char* JENKINS = "\ue767";        // nf-dev-jenkins (Jenkinsfile)
+constexpr const char* GITHUB_ACTIONS = "\ue702"; // nf-dev-git (GitHub Actions)
+constexpr const char* CI = "\uf013";             // nf-fa-cog (CI配置文件)
+
+// 锁文件和清单文件
+constexpr const char* YARN_LOCK = "\uf1e6";      // nf-fa-yarn (yarn.lock)
+constexpr const char* PNPM_LOCK = "\ue60e";      // nf-dev-npm (pnpm-lock.yaml)
+constexpr const char* GEMFILE_LOCK = "\ue739";  // nf-dev-ruby (Gemfile.lock)
+constexpr const char* POETRY = "\ue63c";        // nf-dev-python (poetry.lock)
+
+// 特殊目录
+constexpr const char* NODE_MODULES = "\ue60e";  // nf-dev-npm (node_modules)
+constexpr const char* VENV = "\ue63c";           // nf-dev-python (虚拟环境)
+constexpr const char* DOTFILES = "\uf013";       // nf-fa-cog (隐藏配置文件)
+
+// 日志和临时文件
+constexpr const char* LOG = "\uf1c9";             // nf-fa-file_text_o (日志文件)
+constexpr const char* TEMP = "\uf016";            // nf-fa-file_o (临时文件)
+constexpr const char* CACHE = "\uf0eb";           // nf-fa-lightbulb_o (缓存文件)
+
+// 证书和密钥文件
+constexpr const char* CERTIFICATE = "\uf023";     // nf-fa-lock (证书文件)
+constexpr const char* KEY = "\uf084";             // nf-fa-key (密钥文件)
+constexpr const char* PEM = "\uf023";             // nf-fa-lock (PEM文件)
+
+// 字体和样式文件
+constexpr const char* FONT = "\uf031";            // nf-fa-font (字体文件)
+constexpr const char* STYLUS = "\ue749";         // nf-dev-css3 (Stylus)
+constexpr const char* SASS = "\ue749";           // nf-dev-css3 (SASS/SCSS)
+
+// 其他特殊文件
+constexpr const char* DOCKER_COMPOSE = "\ue7b0"; // nf-dev-docker (docker-compose.yml)
+constexpr const char* KUBERNETES = "\ufd31";     // nf-mdi-kubernetes (Kubernetes)
+constexpr const char* TERRAFORM = "\uf1c0";      // nf-fa-cube (Terraform)
+constexpr const char* ANSIBLE = "\uf013";        // nf-fa-cog (Ansible)
+constexpr const char* VAGRANT = "\uf1c0";        // nf-fa-cube (Vagrant)
 
 // 欢迎界面
 constexpr const char* ROCKET = "\uf135";        // nf-fa-rocket (快速开始)
