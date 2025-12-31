@@ -7,6 +7,9 @@
 #include "core/config_manager.h"
 #include "input/key_binding_manager.h"
 #include "input/action_executor.h"
+// 前向声明（避免循环依赖，但需要完整类型用于 unique_ptr）
+#include "core/input/input_router.h"
+#include "core/ui/ui_router.h"
 #include "ui/theme.h"
 #include "ui/statusbar.h"
 #include "ui/helpbar.h"
@@ -43,6 +46,12 @@
 namespace pnana {
 namespace core {
 
+// 前向声明
+namespace input {
+    class TerminalHandler;
+    class FileBrowserHandler;
+}
+
 // 编辑器模式
 enum class EditorMode {
     NORMAL,        // 正常编辑模式
@@ -54,7 +63,13 @@ enum class EditorMode {
 // 编辑器核心类
 class Editor {
     // 友元类：允许ActionExecutor访问私有方法
-    friend class input::ActionExecutor;
+    friend class pnana::input::ActionExecutor;
+    // 友元类：允许UIRouter访问渲染方法
+    friend class pnana::core::ui::UIRouter;
+    // 友元类：允许TerminalHandler访问setStatusMessage
+    friend class pnana::core::input::TerminalHandler;
+    // 友元类：允许FileBrowserHandler访问setStatusMessage
+    friend class pnana::core::input::FileBrowserHandler;
 #ifdef BUILD_LUA_SUPPORT
     // 友元类：允许LuaAPI访问私有方法
     friend class plugins::LuaAPI;
@@ -152,6 +167,31 @@ public:
     
     // 主题
     void setTheme(const std::string& theme_name);
+    const pnana::ui::Theme& getTheme() const { return theme_; }
+    pnana::ui::Theme& getTheme() { return theme_; }
+    
+    // 配置
+    void loadConfig(const std::string& config_path = "");
+    
+    // 访问器（用于输入路由器和UI路由器等）
+    RegionManager& getRegionManager() { return region_manager_; }
+    const RegionManager& getRegionManager() const { return region_manager_; }
+    pnana::input::KeyBindingManager& getKeyBindingManager() { return key_binding_manager_; }
+    const pnana::input::KeyBindingManager& getKeyBindingManager() const { return key_binding_manager_; }
+    pnana::input::ActionExecutor& getActionExecutor() { return action_executor_; }
+    const pnana::input::ActionExecutor& getActionExecutor() const { return action_executor_; }
+    bool isFileBrowserVisible() const;
+    bool isTerminalVisible() const;
+    features::Terminal& getTerminal() { return terminal_; }
+    const features::Terminal& getTerminal() const { return terminal_; }
+    EditorMode getMode() const { return mode_; }
+    void setMode(EditorMode mode) { mode_ = mode; }
+    int getFileBrowserWidth() const { return file_browser_width_; }
+    void setFileBrowserWidth(int width) { file_browser_width_ = width; }
+    int getTerminalHeight() const { return terminal_height_; }
+    void setTerminalHeight(int height) { terminal_height_ = height; }
+    int getScreenHeight() const;
+    int getScreenWidth() const;
     
     // 退出
     void quit();
@@ -162,27 +202,31 @@ private:
     DocumentManager document_manager_;
     
     // 输入处理系统
-    input::KeyBindingManager key_binding_manager_;
-    input::ActionExecutor action_executor_;
+    pnana::input::KeyBindingManager key_binding_manager_;
+    pnana::input::ActionExecutor action_executor_;
     
     // 区域管理
     RegionManager region_manager_;
     
+    // 输入和UI路由器（解耦优化）
+    std::unique_ptr<pnana::core::input::InputRouter> input_router_;
+    std::unique_ptr<pnana::core::ui::UIRouter> ui_router_;
+    
     // UI组件
-    ui::Theme theme_;
+    pnana::ui::Theme theme_;
     core::ConfigManager config_manager_;
-    ui::Statusbar statusbar_;
-    ui::Helpbar helpbar_;
-    ui::Tabbar tabbar_;
-    ui::Help help_;
-    ui::Dialog dialog_;
-    ui::FilePicker file_picker_;
-    ui::SplitDialog split_dialog_;
-    ui::SSHDialog ssh_dialog_;
-    ui::WelcomeScreen welcome_screen_;
-    ui::ThemeMenu theme_menu_;
-    ui::CreateFolderDialog create_folder_dialog_;
-    ui::SaveAsDialog save_as_dialog_;
+    pnana::ui::Statusbar statusbar_;
+    pnana::ui::Helpbar helpbar_;
+    pnana::ui::Tabbar tabbar_;
+    pnana::ui::Help help_;
+    pnana::ui::Dialog dialog_;
+    pnana::ui::FilePicker file_picker_;
+    pnana::ui::SplitDialog split_dialog_;
+    pnana::ui::SSHDialog ssh_dialog_;
+    pnana::ui::WelcomeScreen welcome_screen_;
+    pnana::ui::ThemeMenu theme_menu_;
+    pnana::ui::CreateFolderDialog create_folder_dialog_;
+    pnana::ui::SaveAsDialog save_as_dialog_;
     
     // 功能模块
     features::SearchEngine search_engine_;
@@ -195,7 +239,7 @@ private:
 #ifdef BUILD_LSP_SUPPORT
     // LSP 服务器管理器（支持多语言）
     std::unique_ptr<features::LspServerManager> lsp_manager_;
-    ui::CompletionPopup completion_popup_;
+    pnana::ui::CompletionPopup completion_popup_;
     bool lsp_enabled_;
     std::map<std::string, std::string> file_language_map_;  // 文件路径 -> 语言ID
     std::string last_completion_trigger_;  // 上次触发补全的字符
@@ -236,6 +280,7 @@ private:
     bool syntax_highlighting_;
     int zoom_level_;
     int file_browser_width_;  // 文件浏览器宽度
+    int terminal_height_;     // 终端高度（行数）
     
     // 输入缓冲区（用于搜索、跳转等）
     std::string input_buffer_;
@@ -257,6 +302,8 @@ private:
     
     // UI渲染
     ftxui::Element renderUI();
+    ftxui::Element renderUILegacy();  // 原有的UI渲染逻辑（后备）
+    ftxui::Element overlayDialogs(ftxui::Element main_ui);  // 叠加对话框
     ftxui::Element renderTabbar();
     ftxui::Element renderEditor();
     ftxui::Element renderSplitEditor();  // 分屏编辑器渲染
@@ -303,7 +350,7 @@ private:
     
     // SSH 远程文件编辑
     void showSSHDialog();
-    void handleSSHConnect(const ui::SSHConfig& config);
+    void handleSSHConnect(const pnana::ui::SSHConfig& config);
     
     // 标签页管理
     void closeCurrentTab();
