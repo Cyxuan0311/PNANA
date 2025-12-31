@@ -1,5 +1,7 @@
 // 编辑器核心类实现
 #include "core/editor.h"
+#include "core/input/input_router.h"
+#include "core/ui/ui_router.h"
 #include "ui/icons.h"
 #include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
@@ -54,76 +56,13 @@ Editor::Editor()
       syntax_highlighting_(true),
       zoom_level_(0),
       file_browser_width_(35),  // 默认宽度35列
+      terminal_height_(0),  // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""),
       status_message_("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | Ctrl+O Files | F1 Help"),
       should_quit_(false),
       screen_(ScreenInteractive::Fullscreen()) {
-    // 加载配置文件
-    config_manager_.loadConfig();
-    
-    // 从配置获取主题名称并应用
-    const auto& config = config_manager_.getConfig();
-    std::string theme_name = config.current_theme;
-    if (theme_name.empty()) {
-        theme_name = config.editor.theme;
-    }
-    if (theme_name.empty()) {
-        theme_name = "monokai"; // 默认主题
-    }
-    theme_.setTheme(theme_name);
-    
-    // 加载自定义主题（如果有）
-    for (const auto& [name, theme_config] : config.custom_themes) {
-        theme_.loadThemeFromConfig(
-            theme_config.background,
-            theme_config.foreground,
-            theme_config.current_line,
-            theme_config.selection,
-            theme_config.line_number,
-            theme_config.line_number_current,
-            theme_config.statusbar_bg,
-            theme_config.statusbar_fg,
-            theme_config.menubar_bg,
-            theme_config.menubar_fg,
-            theme_config.helpbar_bg,
-            theme_config.helpbar_fg,
-            theme_config.helpbar_key,
-            theme_config.keyword,
-            theme_config.string,
-            theme_config.comment,
-            theme_config.number,
-            theme_config.function,
-            theme_config.type,
-            theme_config.operator_color,
-            theme_config.error,
-            theme_config.warning,
-            theme_config.info,
-            theme_config.success
-        );
-        theme_.loadCustomTheme(name, theme_.getColors());
-    }
-    
-    // 初始化可用主题列表（从配置或默认列表）
-    std::vector<std::string> available_themes;
-    if (!config.available_themes.empty()) {
-        available_themes = config.available_themes;
-    } else {
-        available_themes = {
-            "monokai",
-            "dracula",
-            "solarized-dark",
-            "solarized-light",
-            "onedark",
-            "nord",
-            "gruvbox",
-            "tokyo-night",
-            "catppuccin",
-            "material",
-            "ayu",
-            "github"
-        };
-    }
-    theme_menu_.setAvailableThemes(available_themes);
+    // 加载配置文件（使用默认路径）
+    loadConfig();
     
     // 初始化文件浏览器到当前目录
     file_browser_.openDirectory(".");
@@ -131,9 +70,13 @@ Editor::Editor()
     // 初始化命令面板
     initializeCommandPalette();
     
-    // 初始化日志系统
-    utils::Logger::getInstance().initialize("pnana.log");
-    LOG("Editor constructor started");
+    // 初始化输入和UI路由器（解耦优化）
+    input_router_ = std::make_unique<pnana::core::input::InputRouter>();
+    ui_router_ = std::make_unique<pnana::core::ui::UIRouter>();
+    
+    // 日志系统不会在这里自动初始化
+    // 只有在 main.cpp 中指定 -l/--log 参数时才会初始化
+    // LOG("Editor constructor started");  // 只有在启用日志时才记录
     
 #ifdef BUILD_LSP_SUPPORT
     // 初始化 LSP 客户端
@@ -217,6 +160,75 @@ void Editor::setTheme(const std::string& theme_name) {
     setStatusMessage("Theme: " + theme_name);
 }
 
+void Editor::loadConfig(const std::string& config_path) {
+    // 加载配置文件
+    config_manager_.loadConfig(config_path);
+    
+    // 从配置获取主题名称并应用
+    const auto& config = config_manager_.getConfig();
+    std::string theme_name = config.current_theme;
+    if (theme_name.empty()) {
+        theme_name = config.editor.theme;
+    }
+    if (theme_name.empty()) {
+        theme_name = "monokai"; // 默认主题
+    }
+    theme_.setTheme(theme_name);
+    
+    // 加载自定义主题（如果有）
+    for (const auto& [name, theme_config] : config.custom_themes) {
+        theme_.loadThemeFromConfig(
+            theme_config.background,
+            theme_config.foreground,
+            theme_config.current_line,
+            theme_config.selection,
+            theme_config.line_number,
+            theme_config.line_number_current,
+            theme_config.statusbar_bg,
+            theme_config.statusbar_fg,
+            theme_config.menubar_bg,
+            theme_config.menubar_fg,
+            theme_config.helpbar_bg,
+            theme_config.helpbar_fg,
+            theme_config.helpbar_key,
+            theme_config.keyword,
+            theme_config.string,
+            theme_config.comment,
+            theme_config.number,
+            theme_config.function,
+            theme_config.type,
+            theme_config.operator_color,
+            theme_config.error,
+            theme_config.warning,
+            theme_config.info,
+            theme_config.success
+        );
+        theme_.loadCustomTheme(name, theme_.getColors());
+    }
+    
+    // 更新可用主题列表
+    std::vector<std::string> available_themes;
+    if (!config.available_themes.empty()) {
+        available_themes = config.available_themes;
+    } else {
+        available_themes = {
+            "monokai",
+            "dracula",
+            "solarized-dark",
+            "solarized-light",
+            "onedark",
+            "nord",
+            "gruvbox",
+            "tokyo-night",
+            "catppuccin",
+            "material",
+            "ayu",
+            "github"
+        };
+    }
+    theme_menu_.setAvailableThemes(available_themes);
+}
+
 // 主题菜单
 void Editor::toggleThemeMenu() {
     show_theme_menu_ = !show_theme_menu_;
@@ -284,7 +296,7 @@ void Editor::toggleFileBrowser() {
 void Editor::toggleHelp() {
     show_help_ = !show_help_;
     if (show_help_) {
-        setStatusMessage(std::string(ui::icons::HELP) + " Press Esc or F1 to close help");
+        setStatusMessage(std::string(pnana::ui::icons::HELP) + " Press Esc or F1 to close help");
     } else {
         setStatusMessage("Help closed");
     }
@@ -294,13 +306,34 @@ void Editor::toggleHelp() {
 void Editor::toggleTerminal() {
     terminal_.toggle();
     if (terminal_.isVisible()) {
-        // 切换到终端区域
+        // 启用终端区域（必须先启用，才能切换）
+        region_manager_.setTerminalEnabled(true);
+        
+        // 切换到终端区域并确保焦点正确
+        EditorRegion old_region = region_manager_.getCurrentRegion();
         region_manager_.setRegion(EditorRegion::TERMINAL);
-        setStatusMessage("Terminal opened | Region: " + region_manager_.getRegionName() + " | Type commands, 'exit' to close");
+        EditorRegion new_region = region_manager_.getCurrentRegion();
+        
+        LOG("Editor::toggleTerminal: Terminal opened, region changed from " + 
+            region_manager_.getRegionName(old_region) + " to " + 
+            region_manager_.getRegionName(new_region));
+        
+        // 如果终端高度未设置，使用默认值
+        if (terminal_height_ <= 0) {
+            terminal_height_ = screen_.dimy() / 3;
+        }
+        // 清空终端输入，准备接收新输入
+        terminal_.handleInput("");
+        terminal_.setCursorPosition(0);
+        setStatusMessage("Terminal opened | Region: " + region_manager_.getRegionName() + " | Use +/- to adjust height, ←→ to switch panels");
     } else {
+        // 禁用终端区域
+        region_manager_.setTerminalEnabled(false);
+        
         // 终端关闭时，如果当前在终端区域，切换回代码区
         if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
             region_manager_.setRegion(EditorRegion::CODE_AREA);
+            LOG("Editor::toggleTerminal: Terminal closed, switched to CODE_AREA");
         }
         setStatusMessage("Terminal closed | Region: " + region_manager_.getRegionName());
     }
@@ -759,7 +792,7 @@ void Editor::openFilePicker() {
     }
     
     // 显示文件选择器（默认选择文件和文件夹）
-    file_picker_.show(start_path, ui::FilePickerType::BOTH,
+    file_picker_.show(start_path, pnana::ui::FilePickerType::BOTH,
         [this](const std::string& path) {
             // 检查路径是否是目录
             try {
@@ -800,7 +833,7 @@ void Editor::showSplitDialog() {
     // 如果已经有分屏，显示关闭分屏对话框
     if (split_view_manager_.hasSplits()) {
         // 收集所有分屏信息
-        std::vector<ui::SplitInfo> splits;
+        std::vector<pnana::ui::SplitInfo> splits;
         const auto& regions = split_view_manager_.getRegions();
         auto tabs = document_manager_.getAllTabs();
         
@@ -1021,6 +1054,22 @@ void Editor::initializePlugins() {
     }
 }
 #endif // BUILD_LUA_SUPPORT
+
+bool Editor::isFileBrowserVisible() const {
+    return file_browser_.isVisible();
+}
+
+bool Editor::isTerminalVisible() const {
+    return terminal_.isVisible();
+}
+
+int Editor::getScreenHeight() const {
+    return screen_.dimy();
+}
+
+int Editor::getScreenWidth() const {
+    return screen_.dimx();
+}
 
 } // namespace core
 } // namespace pnana

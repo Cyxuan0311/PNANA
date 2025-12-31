@@ -1,5 +1,6 @@
 // UI渲染相关实现
 #include "core/editor.h"
+#include "core/ui/ui_router.h"
 #include "ui/icons.h"
 #include "ui/terminal_ui.h"
 #include "ui/welcome_screen.h"
@@ -20,6 +21,21 @@ namespace core {
 
 // UI渲染
 Element Editor::renderUI() {
+    // 使用 UIRouter 进行渲染（如果已初始化）
+    // 注意：目前 UIRouter 只处理基本的布局和边框，对话框等仍使用原有逻辑
+    if (ui_router_) {
+        Element main_ui = ui_router_->render(this);
+        
+        // 叠加对话框（如果打开）- 这部分仍使用原有逻辑
+        return overlayDialogs(main_ui);
+    }
+    
+    // 如果 UIRouter 未初始化，使用原有逻辑
+    return renderUILegacy();
+}
+
+// 原有的 UI 渲染逻辑（保留作为后备）
+Element Editor::renderUILegacy() {
     Element editor_content;
     
     // 如果文件浏览器打开，使用左右分栏布局
@@ -36,7 +52,11 @@ Element Editor::renderUI() {
     // 如果终端打开，使用上下分栏布局
     Element main_content;
     if (terminal_.isVisible()) {
-        int terminal_height = screen_.dimy() / 3;  // 终端占屏幕高度的1/3
+        int terminal_height = terminal_height_;
+        if (terminal_height <= 0) {
+            // 使用默认高度（屏幕高度的1/3）
+            terminal_height = screen_.dimy() / 3;
+        }
         main_content = vbox({
             editor_content | flex,
             separator(),
@@ -55,6 +75,11 @@ Element Editor::renderUI() {
         renderHelpbar()
     }) | bgcolor(theme_.getColors().background);
     
+    return overlayDialogs(main_ui);
+}
+
+// 叠加对话框
+Element Editor::overlayDialogs(Element main_ui) {
     // 如果帮助窗口打开，叠加显示
     if (show_help_) {
         return dbox({
@@ -117,7 +142,6 @@ Element Editor::renderUI() {
         int actual_popup_y = popup_y + editor_start_y;
         
         // 使用dbox叠加显示弹窗
-        // 使用hbox和vbox组合来定位弹窗，避免界面抖动
         Element popup = renderCompletionPopup();
         
         // 创建定位容器：左侧空白 + 弹窗 + 右侧空白
@@ -169,6 +193,7 @@ Element Editor::renderUI() {
         return dbox(ssh_elements);
     }
     
+    // 没有对话框打开，返回主UI
     return main_ui;
 }
 
@@ -179,7 +204,7 @@ Element Editor::renderTabbar() {
     if (tabs.empty()) {
         return hbox({
             text(" "),
-            text(ui::icons::ROCKET) | color(theme_.getColors().keyword),
+            text(pnana::ui::icons::ROCKET) | color(theme_.getColors().keyword),
             text(" Welcome ") | color(theme_.getColors().foreground) | bold,
             text(" ")
         }) | bgcolor(theme_.getColors().menubar_bg);
@@ -802,7 +827,7 @@ Element Editor::renderStatusbar() {
 }
 
 Element Editor::renderHelpbar() {
-    return helpbar_.render(ui::Helpbar::getDefaultHelp());
+    return helpbar_.render(pnana::ui::Helpbar::getDefaultHelp());
 }
 
 Element Editor::renderInputBox() {
@@ -835,8 +860,12 @@ Element Editor::renderCommandPalette() {
 }
 
 Element Editor::renderTerminal() {
-    int height = screen_.dimy() / 3;
-    return ui::renderTerminal(terminal_, height);
+    int height = terminal_height_;
+    if (height <= 0) {
+        // 使用默认高度（屏幕高度的1/3）
+        height = screen_.dimy() / 3;
+    }
+    return pnana::ui::renderTerminal(terminal_, height);
 }
 
 Element Editor::renderFilePicker() {

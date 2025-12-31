@@ -36,6 +36,26 @@ std::string ConfigManager::getUserConfigPath() {
     return "config.json";
 }
 
+// 展开路径中的 ~ 符号
+static std::string expandPath(const std::string& path) {
+    if (path.empty()) {
+        return path;
+    }
+    
+    // 如果路径以 ~ 开头，展开为用户主目录
+    if (path[0] == '~') {
+        const char* home = std::getenv("HOME");
+        if (home) {
+            if (path.length() == 1 || path[1] == '/') {
+                // ~ 或 ~/...
+                return std::string(home) + (path.length() > 1 ? path.substr(1) : "");
+            }
+        }
+    }
+    
+    return path;
+}
+
 void ConfigManager::resetToDefaults() {
     config_ = AppConfig();
     loaded_ = false;
@@ -43,21 +63,50 @@ void ConfigManager::resetToDefaults() {
 
 bool ConfigManager::loadConfig(const std::string& config_path) {
     if (!config_path.empty()) {
-        config_path_ = config_path;
+        // 展开路径中的 ~ 符号
+        config_path_ = expandPath(config_path);
     }
     
-    // 如果用户配置文件不存在，尝试加载默认配置
+    // 如果指定的配置文件不存在，尝试从默认配置加载并创建新文件
     if (!fs::exists(config_path_)) {
         std::string default_path = getDefaultConfigPath();
+        bool loaded_from_default = false;
+        
+        // 尝试从默认配置文件加载
         if (fs::exists(default_path)) {
-            config_path_ = default_path;
-        } else {
-            // 使用默认配置
+            std::ifstream default_file(default_path);
+            if (default_file.is_open()) {
+                std::stringstream buffer;
+                buffer << default_file.rdbuf();
+                std::string content = buffer.str();
+                default_file.close();
+                
+                if (parseJSON(content)) {
+                    loaded_from_default = true;
+                }
+            }
+        }
+        
+        // 如果从默认配置加载失败，使用内置默认值
+        if (!loaded_from_default) {
             resetToDefaults();
+        }
+        
+        // 保存配置到用户指定的路径（创建新文件）
+        if (saveConfig(config_path_)) {
+            loaded_ = true;
+            return true;
+        } else {
+            // 如果保存失败，至少使用默认配置
+            if (!loaded_from_default) {
+            resetToDefaults();
+            }
+            loaded_ = true;
             return true;
         }
     }
     
+    // 配置文件存在，正常加载
     std::ifstream file(config_path_);
     if (!file.is_open()) {
         resetToDefaults();
@@ -74,13 +123,17 @@ bool ConfigManager::loadConfig(const std::string& config_path) {
         return true;
     }
     
+    // 解析失败，使用默认配置并保存
     resetToDefaults();
-    return false;
+    saveConfig(config_path_);
+    loaded_ = true;
+    return true;
 }
 
 bool ConfigManager::saveConfig(const std::string& config_path) {
     if (!config_path.empty()) {
-        config_path_ = config_path;
+        // 展开路径中的 ~ 符号
+        config_path_ = expandPath(config_path);
     }
     
     // 确保目录存在

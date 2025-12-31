@@ -1,5 +1,6 @@
 // 输入处理相关实现
 #include "core/editor.h"
+#include "core/input/input_router.h"
 #include "ui/icons.h"
 #include "input/key_action.h"
 #include "utils/logger.h"
@@ -29,8 +30,21 @@ void Editor::handleInput(Event event) {
     region_manager_.setTerminalEnabled(terminal_.isVisible());
     region_manager_.setHelpWindowEnabled(show_help_);
     
-    // 如果终端打开，优先处理（包括 Tab 键，不应该被全局快捷键拦截）
-    if (terminal_.isVisible()) {
+    // 使用 InputRouter 处理输入（如果已初始化）
+    // 支持终端和文件浏览器区域
+    if (input_router_) {
+        // 如果当前在终端或文件浏览器区域，使用 InputRouter
+        EditorRegion current_region = region_manager_.getCurrentRegion();
+        if (current_region == EditorRegion::TERMINAL || current_region == EditorRegion::FILE_BROWSER) {
+            if (input_router_->route(event, this)) {
+                LOG("InputRouter handled event for region: " + region_manager_.getRegionName());
+                return;
+            }
+        }
+    }
+    
+    // 如果 InputRouter 未初始化且终端可见，使用原有逻辑
+    if (terminal_.isVisible() && !input_router_) {
         handleTerminalInput(event);
         return;
     }
@@ -186,12 +200,12 @@ void Editor::handleInput(Event event) {
                         file_browser_.refresh();
                         // 自动选中新创建的文件夹
                         file_browser_.selectItemByName(input);
-                        setStatusMessage(std::string(ui::icons::FOLDER) + " Folder created: " + input);
+                        setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " Folder created: " + input);
                     } else {
-                        setStatusMessage(std::string(ui::icons::ERROR) + " Failed to create folder (may already exist): " + input);
+                        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to create folder (may already exist): " + input);
                     }
                 } catch (const std::exception& e) {
-                    setStatusMessage(std::string(ui::icons::ERROR) + " Error: " + std::string(e.what()));
+                    setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Error: " + std::string(e.what()));
                 }
             }
         } else if (event == Event::Backspace) {
@@ -361,7 +375,7 @@ void Editor::handleNormalMode(Event event) {
         std::string ch = event.character();
         if (ch == "i" || ch == "I") {
             newFile();
-            setStatusMessage(std::string(ui::icons::NEW) + " New document created | Region: " + region_manager_.getRegionName());
+            setStatusMessage(std::string(pnana::ui::icons::NEW) + " New document created | Region: " + region_manager_.getRegionName());
             return;
         }
     }
@@ -741,7 +755,7 @@ void Editor::handleFileBrowserInput(Event event) {
     if (key_string == "alt_d") {
             if (file_browser_width_ < 80) {  // Max 80 columns
                 file_browser_width_ += 5;
-                setStatusMessage(std::string(ui::icons::ARROW_RIGHT) + " Browser width: " + 
+                setStatusMessage(std::string(pnana::ui::icons::ARROW_RIGHT) + " Browser width: " + 
                                std::to_string(file_browser_width_) + " columns | Alt+D increase, Alt+S decrease");
                 return;
         } else {
@@ -753,7 +767,7 @@ void Editor::handleFileBrowserInput(Event event) {
     else if (key_string == "alt_s") {
             if (file_browser_width_ > 20) {  // Min 20 columns
                 file_browser_width_ -= 5;
-                setStatusMessage(std::string(ui::icons::ARROW_LEFT) + " Browser width: " + 
+                setStatusMessage(std::string(pnana::ui::icons::ARROW_LEFT) + " Browser width: " + 
                                std::to_string(file_browser_width_) + " columns | Alt+D increase, Alt+S decrease");
                 return;
         } else {
@@ -803,23 +817,23 @@ void Editor::handleFileBrowserInput(Event event) {
                             LOG("Document file name: " + doc->getFileName());
                             LOG("Document file path: " + doc->getFilePath());
                             LOG("Document line count: " + std::to_string(doc->lineCount()));
-                setStatusMessage(std::string(ui::icons::OPEN) + " Opened: " + 
+                setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + 
                                            doc->getFileName() + " | Press Ctrl+O to close browser | Region: " + 
                                region_manager_.getRegionName());
                         } else {
                             LOG_ERROR("openFile() returned true but getCurrentDocument() is null!");
-                            setStatusMessage(std::string(ui::icons::ERROR) + " Failed to open file: Document is null");
+                            setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to open file: Document is null");
                         }
                     } else {
                         LOG_ERROR("openFile() returned false - file open failed");
-                        setStatusMessage(std::string(ui::icons::ERROR) + " Failed to open file");
+                        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to open file");
                     }
                 } catch (const std::exception& e) {
                     LOG_ERROR("Exception in openFile(): " + std::string(e.what()));
-                    setStatusMessage(std::string(ui::icons::ERROR) + " Exception: " + std::string(e.what()));
+                    setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Exception: " + std::string(e.what()));
                 } catch (...) {
                     LOG_ERROR("Unknown exception in openFile()");
-                    setStatusMessage(std::string(ui::icons::ERROR) + " Unknown exception");
+                    setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Unknown exception");
                 }
                 
                 LOG("--- File open process completed ---");
@@ -834,7 +848,7 @@ void Editor::handleFileBrowserInput(Event event) {
             } else {
             // It's a directory, toggled expand/collapse
             LOG("Directory toggled, current directory: " + file_browser_.getCurrentDirectory());
-                setStatusMessage(std::string(ui::icons::FOLDER) + " " + 
+                setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " " + 
                                file_browser_.getCurrentDirectory() + " | Region: " + 
                                region_manager_.getRegionName());
         }
@@ -845,7 +859,7 @@ void Editor::handleFileBrowserInput(Event event) {
     } else if (event == Event::Backspace) {
         // Go to parent directory
         if (file_browser_.goUp()) {
-            setStatusMessage(std::string(ui::icons::FOLDER_UP) + " " + 
+            setStatusMessage(std::string(pnana::ui::icons::FOLDER_UP) + " " + 
                            file_browser_.getCurrentDirectory() + " | Region: " + 
                            region_manager_.getRegionName());
         }
@@ -860,7 +874,7 @@ void Editor::handleFileBrowserInput(Event event) {
         } else if (ch == "r") {
             // Refresh
             file_browser_.refresh();
-            setStatusMessage(std::string(ui::icons::REFRESH) + " File list refreshed | Region: " + 
+            setStatusMessage(std::string(pnana::ui::icons::REFRESH) + " File list refreshed | Region: " + 
                            region_manager_.getRegionName());
         }
     }

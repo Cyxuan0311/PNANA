@@ -7,7 +7,7 @@ namespace core {
 
 void Editor::showSSHDialog() {
     ssh_dialog_.show(
-        [this](const ui::SSHConfig& config) {
+        [this](const pnana::ui::SSHConfig& config) {
             handleSSHConnect(config);
         },
         [this]() {
@@ -16,7 +16,7 @@ void Editor::showSSHDialog() {
     );
 }
 
-void Editor::handleSSHConnect(const ui::SSHConfig& config) {
+void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
     // 验证配置
     if (config.host.empty() || config.user.empty() || config.remote_path.empty()) {
         setStatusMessage("SSH: Missing required fields (host, user, or remote path)");

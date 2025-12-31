@@ -28,7 +28,7 @@ bool Editor::openFile(const std::string& filepath) {
         Document* doc = getCurrentDocument();
         if (!doc) {
             LOG_ERROR("getCurrentDocument() returned null!");
-            setStatusMessage(std::string(ui::icons::ERROR) + " Failed to get document");
+            setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to get document");
             return false;
         }
         
@@ -103,11 +103,11 @@ bool Editor::openFile(const std::string& filepath) {
         LOG("Step 6: Setting status message...");
         // 使用之前已获取的doc变量
         if (doc) {
-            setStatusMessage(std::string(ui::icons::OPEN) + " Opened: " + doc->getFileName());
+            setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + doc->getFileName());
             LOG("Status message set: " + doc->getFileName());
         } else {
             LOG_ERROR("getCurrentDocument() returned null after openFile()!");
-            setStatusMessage(std::string(ui::icons::OPEN) + " Opened: " + filepath);
+            setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + filepath);
         }
         
         LOG("=== openFile() SUCCESS ===");
@@ -116,11 +116,11 @@ bool Editor::openFile(const std::string& filepath) {
         LOG_ERROR("=== openFile() EXCEPTION ===");
         LOG_ERROR("Exception type: std::exception");
         LOG_ERROR("Exception message: " + std::string(e.what()));
-        setStatusMessage(std::string(ui::icons::ERROR) + " Failed to open file: " + std::string(e.what()));
+        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to open file: " + std::string(e.what()));
         return false;
     } catch (...) {
         LOG_ERROR("=== openFile() UNKNOWN EXCEPTION ===");
-        setStatusMessage(std::string(ui::icons::ERROR) + " Failed to open file: Unknown error");
+        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to open file: Unknown error");
         return false;
     }
 }
@@ -131,7 +131,7 @@ bool Editor::saveFile() {
     
     // 如果是新文件，需要先指定文件名
     if (doc->getFilePath().empty()) {
-        setStatusMessage(std::string(ui::icons::WARNING) + " No file name. Use Alt+A to save as");
+        setStatusMessage(std::string(pnana::ui::icons::WARNING) + " No file name. Use Alt+A to save as");
         return false;
     }
     
@@ -143,7 +143,7 @@ bool Editor::saveFile() {
     
     if (doc->save()) {
         // nano风格：显示写入的行数
-        std::string msg = std::string(ui::icons::SAVED) + " Wrote " + 
+        std::string msg = std::string(pnana::ui::icons::SAVED) + " Wrote " + 
                          std::to_string(line_count) + " lines (" +
                          std::to_string(byte_count) + " bytes) to " + 
                          doc->getFileName();
@@ -152,9 +152,9 @@ bool Editor::saveFile() {
     }
     
     // 显示详细错误信息
-    std::string error_msg = std::string(ui::icons::ERROR) + " Error: " + doc->getLastError();
+    std::string error_msg = std::string(pnana::ui::icons::ERROR) + " Error: " + doc->getLastError();
     if (error_msg.empty() || doc->getLastError().empty()) {
-        error_msg = std::string(ui::icons::ERROR) + " Failed to save file";
+        error_msg = std::string(pnana::ui::icons::ERROR) + " Failed to save file";
     }
     setStatusMessage(error_msg);
     return false;
@@ -193,7 +193,7 @@ bool Editor::saveFileAs(const std::string& filepath) {
         }
         
         // nano风格：显示写入的行数
-        std::string msg = std::string(ui::icons::SAVED) + " Wrote " + 
+        std::string msg = std::string(pnana::ui::icons::SAVED) + " Wrote " + 
                          std::to_string(line_count) + " lines (" +
                          std::to_string(byte_count) + " bytes) to " + 
                          filepath;
@@ -202,9 +202,9 @@ bool Editor::saveFileAs(const std::string& filepath) {
     }
     
     // 显示详细错误信息
-    std::string error_msg = std::string(ui::icons::ERROR) + " Error: " + doc->getLastError();
+    std::string error_msg = std::string(pnana::ui::icons::ERROR) + " Error: " + doc->getLastError();
     if (error_msg.empty() || doc->getLastError().empty()) {
-        error_msg = std::string(ui::icons::ERROR) + " Failed to save file";
+        error_msg = std::string(pnana::ui::icons::ERROR) + " Failed to save file";
     }
     setStatusMessage(error_msg);
     return false;
@@ -246,7 +246,7 @@ void Editor::newFile() {
     cursor_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
-    setStatusMessage(std::string(ui::icons::NEW) + " New file created");
+    setStatusMessage(std::string(pnana::ui::icons::NEW) + " New file created");
 }
 
 void Editor::createFolder() {
@@ -294,7 +294,7 @@ void Editor::quit() {
 // 标签页管理
 void Editor::closeCurrentTab() {
     if (document_manager_.closeCurrentDocument()) {
-        setStatusMessage(std::string(ui::icons::CLOSE) + " Tab closed");
+        setStatusMessage(std::string(pnana::ui::icons::CLOSE) + " Tab closed");
         cursor_row_ = 0;
         cursor_col_ = 0;
         view_offset_row_ = 0;
@@ -312,7 +312,7 @@ void Editor::switchToNextTab() {
     view_offset_col_ = 0;
     Document* doc = getCurrentDocument();
     if (doc) {
-        setStatusMessage(std::string(ui::icons::FILE) + " " + doc->getFileName());
+        setStatusMessage(std::string(pnana::ui::icons::FILE) + " " + doc->getFileName());
     }
 }
 
@@ -324,7 +324,7 @@ void Editor::switchToPreviousTab() {
     view_offset_col_ = 0;
     Document* doc = getCurrentDocument();
     if (doc) {
-        setStatusMessage(std::string(ui::icons::FILE) + " " + doc->getFileName());
+        setStatusMessage(std::string(pnana::ui::icons::FILE) + " " + doc->getFileName());
     }
 }
 
