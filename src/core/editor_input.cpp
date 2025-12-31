@@ -110,7 +110,11 @@ void Editor::handleInput(Event event) {
     
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
-    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ || split_dialog_.isVisible() || ssh_dialog_.isVisible();
+    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ || split_dialog_.isVisible() || ssh_dialog_.isVisible() || cursor_config_dialog_.isVisible()
+#ifdef BUILD_LUA_SUPPORT
+        || plugin_manager_dialog_.isVisible()
+#endif
+    ;
     
     // 如果当前在搜索模式，优先处理搜索输入（除了 Escape 和 Return）
     bool in_search_mode = (mode_ == EditorMode::SEARCH);
@@ -233,8 +237,14 @@ void Editor::handleInput(Event event) {
     // 如果帮助窗口打开，优先处理
     if (show_help_) {
         region_manager_.setRegion(EditorRegion::HELP_WINDOW);
+        // 处理翻页等操作
+        if (help_.handleInput(event)) {
+            return;
+        }
+        // 关闭帮助
         if (event == Event::Escape || event == Event::F1) {
             show_help_ = false;
+            help_.reset();
             region_manager_.setRegion(EditorRegion::CODE_AREA);
             setStatusMessage("Help closed | Region: " + region_manager_.getRegionName());
         }
@@ -256,6 +266,22 @@ void Editor::handleInput(Event event) {
         }
         return;
     }
+    
+    // 优先处理光标配置对话框输入
+    if (cursor_config_dialog_.isVisible()) {
+        if (cursor_config_dialog_.handleInput(event)) {
+            return;
+        }
+    }
+    
+#ifdef BUILD_LUA_SUPPORT
+    // 优先处理插件管理对话框输入
+    if (plugin_manager_dialog_.isVisible()) {
+        if (plugin_manager_dialog_.handleInput(event)) {
+            return;
+        }
+    }
+#endif
     
     // 优先处理对话框输入
     if (dialog_.isVisible()) {

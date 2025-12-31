@@ -34,8 +34,14 @@ Editor::Editor()
       theme_menu_(theme_),
       create_folder_dialog_(theme_),
       save_as_dialog_(theme_),
+      cursor_config_dialog_(theme_),
+      binary_file_view_(theme_),
+#ifdef BUILD_LUA_SUPPORT
+      plugin_manager_dialog_(theme_, nullptr),  // 将在 initializePluginManager 中设置
+#endif
       search_engine_(),
       file_browser_(theme_),
+      image_preview_(),
       syntax_highlighter_(theme_),
       terminal_(theme_),
       split_view_manager_(),
@@ -80,19 +86,15 @@ Editor::Editor()
     
 #ifdef BUILD_LSP_SUPPORT
     // 初始化 LSP 客户端
-    LOG("Initializing LSP support...");
     initializeLsp();
     // 注意：lsp_enabled_ 在 initializeLsp() 中已经设置，不要重置为 false
     completion_trigger_delay_ = 0;
-    LOG("LSP initialization completed");
 #endif
 
 #ifdef BUILD_LUA_SUPPORT
     // 初始化插件系统
     initializePlugins();
 #endif
-    
-    LOG("Editor constructor completed");
 }
 
 Document* Editor::getCurrentDocument() {
@@ -157,7 +159,18 @@ void Editor::zoomReset() {
 
 void Editor::setTheme(const std::string& theme_name) {
     theme_.setTheme(theme_name);
-    setStatusMessage("Theme: " + theme_name);
+    
+    // 更新配置并保存
+    auto& config = config_manager_.getConfig();
+    config.current_theme = theme_name;
+    config.editor.theme = theme_name;
+    
+    // 保存配置到文件
+    if (config_manager_.saveConfig()) {
+        setStatusMessage("✓ Theme: " + theme_name + " (saved)");
+    } else {
+        setStatusMessage("Theme: " + theme_name + " (save failed)");
+    }
 }
 
 void Editor::loadConfig(const std::string& config_path) {
@@ -211,22 +224,130 @@ void Editor::loadConfig(const std::string& config_path) {
     if (!config.available_themes.empty()) {
         available_themes = config.available_themes;
     } else {
-        available_themes = {
-            "monokai",
-            "dracula",
-            "solarized-dark",
-            "solarized-light",
-            "onedark",
-            "nord",
-            "gruvbox",
-            "tokyo-night",
-            "catppuccin",
-            "material",
-            "ayu",
-            "github"
-        };
+        // 使用 Theme 类提供的所有可用主题
+        available_themes = ::pnana::ui::Theme::getAvailableThemes();
     }
     theme_menu_.setAvailableThemes(available_themes);
+    
+    // 加载光标配置
+    const auto& display_config = config.display;
+    if (!display_config.cursor_style.empty()) {
+        ::pnana::ui::CursorStyle style = ::pnana::ui::CursorStyle::BLOCK;
+        if (display_config.cursor_style == "underline") {
+            style = ::pnana::ui::CursorStyle::UNDERLINE;
+        } else if (display_config.cursor_style == "bar") {
+            style = ::pnana::ui::CursorStyle::BAR;
+        } else if (display_config.cursor_style == "hollow") {
+            style = ::pnana::ui::CursorStyle::HOLLOW;
+        }
+        cursor_config_dialog_.setCursorStyle(style);
+    }
+    if (!display_config.cursor_color.empty()) {
+        cursor_config_dialog_.setCursorColor(display_config.cursor_color);
+    }
+    cursor_config_dialog_.setBlinkRate(display_config.cursor_blink_rate);
+    cursor_config_dialog_.setSmoothCursor(display_config.cursor_smooth);
+    
+    // 设置应用回调
+    cursor_config_dialog_.setOnApply([this]() { applyCursorConfig(); });
+}
+
+void Editor::openCursorConfig() {
+    cursor_config_dialog_.open();
+    setStatusMessage("Cursor Configuration | ↑↓: Navigate, ←→: Change Style, Enter: Apply, Esc: Cancel");
+}
+
+void Editor::applyCursorConfig() {
+    // 获取配置
+    auto style = cursor_config_dialog_.getCursorStyle();
+    auto color = cursor_config_dialog_.getCursorColor();
+    auto rate = cursor_config_dialog_.getBlinkRate();
+    auto smooth = cursor_config_dialog_.getSmoothCursor();
+    
+    // 更新配置管理器
+    auto& config = config_manager_.getConfig();
+    std::string style_str = "block";
+    switch (style) {
+        case ::pnana::ui::CursorStyle::UNDERLINE: style_str = "underline"; break;
+        case ::pnana::ui::CursorStyle::BAR: style_str = "bar"; break;
+        case ::pnana::ui::CursorStyle::HOLLOW: style_str = "hollow"; break;
+        default: style_str = "block"; break;
+    }
+    
+    config.display.cursor_style = style_str;
+    config.display.cursor_color = color;
+    config.display.cursor_blink_rate = rate;
+    config.display.cursor_smooth = smooth;
+    
+    // 保存配置
+    if (config_manager_.saveConfig()) {
+        setStatusMessage("✓ Cursor configuration saved");
+    } else {
+        setStatusMessage("Cursor configuration applied (save failed)");
+    }
+    
+    // 配置已更新，下次渲染时会自动使用新配置
+    // FTXUI 会在下一次事件循环时自动重新渲染
+}
+
+// 获取光标配置（用于渲染）
+::pnana::ui::CursorStyle Editor::getCursorStyle() const {
+    const auto& config = config_manager_.getConfig();
+    const auto& display_config = config.display;
+    
+    if (display_config.cursor_style == "underline") {
+        return ::pnana::ui::CursorStyle::UNDERLINE;
+    } else if (display_config.cursor_style == "bar") {
+        return ::pnana::ui::CursorStyle::BAR;
+    } else if (display_config.cursor_style == "hollow") {
+        return ::pnana::ui::CursorStyle::HOLLOW;
+    }
+    return ::pnana::ui::CursorStyle::BLOCK; // 默认
+}
+
+ftxui::Color Editor::getCursorColor() const {
+    const auto& config = config_manager_.getConfig();
+    const auto& display_config = config.display;
+    
+    // 解析颜色字符串 "R,G,B"
+    std::string color_str = display_config.cursor_color;
+    if (color_str.empty()) {
+        return theme_.getColors().foreground; // 默认前景色
+    }
+    
+    // 移除空格
+    color_str.erase(std::remove(color_str.begin(), color_str.end(), ' '), color_str.end());
+    
+    std::istringstream iss(color_str);
+    std::string token;
+    std::vector<int> values;
+    
+    while (std::getline(iss, token, ',')) {
+        try {
+            int value = std::stoi(token);
+            if (value < 0) value = 0;
+            if (value > 255) value = 255;
+            values.push_back(value);
+        } catch (...) {
+            return theme_.getColors().foreground; // 解析失败，使用默认
+        }
+    }
+    
+    if (values.size() >= 3) {
+        return ftxui::Color::RGB(values[0], values[1], values[2]);
+    }
+    
+    return theme_.getColors().foreground; // 默认前景色
+}
+
+int Editor::getCursorBlinkRate() const {
+    const auto& config = config_manager_.getConfig();
+    return config.display.cursor_blink_rate;
+}
+
+bool Editor::getCursorSmooth() const {
+    const auto& config = config_manager_.getConfig();
+    return config.display.cursor_smooth;
 }
 
 // 主题菜单
@@ -271,8 +392,9 @@ void Editor::applySelectedTheme() {
     size_t selected_index = theme_menu_.getSelectedIndex();
     if (selected_index < themes.size()) {
         std::string theme_name = themes[selected_index];
-        theme_.setTheme(theme_name);
-        setStatusMessage("✓ Applied theme: " + theme_name);
+        
+        // 使用 setTheme 方法，它会自动保存配置
+        setTheme(theme_name);
     }
 }
 
@@ -310,13 +432,7 @@ void Editor::toggleTerminal() {
         region_manager_.setTerminalEnabled(true);
         
         // 切换到终端区域并确保焦点正确
-        EditorRegion old_region = region_manager_.getCurrentRegion();
         region_manager_.setRegion(EditorRegion::TERMINAL);
-        EditorRegion new_region = region_manager_.getCurrentRegion();
-        
-        LOG("Editor::toggleTerminal: Terminal opened, region changed from " + 
-            region_manager_.getRegionName(old_region) + " to " + 
-            region_manager_.getRegionName(new_region));
         
         // 如果终端高度未设置，使用默认值
         if (terminal_height_ <= 0) {
@@ -333,7 +449,6 @@ void Editor::toggleTerminal() {
         // 终端关闭时，如果当前在终端区域，切换回代码区
         if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
             region_manager_.setRegion(EditorRegion::CODE_AREA);
-            LOG("Editor::toggleTerminal: Terminal closed, switched to CODE_AREA");
         }
         setStatusMessage("Terminal closed | Region: " + region_manager_.getRegionName());
     }
@@ -611,6 +726,14 @@ void Editor::initializeCommandPalette() {
     ));
     
     command_palette_.registerCommand(Command(
+        "editor.cursor",
+        "Cursor Configuration",
+        "Configure cursor style, color, and blink rate",
+        {"cursor", "config", "settings", "style"},
+        [this]() { openCursorConfig(); }
+    ));
+    
+    command_palette_.registerCommand(Command(
         "view.line_numbers",
         "Toggle Line Numbers",
         "Show/hide line numbers",
@@ -679,6 +802,7 @@ std::string Editor::getFileType() const {
     if (ext == "html") return "html";
     if (ext == "css") return "css";
     if (ext == "sh") return "shell";
+    if (ext == "lua") return "lua";
     return "text";
 }
 
@@ -1051,6 +1175,18 @@ void Editor::initializePlugins() {
     if (!plugin_manager_ || !plugin_manager_->initialize()) {
         LOG_ERROR("Failed to initialize plugin system");
         plugin_manager_.reset();
+    } else {
+        // 设置插件管理对话框的插件管理器指针
+        plugin_manager_dialog_.setPluginManager(plugin_manager_.get());
+    }
+}
+
+void Editor::openPluginManager() {
+    if (plugin_manager_) {
+        plugin_manager_dialog_.open();
+        setStatusMessage("Plugin Manager | ↑↓: Navigate, Space/Enter: Toggle, Esc: Close");
+    } else {
+        setStatusMessage("Plugin system not available");
     }
 }
 #endif // BUILD_LUA_SUPPORT

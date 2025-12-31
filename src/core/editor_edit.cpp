@@ -1,5 +1,6 @@
 // 编辑操作相关实现
 #include "core/editor.h"
+#include "core/document.h"
 #include "utils/logger.h"
 #include <iostream>
 
@@ -40,13 +41,25 @@ void Editor::insertChar(char ch) {
 }
 
 void Editor::insertNewline() {
-    std::string current_line = getCurrentDocument()->getLine(cursor_row_);
+    Document* doc = getCurrentDocument();
+    if (!doc) return;
+    
+    std::string current_line = doc->getLine(cursor_row_);
+    std::string before_cursor = current_line.substr(0, cursor_col_);
     std::string after_cursor = current_line.substr(cursor_col_);
     
-    getCurrentDocument()->getLines()[cursor_row_] = current_line.substr(0, cursor_col_);
-    getCurrentDocument()->insertLine(cursor_row_ + 1);
-    getCurrentDocument()->getLines()[cursor_row_ + 1] = after_cursor;
-    getCurrentDocument()->setModified(true);
+    // 先执行换行操作
+    doc->getLines()[cursor_row_] = before_cursor;
+    doc->getLines().insert(doc->getLines().begin() + cursor_row_ + 1, after_cursor);
+    
+    // 记录换行操作到撤销栈（作为一个完整的操作）
+    doc->pushChange(DocumentChange(
+        DocumentChange::Type::NEWLINE,
+        cursor_row_, cursor_col_,
+        current_line,  // old_content: 完整的原行
+        before_cursor, // new_content: 光标前的内容
+        after_cursor   // after_cursor: 光标后的内容（会移到新行）
+    ));
     
     cursor_row_++;
     cursor_col_ = 0;
@@ -289,53 +302,35 @@ void Editor::moveLineDown() {
 }
 
 void Editor::indentLine() {
-    LOG("=== indentLine() called ===");
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG_ERROR("indentLine() called but getCurrentDocument() returned null!");
         return;
     }
     
-    LOG("Document: " + doc->getFileName());
-    LOG("Cursor position: row=" + std::to_string(cursor_row_) + ", col=" + std::to_string(cursor_col_));
-    
     auto& lines = doc->getLines();
-    LOG("Document line count: " + std::to_string(lines.size()));
-    
     if (cursor_row_ >= lines.size()) {
-        LOG_ERROR("indentLine() cursor_row_ >= lines.size() (" + std::to_string(cursor_row_) + " >= " + std::to_string(lines.size()) + ")");
         return;
     }
     
     // Tab 键行为：在光标位置插入4个空格（如果光标在行首或行首空白处，则缩进整行）
     std::string& line = lines[cursor_row_];
-    LOG("Current line length: " + std::to_string(line.length()));
-    LOG("Current line content (first 50 chars): " + line.substr(0, 50));
     
     // 检查光标是否在行首或行首空白处
     size_t first_non_space = line.find_first_not_of(" \t");
     bool at_line_start = (cursor_col_ == 0) || 
                          (first_non_space != std::string::npos && cursor_col_ <= first_non_space);
     
-    LOG("First non-space position: " + std::to_string(first_non_space));
-    LOG("At line start: " + std::string(at_line_start ? "true" : "false"));
-    
     if (at_line_start) {
         // 在行首插入4个空格（缩进整行）
-        LOG("Indenting at line start");
         line = "    " + line;
         cursor_col_ += 4;
-        LOG("New cursor column: " + std::to_string(cursor_col_));
     } else {
         // 在光标位置插入4个空格
-        LOG("Indenting at cursor position");
         line.insert(cursor_col_, "    ");
         cursor_col_ += 4;
-        LOG("New cursor column: " + std::to_string(cursor_col_));
     }
     
     doc->setModified(true);
-    LOG("=== indentLine() completed ===");
     
     getCurrentDocument()->setModified(true);
 }
@@ -373,6 +368,8 @@ void Editor::toggleComment() {
     std::string comment_prefix = "//";
     if (file_type == "python" || file_type == "shell") {
         comment_prefix = "#";
+    } else if (file_type == "lua") {
+        comment_prefix = "--";
     } else if (file_type == "html" || file_type == "xml") {
         comment_prefix = "<!--";
         // HTML注释需要特殊处理，这里简化处理

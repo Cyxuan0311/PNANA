@@ -173,7 +173,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     
     // 查找各个配置段
     size_t editor_pos = cleaned.find("\"editor\":{");
-    /* size_t display_pos = cleaned.find("\"display\":{"); */
+    size_t display_pos = cleaned.find("\"display\":{");
     /* size_t files_pos = cleaned.find("\"files\":{"); */
     /* size_t search_pos = cleaned.find("\"search\":{"); */
     size_t themes_pos = cleaned.find("\"themes\":{");
@@ -193,6 +193,52 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         
         // 提取其他 editor 配置（简化处理）
         // font_size, tab_size 等
+    }
+    
+    // 解析 display 配置
+    if (display_pos != std::string::npos) {
+        // 提取 cursor_style
+        size_t style_pos = cleaned.find("\"cursor_style\":\"", display_pos);
+        if (style_pos != std::string::npos && style_pos < display_pos + 200) {
+            style_pos += 16; // 跳过 "cursor_style":"
+            size_t style_end = cleaned.find("\"", style_pos);
+            if (style_end != std::string::npos) {
+                config_.display.cursor_style = cleaned.substr(style_pos, style_end - style_pos);
+            }
+        }
+        
+        // 提取 cursor_color
+        size_t color_pos = cleaned.find("\"cursor_color\":\"", display_pos);
+        if (color_pos != std::string::npos && color_pos < display_pos + 200) {
+            color_pos += 16; // 跳过 "cursor_color":"
+            size_t color_end = cleaned.find("\"", color_pos);
+            if (color_end != std::string::npos) {
+                config_.display.cursor_color = cleaned.substr(color_pos, color_end - color_pos);
+            }
+        }
+        
+        // 提取 cursor_blink_rate
+        size_t rate_pos = cleaned.find("\"cursor_blink_rate\":", display_pos);
+        if (rate_pos != std::string::npos && rate_pos < display_pos + 200) {
+            rate_pos += 20; // 跳过 "cursor_blink_rate":
+            size_t rate_end = cleaned.find_first_of(",}", rate_pos);
+            if (rate_end != std::string::npos) {
+                std::string rate_str = cleaned.substr(rate_pos, rate_end - rate_pos);
+                try {
+                    config_.display.cursor_blink_rate = std::stoi(rate_str);
+                } catch (...) {
+                    config_.display.cursor_blink_rate = 500;
+                }
+            }
+        }
+        
+        // 提取 cursor_smooth
+        size_t smooth_pos = cleaned.find("\"cursor_smooth\":", display_pos);
+        if (smooth_pos != std::string::npos && smooth_pos < display_pos + 200) {
+            smooth_pos += 16; // 跳过 "cursor_smooth":
+            std::string smooth_str = cleaned.substr(smooth_pos, 4); // "true" 或 "fals"
+            config_.display.cursor_smooth = (smooth_str.find("true") != std::string::npos);
+        }
     }
     
     // 解析 themes 配置
@@ -230,7 +276,11 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"show_line_numbers\": " << (config_.display.show_line_numbers ? "true" : "false") << ",\n";
     oss << "    \"relative_line_numbers\": " << (config_.display.relative_line_numbers ? "true" : "false") << ",\n";
     oss << "    \"highlight_current_line\": " << (config_.display.highlight_current_line ? "true" : "false") << ",\n";
-    oss << "    \"show_whitespace\": " << (config_.display.show_whitespace ? "true" : "false") << "\n";
+    oss << "    \"show_whitespace\": " << (config_.display.show_whitespace ? "true" : "false") << ",\n";
+    oss << "    \"cursor_style\": \"" << config_.display.cursor_style << "\",\n";
+    oss << "    \"cursor_color\": \"" << config_.display.cursor_color << "\",\n";
+    oss << "    \"cursor_blink_rate\": " << config_.display.cursor_blink_rate << ",\n";
+    oss << "    \"cursor_smooth\": " << (config_.display.cursor_smooth ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"files\": {\n";
     oss << "    \"encoding\": \"" << config_.files.encoding << "\",\n";

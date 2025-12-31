@@ -7,12 +7,16 @@
 #include "ui/theme_menu.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/save_as_dialog.h"
+#include "ui/cursor_config_dialog.h"
+#include "ui/binary_file_view.h"
+#include "features/image_preview.h"
 #include "utils/logger.h"
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
 #include <map>
 #include <algorithm>
 #include <climits>
+#include <chrono>
 
 using namespace ftxui;
 
@@ -111,6 +115,26 @@ Element Editor::overlayDialogs(Element main_ui) {
             save_as_dialog_.render() | center
         });
     }
+    
+    // 光标配置对话框
+    if (cursor_config_dialog_.isVisible()) {
+        Elements dialog_elements = {
+            main_ui,
+            cursor_config_dialog_.render() | center
+        };
+        return dbox(dialog_elements);
+    }
+    
+#ifdef BUILD_LUA_SUPPORT
+    // 插件管理对话框
+    if (plugin_manager_dialog_.isVisible()) {
+        Elements dialog_elements = {
+            main_ui,
+            plugin_manager_dialog_.render() | center
+        };
+        return dbox(dialog_elements);
+    }
+#endif
     
     // 如果命令面板打开，叠加显示
     if (command_palette_.isOpen()) {
@@ -222,9 +246,110 @@ Element Editor::renderEditor() {
     // 单视图渲染（没有分屏）
     Document* doc = getCurrentDocument();
     
+    // 检查文件浏览器中是否选中了图片文件
+    if (file_browser_.isVisible()) {
+        std::string selected_path = file_browser_.getSelectedPath();
+        if (!selected_path.empty() && features::ImagePreview::isImageFile(selected_path)) {
+            // 检查是否支持图片预览（需要 FFmpeg）
+            if (!features::ImagePreview::isSupported()) {
+                // 如果没有 FFmpeg 支持，清空预览并跳过
+                if (image_preview_.isLoaded()) {
+                    image_preview_.clear();
+                }
+            } else {
+                // 计算代码区的实际可用尺寸
+                int code_area_width = screen_.dimx();
+                int code_area_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
+                
+                // 如果文件浏览器打开，减去文件浏览器的宽度
+                if (file_browser_.isVisible()) {
+                    code_area_width -= (file_browser_width_ + 1); // +1 是分隔符
+                }
+                
+                // 预留一些边距和图片信息空间（标题、尺寸、分隔符 = 3行）
+                code_area_width -= 4;
+                int available_height = code_area_height - 3 - 4; // 减去图片信息行和边距
+                
+                // 确保最小尺寸
+                if (code_area_width < 40) code_area_width = 40;
+                if (available_height < 10) available_height = 10;
+                
+                // 根据代码区尺寸计算预览尺寸（确保不截断）
+                // 字符高度约为宽度的0.6倍，所以预览高度 = 可用高度
+                // 预览宽度 = 代码区宽度
+                int preview_width = code_area_width;
+                int preview_height = available_height;
+                
+                // 如果是图片文件，显示预览
+                if (!image_preview_.isLoaded() || image_preview_.getImagePath() != selected_path ||
+                    image_preview_.getRenderWidth() != preview_width || image_preview_.getRenderHeight() != preview_height) {
+                    // 传入宽度和高度，让 loadImage 根据这两个值计算合适的预览尺寸
+                    image_preview_.loadImage(selected_path, preview_width, preview_height);
+                }
+            }
+            
+            if (image_preview_.isLoaded()) {
+                Elements preview_lines;
+                auto& colors = theme_.getColors();
+                
+                // 添加图片信息
+                preview_lines.push_back(
+                    hbox({
+                        text("🖼️  Image Preview: ") | color(colors.function) | bold,
+                        text(image_preview_.getImagePath()) | color(colors.foreground)
+                    })
+                );
+                preview_lines.push_back(
+                    hbox({
+                        text("  Size: ") | color(colors.comment),
+                        text(std::to_string(image_preview_.getImageWidth()) + "x" + 
+                             std::to_string(image_preview_.getImageHeight())) | color(colors.foreground)
+                    })
+                );
+                preview_lines.push_back(separator());
+                
+                // 使用像素数据直接渲染，使用 FTXUI 颜色 API（确保颜色正确显示）
+                auto preview_pixels = image_preview_.getPreviewPixels();
+                if (!preview_pixels.empty()) {
+                    // 渲染所有行（因为已经在 loadImage 时根据代码区尺寸计算好了）
+                    for (size_t i = 0; i < preview_pixels.size(); ++i) {
+                        Elements pixel_elements;
+                        const auto& row = preview_pixels[i];
+                        
+                        // 渲染所有像素（因为已经在 loadImage 时根据代码区宽度计算好了）
+                        for (size_t j = 0; j < row.size(); ++j) {
+                            const auto& pixel = row[j];
+                            // 使用 FTXUI 的颜色 API 直接设置颜色，不受主题影响
+                            ftxui::Color pixel_color = Color::RGB(pixel.r, pixel.g, pixel.b);
+                            pixel_elements.push_back(text(pixel.ch) | color(pixel_color));
+                        }
+                        
+                        preview_lines.push_back(hbox(pixel_elements));
+                    }
+                } else {
+                    preview_lines.push_back(text("Failed to load image preview") | color(colors.error));
+                }
+                
+                // 使用黑色背景以确保图片颜色正确显示，不受主题影响
+                return vbox(preview_lines) | bgcolor(Color::Black);
+            }
+        } else {
+            // 如果不是图片，清空预览
+            if (image_preview_.isLoaded()) {
+                image_preview_.clear();
+            }
+        }
+    }
+    
     // 如果没有文档，显示欢迎界面
     if (!doc) {
         return welcome_screen_.render();
+    }
+    
+    // 如果是二进制文件，显示二进制文件视图
+    if (doc->isBinary()) {
+        binary_file_view_.setFilePath(doc->getFilePath());
+        return binary_file_view_.render();
     }
     
     // 如果是新文件且内容为空，也显示欢迎界面
@@ -445,6 +570,12 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
         return vbox(empty_lines);
     }
     
+    // 如果是二进制文件，显示二进制文件视图
+    if (doc->isBinary()) {
+        binary_file_view_.setFilePath(doc->getFilePath());
+        return binary_file_view_.render();
+    }
+    
     Elements lines;
     
     // 计算该区域应该显示的行数
@@ -476,6 +607,84 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     return vbox(lines);
 }
 
+
+// 渲染光标元素的辅助函数
+Element Editor::renderCursorElement(const std::string& cursor_char, size_t cursor_pos, size_t line_length) const {
+    auto& colors = theme_.getColors();
+    ::pnana::ui::CursorStyle style = getCursorStyle();
+    ftxui::Color cursor_color = getCursorColor();
+    bool smooth = getCursorSmooth();
+    
+    // 根据样式渲染光标
+    Element cursor_elem;
+    
+    switch (style) {
+        case ::pnana::ui::CursorStyle::BLOCK: {
+            // 块状光标：背景色填充
+            if (cursor_pos < line_length) {
+                cursor_elem = text(cursor_char) | bgcolor(cursor_color) | color(colors.background) | bold;
+            } else {
+                cursor_elem = text(" ") | bgcolor(cursor_color) | color(colors.background) | bold;
+            }
+            break;
+        }
+        case ::pnana::ui::CursorStyle::UNDERLINE: {
+            // 下划线光标：使用反转颜色，但使用稍微暗的背景来模拟下划线效果
+            // 在终端中，我们使用反转颜色来模拟下划线
+            if (cursor_pos < line_length) {
+                // 使用反转颜色（前景色作为背景）
+                cursor_elem = text(cursor_char) | bgcolor(cursor_color) | color(colors.background);
+            } else {
+                // 行尾：显示下划线字符
+                cursor_elem = text("▁") | color(cursor_color) | bold;
+            }
+            break;
+        }
+        case ::pnana::ui::CursorStyle::BAR: {
+            // 竖线光标：字符前显示竖线
+            if (cursor_pos < line_length) {
+                cursor_elem = hbox({
+                    text("│") | color(cursor_color) | bold,
+                    text(cursor_char) | color(colors.foreground)
+                });
+            } else {
+                cursor_elem = text("│") | color(cursor_color) | bold;
+            }
+            break;
+        }
+        case ::pnana::ui::CursorStyle::HOLLOW: {
+            // 空心块光标：使用反转颜色（前景色作为边框效果）
+            if (cursor_pos < line_length) {
+                // 使用反转颜色模拟空心效果
+                cursor_elem = text(cursor_char) | color(cursor_color) | bold | 
+                             bgcolor(colors.background);
+            } else {
+                // 行尾：显示一个带颜色的空格
+                cursor_elem = text("▯") | color(cursor_color) | bold;
+            }
+            break;
+        }
+        default: {
+            // 默认块状
+            if (cursor_pos < line_length) {
+                cursor_elem = text(cursor_char) | bgcolor(cursor_color) | color(colors.background) | bold;
+            } else {
+                cursor_elem = text(" ") | bgcolor(cursor_color) | color(colors.background) | bold;
+            }
+            break;
+        }
+    }
+    
+    // 如果启用流动效果，可以添加额外的视觉效果
+    // 注意：FTXUI 不支持动画，流动效果可以通过其他方式实现（如渐变颜色）
+    if (smooth) {
+        // 流动效果：使用稍微不同的颜色或样式
+        // 这里简化处理，使用稍微亮一点的颜色
+        // 实际流动效果需要时间相关的状态，这里先实现基础版本
+    }
+    
+    return cursor_elem;
+}
 
 Element Editor::renderLine(size_t line_num, bool is_current) {
     Elements line_elements;
@@ -545,21 +754,8 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                     } catch (...) {
                         parts.push_back(text(before) | color(colors.foreground));
                     }
-                    if (cursor_pos < line_content.length()) {
-                        parts.push_back(
-                            text(cursor_char) | 
-                            bgcolor(colors.foreground) | 
-                            color(colors.background) | 
-                            bold
-                        );
-                    } else {
-                        parts.push_back(
-                            text(" ") | 
-                            bgcolor(colors.foreground) | 
-                            color(colors.background) | 
-                            bold
-                        );
-                    }
+                    // 使用配置的光标样式渲染
+                    parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
                     try {
                         if (!after.empty()) {
                             parts.push_back(syntax_highlighter_.highlightLine(after));
@@ -569,12 +765,8 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                     }
                 } else {
                     parts.push_back(text(before) | color(colors.foreground));
-                    parts.push_back(
-                        text(cursor_char) | 
-                        bgcolor(colors.foreground) | 
-                        color(colors.background) | 
-                        bold
-                    );
+                    // 使用配置的光标样式渲染
+                    parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
                     parts.push_back(text(after) | color(colors.foreground));
                 }
             } else {
@@ -624,12 +816,8 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                             
                             // 光标位置的字符
                             std::string cursor_char = match_text.substr(before_cursor, 1);
-            parts.push_back(
-                text(cursor_char) | 
-                bgcolor(colors.foreground) | 
-                color(colors.background) | 
-                bold
-            );
+                            // 使用配置的光标样式渲染
+                            parts.push_back(renderCursorElement(cursor_char, pos + before_cursor, line_content.length()));
                             
                             if (after_cursor > 1) {
                                 std::string after = match_text.substr(before_cursor + 1);
@@ -684,12 +872,8 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                             } catch (...) {
                                 parts.push_back(text(before) | color(colors.foreground));
                             }
-                            parts.push_back(
-                                text(cursor_char) | 
-                                bgcolor(colors.foreground) | 
-                                color(colors.background) | 
-                                bold
-                            );
+                            // 使用配置的光标样式渲染
+                            parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
                             try {
                                 if (!after.empty()) {
                                     parts.push_back(syntax_highlighter_.highlightLine(after));
@@ -699,12 +883,8 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                             }
                         } else {
                             parts.push_back(text(before) | color(colors.foreground));
-                            parts.push_back(
-                                text(cursor_char) | 
-                                bgcolor(colors.foreground) | 
-                                color(colors.background) | 
-                                bold
-                            );
+                            // 使用配置的光标样式渲染
+                            parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
                             parts.push_back(text(after) | color(colors.foreground));
         }
                     } else {

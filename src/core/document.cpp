@@ -17,8 +17,10 @@ Document::Document()
       encoding_("UTF-8"),
       line_ending_(LineEnding::LF),
       modified_(false),
-      read_only_(false) {
+      read_only_(false),
+      is_binary_(false) {
     lines_.push_back("");
+    original_lines_.push_back("");
 }
 
 Document::Document(const std::string& filepath) 
@@ -52,6 +54,47 @@ bool Document::load(const std::string& filepath) {
                         std::istreambuf_iterator<char>());
     file.close();
     
+    // 检测二进制文件
+    is_binary_ = false;
+    if (!content.empty()) {
+        // 检查是否包含大量空字符（二进制文件的典型特征）
+        size_t null_count = 0;
+        size_t check_size = std::min(content.size(), size_t(8192)); // 只检查前8KB
+        for (size_t i = 0; i < check_size; ++i) {
+            if (content[i] == '\0') {
+                null_count++;
+            }
+        }
+        
+        // 如果前8KB中有超过1%的空字符，认为是二进制文件
+        if (null_count > check_size / 100) {
+            is_binary_ = true;
+        } else {
+            // 检查是否包含大量非可打印字符（排除常见的空白字符）
+            size_t non_printable = 0;
+            for (size_t i = 0; i < check_size; ++i) {
+                unsigned char ch = static_cast<unsigned char>(content[i]);
+                // 允许的字符：可打印字符、换行符、制表符、回车符
+                if (ch < 32 && ch != '\n' && ch != '\r' && ch != '\t') {
+                    non_printable++;
+                }
+            }
+            
+            // 如果非可打印字符超过5%，认为是二进制文件
+            if (non_printable > check_size / 20) {
+                is_binary_ = true;
+            }
+        }
+    }
+    
+    // 如果是二进制文件，不解析内容
+    if (is_binary_) {
+        lines_.push_back("");
+        filepath_ = filepath;
+        modified_ = false;
+        return true;
+    }
+    
     if (content.empty()) {
         lines_.push_back("");
     } else {
@@ -77,6 +120,8 @@ bool Document::load(const std::string& filepath) {
     
     filepath_ = filepath;
     modified_ = false;
+    // 保存原始内容快照
+    saveOriginalContent();
     return true;
 }
 
@@ -176,6 +221,9 @@ bool Document::saveAs(const std::string& filepath) {
     // 更新文档状态
     filepath_ = filepath;
     modified_ = false;
+    // 保存原始内容快照（保存后的内容就是新的原始内容）
+    saveOriginalContent();
+    clearHistory();  // 清除撤销历史，因为已经保存了
     last_error_.clear();
     
     return true;
@@ -233,8 +281,6 @@ void Document::insertChar(size_t row, size_t col, char ch) {
         DocumentChange::Type::INSERT,
         row, col, "", std::string(1, ch)
     ));
-    
-    modified_ = true;
 }
 
 void Document::insertText(size_t row, size_t col, const std::string& text) {
@@ -252,8 +298,6 @@ void Document::insertText(size_t row, size_t col, const std::string& text) {
         DocumentChange::Type::INSERT,
         row, col, "", text
     ));
-    
-    modified_ = true;
 }
 
 void Document::insertLine(size_t row) {
@@ -262,7 +306,12 @@ void Document::insertLine(size_t row) {
     }
     
     lines_.insert(lines_.begin() + row, "");
-    modified_ = true;
+    
+    // 插入新行需要记录到撤销栈
+    pushChange(DocumentChange(
+        DocumentChange::Type::INSERT,
+        row, 0, "", "\n"
+    ));
 }
 
 void Document::deleteLine(size_t row) {
@@ -282,8 +331,6 @@ void Document::deleteLine(size_t row) {
         DocumentChange::Type::DELETE,
         row, 0, deleted, ""
     ));
-    
-    modified_ = true;
 }
 
 void Document::deleteChar(size_t row, size_t col) {
@@ -299,14 +346,17 @@ void Document::deleteChar(size_t row, size_t col) {
             DocumentChange::Type::DELETE,
             row, col, std::string(1, deleted), ""
         ));
-        
-        modified_ = true;
     } else if (row < lines_.size() - 1) {
         // 合并行
         std::string next_line = lines_[row + 1];
+        std::string old_line = lines_[row];
         lines_[row] += next_line;
         lines_.erase(lines_.begin() + row + 1);
-        modified_ = true;
+        // 记录行合并操作
+        pushChange(DocumentChange(
+            DocumentChange::Type::REPLACE,
+            row, old_line.length(), old_line + "\n" + next_line, old_line + next_line
+        ));
     }
 }
 
@@ -317,7 +367,8 @@ void Document::deleteRange(size_t start_row, size_t /*start_col*/,
     }
     
     // 简化实现：后续可以优化
-    modified_ = true;
+    // 注意：这里没有调用 pushChange，因为这是一个简化的实现
+    // 如果需要完整的撤销支持，应该在这里记录删除的内容
 }
 
 void Document::replaceLine(size_t row, const std::string& content) {
@@ -332,8 +383,6 @@ void Document::replaceLine(size_t row, const std::string& content) {
         DocumentChange::Type::REPLACE,
         row, 0, old_content, content
     ));
-    
-    modified_ = true;
 }
 
 bool Document::undo(size_t* out_row, size_t* out_col) {
@@ -378,10 +427,32 @@ bool Document::undo(size_t* out_row, size_t* out_col) {
             if (out_row) *out_row = change.row;
             if (out_col) *out_col = change.col;
             break;
+            
+        case DocumentChange::Type::NEWLINE:
+            // 撤销换行：删除新插入的行，恢复原行的完整内容
+            if (change.row + 1 < lines_.size()) {
+                // 删除新插入的行
+                lines_.erase(lines_.begin() + change.row + 1);
+            }
+            // 恢复原行的完整内容（before_cursor + after_cursor）
+            if (change.row < lines_.size()) {
+                lines_[change.row] = change.old_content + change.after_cursor;
+            }
+            // 光标应该回到换行前的位置
+            if (out_row) *out_row = change.row;
+            if (out_col) *out_col = change.col;
+            break;
     }
     
     redo_stack_.push_back(change);
-    modified_ = true;
+    
+    // 检查撤销后内容是否与原始内容相同（参考 VSCode 行为）
+    if (isContentSameAsOriginal()) {
+        modified_ = false;
+    } else {
+        modified_ = true;
+    }
+    
     return true;
 }
 
@@ -421,10 +492,32 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             if (out_row) *out_row = change.row;
             if (out_col) *out_col = change.new_content.length();
             break;
+            
+        case DocumentChange::Type::NEWLINE:
+            // 重做换行：分割当前行，插入新行
+            if (change.row < lines_.size()) {
+                // 设置当前行为 before_cursor
+                lines_[change.row] = change.new_content;
+                // 插入新行并设置 after_cursor
+                if (change.row + 1 <= lines_.size()) {
+                    lines_.insert(lines_.begin() + change.row + 1, change.after_cursor);
+                }
+            }
+            // 光标应该移动到新行的开始
+            if (out_row) *out_row = change.row + 1;
+            if (out_col) *out_col = 0;
+            break;
     }
     
     undo_stack_.push_back(change);
-    modified_ = true;
+    
+    // 检查重做后内容是否与原始内容相同（参考 VSCode 行为）
+    if (isContentSameAsOriginal()) {
+        modified_ = false;
+    } else {
+        modified_ = true;
+    }
+    
     return true;
 }
 
@@ -433,7 +526,14 @@ void Document::pushChange(const DocumentChange& change) {
     if (undo_stack_.size() > MAX_UNDO_STACK) {
         undo_stack_.pop_front();
     }
-    redo_stack_.clear();
+    redo_stack_.clear();  // 新的修改会清除重做栈（参考 VSCode 行为）
+    
+    // 检查修改后内容是否与原始内容相同
+    if (isContentSameAsOriginal()) {
+        modified_ = false;
+    } else {
+        modified_ = true;
+    }
 }
 
 void Document::clearHistory() {
@@ -490,6 +590,25 @@ std::string Document::applyLineEnding(const std::string& /* line */) const {
         default:
             return "\n";
     }
+}
+
+void Document::saveOriginalContent() {
+    original_lines_ = lines_;
+}
+
+bool Document::isContentSameAsOriginal() const {
+    // 比较当前内容与原始内容是否完全相同
+    if (lines_.size() != original_lines_.size()) {
+        return false;
+    }
+    
+    for (size_t i = 0; i < lines_.size(); ++i) {
+        if (lines_[i] != original_lines_[i]) {
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 } // namespace core
