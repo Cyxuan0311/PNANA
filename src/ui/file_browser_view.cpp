@@ -24,25 +24,48 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     content.push_back(separator());
     
     // 文件列表
+    size_t total_items = browser.getFlatItems().size();
+    
+    // 计算可用高度：总高度 - 标题(1) - 分隔符(1) - 底部分隔符(1) - 状态栏(1) = height - 4
+    size_t available_height = static_cast<size_t>(height - 4);
     size_t visible_start = 0;
-    size_t visible_count = static_cast<size_t>(height - 5);  // 减去标题、分隔符和底部状态栏（2行）
+    size_t visible_count = available_height;  // 使用所有可用高度
     
     // 调整滚动位置
     size_t selected_index = browser.getSelectedIndex();
     
-    if (selected_index >= visible_start + visible_count) {
+    if (selected_index >= visible_start + visible_count && total_items > visible_count) {
         visible_start = selected_index - visible_count + 1;
     }
     if (selected_index < visible_start) {
         visible_start = selected_index;
     }
     
-    // 渲染文件列表
-    content.push_back(renderFileList(browser, visible_start, visible_count));
+    // 渲染文件列表 - 直接获取文件项元素，而不是嵌套的 vbox
+    Elements file_list_elements;
+    const auto& flat_items = browser.getFlatItems();
     
-    // 填充空行（留出底部状态栏空间）
-    while (content.size() < static_cast<size_t>(height - 2)) {
-        content.push_back(text(""));
+    size_t rendered_items = 0;
+    for (size_t i = visible_start; 
+         i < flat_items.size() && i < visible_start + visible_count; 
+         ++i) {
+        const features::FileItem* item = flat_items[i];
+        if (item) {
+            file_list_elements.push_back(renderFileItem(item, i, selected_index, flat_items));
+            rendered_items++;
+        }
+    }
+    
+    // 如果文件项数少于可用高度，填充空行
+    if (rendered_items < available_height) {
+        for (size_t i = rendered_items; i < available_height; ++i) {
+            file_list_elements.push_back(text(""));
+        }
+    }
+    
+    // 将文件列表添加到内容中
+    if (!file_list_elements.empty()) {
+        content.push_back(vbox(file_list_elements));
     }
     
     // 底部状态栏
@@ -77,7 +100,9 @@ Element FileBrowserView::renderFileList(const features::FileBrowser& browser,
          i < flat_items.size() && i < visible_start + visible_count; 
          ++i) {
         const features::FileItem* item = flat_items[i];
-        content.push_back(renderFileItem(item, i, selected_index, flat_items));
+        if (item) {
+            content.push_back(renderFileItem(item, i, selected_index, flat_items));
+        }
     }
     
     return vbox(content);
