@@ -85,9 +85,7 @@ Simple JSON configuration file supporting themes, fonts, indentation, and other 
 ## 🚀 Quick Start
 
 ### Build Requirements
-- C++17 or higher compiler
-- CMake 3.10+
-- FTXUI library (included in third-party)
+**[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation
 
 ### Build and Install
 
