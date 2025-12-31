@@ -7,3 +7,5 @@ logs/
 pnana.log
 C++ 终端编辑器 LSP 客户端与 jsonrpccpp 的集成方案.md
 语法高亮优化建议.md
+LSP_PERFORMANCE_OPTIMIZATION.md
+SEARCH_REPLACE_ANALYSIS.md
