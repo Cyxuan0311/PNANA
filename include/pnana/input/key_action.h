@@ -26,6 +26,11 @@ enum class KeyAction {
     COPY,
     PASTE,
     SELECT_ALL,
+    SELECT_WORD,          // 选中词块
+    SELECT_EXTEND_UP,      // 向上扩展选中
+    SELECT_EXTEND_DOWN,    // 向下扩展选中
+    SELECT_EXTEND_LEFT,    // 向左扩展选中
+    SELECT_EXTEND_RIGHT,  // 向右扩展选中
     DUPLICATE_LINE,
     DELETE_LINE,
     DELETE_WORD,

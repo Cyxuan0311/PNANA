@@ -36,11 +36,21 @@ static void initializeActionInfos() {
     action_infos_.emplace_back(KeyAction::CUT, ActionGroup::EDIT_OPS,
         "cut", "Cut", std::vector<std::string>{"ctrl_x"});
     action_infos_.emplace_back(KeyAction::COPY, ActionGroup::EDIT_OPS,
-        "copy", "Copy", std::vector<std::string>{"ctrl_c"});
+        "copy", "Copy", std::vector<std::string>{"ctrl_p"});
     action_infos_.emplace_back(KeyAction::PASTE, ActionGroup::EDIT_OPS,
         "paste", "Paste", std::vector<std::string>{"ctrl_v"});
     action_infos_.emplace_back(KeyAction::SELECT_ALL, ActionGroup::EDIT_OPS,
         "select_all", "Select all", std::vector<std::string>{"ctrl_a"});
+    action_infos_.emplace_back(KeyAction::SELECT_WORD, ActionGroup::EDIT_OPS,
+        "select_word", "Select word", std::vector<std::string>{"alt_d"});
+    action_infos_.emplace_back(KeyAction::SELECT_EXTEND_UP, ActionGroup::EDIT_OPS,
+        "select_extend_up", "Extend selection up", std::vector<std::string>{"alt_shift_arrow_up"});
+    action_infos_.emplace_back(KeyAction::SELECT_EXTEND_DOWN, ActionGroup::EDIT_OPS,
+        "select_extend_down", "Extend selection down", std::vector<std::string>{"alt_shift_arrow_down"});
+    action_infos_.emplace_back(KeyAction::SELECT_EXTEND_LEFT, ActionGroup::EDIT_OPS,
+        "select_extend_left", "Extend selection left", std::vector<std::string>{"alt_shift_arrow_left"});
+    action_infos_.emplace_back(KeyAction::SELECT_EXTEND_RIGHT, ActionGroup::EDIT_OPS,
+        "select_extend_right", "Extend selection right", std::vector<std::string>{"alt_shift_arrow_right"});
     action_infos_.emplace_back(KeyAction::DUPLICATE_LINE, ActionGroup::EDIT_OPS,
         "duplicate_line", "Duplicate line", std::vector<std::string>{"ctrl_d"});
     action_infos_.emplace_back(KeyAction::DELETE_LINE, ActionGroup::EDIT_OPS,

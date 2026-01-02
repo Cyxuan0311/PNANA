@@ -142,22 +142,34 @@ std::string EventParser::parseArrowKey(const ftxui::Event& event) const {
     
     if (event == ftxui::Event::ArrowUp) {
         if (mods.ctrl) return "ctrl_up";
-        if (isAlt(event)) return "alt_arrow_up";
+        if (isAlt(event)) {
+            if (mods.shift) return "alt_shift_arrow_up";
+            return "alt_arrow_up";
+        }
         return "arrow_up";
     }
     if (event == ftxui::Event::ArrowDown) {
         if (mods.ctrl) return "ctrl_down";
-        if (isAlt(event)) return "alt_arrow_down";
+        if (isAlt(event)) {
+            if (mods.shift) return "alt_shift_arrow_down";
+            return "alt_arrow_down";
+        }
         return "arrow_down";
     }
     if (event == ftxui::Event::ArrowLeft) {
         if (mods.ctrl) return "ctrl_left";
-        if (isAlt(event)) return "alt_arrow_left";
+        if (isAlt(event)) {
+            if (mods.shift) return "alt_shift_arrow_left";
+            return "alt_arrow_left";
+        }
         return "arrow_left";
     }
     if (event == ftxui::Event::ArrowRight) {
         if (mods.ctrl) return "ctrl_right";
-        if (isAlt(event)) return "alt_arrow_right";
+        if (isAlt(event)) {
+            if (mods.shift) return "alt_shift_arrow_right";
+            return "alt_arrow_right";
+        }
         return "arrow_right";
     }
     
@@ -209,7 +221,12 @@ std::string EventParser::parseAltKey(const ftxui::Event& event) const {
             std::string ch = input.substr(1);
             // 只取第一个字符
             if (ch.length() >= 1) {
-                char c = std::tolower(ch[0]);
+                char c = ch[0];
+                // 处理 Alt+Space（Space 字符是 ' '，ASCII 32）
+                if (c == ' ') {
+                    return "alt_space";
+                }
+                c = std::tolower(c);
                 if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
                     return "alt_" + std::string(1, c);
                 }
@@ -220,6 +237,10 @@ std::string EventParser::parseAltKey(const ftxui::Event& event) const {
     // 也检查 isAlt() 方法（用于其他可能的 Alt 键表示方式）
     if (isAlt(event) && event.is_character()) {
         std::string ch = event.character();
+        // 处理 Alt+Space
+        if (ch == " ") {
+            return "alt_space";
+        }
         std::transform(ch.begin(), ch.end(), ch.begin(), ::tolower);
         if (ch.length() == 1 && ((ch[0] >= 'a' && ch[0] <= 'z') || (ch[0] >= '0' && ch[0] <= '9'))) {
             return "alt_" + ch;
@@ -238,6 +259,43 @@ std::string EventParser::parseCtrlSpecialChar(const ftxui::Event& event) const {
             if (ch == "\\") return "ctrl_backslash";
             if (ch == "-") return "ctrl_minus";
             if (ch == "=" || ch == "+") return "ctrl_plus";
+            if (ch == " ") return "ctrl_space";
+            if (ch == "'" || ch == "\"") return "ctrl_quote";  // Ctrl+' 或 Ctrl+"
+        }
+    }
+    return "";
+}
+
+std::string EventParser::parseSpaceKey(const ftxui::Event& event) const {
+    if (event.is_character()) {
+        std::string input = event.input();
+        std::string ch = event.character();
+        
+        // 检测 Space+A 组合
+        // 方法1：输入字符串包含 " a" 或 " A"（Space 后跟 A）
+        if (input.length() >= 2) {
+            // 检查是否包含 Space 后跟 'a' 或 'A'
+            for (size_t i = 0; i < input.length() - 1; ++i) {
+                if (input[i] == ' ') {
+                    char next_char = std::tolower(input[i + 1]);
+                    if (next_char == 'a') {
+                        return "space_a";
+                    }
+                }
+            }
+        }
+        
+        // 方法2：字符是 'a' 或 'A'，且输入字符串以 Space 开头
+        if (ch.length() == 1) {
+            char c = std::tolower(ch[0]);
+            if (c == 'a' && input.length() >= 2 && input[0] == ' ') {
+                return "space_a";
+            }
+        }
+        
+        // 方法3：输入字符串正好是 " a" 或 " A"
+        if (input == " a" || input == " A") {
+            return "space_a";
         }
     }
     return "";
@@ -281,7 +339,11 @@ std::string EventParser::eventToKey(const ftxui::Event& event) const {
     key = parseCtrlSpecialChar(event);
     if (!key.empty()) return key;
     
-    // 8. 普通字符（不作为快捷键）
+    // 8. Space+字符组合（如 Space+A）
+    key = parseSpaceKey(event);
+    if (!key.empty()) return key;
+    
+    // 9. 普通字符（不作为快捷键）
     if (event.is_character()) {
         std::string ch = event.character();
         if (ch.length() == 1 && ch[0] >= 32 && ch[0] < 127) {

@@ -2,6 +2,7 @@
 #include "input/key_action.h"
 #include "utils/logger.h"
 #include <algorithm>
+#include <iostream>
 
 namespace pnana {
 namespace input {
@@ -34,9 +35,14 @@ void KeyBindingManager::initializeEditOperationBindings() {
     bindKey("ctrl_y", KeyAction::REDO);
     bindKeyAliases({"ctrl_shift_z"}, KeyAction::REDO);
     bindKey("ctrl_x", KeyAction::CUT);
-    bindKey("ctrl_c", KeyAction::COPY);
+    bindKey("ctrl_p", KeyAction::COPY);
     bindKey("ctrl_v", KeyAction::PASTE);
     bindKey("ctrl_a", KeyAction::SELECT_ALL);
+    bindKey("alt_d", KeyAction::SELECT_WORD);
+    bindKey("alt_shift_arrow_up", KeyAction::SELECT_EXTEND_UP);
+    bindKey("alt_shift_arrow_down", KeyAction::SELECT_EXTEND_DOWN);
+    bindKey("alt_shift_arrow_left", KeyAction::SELECT_EXTEND_LEFT);
+    bindKey("alt_shift_arrow_right", KeyAction::SELECT_EXTEND_RIGHT);
     bindKey("ctrl_d", KeyAction::DUPLICATE_LINE);
     bindKey("ctrl_shift_k", KeyAction::DELETE_LINE);
     bindKey("ctrl_backspace", KeyAction::DELETE_WORD);
@@ -90,6 +96,12 @@ void KeyBindingManager::initializeTabOperationBindings() {
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
     std::string key = parser_.eventToKey(event);
     
+    // 调试信息：检查 Ctrl+P 事件
+    if (event == ftxui::Event::CtrlP) {
+        LOG("[DEBUG COPY] KeyBindingManager::getAction() - Ctrl+P detected");
+        LOG("[DEBUG COPY] eventToKey() returned: '" + key + "'");
+    }
+    
     // 添加调试日志（仅对 Tab 键）
     if (event == ftxui::Event::Tab) {
         LOG("KeyBindingManager::getAction() - Tab key detected");
@@ -120,12 +132,36 @@ KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
     }
     
     if (key.empty()) {
+        if (event == ftxui::Event::CtrlP) {
+            LOG_ERROR("[DEBUG COPY] Key string is empty for Ctrl+P!");
+        }
         return KeyAction::UNKNOWN;
     }
     
     auto it = key_to_action_.find(key);
     if (it != key_to_action_.end()) {
+        if (event == ftxui::Event::CtrlP) {
+            LOG("[DEBUG COPY] Found action in map: " + std::to_string(static_cast<int>(it->second)) + 
+                " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
+        }
         return it->second;
+    }
+    
+    if (event == ftxui::Event::CtrlP) {
+        LOG_ERROR("[DEBUG COPY] Key '" + key + "' not found in key_to_action_ map!");
+        LOG_ERROR("[DEBUG COPY] Total keys in map: " + std::to_string(key_to_action_.size()));
+        // 检查 "ctrl_p" 键是否存在
+        int ctrl_p_count = 0;
+        for (const auto& pair : key_to_action_) {
+            if (pair.first == "ctrl_p") {
+                LOG("[DEBUG COPY] Found 'ctrl_p' key in map! Action: " + 
+                    std::to_string(static_cast<int>(pair.second)));
+                ctrl_p_count++;
+            }
+        }
+        if (ctrl_p_count == 0) {
+            LOG_ERROR("[DEBUG COPY] 'ctrl_p' key NOT found in map at all!");
+        }
     }
     
     return KeyAction::UNKNOWN;

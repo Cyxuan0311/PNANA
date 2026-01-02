@@ -67,6 +67,9 @@ private:
     
     // 解析 Ctrl+特殊字符组合
     std::string parseCtrlSpecialChar(const ftxui::Event& event) const;
+    
+    // 解析 Space+字符组合（如 Space+A）
+    std::string parseSpaceKey(const ftxui::Event& event) const;
 };
 
 } // namespace input

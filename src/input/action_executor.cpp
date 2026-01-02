@@ -31,6 +31,11 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::COPY:
         case KeyAction::PASTE:
         case KeyAction::SELECT_ALL:
+        case KeyAction::SELECT_WORD:
+        case KeyAction::SELECT_EXTEND_UP:
+        case KeyAction::SELECT_EXTEND_DOWN:
+        case KeyAction::SELECT_EXTEND_LEFT:
+        case KeyAction::SELECT_EXTEND_RIGHT:
         case KeyAction::DUPLICATE_LINE:
         case KeyAction::DELETE_LINE:
         case KeyAction::DELETE_WORD:
@@ -137,13 +142,30 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
             editor_->cut();
             return true;
         case KeyAction::COPY:
+            LOG("[DEBUG COPY] ActionExecutor: COPY action executing");
             editor_->copy();
+            LOG("[DEBUG COPY] ActionExecutor: COPY action completed");
             return true;
         case KeyAction::PASTE:
             editor_->paste();
             return true;
         case KeyAction::SELECT_ALL:
             editor_->selectAll();
+            return true;
+        case KeyAction::SELECT_WORD:
+            editor_->selectWord();
+            return true;
+        case KeyAction::SELECT_EXTEND_UP:
+            editor_->extendSelectionUp();
+            return true;
+        case KeyAction::SELECT_EXTEND_DOWN:
+            editor_->extendSelectionDown();
+            return true;
+        case KeyAction::SELECT_EXTEND_LEFT:
+            editor_->extendSelectionLeft();
+            return true;
+        case KeyAction::SELECT_EXTEND_RIGHT:
+            editor_->extendSelectionRight();
             return true;
         case KeyAction::DUPLICATE_LINE:
             editor_->duplicateLine();
