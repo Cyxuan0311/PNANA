@@ -20,11 +20,13 @@
 #include "ui/split_dialog.h"
 #include "ui/ssh_dialog.h"
 #include "ui/welcome_screen.h"
+#include "ui/new_file_prompt.h"
 #include "ui/theme_menu.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/save_as_dialog.h"
 #include "ui/cursor_config_dialog.h"
 #include "ui/binary_file_view.h"
+#include "ui/encoding_dialog.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "ui/plugin_manager_dialog.h"
 #endif
@@ -37,6 +39,9 @@
 #include "features/split_view.h"
 #ifdef BUILD_LSP_SUPPORT
 #include "features/lsp/lsp_server_manager.h"
+#include "features/lsp/lsp_async_manager.h"
+#include "features/lsp/document_change_tracker.h"
+#include "features/lsp/lsp_completion_cache.h"
 #include "ui/completion_popup.h"
 #endif
 #ifdef BUILD_LUA_SUPPORT
@@ -48,6 +53,8 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <mutex>
+#include <chrono>
 
 namespace pnana {
 namespace core {
@@ -62,8 +69,7 @@ namespace input {
 enum class EditorMode {
     NORMAL,        // 正常编辑模式
     SEARCH,        // 搜索模式
-    REPLACE,       // 替换模式
-    GOTO_LINE      // 跳转到行模式
+    REPLACE        // 替换模式
 };
 
 // 编辑器核心类
@@ -133,6 +139,10 @@ public:
     void selectAll();
     void selectLine();
     void selectWord();
+    void extendSelectionUp();
+    void extendSelectionDown();
+    void extendSelectionLeft();
+    void extendSelectionRight();
     
     // 剪贴板操作
     void cut();
@@ -230,11 +240,13 @@ private:
     pnana::ui::SplitDialog split_dialog_;
     pnana::ui::SSHDialog ssh_dialog_;
     pnana::ui::WelcomeScreen welcome_screen_;
+    pnana::ui::NewFilePrompt new_file_prompt_;
     pnana::ui::ThemeMenu theme_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
     pnana::ui::BinaryFileView binary_file_view_;
+    pnana::ui::EncodingDialog encoding_dialog_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
@@ -256,6 +268,32 @@ private:
     std::map<std::string, std::string> file_language_map_;  // 文件路径 -> 语言ID
     std::string last_completion_trigger_;  // 上次触发补全的字符
     int completion_trigger_delay_;  // 补全触发延迟计数
+    
+    // URI 缓存（阶段1优化）
+    std::map<std::string, std::string> uri_cache_;  // filepath -> uri
+    std::mutex uri_cache_mutex_;  // 保护 URI 缓存的互斥锁
+    
+    // 文档更新防抖（阶段1优化）
+    std::chrono::steady_clock::time_point last_document_update_time_;
+    std::chrono::milliseconds document_update_debounce_interval_{200};  // 200ms 防抖间隔
+    std::string pending_document_uri_;
+    std::string pending_document_content_;
+    int pending_document_version_;
+    std::mutex document_update_mutex_;
+    
+    // 补全防抖（阶段1优化）
+    std::chrono::steady_clock::time_point last_completion_trigger_time_;
+    std::chrono::milliseconds completion_debounce_interval_{100};  // 100ms 防抖间隔（参考 VSCode，快速响应）
+    std::mutex completion_debounce_mutex_;
+    
+    // 异步请求管理器（阶段2优化）
+    std::unique_ptr<features::LspAsyncManager> lsp_async_manager_;
+    
+    // 文档变更跟踪器（阶段2优化）
+    std::unique_ptr<features::DocumentChangeTracker> document_change_tracker_;
+    
+    // 补全缓存（阶段2优化）
+    std::unique_ptr<features::LspCompletionCache> completion_cache_;
 #endif
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理器
@@ -310,7 +348,6 @@ private:
     void handleNormalMode(ftxui::Event event);
     void handleSearchMode(ftxui::Event event);
     void handleReplaceMode(ftxui::Event event);
-    void handleGotoLineMode(ftxui::Event event);
     
     // UI渲染
     ftxui::Element renderUI();
@@ -338,7 +375,6 @@ private:
     std::string getFileType() const;
     void executeSearch(bool move_cursor = true);
     void executeReplace();
-    void executeGotoLine();
     
     // 快捷键检查
     bool isCtrlKey(const ftxui::Event& event, char key) const;
@@ -375,6 +411,7 @@ private:
     
     // 光标配置
     void openCursorConfig();
+    void openEncodingDialog();
     void applyCursorConfig();
     
 #ifdef BUILD_LUA_SUPPORT
@@ -398,6 +435,10 @@ private:
     
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
+    
+    // 编码对话框
+    void handleEncodingDialogInput(ftxui::Event event);
+    void convertFileEncoding(const std::string& new_encoding);
     
 #ifdef BUILD_LSP_SUPPORT
     // LSP 相关方法

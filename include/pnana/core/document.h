@@ -5,6 +5,7 @@
 #include <vector>
 #include <deque>
 #include <memory>
+#include <chrono>
 
 namespace pnana {
 namespace core {
@@ -19,15 +20,25 @@ struct DocumentChange {
     std::string old_content;
     std::string new_content;
     std::string after_cursor;  // 用于 NEWLINE 类型：光标后的内容
+    std::chrono::steady_clock::time_point timestamp;  // 时间戳，用于智能合并
     
     DocumentChange(Type t, size_t r, size_t c, 
                    const std::string& old_c, const std::string& new_c)
-        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor("") {}
+        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(""),
+          timestamp(std::chrono::steady_clock::now()) {}
     
     // NEWLINE 类型的构造函数
     DocumentChange(Type t, size_t r, size_t c, 
                    const std::string& old_c, const std::string& new_c, const std::string& after)
-        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(after) {}
+        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(after),
+          timestamp(std::chrono::steady_clock::now()) {}
+    
+    // 带时间戳的构造函数（用于合并操作）
+    DocumentChange(Type t, size_t r, size_t c, 
+                   const std::string& old_c, const std::string& new_c,
+                   const std::chrono::steady_clock::time_point& ts)
+        : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(""),
+          timestamp(ts) {}
 };
 
 // 文档类 - 管理单个文件的内容
