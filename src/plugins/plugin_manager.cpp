@@ -172,12 +172,12 @@ bool PluginManager::loadPlugin(const std::string& plugin_path) {
     if (it != plugins_.end()) {
         info = it->second;
     } else {
-        // 加载插件配置
-        if (!loadPluginConfig(plugin_path, info)) {
-            // 如果没有配置文件，使用默认值
-            info.version = "1.0.0";
-            info.description = "No description";
-            info.author = "Unknown";
+    // 加载插件配置
+    if (!loadPluginConfig(plugin_path, info)) {
+        // 如果没有配置文件，使用默认值
+        info.version = "1.0.0";
+        info.description = "No description";
+        info.author = "Unknown";
         }
         
         // 注册插件（但不加载）
