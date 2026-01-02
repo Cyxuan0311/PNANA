@@ -3,8 +3,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <csignal>
 #include <cstdlib>
+#include <csignal>
 #include <cstring>
 
 void printHelp() {
@@ -42,28 +42,35 @@ void printVersion() {
     std::cout << "Built with FTXUI and C++17\n";
 }
 
-// 信号处理：忽略 SIGTSTP (Ctrl+Z)，让应用程序处理它
+// 空的信号处理器，用于屏蔽系统信号
+static void ignoreSignal(int sig) {
+    (void)sig;  // 避免未使用参数警告
+    // 不执行任何操作，屏蔽信号
+}
+
+// 设置信号处理，屏蔽 Ctrl+Z (SIGTSTP) 和 Ctrl+C (SIGINT)
 void setupSignalHandlers() {
     struct sigaction sa;
     std::memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = SIG_IGN;
+    sa.sa_handler = ignoreSignal;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     
-    // 忽略 SIGTSTP (Ctrl+Z)，这样 Ctrl+Z 可以被应用程序捕获用于撤销
-    if (sigaction(SIGTSTP, &sa, nullptr) != 0) {
-        // 如果 sigaction 失败，回退到 signal()
-        signal(SIGTSTP, SIG_IGN);
-    }
+    // 屏蔽 SIGTSTP (Ctrl+Z) - 防止程序被暂停
+    sigaction(SIGTSTP, &sa, nullptr);
     
-    // 可选：也可以忽略 SIGTTIN 和 SIGTTOU（终端输入/输出控制信号）
-    sigaction(SIGTTIN, &sa, nullptr);
-    sigaction(SIGTTOU, &sa, nullptr);
+    // 屏蔽 SIGINT (Ctrl+C) - 防止程序被终止（Ctrl+C 在编辑器中用于复制）
+    sigaction(SIGINT, &sa, nullptr);
+    
+    // 可选：也屏蔽其他可能干扰的信号
+    sigaction(SIGTTIN, &sa, nullptr);  // 终端输入控制
+    sigaction(SIGTTOU, &sa, nullptr);  // 终端输出控制
 }
+
 
 int main(int argc, char* argv[]) {
     try {
-        // 设置信号处理，忽略 SIGTSTP (Ctrl+Z)
+        // 首先设置信号处理，屏蔽 Ctrl+Z 和 Ctrl+C 的系统默认行为
         setupSignalHandlers();
         
         std::vector<std::string> files;
@@ -121,8 +128,6 @@ int main(int argc, char* argv[]) {
         if (!config_path.empty()) {
             editor.loadConfig(config_path);
         }
-        // 如果没有指定配置文件，Editor 构造函数已经加载了默认配置
-        // 此时配置文件应该已经存在于 ~/.config/pnana/config.json
         
         // 设置主题（如果通过命令行指定，会覆盖配置文件中的主题）
         if (theme != "monokai") {
