@@ -147,6 +147,21 @@ if(TreeSitter_FOUND)
     if(TreeSitter_JAVA_FOUND)
         set(TREE_SITTER_JAVA_LIB ${TreeSitter_JAVA_LIBRARY})
     endif()
+    if(TreeSitter_CMAKE_FOUND)
+        set(TREE_SITTER_CMAKE_LIB ${TreeSitter_CMAKE_LIBRARY})
+    endif()
+    if(TreeSitter_TCL_FOUND)
+        set(TREE_SITTER_TCL_LIB ${TreeSitter_TCL_LIBRARY})
+    endif()
+    if(TreeSitter_FORTRAN_FOUND)
+        set(TREE_SITTER_FORTRAN_LIB ${TreeSitter_FORTRAN_LIBRARY})
+    endif()
+    if(TreeSitter_HASKELL_FOUND)
+        set(TREE_SITTER_HASKELL_LIB ${TreeSitter_HASKELL_LIBRARY})
+    endif()
+    if(TreeSitter_LUA_FOUND)
+        set(TREE_SITTER_LUA_LIB ${TreeSitter_LUA_LIBRARY})
+    endif()
 else()
     set(BUILD_TREE_SITTER_SUPPORT OFF)
     message(WARNING "✗ Tree-sitter not found, will use native syntax highlighter")
@@ -191,11 +206,13 @@ set(SOURCES
     src/ui/helpbar.cpp
     src/ui/tabbar.cpp
     src/ui/welcome_screen.cpp
+    src/ui/new_file_prompt.cpp
     src/ui/theme_menu.cpp
     src/ui/create_folder_dialog.cpp
     src/ui/cursor_config_dialog.cpp
     src/ui/save_as_dialog.cpp
     src/ui/binary_file_view.cpp
+    src/ui/encoding_dialog.cpp
     src/ui/help.cpp
     src/ui/dialog.cpp
     src/ui/file_picker.cpp
@@ -207,6 +224,7 @@ set(SOURCES
     # 工具模块
     src/utils/logger.cpp
     src/utils/text_analyzer.cpp
+    src/utils/clipboard.cpp
     # 功能模块
     src/features/search.cpp
     src/features/file_browser.cpp
@@ -220,6 +238,7 @@ set(SOURCES
     src/features/terminal/terminal_utils.cpp
     src/features/terminal/terminal_completion.cpp
     src/features/split_view.cpp
+    src/features/encoding_converter.cpp
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
@@ -252,6 +271,9 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_client.cpp
         src/features/lsp/lsp_server_config.cpp
         src/features/lsp/lsp_server_manager.cpp
+        src/features/lsp/document_change_tracker.cpp
+        src/features/lsp/lsp_async_manager.cpp
+        src/features/lsp/lsp_completion_cache.cpp
     )
 endif()
 
@@ -295,11 +317,13 @@ set(HEADERS
     include/pnana/ui/tabbar.h
     include/pnana/ui/help.h
     include/pnana/ui/welcome_screen.h
+    include/pnana/ui/new_file_prompt.h
     include/pnana/ui/theme_menu.h
     include/pnana/ui/create_folder_dialog.h
     include/pnana/ui/save_as_dialog.h
     include/pnana/ui/cursor_config_dialog.h
     include/pnana/ui/binary_file_view.h
+    include/pnana/ui/encoding_dialog.h
     include/pnana/ui/dialog.h
     include/pnana/ui/file_picker.h
     include/pnana/ui/file_browser_view.h
@@ -315,6 +339,7 @@ set(HEADERS
     include/pnana/features/command_palette.h
     include/pnana/features/terminal.h
     include/pnana/features/split_view.h
+    include/pnana/features/encoding_converter.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
     # 插件系统头文件
@@ -519,6 +544,31 @@ if(BUILD_TREE_SITTER_SUPPORT)
         target_link_libraries(pnana PRIVATE ${TREE_SITTER_JAVA_LIB})
         target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_JAVA)
         message(STATUS "  ✓ Tree-sitter Java language support enabled")
+    endif()
+    if(TREE_SITTER_CMAKE_LIB)
+        target_link_libraries(pnana PRIVATE ${TREE_SITTER_CMAKE_LIB})
+        target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_CMAKE)
+        message(STATUS "  ✓ Tree-sitter CMake language support enabled")
+    endif()
+    if(TREE_SITTER_TCL_LIB)
+        target_link_libraries(pnana PRIVATE ${TREE_SITTER_TCL_LIB})
+        target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_TCL)
+        message(STATUS "  ✓ Tree-sitter TCL language support enabled")
+    endif()
+    if(TREE_SITTER_FORTRAN_LIB)
+        target_link_libraries(pnana PRIVATE ${TREE_SITTER_FORTRAN_LIB})
+        target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_FORTRAN)
+        message(STATUS "  ✓ Tree-sitter Fortran language support enabled")
+    endif()
+    if(TREE_SITTER_HASKELL_LIB)
+        target_link_libraries(pnana PRIVATE ${TREE_SITTER_HASKELL_LIB})
+        target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_HASKELL)
+        message(STATUS "  ✓ Tree-sitter Haskell language support enabled")
+    endif()
+    if(TREE_SITTER_LUA_LIB)
+        target_link_libraries(pnana PRIVATE ${TREE_SITTER_LUA_LIB})
+        target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_LUA)
+        message(STATUS "  ✓ Tree-sitter Lua language support enabled")
     endif()
     
     message(STATUS "Tree-sitter syntax highlighting configured")
