@@ -4,12 +4,16 @@
 #include "core/ui/ui_router.h"
 #include "ui/icons.h"
 #include "utils/logger.h"
+#include "features/encoding_converter.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
 #include <iostream>
+#include <algorithm>
+#include <cctype>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/component/event.hpp>
+#include <ftxui/component/component.hpp>
 
 using namespace ftxui;
 
@@ -31,11 +35,13 @@ Editor::Editor()
       split_dialog_(theme_),
       ssh_dialog_(theme_),
       welcome_screen_(theme_),
+      new_file_prompt_(theme_),
       theme_menu_(theme_),
       create_folder_dialog_(theme_),
       save_as_dialog_(theme_),
       cursor_config_dialog_(theme_),
       binary_file_view_(theme_),
+      encoding_dialog_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr),  // 将在 initializePluginManager 中设置
 #endif
@@ -554,6 +560,150 @@ void Editor::openCommandPalette() {
     setStatusMessage("Command Palette - Type to search, ↑↓ to navigate, Enter to execute");
 }
 
+void Editor::openEncodingDialog() {
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        setStatusMessage("No file open");
+        return;
+    }
+    
+    std::string current_encoding = doc->getEncoding();
+    if (current_encoding.empty()) {
+        current_encoding = "UTF-8";
+    }
+    
+    encoding_dialog_.open(current_encoding);
+    encoding_dialog_.setOnConfirm([this](const std::string& new_encoding) {
+        convertFileEncoding(new_encoding);
+    });
+    encoding_dialog_.setOnCancel([this]() {
+        setStatusMessage("Encoding conversion cancelled");
+    });
+    
+    setStatusMessage("Encoding Dialog - ↑↓: Navigate, Enter: Confirm, Esc: Cancel");
+}
+
+void Editor::convertFileEncoding(const std::string& new_encoding) {
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        setStatusMessage("No file open");
+        return;
+    }
+    
+    std::string filepath = doc->getFilePath();
+    if (filepath.empty()) {
+        setStatusMessage("Cannot convert encoding: file not saved");
+        return;
+    }
+    
+    std::string current_encoding = doc->getEncoding();
+    if (current_encoding.empty()) {
+        current_encoding = "UTF-8";
+    }
+    
+    // 如果编码相同，不需要转换
+    std::string upper_current = current_encoding;
+    std::string upper_new = new_encoding;
+    std::transform(upper_current.begin(), upper_current.end(), 
+                   upper_current.begin(), ::toupper);
+    std::transform(upper_new.begin(), upper_new.end(), 
+                   upper_new.begin(), ::toupper);
+    
+    if (upper_current == upper_new) {
+        setStatusMessage("Encoding already set to " + new_encoding);
+        return;
+    }
+    
+    try {
+        // 读取文件的原始字节
+        auto file_bytes = features::EncodingConverter::readFileAsBytes(filepath);
+        if (file_bytes.empty() && doc->lineCount() > 0) {
+            // 如果文件为空但文档有内容，从文档内容转换
+            std::string content;
+            for (size_t i = 0; i < doc->lineCount(); ++i) {
+                if (i > 0) content += "\n";
+                content += doc->getLine(i);
+            }
+            
+            // 将UTF-8内容转换为新编码
+            std::vector<uint8_t> new_bytes = features::EncodingConverter::utf8ToEncoding(
+                content, new_encoding);
+            
+            // 保存文件
+            std::ofstream file(filepath, std::ios::binary);
+            if (file.is_open()) {
+                file.write(reinterpret_cast<const char*>(new_bytes.data()), new_bytes.size());
+                file.close();
+            }
+        } else {
+            // 从当前编码转换为UTF-8，再转换为新编码
+            std::string utf8_content = features::EncodingConverter::encodingToUtf8(
+                file_bytes, current_encoding);
+            std::vector<uint8_t> new_bytes = features::EncodingConverter::utf8ToEncoding(
+                utf8_content, new_encoding);
+            
+            // 保存文件
+            std::ofstream file(filepath, std::ios::binary);
+            if (file.is_open()) {
+                file.write(reinterpret_cast<const char*>(new_bytes.data()), new_bytes.size());
+                file.close();
+            }
+        }
+        
+        // 更新文档编码
+        doc->setEncoding(new_encoding);
+        
+        // 重新加载文件（使用新编码读取并转换为UTF-8）
+        // 先读取文件的原始字节
+        auto new_file_bytes = features::EncodingConverter::readFileAsBytes(filepath);
+        if (!new_file_bytes.empty()) {
+            // 将新编码的内容转换为UTF-8
+            std::string utf8_content = features::EncodingConverter::encodingToUtf8(
+                new_file_bytes, new_encoding);
+            
+            // 更新文档内容
+            std::vector<std::string> new_lines;
+            std::istringstream iss(utf8_content);
+            std::string line;
+            while (std::getline(iss, line)) {
+                // 移除行尾的\r（如果有）
+                if (!line.empty() && line.back() == '\r') {
+                    line.pop_back();
+                }
+                new_lines.push_back(line);
+            }
+            
+            // 如果内容以换行符结尾，添加空行
+            if (!utf8_content.empty() && 
+                (utf8_content.back() == '\n' || utf8_content.back() == '\r')) {
+                if (new_lines.empty() || !new_lines.back().empty()) {
+                    new_lines.push_back("");
+                }
+            }
+            
+            // 更新文档行
+            doc->getLines() = new_lines;
+            doc->setModified(false);
+        } else {
+            // 如果文件为空，重新加载
+            doc->reload();
+        }
+        
+        // 更新状态栏显示
+        setStatusMessage("✓ File encoding converted to " + new_encoding);
+    } catch (const std::exception& e) {
+        setStatusMessage("Failed to convert encoding: " + std::string(e.what()));
+    } catch (...) {
+        setStatusMessage("Failed to convert encoding: Unknown error");
+    }
+}
+
+void Editor::handleEncodingDialogInput(Event event) {
+    if (encoding_dialog_.handleInput(event)) {
+        return;
+    }
+}
+
 void Editor::handleCommandPaletteInput(Event event) {
     // 处理特殊键
     if (event == Event::Escape) {
@@ -767,6 +917,15 @@ void Editor::initializeCommandPalette() {
         [this]() { toggleTerminal(); }
     ));
     
+    // 编码转换命令
+    command_palette_.registerCommand(Command(
+        "file.reopen_with_encoding",
+        "Reopen with Encoding",
+        "Reopen current file with different encoding",
+        {"coder", "encoding", "encode", "charset", "file"},
+        [this]() { openEncodingDialog(); }
+    ));
+    
     // 预留位置：未来可以添加更多命令
     // 例如：git提交、在线终端、设置等
     // command_palette_.registerCommand(Command(
@@ -788,21 +947,81 @@ std::string Editor::getFileType() const {
     if (!doc) {
         return "text";
     }
+    
+    // 检查文件名（用于特殊文件名如 CMakeLists.txt, Portfile 等）
+    std::string filename = doc->getFileName();
     std::string ext = doc->getFileExtension();
-    if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" || ext == "hpp") return "cpp";
-    if (ext == "c") return "c";
-    if (ext == "py") return "python";
-    if (ext == "js") return "javascript";
-    if (ext == "ts") return "typescript";
-    if (ext == "java") return "java";
-    if (ext == "go") return "go";
-    if (ext == "rs") return "rust";
-    if (ext == "md") return "markdown";
-    if (ext == "json") return "json";
-    if (ext == "html") return "html";
-    if (ext == "css") return "css";
-    if (ext == "sh") return "shell";
-    if (ext == "lua") return "lua";
+    
+    // 转换为小写进行比较（大小写不敏感）
+    std::string filename_lower = filename;
+    std::transform(filename_lower.begin(), filename_lower.end(), filename_lower.begin(), ::tolower);
+    
+    std::string ext_lower = ext;
+    std::transform(ext_lower.begin(), ext_lower.end(), ext_lower.begin(), ::tolower);
+    
+    // 特殊文件名检测（大小写不敏感）
+    if (filename_lower == "cmakelists.txt" || filename_lower == "cmake.in" || 
+        filename_lower == "cmake.in.in" || filename_lower.find("cmakelists") != std::string::npos) {
+        return "cmake";
+    }
+    if (filename_lower == "portfile") {
+        return "tcl";  // MacPorts portfiles are TCL
+    }
+    
+    // 文件扩展名检测（大小写不敏感）
+    // C/C++
+    if (ext_lower == "cpp" || ext_lower == "cc" || ext_lower == "cxx" || 
+        ext_lower == "h" || ext_lower == "hpp" || ext_lower == "hxx" || 
+        ext_lower == "hh" || ext_lower == "c++" || ext_lower == "h++") return "cpp";
+    if (ext_lower == "c") return "c";
+    
+    // Python
+    if (ext_lower == "py" || ext_lower == "pyw" || ext_lower == "pyi") return "python";
+    
+    // JavaScript/TypeScript
+    if (ext_lower == "js" || ext_lower == "jsx" || ext_lower == "mjs") return "javascript";
+    if (ext_lower == "ts" || ext_lower == "tsx") return "typescript";
+    
+    // Java
+    if (ext_lower == "java") return "java";
+    
+    // Go
+    if (ext_lower == "go") return "go";
+    
+    // Rust
+    if (ext_lower == "rs") return "rust";
+    
+    // Markdown
+    if (ext_lower == "md" || ext_lower == "markdown") return "markdown";
+    
+    // JSON
+    if (ext_lower == "json" || ext_lower == "jsonc") return "json";
+    
+    // HTML/CSS
+    if (ext_lower == "html" || ext_lower == "htm") return "html";
+    if (ext_lower == "css") return "css";
+    
+    // Shell
+    if (ext_lower == "sh" || ext_lower == "bash" || ext_lower == "zsh" || 
+        ext_lower == "shell") return "shell";
+    
+    // Lua
+    if (ext_lower == "lua") return "lua";
+    
+    // CMake
+    if (ext_lower == "cmake") return "cmake";
+    
+    // TCL
+    if (ext_lower == "tcl" || ext_lower == "tk") return "tcl";
+    
+    // Fortran
+    if (ext_lower == "f90" || ext_lower == "f95" || ext_lower == "f03" || 
+        ext_lower == "f08" || ext_lower == "f" || ext_lower == "for" || 
+        ext_lower == "ftn" || ext_lower == "fpp" || ext_lower == "fortran") return "fortran";
+    
+    // Haskell
+    if (ext_lower == "hs" || ext_lower == "lhs" || ext_lower == "haskell") return "haskell";
+    
     return "text";
 }
 

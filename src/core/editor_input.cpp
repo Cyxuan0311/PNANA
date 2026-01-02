@@ -5,6 +5,7 @@
 #include "input/key_action.h"
 #include "utils/logger.h"
 #include <ftxui/component/event.hpp>
+#include <iostream>
 #include <sstream>
 #include <filesystem>
 
@@ -17,12 +18,17 @@ namespace core {
 
 // 事件处理
 void Editor::handleInput(Event event) {
+    
     // 记录事件处理开始（仅对关键事件）
     if (event == Event::Return || event == Event::Escape || 
         event == Event::ArrowUp || event == Event::ArrowDown ||
         event == Event::ArrowLeft || event == Event::ArrowRight) {
         LOG("handleInput() called for event: " + event.input());
     }
+    
+    // GOTO_LINE 模式：完全参考搜索模式的实现，不做任何特殊处理
+    // 搜索模式在 handleInput() 中没有任何特殊处理，直接路由到 handleSearchMode()
+    // 所以 GOTO_LINE 模式也应该一样，不做任何特殊处理
     
     // 更新区域可用性
     region_manager_.setTabAreaEnabled(document_manager_.getDocumentCount() > 1);
@@ -64,7 +70,19 @@ void Editor::handleInput(Event event) {
         LOG("Cursor position: row=" + std::to_string(cursor_row_) + ", col=" + std::to_string(cursor_col_));
     }
     
+    // 调试信息：检查 Ctrl+P 事件
+    if (event == ftxui::Event::CtrlP) {
+        LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
+    }
+    
     KeyAction action = key_binding_manager_.getAction(event);
+    
+    // 调试信息：检查 Ctrl+P 事件解析结果
+    if (event == ftxui::Event::CtrlP) {
+        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) + 
+            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + 
+            ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
+    }
     
     if (event == Event::Tab) {
         LOG("Tab key action resolved to: " + std::to_string(static_cast<int>(action)));
@@ -116,7 +134,7 @@ void Editor::handleInput(Event event) {
 #endif
     ;
     
-    // 如果当前在搜索模式，优先处理搜索输入（除了 Escape 和 Return）
+    // 如果当前在搜索模式，优先处理输入（除了 Escape 和 Return）
     bool in_search_mode = (mode_ == EditorMode::SEARCH);
     bool should_skip_shortcuts = in_search_mode && (event != Event::Escape && event != Event::Return);
     
@@ -297,6 +315,12 @@ void Editor::handleInput(Event event) {
         }
     }
     
+    // 编码对话框输入处理
+    if (encoding_dialog_.isVisible()) {
+        handleEncodingDialogInput(event);
+        return;
+    }
+    
     // 优先处理分屏对话框输入
     if (split_dialog_.isVisible()) {
         if (split_dialog_.handleInput(event)) {
@@ -364,9 +388,47 @@ void Editor::handleInput(Event event) {
     // 再次检查全局快捷键（如果之前没有处理）
     // 这确保在非对话框模式下，所有快捷键都能正常工作
     // 但搜索模式下不处理（除了 Escape）
+    // 剪贴板操作和选择操作（Ctrl+C/V/X, Ctrl+A, Alt+D, Alt+Shift+方向键）只在代码区生效
     if (action != KeyAction::UNKNOWN && !should_skip_shortcuts) {
+        EditorRegion current_region = region_manager_.getCurrentRegion();
+        
+        // 剪贴板操作和选择操作只在代码区生效
+        if (action == KeyAction::COPY || action == KeyAction::PASTE || action == KeyAction::CUT ||
+            action == KeyAction::SELECT_ALL || action == KeyAction::SELECT_WORD ||
+            action == KeyAction::SELECT_EXTEND_UP || action == KeyAction::SELECT_EXTEND_DOWN ||
+            action == KeyAction::SELECT_EXTEND_LEFT || action == KeyAction::SELECT_EXTEND_RIGHT) {
+            LOG("[DEBUG COPY] Action detected: " + std::to_string(static_cast<int>(action)) + 
+                " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
+            LOG("[DEBUG COPY] Current region: " + std::to_string(static_cast<int>(current_region)) + 
+                " (CODE_AREA=" + std::to_string(static_cast<int>(EditorRegion::CODE_AREA)) + ")");
+            
+            if (current_region != EditorRegion::CODE_AREA) {
+                // 不在代码区，忽略这些操作
+                LOG("[DEBUG COPY] Not in CODE_AREA, ignoring copy action");
+                return;
+            }
+            // 确保有文档
+            if (!getCurrentDocument()) {
+                LOG("[DEBUG COPY] No document available, ignoring copy action");
+                return;
+            }
+            LOG("[DEBUG COPY] Region check passed, proceeding with copy");
+        }
+        
+        LOG("[DEBUG COPY] About to execute action: " + std::to_string(static_cast<int>(action)));
+        
         if (action_executor_.execute(action)) {
+            LOG("[DEBUG COPY] ActionExecutor returned true");
             return;
+        } else {
+            LOG("[DEBUG COPY] ActionExecutor returned false");
+        }
+    } else {
+        if (event == ftxui::Event::CtrlP) {
+            LOG("[DEBUG COPY] Ctrl+P event but action is UNKNOWN or shortcuts skipped");
+            LOG("[DEBUG COPY] action: " + std::to_string(static_cast<int>(action)) + 
+                " (UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
+            LOG("[DEBUG COPY] should_skip_shortcuts: " + std::string(should_skip_shortcuts ? "true" : "false"));
         }
     }
     
@@ -380,9 +442,6 @@ void Editor::handleInput(Event event) {
             break;
         case EditorMode::REPLACE:
             handleReplaceMode(event);
-            break;
-        case EditorMode::GOTO_LINE:
-            handleGotoLineMode(event);
             break;
     }
     
@@ -558,27 +617,70 @@ void Editor::handleNormalMode(Event event) {
             }
         }
     } 
-    // Shift+方向键进行选择
+    // Shift+方向键进行选择（只在代码区生效，直接移动光标，不调用 moveCursor* 避免取消选中）
     else if (event == Event::ArrowUpCtrl) {
+        // 只在代码区生效
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+            return;
+        }
         if (!selection_active_) {
             startSelection();
         }
-        moveCursorUp();
+        // 直接移动光标，不调用 moveCursorUp（避免取消选中）
+        if (cursor_row_ > 0) {
+            cursor_row_--;
+            adjustCursor();
+            adjustViewOffset();
+        }
     } else if (event == Event::ArrowDownCtrl) {
+        // 只在代码区生效
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+            return;
+        }
         if (!selection_active_) {
             startSelection();
         }
-        moveCursorDown();
+        // 直接移动光标，不调用 moveCursorDown（避免取消选中）
+        if (cursor_row_ < getCurrentDocument()->lineCount() - 1) {
+            cursor_row_++;
+            adjustCursor();
+            adjustViewOffset();
+        }
     } else if (event == Event::ArrowLeftCtrl) {
+        // 只在代码区生效
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+            return;
+        }
         if (!selection_active_) {
             startSelection();
         }
-        moveCursorLeft();
+        // 直接移动光标，不调用 moveCursorLeft（避免取消选中）
+        if (cursor_col_ > 0) {
+            cursor_col_--;
+        } else if (cursor_row_ > 0) {
+            cursor_row_--;
+            cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
+            adjustCursor();
+            adjustViewOffset();
+        }
     } else if (event == Event::ArrowRightCtrl) {
+        // 只在代码区生效
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+            return;
+        }
         if (!selection_active_) {
             startSelection();
         }
-        moveCursorRight();
+        // 直接移动光标，不调用 moveCursorRight（避免取消选中）
+        size_t line_len = getCurrentDocument()->getLine(cursor_row_).length();
+        if (cursor_col_ < line_len) {
+            cursor_col_++;
+        } else if (cursor_row_ < getCurrentDocument()->lineCount() - 1) {
+            cursor_row_++;
+            cursor_col_ = 0;
+            adjustCursor();
+            adjustViewOffset();
+        }
     }
     // 其他特殊键
     // 注意：Home/End/Tab 已通过新快捷键系统处理，这里不再重复处理
@@ -663,26 +765,6 @@ void Editor::handleReplaceMode(Event event) {
     }
 }
 
-void Editor::handleGotoLineMode(Event event) {
-    if (event == Event::Return) {
-        executeGotoLine();
-        mode_ = EditorMode::NORMAL;
-    } else if (event == Event::Escape) {
-        mode_ = EditorMode::NORMAL;
-        setStatusMessage("Goto cancelled");
-    } else if (event == Event::Backspace) {
-        if (!input_buffer_.empty()) {
-            input_buffer_.pop_back();
-            setStatusMessage("Go to line: " + input_buffer_);
-        }
-    } else if (event.is_character()) {
-        std::string ch = event.character();
-        if (ch.length() == 1 && std::isdigit(ch[0])) {
-            input_buffer_ += ch;
-            setStatusMessage("Go to line: " + input_buffer_);
-        }
-    }
-}
 
 void Editor::handleFileBrowserInput(Event event) {
     LOG("Event type check - Return: " + std::string(event == Event::Return ? "yes" : "no"));
@@ -700,7 +782,20 @@ void Editor::handleFileBrowserInput(Event event) {
     // 首先检查是否是全局快捷键（Alt+A, Alt+F 等）
     // 这些快捷键应该在文件浏览器中也能工作
     using namespace pnana::input;
+    
+    // 调试信息：检查 Ctrl+P 事件
+    if (event == ftxui::Event::CtrlP) {
+        LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
+    }
+    
     KeyAction action = key_binding_manager_.getAction(event);
+    
+    // 调试信息：检查 Ctrl+P 事件解析结果
+    if (event == ftxui::Event::CtrlP) {
+        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) + 
+            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + 
+            ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
+    }
     LOG("Action resolved: " + std::to_string(static_cast<int>(action)));
     if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER) {
         LOG("Global shortcut detected, executing...");
@@ -1006,18 +1101,6 @@ void Editor::executeReplace() {
     setStatusMessage("Replace feature coming soon!");
 }
 
-void Editor::executeGotoLine() {
-    if (input_buffer_.empty()) {
-        return;
-    }
-    
-    try {
-        size_t line = std::stoull(input_buffer_);
-        gotoLine(line);
-    } catch (const std::exception&) {
-        setStatusMessage("Invalid line number");
-    }
-}
 
 } // namespace core
 } // namespace pnana

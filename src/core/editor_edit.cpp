@@ -2,18 +2,36 @@
 #include "core/editor.h"
 #include "core/document.h"
 #include "utils/logger.h"
+#include "utils/clipboard.h"
 #include <iostream>
+#include <sstream>
 
 namespace pnana {
 namespace core {
 
 // 编辑操作
 void Editor::insertChar(char ch) {
-    getCurrentDocument()->insertChar(cursor_row_, cursor_col_, ch);
+    Document* doc = getCurrentDocument();
+    if (!doc) return;
+    
+    // 记录变更（阶段2优化：增量更新）
+#ifdef BUILD_LSP_SUPPORT
+    if (lsp_enabled_ && document_change_tracker_) {
+        std::string old_text = "";  // 插入操作，旧文本为空
+        std::string new_text(1, ch);  // 新文本是插入的字符
+        document_change_tracker_->recordInsert(
+            static_cast<int>(cursor_row_), 
+            static_cast<int>(cursor_col_), 
+            new_text
+        );
+    }
+#endif
+    
+    doc->insertChar(cursor_row_, cursor_col_, ch);
     cursor_col_++;
     
 #ifdef BUILD_LSP_SUPPORT
-    // 更新 LSP 文档
+    // 更新 LSP 文档（现在使用增量更新）
     updateLspDocument();
     
     // 触发代码补全（在输入字母、数字、下划线或点号时）
@@ -80,14 +98,89 @@ void Editor::deleteChar() {
 }
 
 void Editor::backspace() {
+    Document* doc = getCurrentDocument();
+    if (!doc) return;
+    
+    // 如果有选中内容，删除选中内容
+    if (selection_active_) {
+        // 确定选择范围的开始和结束位置
+        size_t start_row = selection_start_row_;
+        size_t start_col = selection_start_col_;
+        size_t end_row = cursor_row_;
+        size_t end_col = cursor_col_;
+        
+        // 确保开始位置在结束位置之前
+        if (start_row > end_row || (start_row == end_row && start_col > end_col)) {
+            std::swap(start_row, end_row);
+            std::swap(start_col, end_col);
+        }
+        
+        // 获取要删除的内容（用于撤销）
+        std::string deleted_content = doc->getSelection(start_row, start_col, end_row, end_col);
+        
+        // 删除选中内容
+        if (start_row == end_row) {
+            // 同一行内的选择
+            std::string& line = doc->getLines()[start_row];
+            if (start_col < line.length()) {
+                size_t len = (end_col <= line.length()) ? (end_col - start_col) : (line.length() - start_col);
+                line.erase(start_col, len);
+            }
+        } else {
+            // 跨行选择
+            std::string& start_line = doc->getLines()[start_row];
+            std::string& end_line = doc->getLines()[end_row];
+            
+            // 合并第一行和最后一行
+            start_line = start_line.substr(0, start_col) + end_line.substr(end_col);
+            
+            // 删除中间的行和最后一行
+            doc->getLines().erase(doc->getLines().begin() + start_row + 1, 
+                                  doc->getLines().begin() + end_row + 1);
+        }
+        
+        // 记录删除操作到撤销栈
+        doc->pushChange(DocumentChange(
+            DocumentChange::Type::DELETE,
+            start_row, start_col,
+            deleted_content, ""
+        ));
+        
+        // 移动光标到选择开始位置
+        cursor_row_ = start_row;
+        cursor_col_ = start_col;
+        
+        // 清除选择状态
+        endSelection();
+        
+        // 确保文档至少有一行
+        if (doc->lineCount() == 0) {
+            doc->getLines().push_back("");
+            cursor_row_ = 0;
+            cursor_col_ = 0;
+        }
+        
+        doc->setModified(true);
+        
+#ifdef BUILD_LSP_SUPPORT
+        // 更新 LSP 文档
+        updateLspDocument();
+        // 删除时隐藏补全弹窗
+        completion_popup_.hide();
+#endif
+        
+        return;
+    }
+    
+    // 没有选中内容，执行正常的退格操作
     if (cursor_col_ > 0) {
         cursor_col_--;
-        getCurrentDocument()->deleteChar(cursor_row_, cursor_col_);
+        doc->deleteChar(cursor_row_, cursor_col_);
     } else if (cursor_row_ > 0) {
-        size_t prev_len = getCurrentDocument()->getLine(cursor_row_ - 1).length();
+        size_t prev_len = doc->getLine(cursor_row_ - 1).length();
         // 合并行
-        getCurrentDocument()->getLines()[cursor_row_ - 1] += getCurrentDocument()->getLine(cursor_row_);
-        getCurrentDocument()->deleteLine(cursor_row_);
+        doc->getLines()[cursor_row_ - 1] += doc->getLine(cursor_row_);
+        doc->deleteLine(cursor_row_);
         cursor_row_--;
         cursor_col_ = prev_len;
     }
@@ -101,7 +194,10 @@ void Editor::backspace() {
 }
 
 void Editor::deleteLine() {
-    getCurrentDocument()->deleteLine(cursor_row_);
+    Document* doc = getCurrentDocument();
+    if (!doc) return;
+
+    doc->deleteLine(cursor_row_);
     adjustCursor();
     setStatusMessage("Line deleted");
 }
@@ -144,11 +240,18 @@ void Editor::endSelection() {
 }
 
 void Editor::selectAll() {
+    Document* doc = getCurrentDocument();
+    if (!doc || doc->lineCount() == 0) {
+        setStatusMessage("No content to select");
+        return;
+    }
+    
     selection_active_ = true;
     selection_start_row_ = 0;
     selection_start_col_ = 0;
-    cursor_row_ = getCurrentDocument()->lineCount() - 1;
-    cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
+    cursor_row_ = doc->lineCount() - 1;
+    cursor_col_ = doc->getLine(cursor_row_).length();
+    adjustViewOffset();  // 确保光标可见
     setStatusMessage("All selected");
 }
 
@@ -164,15 +267,15 @@ void Editor::selectWord() {
     const std::string& line = getCurrentDocument()->getLine(cursor_row_);
     if (cursor_col_ >= line.length()) return;
     
-    // 找到单词开始
+    // 找到单词开始（支持字母、数字、下划线）
     size_t start = cursor_col_;
-    while (start > 0 && std::isalnum(line[start - 1])) {
+    while (start > 0 && (std::isalnum(line[start - 1]) || line[start - 1] == '_')) {
         start--;
     }
     
     // 找到单词结束
     size_t end = cursor_col_;
-    while (end < line.length() && std::isalnum(line[end])) {
+    while (end < line.length() && (std::isalnum(line[end]) || line[end] == '_')) {
         end++;
     }
     
@@ -183,49 +286,310 @@ void Editor::selectWord() {
     setStatusMessage("Word selected");
 }
 
+void Editor::extendSelectionUp() {
+    if (!selection_active_) {
+        startSelection();
+    }
+    // 直接移动光标，不调用 moveCursorUp（避免取消选中）
+    if (cursor_row_ > 0) {
+        cursor_row_--;
+        adjustCursor();
+        adjustViewOffset();
+    }
+}
+
+void Editor::extendSelectionDown() {
+    if (!selection_active_) {
+        startSelection();
+    }
+    // 直接移动光标，不调用 moveCursorDown（避免取消选中）
+    if (cursor_row_ < getCurrentDocument()->lineCount() - 1) {
+        cursor_row_++;
+        adjustCursor();
+        adjustViewOffset();
+    }
+}
+
+void Editor::extendSelectionLeft() {
+    if (!selection_active_) {
+        startSelection();
+    }
+    // 直接移动光标，不调用 moveCursorLeft（避免取消选中）
+    if (cursor_col_ > 0) {
+        cursor_col_--;
+    } else if (cursor_row_ > 0) {
+        cursor_row_--;
+        cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
+        adjustCursor();
+        adjustViewOffset();
+    }
+}
+
+void Editor::extendSelectionRight() {
+    if (!selection_active_) {
+        startSelection();
+    }
+    // 直接移动光标，不调用 moveCursorRight（避免取消选中）
+    size_t line_len = getCurrentDocument()->getLine(cursor_row_).length();
+    if (cursor_col_ < line_len) {
+        cursor_col_++;
+    } else if (cursor_row_ < getCurrentDocument()->lineCount() - 1) {
+        cursor_row_++;
+        cursor_col_ = 0;
+        adjustCursor();
+        adjustViewOffset();
+    }
+}
+
 // 剪贴板操作
 void Editor::cut() {
+    std::string content;
+    
     if (!selection_active_) {
         // 剪切当前行
-        std::string line = getCurrentDocument()->getLine(cursor_row_);
-        getCurrentDocument()->setClipboard(line);
+        content = getCurrentDocument()->getLine(cursor_row_);
+        if (content.empty()) {
+            setStatusMessage("Line is empty");
+            return;
+        }
         deleteLine();
-        setStatusMessage("Line cut");
     } else {
-        copy();
-        // 删除选中内容（简化实现）
+        // 剪切选中内容
+        content = getCurrentDocument()->getSelection(
+            selection_start_row_, selection_start_col_,
+            cursor_row_, cursor_col_
+        );
+        
+        // 删除选中内容
+        size_t start_row = selection_start_row_;
+        size_t start_col = selection_start_col_;
+        size_t end_row = cursor_row_;
+        size_t end_col = cursor_col_;
+        
+        // 确保开始位置在结束位置之前
+        if (start_row > end_row || (start_row == end_row && start_col > end_col)) {
+            std::swap(start_row, end_row);
+            std::swap(start_col, end_col);
+        }
+        
+        Document* doc = getCurrentDocument();
+        if (start_row == end_row) {
+            // 同一行内的选择
+            std::string& line = doc->getLines()[start_row];
+            if (start_col < line.length()) {
+                size_t len = (end_col <= line.length()) ? (end_col - start_col) : (line.length() - start_col);
+                line.erase(start_col, len);
+            }
+        } else {
+            // 跨行选择
+            std::string& start_line = doc->getLines()[start_row];
+            std::string& end_line = doc->getLines()[end_row];
+            
+            // 合并第一行和最后一行
+            start_line = start_line.substr(0, start_col) + end_line.substr(end_col);
+            
+            // 删除中间的行和最后一行
+            doc->getLines().erase(doc->getLines().begin() + start_row + 1, 
+                                  doc->getLines().begin() + end_row + 1);
+        }
+        
+        // 移动光标到选择开始位置
+        cursor_row_ = start_row;
+        cursor_col_ = start_col;
         endSelection();
-        setStatusMessage("Selection cut");
+        doc->setModified(true);
+    }
+    
+    // 复制到系统剪贴板
+    if (utils::Clipboard::copyToSystem(content)) {
+        // 同时保存到内部剪贴板（作为备份）
+        getCurrentDocument()->setClipboard(content);
+        setStatusMessage(selection_active_ ? "Selection cut to clipboard" : "Line cut to clipboard");
+    } else {
+        // 如果系统剪贴板不可用，使用内部剪贴板
+        getCurrentDocument()->setClipboard(content);
+        setStatusMessage("Cut to internal clipboard (system clipboard unavailable)");
     }
 }
 
 void Editor::copy() {
+    LOG("[DEBUG COPY] copy() called");
+    LOG("[DEBUG COPY] selection_active_: " + std::string(selection_active_ ? "true" : "false"));
+    
+    std::string content;
+    
     if (!selection_active_) {
+        LOG("[DEBUG COPY] No selection, copying current line");
+        LOG("[DEBUG COPY] cursor_row_: " + std::to_string(cursor_row_));
+        
         // 复制当前行
-        std::string line = getCurrentDocument()->getLine(cursor_row_);
-        getCurrentDocument()->setClipboard(line);
-        setStatusMessage("Line copied");
+        Document* doc = getCurrentDocument();
+        if (!doc) {
+            LOG_ERROR("[DEBUG COPY] ERROR: No document available!");
+            return;
+        }
+        content = doc->getLine(cursor_row_);
+        LOG("[DEBUG COPY] Line content length: " + std::to_string(content.length()));
+        
+        if (content.empty()) {
+            LOG("[DEBUG COPY] Line is empty, returning");
+            setStatusMessage("Line is empty");
+            return;
+        }
     } else {
-        std::string content = getCurrentDocument()->getSelection(
+        LOG("[DEBUG COPY] Selection active, copying selection");
+        LOG("[DEBUG COPY] Selection: row " + std::to_string(selection_start_row_) + ":" + 
+            std::to_string(selection_start_col_) + " to " + std::to_string(cursor_row_) + ":" + 
+            std::to_string(cursor_col_));
+        
+        // 复制选中内容
+        Document* doc = getCurrentDocument();
+        if (!doc) {
+            LOG_ERROR("[DEBUG COPY] ERROR: No document available for selection!");
+            return;
+        }
+        content = doc->getSelection(
             selection_start_row_, selection_start_col_,
             cursor_row_, cursor_col_
         );
-        getCurrentDocument()->setClipboard(content);
-        endSelection();
-        setStatusMessage("Selection copied");
+        LOG("[DEBUG COPY] Selection content length: " + std::to_string(content.length()));
+        
+        if (content.empty()) {
+            LOG("[DEBUG COPY] Selection is empty, returning");
+            setStatusMessage("Selection is empty");
+            return;
+        }
     }
+    
+    std::string preview = content.substr(0, std::min(50UL, content.length()));
+    if (content.length() > 50) preview += "...";
+    LOG("[DEBUG COPY] Content to copy: '" + preview + "'");
+    
+    // 复制到系统剪贴板
+    if (utils::Clipboard::copyToSystem(content)) {
+        LOG("[DEBUG COPY] Successfully copied to system clipboard");
+        // 同时保存到内部剪贴板（作为备份）
+        getCurrentDocument()->setClipboard(content);
+        setStatusMessage(selection_active_ ? "Selection copied to clipboard" : "Line copied to clipboard");
+    } else {
+        LOG("[DEBUG COPY] System clipboard failed, using internal clipboard");
+        // 如果系统剪贴板不可用，使用内部剪贴板
+        getCurrentDocument()->setClipboard(content);
+        setStatusMessage("Copied to internal clipboard (system clipboard unavailable)");
+    }
+    
+    LOG("[DEBUG COPY] Copy operation completed");
+    
+    // 复制后不取消选中（保持选中状态，方便用户继续操作）
+    // endSelection(); // 注释掉，保持选中状态
 }
 
 void Editor::paste() {
-    std::string clipboard = getCurrentDocument()->getClipboard();
+    std::string clipboard;
+    
+    // 优先从系统剪贴板读取
+    if (utils::Clipboard::isAvailable()) {
+        clipboard = utils::Clipboard::pasteFromSystem();
+    }
+    
+    // 如果系统剪贴板为空或不可用，尝试使用内部剪贴板
+    if (clipboard.empty()) {
+        clipboard = getCurrentDocument()->getClipboard();
+    }
+    
     if (clipboard.empty()) {
         setStatusMessage("Clipboard is empty");
         return;
     }
     
-    // 简化实现：插入剪贴板内容
-    getCurrentDocument()->insertText(cursor_row_, cursor_col_, clipboard);
-    setStatusMessage("Pasted");
+    // 如果有选中内容，先删除选中内容再粘贴
+    if (selection_active_) {
+        // 删除选中内容
+        size_t start_row = selection_start_row_;
+        size_t start_col = selection_start_col_;
+        size_t end_row = cursor_row_;
+        size_t end_col = cursor_col_;
+        
+        // 确保开始位置在结束位置之前
+        if (start_row > end_row || (start_row == end_row && start_col > end_col)) {
+            std::swap(start_row, end_row);
+            std::swap(start_col, end_col);
+        }
+        
+        Document* doc = getCurrentDocument();
+        if (start_row == end_row) {
+            // 同一行内的选择
+            std::string& line = doc->getLines()[start_row];
+            if (start_col < line.length()) {
+                size_t len = (end_col <= line.length()) ? (end_col - start_col) : (line.length() - start_col);
+                line.erase(start_col, len);
+            }
+        } else {
+            // 跨行选择
+            std::string& start_line = doc->getLines()[start_row];
+            std::string& end_line = doc->getLines()[end_row];
+            
+            // 合并第一行和最后一行
+            start_line = start_line.substr(0, start_col) + end_line.substr(end_col);
+            
+            // 删除中间的行和最后一行
+            doc->getLines().erase(doc->getLines().begin() + start_row + 1, 
+                                  doc->getLines().begin() + end_row + 1);
+        }
+        
+        // 移动光标到选择开始位置
+        cursor_row_ = start_row;
+        cursor_col_ = start_col;
+        endSelection();
+    }
+    
+    // 处理多行文本粘贴
+    Document* doc = getCurrentDocument();
+    
+    // 如果文本包含换行符，需要特殊处理
+    if (clipboard.find('\n') != std::string::npos) {
+        // 多行文本：需要分割并插入
+        std::istringstream stream(clipboard);
+        std::string line;
+        size_t current_row = cursor_row_;
+        size_t current_col = cursor_col_;
+        bool first_line = true;
+        
+        while (std::getline(stream, line)) {
+            if (first_line) {
+                // 第一行：在当前行插入
+                std::string& current_line = doc->getLines()[current_row];
+                current_line.insert(current_col, line);
+                current_col += line.length();
+                first_line = false;
+            } else {
+                // 后续行：插入新行
+                doc->getLines().insert(doc->getLines().begin() + current_row + 1, line);
+                current_row++;
+                current_col = line.length();
+            }
+        }
+        
+        // 如果原始文本以换行符结尾，添加一个空行
+        if (!clipboard.empty() && clipboard.back() == '\n') {
+            doc->getLines().insert(doc->getLines().begin() + current_row + 1, "");
+            current_row++;
+            current_col = 0;
+        }
+        
+        // 更新光标位置
+        cursor_row_ = current_row;
+        cursor_col_ = current_col;
+    } else {
+        // 单行文本：直接插入
+        doc->insertText(cursor_row_, cursor_col_, clipboard);
+        cursor_col_ += clipboard.length();
+    }
+    
+    adjustCursor();
+    adjustViewOffset();
+    doc->setModified(true);
+    setStatusMessage("Pasted from clipboard");
 }
 
 // 撤销/重做
@@ -233,23 +597,34 @@ void Editor::undo() {
     Document* doc = getCurrentDocument();
     if (!doc) return;
     
-    size_t change_row, change_col;
+    size_t change_row = 0, change_col = 0;
     if (doc->undo(&change_row, &change_col)) {
-        // 恢复光标位置到修改发生的位置
+        // VSCode 风格：精确恢复光标位置到操作开始的位置
         cursor_row_ = change_row;
         cursor_col_ = change_col;
         
-        // 确保光标位置有效
+        // 确保光标位置有效（防止越界）
         adjustCursor();
         
-        // 只在光标超出可见范围时才调整视图偏移，减少刷新
+        // VSCode 风格的视图调整：只在必要时调整，减少屏闪
         int screen_height = screen_.dimy() - 4;
-        if (cursor_row_ >= view_offset_row_ + screen_height || cursor_row_ < view_offset_row_) {
-            adjustViewOffset();
+        if (screen_height > 0) {
+            // 计算光标在屏幕上的位置
+            int cursor_screen_pos = static_cast<int>(cursor_row_) - static_cast<int>(view_offset_row_);
+            
+            // 只在光标完全不可见时才调整视图，减少不必要的视图更新（减少屏闪）
+            if (cursor_screen_pos < 0 || cursor_screen_pos >= screen_height) {
+                // VSCode 行为：将光标行放在屏幕中央
+                view_offset_row_ = (cursor_row_ >= static_cast<size_t>(screen_height / 2)) ? 
+                    cursor_row_ - screen_height / 2 : 0;
+                }
+            // 如果光标在可见范围内，不进行微调，减少视图更新（减少屏闪）
         }
         
-        // 使用简洁的状态消息，减少刷新
-        setStatusMessage("Undone");
+        // 清除选择（VSCode 行为：撤销后清除选择）
+        selection_active_ = false;
+        
+        // VSCode 风格：不显示状态消息，让用户专注于内容变化
     } else {
         setStatusMessage("Nothing to undo");
     }
@@ -261,21 +636,41 @@ void Editor::redo() {
     
     size_t change_row, change_col;
     if (doc->redo(&change_row, &change_col)) {
-        // 恢复光标位置到修改发生的位置
+        // 恢复光标位置到修改发生的位置（VSCode 行为）
         cursor_row_ = change_row;
         cursor_col_ = change_col;
         
         // 确保光标位置有效
         adjustCursor();
         
-        // 只在光标超出可见范围时才调整视图偏移，减少刷新
+        // VSCode 风格的视图调整：平滑滚动到光标位置
         int screen_height = screen_.dimy() - 4;
-        if (cursor_row_ >= view_offset_row_ + screen_height || cursor_row_ < view_offset_row_) {
-            adjustViewOffset();
+        if (screen_height > 0) {
+            // 计算光标在屏幕上的位置
+            int cursor_screen_pos = static_cast<int>(cursor_row_) - static_cast<int>(view_offset_row_);
+            
+            // 如果光标不在可见范围内，立即调整视图
+            if (cursor_screen_pos < 0 || cursor_screen_pos >= screen_height) {
+                // VSCode 行为：将光标行放在屏幕中央
+                view_offset_row_ = (cursor_row_ >= static_cast<size_t>(screen_height / 2)) ? 
+                    cursor_row_ - screen_height / 2 : 0;
+            } else {
+                // 光标在可见范围内，但如果太靠近边缘，微调视图
+                int margin = 3;  // 边缘边距
+                if (cursor_screen_pos < margin) {
+                    view_offset_row_ = (cursor_row_ >= static_cast<size_t>(margin)) ? 
+                        cursor_row_ - margin : 0;
+                } else if (cursor_screen_pos >= screen_height - margin) {
+                    size_t target_offset = cursor_row_ - (screen_height - margin - 1);
+                    view_offset_row_ = (target_offset > cursor_row_) ? 0 : target_offset;
+                }
+            }
         }
         
-        // 使用简洁的状态消息，减少刷新
-        setStatusMessage("Redone");
+        // 清除选择（VSCode 行为：重做后清除选择）
+        selection_active_ = false;
+        
+        // 使用简洁的状态消息（VSCode 风格：不显示状态消息）
     } else {
         setStatusMessage("Nothing to redo");
     }

@@ -4,6 +4,7 @@
 #include "ui/icons.h"
 #include "ui/terminal_ui.h"
 #include "ui/welcome_screen.h"
+#include "ui/new_file_prompt.h"
 #include "ui/theme_menu.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/save_as_dialog.h"
@@ -217,6 +218,15 @@ Element Editor::overlayDialogs(Element main_ui) {
         return dbox(ssh_elements);
     }
     
+    // 如果编码对话框打开，叠加显示
+    if (encoding_dialog_.isVisible()) {
+        Elements encoding_elements = {
+            main_ui | dim,
+            encoding_dialog_.render() | center
+        };
+        return dbox(encoding_elements);
+    }
+    
     // 没有对话框打开，返回主UI
     return main_ui;
 }
@@ -352,11 +362,11 @@ Element Editor::renderEditor() {
         return binary_file_view_.render();
     }
     
-    // 如果是新文件且内容为空，也显示欢迎界面
+    // 如果是新文件且内容为空，显示新文件输入提示界面
     if (doc->getFilePath().empty() && 
         doc->lineCount() == 1 && 
         doc->getLine(0).empty()) {
-        return welcome_screen_.render();
+        return new_file_prompt_.render();
     }
     
     Elements lines;
@@ -727,7 +737,47 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
     
     Element content_elem;
     
-    // 渲染带搜索高亮的行内容
+    // 检查当前行是否在选中范围内
+    bool line_in_selection = false;
+    size_t selection_start_col = 0;
+    size_t selection_end_col = 0;
+    
+    if (selection_active_) {
+        size_t start_row = selection_start_row_;
+        size_t start_col = selection_start_col_;
+        size_t end_row = cursor_row_;
+        size_t end_col = cursor_col_;
+        
+        // 确保开始位置在结束位置之前
+        if (start_row > end_row || (start_row == end_row && start_col > end_col)) {
+            std::swap(start_row, end_row);
+            std::swap(start_col, end_col);
+        }
+        
+        // 检查当前行是否在选中范围内
+        if (line_num >= start_row && line_num <= end_row) {
+            line_in_selection = true;
+            if (line_num == start_row && line_num == end_row) {
+                // 同一行内的选择
+                selection_start_col = start_col;
+                selection_end_col = end_col;
+            } else if (line_num == start_row) {
+                // 选中开始行
+                selection_start_col = start_col;
+                selection_end_col = content.length();
+            } else if (line_num == end_row) {
+                // 选中结束行
+                selection_start_col = 0;
+                selection_end_col = end_col;
+            } else {
+                // 中间行，整行都被选中
+                selection_start_col = 0;
+                selection_end_col = content.length();
+            }
+        }
+    }
+    
+    // 渲染带搜索高亮和选中高亮的行内容
     auto renderLineWithHighlights = [&](const std::string& line_content, size_t cursor_pos, bool has_cursor) -> Element {
             Elements parts;
         auto& colors = theme_.getColors();
@@ -736,8 +786,117 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
         const size_t MAX_HIGHLIGHT_LENGTH = 5000;  // 最多处理5000字符
         bool line_too_long = line_content.length() > MAX_HIGHLIGHT_LENGTH;
         
-        if (line_matches.empty()) {
-            // 没有搜索匹配，正常渲染
+        // 辅助函数：渲染文本段，应用选中高亮
+        auto renderSegment = [&](const std::string& segment_text, size_t /* start_pos */, bool is_selected) -> Element {
+            if (segment_text.empty()) {
+                return ftxui::text("");
+            }
+            
+            Element elem;
+            if (syntax_highlighting_ && !line_too_long) {
+                try {
+                    elem = syntax_highlighter_.highlightLine(segment_text);
+                } catch (...) {
+                    elem = ftxui::text(segment_text) | color(colors.foreground);
+                }
+            } else {
+                elem = ftxui::text(segment_text) | color(colors.foreground);
+            }
+            
+            // 如果这段文本在选中范围内，添加选中背景色
+            if (is_selected) {
+                elem = elem | bgcolor(colors.selection);
+            }
+            
+            return elem;
+        };
+        
+        // 处理选中高亮：将行内容按照选中范围分割
+        if (line_in_selection) {
+            // 有选中内容，需要分段渲染
+            size_t pos = 0;
+            
+            while (pos < line_content.length()) {
+                if (pos < selection_start_col) {
+                    // 选中前的部分
+                    std::string before_selection = line_content.substr(pos, selection_start_col - pos);
+                    if (has_cursor && cursor_pos < selection_start_col && cursor_pos >= pos) {
+                        // 光标在选中前的部分
+                        size_t before_cursor = cursor_pos - pos;
+                        std::string before = before_selection.substr(0, before_cursor);
+                        std::string cursor_char = before_cursor < before_selection.length() ? 
+                                                  before_selection.substr(before_cursor, 1) : " ";
+                        std::string after = before_cursor < before_selection.length() ? 
+                                            before_selection.substr(before_cursor + 1) : "";
+                        
+                        if (!before.empty()) {
+                            parts.push_back(renderSegment(before, pos, false));
+                        }
+                        parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
+                        if (!after.empty()) {
+                            parts.push_back(renderSegment(after, cursor_pos + 1, false));
+                        }
+                        pos = selection_start_col;
+                    } else {
+                        parts.push_back(renderSegment(before_selection, pos, false));
+                        pos = selection_start_col;
+                    }
+                } else if (pos < selection_end_col) {
+                    // 选中部分
+                    std::string selected = line_content.substr(pos, selection_end_col - pos);
+                    if (has_cursor && cursor_pos >= pos && cursor_pos < selection_end_col) {
+                        // 光标在选中部分内
+                        size_t before_cursor = cursor_pos - pos;
+                        std::string before = selected.substr(0, before_cursor);
+                        std::string cursor_char = before_cursor < selected.length() ? 
+                                                  selected.substr(before_cursor, 1) : " ";
+                        std::string after = before_cursor < selected.length() ? 
+                                            selected.substr(before_cursor + 1) : "";
+                        
+                        if (!before.empty()) {
+                            Element before_elem = renderSegment(before, pos, true);
+                            parts.push_back(before_elem);
+                        }
+                        // 光标在选中部分，也需要选中背景色
+                        Element cursor_elem = renderCursorElement(cursor_char, cursor_pos, line_content.length());
+                        cursor_elem = cursor_elem | bgcolor(colors.selection);
+                        parts.push_back(cursor_elem);
+                        if (!after.empty()) {
+                            Element after_elem = renderSegment(after, cursor_pos + 1, true);
+                            parts.push_back(after_elem);
+                        }
+                        pos = selection_end_col;
+                    } else {
+                        parts.push_back(renderSegment(selected, pos, true));
+                        pos = selection_end_col;
+                    }
+                } else {
+                    // 选中后的部分
+                    std::string after_selection = line_content.substr(pos);
+                    if (has_cursor && cursor_pos >= pos) {
+                        // 光标在选中后的部分
+                        size_t before_cursor = cursor_pos - pos;
+                        std::string before = after_selection.substr(0, before_cursor);
+                        std::string cursor_char = before_cursor < after_selection.length() ? 
+                                                  after_selection.substr(before_cursor, 1) : " ";
+                        std::string after = before_cursor < after_selection.length() ? 
+                                            after_selection.substr(before_cursor + 1) : "";
+                        
+                        if (!before.empty()) {
+                            parts.push_back(renderSegment(before, pos, false));
+                        }
+                        parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
+                        if (!after.empty()) {
+                            parts.push_back(renderSegment(after, cursor_pos + 1, false));
+                        }
+                    } else {
+                        parts.push_back(renderSegment(after_selection, pos, false));
+                    }
+                    break;
+                }
+            }
+        } else if (line_matches.empty()) {
+            // 没有搜索匹配和选中，正常渲染
             if (has_cursor && cursor_pos <= line_content.length()) {
                 std::string before = line_content.substr(0, cursor_pos);
                 std::string cursor_char = cursor_pos < line_content.length() ? 
@@ -745,46 +904,20 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                 std::string after = cursor_pos < line_content.length() ? 
                                     line_content.substr(cursor_pos + 1) : "";
                 
-                if (syntax_highlighting_ && !line_too_long) {
-                    // 启用语法高亮（仅当行不太长时）
-                    try {
-                        if (!before.empty()) {
-                            parts.push_back(syntax_highlighter_.highlightLine(before));
-                        }
-                    } catch (...) {
-                        parts.push_back(text(before) | color(colors.foreground));
-                    }
-                    // 使用配置的光标样式渲染
-                    parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
-                    try {
-                        if (!after.empty()) {
-                            parts.push_back(syntax_highlighter_.highlightLine(after));
-                        }
-                    } catch (...) {
-                        parts.push_back(text(after) | color(colors.foreground));
-                    }
-                } else {
-                    parts.push_back(text(before) | color(colors.foreground));
-                    // 使用配置的光标样式渲染
-                    parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
-                    parts.push_back(text(after) | color(colors.foreground));
+                if (!before.empty()) {
+                    parts.push_back(renderSegment(before, 0, false));
+                }
+                // 使用配置的光标样式渲染
+                parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
+                if (!after.empty()) {
+                    parts.push_back(renderSegment(after, cursor_pos + 1, false));
                 }
             } else {
                 // 没有光标，渲染整行
-                if (syntax_highlighting_ && !line_too_long) {
-                    // 启用语法高亮（仅当行不太长时）
-                    try {
-                        parts.push_back(syntax_highlighter_.highlightLine(line_content));
-                    } catch (...) {
-                        // 语法高亮失败，使用简单文本
-                        parts.push_back(text(line_content) | color(colors.foreground));
-                    }
-                } else {
-                    parts.push_back(text(line_content) | color(colors.foreground));
-                }
+                parts.push_back(renderSegment(line_content, 0, false));
             }
         } else {
-            // 有搜索匹配，需要高亮显示
+            // 有搜索匹配，需要同时处理搜索高亮和选中高亮
             size_t pos = 0;
             size_t match_idx = 0;
             
@@ -795,48 +928,65 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                     if (line_matches[i].column == pos) {
                         // 找到匹配，高亮显示
                         size_t match_len = line_matches[i].length;
-                        std::string match_text = line_content.substr(pos, match_len);
+                        size_t match_end = pos + match_len;
                         
                         // 检查光标是否在匹配范围内
-                        bool cursor_in_match = has_cursor && cursor_pos >= pos && cursor_pos < pos + match_len;
+                        bool cursor_in_match = has_cursor && cursor_pos >= pos && cursor_pos < match_end;
+                        
+                        // 检查匹配是否在选中范围内
+                        bool match_in_selection = line_in_selection && 
+                                                  pos < selection_end_col && 
+                                                  match_end > selection_start_col;
                         
                         if (cursor_in_match) {
                             // 光标在匹配内，需要分割匹配文本
                             size_t before_cursor = cursor_pos - pos;
-                            size_t after_cursor = pos + match_len - cursor_pos;
+                            size_t after_cursor = match_end - cursor_pos;
                             
                             if (before_cursor > 0) {
-                                std::string before = match_text.substr(0, before_cursor);
-                                parts.push_back(
-                                    text(before) | 
-                                    bgcolor(Color::GrayDark) | 
-                                    color(colors.foreground)
-                                );
+                                std::string before = line_content.substr(pos, before_cursor);
+                                bool is_selected = match_in_selection && pos >= selection_start_col;
+                                Element before_elem = renderSegment(before, pos, is_selected);
+                                // 如果不在选中范围内，应用搜索高亮
+                                if (!is_selected) {
+                                    before_elem = before_elem | bgcolor(Color::GrayDark);
+                                }
+                                parts.push_back(before_elem);
                             }
                             
                             // 光标位置的字符
-                            std::string cursor_char = match_text.substr(before_cursor, 1);
-                            // 使用配置的光标样式渲染
-                            parts.push_back(renderCursorElement(cursor_char, pos + before_cursor, line_content.length()));
+                            std::string cursor_char = line_content.substr(cursor_pos, 1);
+                            Element cursor_elem = renderCursorElement(cursor_char, cursor_pos, line_content.length());
+                            // 选中高亮优先于搜索高亮
+                            if (match_in_selection && cursor_pos >= selection_start_col && cursor_pos < selection_end_col) {
+                                cursor_elem = cursor_elem | bgcolor(colors.selection);
+                            } else {
+                                cursor_elem = cursor_elem | bgcolor(Color::GrayDark);
+                            }
+                            parts.push_back(cursor_elem);
                             
                             if (after_cursor > 1) {
-                                std::string after = match_text.substr(before_cursor + 1);
-                                parts.push_back(
-                                    text(after) | 
-                                    bgcolor(Color::GrayDark) | 
-                                    color(colors.foreground)
-                                );
+                                std::string after = line_content.substr(cursor_pos + 1, after_cursor - 1);
+                                bool is_selected = match_in_selection && cursor_pos + 1 >= selection_start_col;
+                                Element after_elem = renderSegment(after, cursor_pos + 1, is_selected);
+                                // 如果不在选中范围内，应用搜索高亮
+                                if (!is_selected) {
+                                    after_elem = after_elem | bgcolor(Color::GrayDark);
+                                }
+                                parts.push_back(after_elem);
                             }
-        } else {
+                        } else {
                             // 光标不在匹配内，正常高亮匹配
-                            parts.push_back(
-                                text(match_text) | 
-                                bgcolor(Color::GrayDark) | 
-                                color(colors.foreground)
-                            );
+                            std::string match_text = line_content.substr(pos, match_len);
+                            Element match_elem = renderSegment(match_text, pos, match_in_selection);
+                            // 如果不在选中范围内，应用搜索高亮
+                            if (!match_in_selection) {
+                                match_elem = match_elem | bgcolor(Color::GrayDark);
+                            }
+                            parts.push_back(match_elem);
                         }
                         
-                        pos += match_len;
+                        pos = match_end;
                         match_idx = i + 1;
                         found_match = true;
                         break;
@@ -854,6 +1004,11 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                     
                     std::string segment = line_content.substr(pos, next_match_pos - pos);
                     
+                    // 检查这段是否在选中范围内
+                    bool segment_in_selection = line_in_selection && 
+                                                pos < selection_end_col && 
+                                                next_match_pos > selection_start_col;
+                    
                     // 检查光标是否在这个段内
                     if (has_cursor && cursor_pos >= pos && cursor_pos < next_match_pos) {
                         size_t before_cursor = cursor_pos - pos;
@@ -863,42 +1018,22 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
                         std::string after = before_cursor < segment.length() ? 
                                             segment.substr(before_cursor + 1) : "";
                         
-                        if (syntax_highlighting_ && !line_too_long) {
-                            // 启用语法高亮（仅当行不太长时）
-                            try {
-                                if (!before.empty()) {
-                                    parts.push_back(syntax_highlighter_.highlightLine(before));
-                                }
-                            } catch (...) {
-                                parts.push_back(text(before) | color(colors.foreground));
-                            }
-                            // 使用配置的光标样式渲染
-                            parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
-                            try {
-                                if (!after.empty()) {
-                                    parts.push_back(syntax_highlighter_.highlightLine(after));
-                                }
-                            } catch (...) {
-                                parts.push_back(text(after) | color(colors.foreground));
-                            }
-                        } else {
-                            parts.push_back(text(before) | color(colors.foreground));
-                            // 使用配置的光标样式渲染
-                            parts.push_back(renderCursorElement(cursor_char, cursor_pos, line_content.length()));
-                            parts.push_back(text(after) | color(colors.foreground));
-        }
+                        if (!before.empty()) {
+                            parts.push_back(renderSegment(before, pos, 
+                                segment_in_selection && pos >= selection_start_col));
+                        }
+                        Element cursor_elem = renderCursorElement(cursor_char, cursor_pos, line_content.length());
+                        if (segment_in_selection && cursor_pos >= selection_start_col && cursor_pos < selection_end_col) {
+                            cursor_elem = cursor_elem | bgcolor(colors.selection);
+                        }
+                        parts.push_back(cursor_elem);
+                        if (!after.empty()) {
+                            parts.push_back(renderSegment(after, cursor_pos + 1, 
+                                segment_in_selection && cursor_pos + 1 >= selection_start_col));
+                        }
                     } else {
                         // 没有光标，正常渲染
-                        if (syntax_highlighting_ && !line_too_long) {
-                            // 启用语法高亮（仅当行不太长时）
-                            try {
-                                parts.push_back(syntax_highlighter_.highlightLine(segment));
-                            } catch (...) {
-                                parts.push_back(text(segment) | color(colors.foreground));
-                            }
-                        } else {
-                            parts.push_back(text(segment) | color(colors.foreground));
-                        }
+                        parts.push_back(renderSegment(segment, pos, segment_in_selection));
                     }
                     
                     pos = next_match_pos;
@@ -1012,8 +1147,7 @@ Element Editor::renderHelpbar() {
 
 Element Editor::renderInputBox() {
     if (mode_ == EditorMode::SEARCH || 
-        mode_ == EditorMode::REPLACE || 
-        mode_ == EditorMode::GOTO_LINE) {
+        mode_ == EditorMode::REPLACE) {
         return text(status_message_ + input_buffer_) 
             | bgcolor(theme_.getColors().menubar_bg)
             | color(theme_.getColors().menubar_fg);

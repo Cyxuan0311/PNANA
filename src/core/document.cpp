@@ -318,15 +318,15 @@ void Document::deleteLine(size_t row) {
     if (row >= lines_.size()) {
         return;
     }
-    
+
     std::string deleted = lines_[row];
-    
+
     if (lines_.size() == 1) {
         lines_[0] = "";
     } else {
         lines_.erase(lines_.begin() + row);
     }
-    
+
     pushChange(DocumentChange(
         DocumentChange::Type::DELETE,
         row, 0, deleted, ""
@@ -393,66 +393,239 @@ bool Document::undo(size_t* out_row, size_t* out_col) {
     DocumentChange change = undo_stack_.back();
     undo_stack_.pop_back();
     
-    // 应用反向操作
+    // VSCode 风格的撤销逻辑：简单、可靠、原子性
+    // 每个操作都是原子性的，直接应用反向操作，信任操作记录
     switch (change.type) {
-        case DocumentChange::Type::INSERT:
-            // 删除插入的内容
+        case DocumentChange::Type::INSERT: {
+            // 撤销插入：删除插入的文本
+            // VSCode 行为：直接删除，因为操作是原子性的
             if (change.row < lines_.size()) {
-                size_t len = change.new_content.length();
-                if (change.col + len <= lines_[change.row].length()) {
-                    lines_[change.row].erase(change.col, len);
+                size_t line_len = lines_[change.row].length();
+                size_t insert_len = change.new_content.length();
+                
+                // 确保位置有效（更严格的边界检查）
+                if (change.col <= line_len) {
+                    // 计算实际可删除的长度（确保不超过行尾）
+                    size_t max_erase = line_len - change.col;
+                    size_t erase_len = std::min(insert_len, max_erase);
+                    if (erase_len > 0) {
+                        // 直接删除（VSCode 风格：信任操作记录）
+                        lines_[change.row].erase(change.col, erase_len);
+                    }
                 }
             }
-            // 光标应该回到插入位置
+            // 光标回到插入开始位置（VSCode 行为）
             if (out_row) *out_row = change.row;
             if (out_col) *out_col = change.col;
             break;
+        }
             
-        case DocumentChange::Type::DELETE:
-            // 恢复删除的内容
-            if (change.row < lines_.size()) {
-                lines_[change.row].insert(change.col, change.old_content);
+        case DocumentChange::Type::DELETE: {
+            // 撤销删除：恢复删除的文本
+            // VSCode 行为：直接插入，因为操作是原子性的
+            // 如果删除的内容包含换行符，需要分割成多行插入
+            if (change.old_content.find('\n') != std::string::npos) {
+                // 多行内容：需要分割并插入多行
+                if (change.row < lines_.size()) {
+                    std::string& current_line = lines_[change.row];
+                    size_t line_len = current_line.length();
+                    size_t insert_col = std::min(change.col, line_len);
+                    
+                    // 分割删除的内容（按换行符）
+                    std::vector<std::string> restored_lines;
+                    std::istringstream iss(change.old_content);
+                    std::string line;
+                    while (std::getline(iss, line)) {
+                        // 移除行尾的\r（如果有）
+                        if (!line.empty() && line.back() == '\r') {
+                            line.pop_back();
+                        }
+                        restored_lines.push_back(line);
+                    }
+                    
+                    // 如果原内容以换行符结尾，最后一行应该是空行
+                    if (!change.old_content.empty() && 
+                        (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
+                        restored_lines.push_back("");
+                    }
+                    
+                    if (!restored_lines.empty()) {
+                        // 保存当前行的后半部分（插入位置之后的内容）
+                        std::string last_part = current_line.substr(insert_col);
+                        
+                        // 第一行：当前行前半部分 + 恢复的第一行
+                        current_line = current_line.substr(0, insert_col) + restored_lines[0];
+                        
+                        // 如果有多个行，需要插入新行
+                        if (restored_lines.size() > 1) {
+                            // 中间行：直接插入为新行
+                            for (size_t i = 1; i < restored_lines.size() - 1; ++i) {
+                                lines_.insert(lines_.begin() + change.row + i, restored_lines[i]);
+                            }
+                            
+                            // 最后一行：恢复的最后一行 + 当前行的后半部分
+                            std::string last_line = restored_lines.back() + last_part;
+                            lines_.insert(lines_.begin() + change.row + restored_lines.size() - 1, last_line);
+                        } else {
+                            // 只有一行，直接追加当前行的后半部分
+                            current_line += last_part;
+                        }
+                    }
+                } else {
+                    // 行不存在，创建新行并分割内容
+                    while (lines_.size() <= change.row) {
+                        lines_.push_back("");
+                    }
+                    
+                    // 分割内容
+                    std::istringstream iss(change.old_content);
+                    std::string line;
+                    std::vector<std::string> restored_lines;
+                    while (std::getline(iss, line)) {
+                        if (!line.empty() && line.back() == '\r') {
+                            line.pop_back();
+                        }
+                        restored_lines.push_back(line);
+                    }
+                    
+                    if (!change.old_content.empty() && 
+                        (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
+                        restored_lines.push_back("");
+                    }
+                    
+                    // 插入所有行
+                    for (size_t i = 0; i < restored_lines.size(); ++i) {
+                        if (i == 0) {
+                            lines_[change.row] = restored_lines[i];
+                        } else {
+                            lines_.insert(lines_.begin() + change.row + i, restored_lines[i]);
+                        }
+                    }
+                }
+            } else {
+                // 单行内容：判断是删除字符还是删除整行
+                // 删除整行的特征：col == 0 且 old_content 不包含换行符
+                // 删除整行时，应该在原位置插入新行，而不是插入到当前行
+                bool is_delete_line = (change.col == 0 && !change.old_content.empty());
+
+                if (is_delete_line) {
+                    // 删除整行操作：在指定位置插入新行
+                    if (change.row < lines_.size()) {
+                        // 如果当前行存在，检查是否为空行
+                        // 如果为空行，可能是删除最后一行后的情况，直接替换
+                        if (lines_[change.row].empty() && change.row == lines_.size() - 1) {
+                            lines_[change.row] = change.old_content;
+                        } else {
+                            // 否则在指定位置插入新行
+                            lines_.insert(lines_.begin() + change.row, change.old_content);
+                        }
+                    } else if (change.row == lines_.size()) {
+                        // 如果行号等于当前行数，在末尾插入新行
+                        lines_.push_back(change.old_content);
+                    } else {
+                        // 如果行号超出范围，先创建空行，再插入
+                        while (lines_.size() < change.row) {
+                            lines_.push_back("");
+                        }
+                        lines_.push_back(change.old_content);
+                    }
+                } else {
+                    // 删除字符操作：直接插入到当前行
+                    if (change.row < lines_.size()) {
+                        size_t line_len = lines_[change.row].length();
+                        // 确保插入位置不超过行尾（VSCode 行为：插入到删除位置）
+                        size_t insert_col = std::min(change.col, line_len);
+                        // 直接插入删除的内容
+                        lines_[change.row].insert(insert_col, change.old_content);
+                    } else {
+                        // 如果行不存在，创建新行（边界情况处理）
+                        while (lines_.size() <= change.row) {
+                            lines_.push_back("");
+                        }
+                        lines_[change.row] = change.old_content;
+                    }
+                }
             }
-            // 光标应该回到删除开始的位置
+            // 光标回到删除开始位置（VSCode 行为）
             if (out_row) *out_row = change.row;
             if (out_col) *out_col = change.col;
             break;
+        }
             
-        case DocumentChange::Type::REPLACE:
-            // 恢复原内容
+        case DocumentChange::Type::REPLACE: {
+            // 撤销替换：恢复原内容
             if (change.row < lines_.size()) {
                 lines_[change.row] = change.old_content;
+            } else {
+                // 如果行不存在，创建新行
+                while (lines_.size() <= change.row) {
+                    lines_.push_back("");
+                }
+                lines_[change.row] = change.old_content;
             }
-            // 光标应该回到替换开始的位置
+            // 光标回到替换开始位置（VSCode 行为）
             if (out_row) *out_row = change.row;
             if (out_col) *out_col = change.col;
             break;
+        }
             
-        case DocumentChange::Type::NEWLINE:
-            // 撤销换行：删除新插入的行，恢复原行的完整内容
-            if (change.row + 1 < lines_.size()) {
-                // 删除新插入的行
-                lines_.erase(lines_.begin() + change.row + 1);
+        case DocumentChange::Type::NEWLINE: {
+            // 撤销换行：删除新行，恢复原行
+            // old_content 是完整的原行，new_content 是 before_cursor，after_cursor 是移到新行的内容
+            // change.row 是换行前的行号，换行后新行在 change.row + 1 位置
+            
+            size_t target_row = change.row;
+            
+            // 检查行号是否有效，如果无效，尝试通过内容查找
+            if (change.row >= lines_.size() || 
+                (change.row < lines_.size() && lines_[change.row] != change.new_content)) {
+                // 行号可能已经改变，尝试通过内容查找正确的行
+                // 查找包含 before_cursor 的行
+                for (size_t i = 0; i < lines_.size(); ++i) {
+                    if (lines_[i] == change.new_content && i + 1 < lines_.size()) {
+                        target_row = i;
+                        break;
+                    }
+                }
             }
-            // 恢复原行的完整内容（before_cursor + after_cursor）
-            if (change.row < lines_.size()) {
-                lines_[change.row] = change.old_content + change.after_cursor;
+            
+            // 执行撤销：删除新行，恢复原行
+            if (target_row < lines_.size()) {
+                // 删除新插入的行（如果存在）
+                if (target_row + 1 < lines_.size()) {
+                    lines_.erase(lines_.begin() + target_row + 1);
+                }
+                
+                // 恢复原行的完整内容
+                lines_[target_row] = change.old_content;
+            } else {
+                // 如果行不存在，创建新行并恢复内容
+                while (lines_.size() <= target_row) {
+                    lines_.push_back("");
+                }
+                lines_[target_row] = change.old_content;
             }
-            // 光标应该回到换行前的位置
-            if (out_row) *out_row = change.row;
+            
+            // 光标回到换行前的位置（VSCode 行为）
+            if (out_row) *out_row = target_row;
             if (out_col) *out_col = change.col;
             break;
+        }
     }
     
+    // 确保文档至少有一行（边界情况处理）
+    if (lines_.empty()) {
+        lines_.push_back("");
+    }
+    
+    // 将操作移到重做栈
     redo_stack_.push_back(change);
-    
-    // 检查撤销后内容是否与原始内容相同（参考 VSCode 行为）
-    if (isContentSameAsOriginal()) {
+
+    // VSCode 行为：如果撤销到最初状态（撤销栈为空），清除修改状态
+    if (undo_stack_.empty()) {
         modified_ = false;
-    } else {
-        modified_ = true;
     }
-    
+
     return true;
 }
 
@@ -510,30 +683,84 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
     }
     
     undo_stack_.push_back(change);
-    
-    // 检查重做后内容是否与原始内容相同（参考 VSCode 行为）
-    if (isContentSameAsOriginal()) {
+
+    // 如果重做后撤销栈为空，说明回到了原始状态，清除修改状态
+    // 否则说明文件被修改了，设置修改状态为 true
+    if (undo_stack_.empty()) {
         modified_ = false;
     } else {
         modified_ = true;
     }
-    
+
     return true;
 }
 
 void Document::pushChange(const DocumentChange& change) {
+    // VSCode 风格的智能合并策略（优化版）：
+    // 1. 连续的 INSERT 操作会合并（连续输入字符，包括多字符输入）
+    // 2. 连续的 DELETE 操作会合并（连续删除字符，如连续按 Backspace）
+    // 3. INSERT 和 DELETE 不会互相合并（不同操作类型）
+    // 4. REPLACE、NEWLINE 等操作总是创建新的撤销点
+    // 5. 时间阈值：500ms（VSCode 使用约 500ms，更短的阈值提供更精确的撤销点）
+    constexpr auto MERGE_THRESHOLD = std::chrono::milliseconds(500);
+    
+    if (!undo_stack_.empty()) {
+        DocumentChange& last_change = undo_stack_.back();
+        auto time_diff = change.timestamp - last_change.timestamp;
+        
+        // VSCode 行为：相同类型的连续操作可以合并
+        if (time_diff < MERGE_THRESHOLD) {
+            // 合并 INSERT 操作：连续输入字符（支持单字符和多字符）
+            if (change.type == DocumentChange::Type::INSERT &&
+                last_change.type == DocumentChange::Type::INSERT &&
+                change.row == last_change.row) {
+                // 检查是否是连续的插入（光标位置连续）
+                size_t last_insert_end = last_change.col + last_change.new_content.length();
+                if (change.col == last_insert_end) {
+                    // 连续插入：将新内容追加到上一个变更
+                    last_change.new_content += change.new_content;
+                    last_change.timestamp = change.timestamp;
+                    return;  // 合并完成
+                }
+            }
+            
+            // 合并 DELETE 操作：连续删除字符（VSCode 行为）
+            // 注意：DELETE 操作中，col 是删除开始的位置
+            // 连续删除时，位置应该相同或相邻
+            if (change.type == DocumentChange::Type::DELETE &&
+                last_change.type == DocumentChange::Type::DELETE &&
+                change.row == last_change.row) {
+                // 向后删除（Delete 键）：位置相同，追加删除的内容
+                if (change.col == last_change.col) {
+                    last_change.old_content += change.old_content;
+                    last_change.timestamp = change.timestamp;
+                    return;  // 合并完成
+                }
+                // 向前删除（Backspace 键）：位置相邻，插入到开头
+                else if (change.col == last_change.col - change.old_content.length() ||
+                         change.col + change.old_content.length() == last_change.col) {
+                    last_change.old_content = change.old_content + last_change.old_content;
+                    last_change.col = change.col;  // 更新删除开始位置
+                    last_change.timestamp = change.timestamp;
+                    return;  // 合并完成
+                }
+            }
+        }
+    }
+    
+    // 不满足合并条件，创建新的撤销点
+    // VSCode 行为：不同操作类型、不连续的操作、REPLACE、NEWLINE 都会创建新撤销点
     undo_stack_.push_back(change);
     if (undo_stack_.size() > MAX_UNDO_STACK) {
         undo_stack_.pop_front();
     }
-    redo_stack_.clear();  // 新的修改会清除重做栈（参考 VSCode 行为）
+    redo_stack_.clear();  // 新的修改会清除重做栈（VSCode 行为）
     
-    // 检查修改后内容是否与原始内容相同
-    if (isContentSameAsOriginal()) {
-        modified_ = false;
-    } else {
-        modified_ = true;
-    }
+    // VSCode 行为：一旦进行了编辑操作，就标记为已修改
+    // 只有在用户明确保存文件时，才清除修改状态
+    // 不应该在每次操作后都检查是否与原始内容相同
+    // 即使撤销到原始状态，文件仍然保持修改状态，直到用户保存
+    modified_ = true;
 }
 
 void Document::clearHistory() {
