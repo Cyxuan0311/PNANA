@@ -182,7 +182,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🌟 Star History
 
-If this project helps you, please give it a star⭐️!
+[![Star History Chart](https://api.star-history.com/svg?repos=Cyxuan0311/PNANA&type=Date)](https://star-history.com/#Cyxuan0311/PNANA&Date)
 
 ---
 

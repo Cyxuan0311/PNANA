@@ -181,6 +181,6 @@ pnana --readonly file.txt
 
 ## 🌟 Star History
 
-如果这个项目对你有帮助，请给个star⭐️！
+[![Star History Chart](https://api.star-history.com/svg?repos=Cyxuan0311/PNANA&type=Date)](https://star-history.com/#Cyxuan0311/PNANA&Date)
 
 ---
