@@ -5,6 +5,8 @@
 #include <vector>
 #include <memory>
 
+#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
+
 namespace pnana {
 namespace features {
 
@@ -75,6 +77,8 @@ private:
 
 } // namespace features
 } // namespace pnana
+
+#endif // BUILD_IMAGE_PREVIEW_SUPPORT
 
 #endif // PNANA_FEATURES_IMAGE_PREVIEW_H
 

@@ -22,6 +22,7 @@ Terminal::Terminal(ui::Theme& theme)
       current_input_(""),
       cursor_position_(0),
       max_output_lines_(1000),
+      scroll_offset_(0),
       current_directory_(".") {
     // 初始化当前目录
     char* cwd = getcwd(nullptr, 0);
@@ -297,6 +298,31 @@ bool Terminal::handleTabCompletion() {
     }
     
     return false;
+}
+
+// 滚动功能实现
+void Terminal::scrollUp() {
+    // 向上滚动：增加偏移量，最多滚动到输出历史的开始
+    if (scroll_offset_ < output_lines_.size()) {
+        scroll_offset_ += 1;
+    }
+}
+
+void Terminal::scrollDown() {
+    // 向下滚动：减少偏移量，最少滚动到最新输出
+    if (scroll_offset_ > 0) {
+        scroll_offset_ -= 1;
+    }
+}
+
+void Terminal::scrollToTop() {
+    // 滚动到最顶部
+    scroll_offset_ = output_lines_.size();
+}
+
+void Terminal::scrollToBottom() {
+    // 滚动到最底部（最新输出）
+    scroll_offset_ = 0;
 }
 
 } // namespace features
