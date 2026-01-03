@@ -21,20 +21,36 @@ Element renderTerminal(features::Terminal& terminal, int height) {
     // 输出区域和输入行
     Elements output_lines;
     const auto& output_lines_data = terminal.getOutputLines();
-    
+    size_t scroll_offset = terminal.getScrollOffset();
+
     // 计算可用高度：总高度 - 1（为输入行预留）
     int available_height = height - 1;
     if (available_height < 1) {
         available_height = 1;  // 至少保留1行用于输出
     }
-    
+
     // 计算要显示的历史输出行数
     size_t output_count = output_lines_data.size();
     size_t start_line = 0;
-    
-    // 如果输出行数超过可用高度，只显示最近的输出
-    if (output_count > static_cast<size_t>(available_height)) {
-        start_line = output_count - available_height;
+
+    // 根据滚动偏移量调整起始行
+    // scroll_offset 表示从输出开头跳过的行数（向上滚动时增加）
+    if (scroll_offset >= output_count) {
+        // 如果偏移量超过总行数，显示最后 available_height 行
+        if (output_count > static_cast<size_t>(available_height)) {
+            start_line = output_count - available_height;
+        }
+    } else {
+        // 计算实际的起始行：从输出末尾向前 available_height 行，但考虑滚动偏移
+        size_t effective_end = output_count - scroll_offset;
+        if (effective_end > static_cast<size_t>(available_height)) {
+            start_line = effective_end - available_height;
+        }
+        // 确保 start_line 不超过输出范围
+        if (start_line > output_count) {
+            start_line = output_count > static_cast<size_t>(available_height) ?
+                        output_count - available_height : 0;
+        }
     }
     
     // 显示历史输出（确保不超过可用高度）
@@ -65,42 +81,34 @@ Element renderTerminal(features::Terminal& terminal, int height) {
                                current_input.substr(cursor_position + 1) : "";
     
     Elements input_elements;
-    
-    // 优化后的提示符样式（类似 zsh/powerlevel10k）
-    // 第一部分：用户名（绿色，粗体）
+
+    // 优化后的提示符样式（类似 zsh/powerlevel10k，使用图标和反白效果）
+    // 第一部分：用户信息（用户名@主机名，反白显示）
     std::string username = terminal.getUsername();
-    input_elements.push_back(
-        text(username) | color(Color::Green) | bold
-    );
-    
-    // @ 符号（白色）
-    input_elements.push_back(
-        text("@") | color(Color::White) | dim
-    );
-    
-    // 主机名（绿色）
     std::string hostname = terminal.getHostname();
+
+    // 用户信息块（反白效果）
     input_elements.push_back(
-        text(hostname) | color(Color::Green) | bold
+        text(std::string(" ") + icons::TERMINAL + " ") |
+        bgcolor(Color::Green) |
+        color(Color::Black) |
+        bold
     );
-    
-    // 分隔符（白色点）
+
     input_elements.push_back(
-        text(" · ") | color(Color::White) | dim
+        text(" " + username + "@" + hostname + " ") |
+        bgcolor(Color::Green) |
+        color(Color::Black) |
+        bold
     );
-    
-    // 第二部分：时间戳（浅蓝色，小写）
-    std::string time_str = terminal.getCurrentTime();
-    input_elements.push_back(
-        text(time_str) | color(Color::Cyan) | dim
-    );
-    
+
     // 分隔符
     input_elements.push_back(
-        text(" · ") | color(Color::White) | dim
+        text(" ") |
+        bgcolor(colors.background)
     );
-    
-    // 第三部分：目录路径（蓝色，高亮）
+
+    // 第二部分：目录信息（蓝色反白）
     std::string dir = terminal.getCurrentDir();
     const char* home = getenv("HOME");
     if (home && dir.find(home) == 0) {
@@ -113,28 +121,97 @@ Element renderTerminal(features::Terminal& terminal, int height) {
             dir = "..." + dir.substr(last_slash);
         }
     }
+
     input_elements.push_back(
-        text(dir) | color(Color::Blue) | bold
+        text(std::string(" ") + icons::FOLDER + " ") |
+        bgcolor(Color::Blue) |
+        color(Color::White) |
+        bold
     );
-    
-    // 第四部分：Git 分支（如果有，使用更醒目的颜色）
+
+    input_elements.push_back(
+        text(" " + dir + " ") |
+        bgcolor(Color::Blue) |
+        color(Color::White) |
+        bold
+    );
+
+    // 分隔符
+    input_elements.push_back(
+        text(" ") |
+        bgcolor(colors.background)
+    );
+
+    // 第三部分：时间戳（青色背景）
+    std::string time_str = terminal.getCurrentTime();
+    input_elements.push_back(
+        text(std::string(" ") + icons::CLOCK + " ") |
+        bgcolor(Color::Cyan) |
+        color(Color::Black) |
+        bold
+    );
+
+    input_elements.push_back(
+        text(" " + time_str + " ") |
+        bgcolor(Color::Cyan) |
+        color(Color::Black)
+    );
+
+    // 第四部分：Git 分支（如果有，金色背景）
     std::string git_branch = terminal.getGitBranch();
     if (!git_branch.empty()) {
+        // 分隔符
         input_elements.push_back(
-            text(" · ") | color(Color::White) | dim
+            text(" ") |
+            bgcolor(colors.background)
         );
-        // Git 分支图标和名称
+
+        // Git 分支块
         input_elements.push_back(
-            text("git:") | color(Color::Yellow) | dim
+            text(std::string(" ") + icons::GIT + " ") |
+            bgcolor(Color::Yellow) |
+            color(Color::Black) |
+            bold
         );
+
         input_elements.push_back(
-            text(" " + git_branch) | color(Color::Yellow) | bold
+            text(" " + git_branch + " ") |
+            bgcolor(Color::Yellow) |
+            color(Color::Black) |
+            bold
         );
     }
-    
-    // 提示符结束符号（绿色箭头，更醒目）
+
+    // 分隔符
     input_elements.push_back(
-        text(" → ") | color(Color::Green) | bold
+        text(" ") |
+        bgcolor(colors.background)
+    );
+
+    // 第五部分：状态指示器（根据终端状态）
+    Color status_bg = Color::Green; // 默认成功状态
+    std::string status_icon = icons::SUCCESS;
+
+    // 可以根据终端的最后命令状态来设置颜色
+    // 这里暂时使用绿色成功状态
+
+    input_elements.push_back(
+        text(" " + status_icon + " ") |
+        bgcolor(status_bg) |
+        color(Color::White) |
+        bold
+    );
+
+    // 最终的提示符箭头
+    input_elements.push_back(
+        text(" ") |
+        bgcolor(colors.background)
+    );
+
+    input_elements.push_back(
+        text(std::string(icons::ARROW_RIGHT) + " ") |
+        color(Color::Green) |
+        bold
     );
     
     // 用户输入（白色，更清晰）

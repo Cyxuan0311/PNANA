@@ -52,13 +52,28 @@ Element ThemeMenu::render() {
         temp_theme.setTheme(theme_name);
         auto& theme_colors = temp_theme.getColors();
         
-        // 创建颜色预览块（显示主要颜色）
+        // 创建颜色预览块（显示更多颜色）
         Elements color_preview_elements = {
+            // 背景色
             text("█") | color(theme_colors.background) | bgcolor(theme_colors.background),
+            // 前景色
+            text("█") | color(theme_colors.foreground) | bgcolor(theme_colors.foreground),
+            // 关键字
             text("█") | color(theme_colors.keyword) | bgcolor(theme_colors.keyword),
+            // 字符串
             text("█") | color(theme_colors.string) | bgcolor(theme_colors.string),
+            // 注释
+            text("█") | color(theme_colors.comment) | bgcolor(theme_colors.comment),
+            // 函数
             text("█") | color(theme_colors.function) | bgcolor(theme_colors.function),
+            // 类型
             text("█") | color(theme_colors.type) | bgcolor(theme_colors.type),
+            // 数字
+            text("█") | color(theme_colors.number) | bgcolor(theme_colors.number),
+            // 运算符
+            text("█") | color(theme_colors.operator_color) | bgcolor(theme_colors.operator_color),
+            // 错误
+            text("█") | color(theme_colors.error) | bgcolor(theme_colors.error),
             text(" ")
         };
         auto color_preview = hbox(color_preview_elements);

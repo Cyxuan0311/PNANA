@@ -437,7 +437,116 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
     if (ext == "exe" || ext == "bin" || ext == "out" || ext == "app") {
         return icons::EXECUTABLE;
     }
-    
+
+    // 更多编程语言支持
+    if (ext == "swift") return icons::SWIFT;
+    if (ext == "kt" || ext == "kts") return icons::KOTLIN;
+    if (ext == "scala" || ext == "sc") return icons::SCALA;
+    if (ext == "r" || ext == "R") return icons::R;
+    if (ext == "pl" || ext == "pm" || ext == "t") return icons::PERL;
+    if (ext == "hs" || ext == "lhs") return icons::HASKELL;
+    if (ext == "tcl") return icons::TCL;
+    if (ext == "f" || ext == "f90" || ext == "f95" || ext == "for") return icons::FORTRAN;
+    if (ext == "vim") return icons::VIM;
+    if (ext == "ps1" || ext == "psm1" || ext == "psd1") return icons::POWERSHELL;
+
+    // 函数式编程语言
+    if (ext == "ex" || ext == "exs") return icons::ELIXIR;
+    if (ext == "clj" || ext == "cljs" || ext == "cljc" || ext == "edn") return icons::CLOJURE;
+    if (ext == "erl" || ext == "hrl") return icons::ERLANG;
+    if (ext == "ml" || ext == "mli") return icons::OCAML;
+    if (ext == "fs" || ext == "fsi" || ext == "fsx") return icons::F_SHARP;
+    if (ext == "dart") return icons::DART;
+    if (ext == "nim" || ext == "nims") return icons::NIM;
+    if (ext == "cr") return icons::CRYSTAL;
+    if (ext == "zig") return icons::ZIG;
+    if (ext == "jl") return icons::JULIA;
+    if (ext == "purs") return icons::PURESCRIPT;
+    if (ext == "elm") return icons::ELIXIR; // 暂时使用 Elixir 图标
+
+    // Web 框架和工具
+    if (ext == "vue") return icons::VUE;
+    if (ext == "svelte") return icons::SVELTE;
+    if (ext == "pug" || ext == "jade") return icons::PUG;
+    if (ext == "styl") return icons::STYLUS;
+    if (ext == "sass") return icons::SASS;
+    if (ext == "less") return icons::LESS;
+    if (ext == "postcss") return icons::POSTCSS;
+    if (ext == "graphql" || ext == "gql") return icons::GRAPHQL;
+    if (ext == "coffee") return icons::COFFEESCRIPT;
+
+    // .NET 相关
+    if (ext == "cs" || ext == "csx") return icons::CSHARP;
+    if (ext == "vb") return icons::VB;
+    if (ext == "fsproj" || ext == "csproj" || ext == "vbproj") return icons::DOTNET;
+
+    // 系统编程
+    if (ext == "rs") return icons::RUST;
+    if (ext == "go") return icons::GO;
+    if (ext == "d") return icons::D;
+    if (ext == "vala" || ext == "vapi") return icons::VALA;
+    if (ext == "pony") return icons::PONY;
+    if (ext == "v") return icons::V_LANG;
+    if (ext == "odin") return icons::ODIN;
+    if (ext == "jai") return icons::JAI;
+    if (ext == "nelua") return icons::NELUA;
+    if (ext == "wren") return icons::WREN;
+    if (ext == "moon") return icons::MOONSCRIPT;
+
+    // 学术和研究语言
+    if (ext == "m") {
+        if (name_lower.find("octave") != std::string::npos) return icons::OCTAVE;
+        return icons::MATLAB;
+    }
+    if (ext == "nb" || ext == "cdf") return icons::MATLAB; // Mathematica
+    if (ext == "ipynb") return icons::PYTHON; // Jupyter notebook
+
+    // Lisp 家族
+    if (ext == "scm" || ext == "ss") return icons::SCHEME;
+    if (ext == "lsp" || ext == "cl") return icons::COMMON_LISP;
+    if (ext == "el" || ext == "elc") return icons::EMACS_LISP;
+
+    // 逻辑编程
+    if (ext == "pro" || ext == "pl") return icons::PROLOG;
+    if (ext == "asp") return icons::PROLOG; // Answer Set Programming
+
+    // 证明助手
+    if (ext == "v") return icons::COQ;
+    if (ext == "thy") return icons::COQ; // Isabelle
+    if (ext == "lean") return icons::LEAN;
+    if (ext == "agda") return icons::AGDA;
+    if (ext == "idr") return icons::IDRIS;
+
+    // 建模和规范语言
+    if (ext == "als") return icons::ALLOY;
+    if (ext == "dfy") return icons::DAFNY;
+    if (ext == "tla") return icons::TLA;
+
+    // 区块链和智能合约
+    if (ext == "sol") return icons::SOLIDITY;
+    if (ext == "vy") return icons::VYPER;
+    if (ext == "clar") return icons::CLARITY;
+    if (ext == "move") return icons::MOVE;
+
+    // 移动开发
+    if (ext == "bal") return icons::BALLERINA;
+    if (ext == "kt" || ext == "kts") return icons::KOTLIN;
+    if (ext == "swift") return icons::SWIFT;
+
+    // 硬件描述语言
+    if (ext == "v" || ext == "vh") return icons::VERILOG;
+    if (ext == "vhd" || ext == "vhdl") return icons::VHDL;
+
+    // 汇编和底层
+    if (ext == "asm" || ext == "s" || ext == "S") return icons::ASSEMBLY;
+    if (ext == "wat") return icons::WEBASSEMBLY;
+
+    // 其他脚本语言
+    if (ext == "awk") return icons::SHELL;
+    if (ext == "sed") return icons::SHELL;
+    if (ext == "groovy") return icons::GROOVY;
+    if (ext == "gradle") return icons::GRADLE;
+
     return icons::FILE; // 默认文件图标
 }
 
@@ -493,4 +602,3 @@ std::string FileBrowserView::truncateMiddle(const std::string& str, size_t max_l
 
 } // namespace ui
 } // namespace pnana
-

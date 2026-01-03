@@ -2,6 +2,10 @@
 #include "ui/icons.h"
 #include <sstream>
 #include <iomanip>
+#include <array>
+#include <memory>
+#include <cstdio>
+#include <cstring>
 
 using namespace ftxui;
 // 不使用 using namespace icons，避免 FILE 名称冲突
@@ -26,7 +30,9 @@ Element Statusbar::render(
     const std::string& region_name,
     bool syntax_highlighting,
     bool has_selection,
-    size_t selection_length
+    size_t selection_length,
+    const std::string& git_branch,
+    int git_uncommitted_count
 ) {
     auto& colors = theme_.getColors();
     
@@ -97,6 +103,19 @@ Element Statusbar::render(
         std::ostringstream oss;
         oss << " [" << selection_length << "]";
         left_elements.push_back(text(oss.str()) | color(colors.warning) | dim);
+    }
+
+    // Git信息（分支和未提交文件数）
+    if (!git_branch.empty()) {
+        left_elements.push_back(text(" │ ") | color(colors.comment) | dim);
+        left_elements.push_back(text(icons::GIT_BRANCH) | color(colors.keyword));
+        left_elements.push_back(text(" " + git_branch) | color(colors.string) | bold);
+
+        if (git_uncommitted_count > 0) {
+            std::ostringstream git_oss;
+            git_oss << " " << git_uncommitted_count;
+            left_elements.push_back(text(git_oss.str()) | color(colors.warning) | bold);
+        }
     }
     
     // ========== 中间部分 ==========
@@ -194,6 +213,187 @@ std::string Statusbar::getFileTypeIcon(const std::string& file_type) {
     if (file_type == "html") return icons::HTML;
     if (file_type == "css") return icons::CSS;
     if (file_type == "shell") return icons::SHELL;
+    if (file_type == "lua") return icons::LUA;
+    if (file_type == "ruby") return icons::RUBY;
+    if (file_type == "php") return icons::PHP;
+    if (file_type == "xml") return icons::XML;
+    if (file_type == "yaml" || file_type == "yml") return icons::YAML;
+    if (file_type == "sql") return icons::SQL;
+    if (file_type == "swift") return icons::SWIFT;
+    if (file_type == "kotlin") return icons::KOTLIN;
+    if (file_type == "scala") return icons::SCALA;
+    if (file_type == "r") return icons::R;
+    if (file_type == "perl") return icons::PERL;
+    if (file_type == "haskell") return icons::HASKELL;
+    if (file_type == "tcl") return icons::TCL;
+    if (file_type == "fortran") return icons::FORTRAN;
+    if (file_type == "vim") return icons::VIM;
+    if (file_type == "powershell") return icons::POWERSHELL;
+    if (file_type == "dockerfile") return icons::DOCKER;
+    if (file_type == "makefile") return icons::MAKEFILE;
+    if (file_type == "cmake") return icons::CMAKE;
+
+    // 新增语言图标映射
+    if (file_type == "elixir") return icons::ELIXIR;
+    if (file_type == "clojure") return icons::CLOJURE;
+    if (file_type == "erlang") return icons::ERLANG;
+    if (file_type == "julia") return icons::JULIA;
+    if (file_type == "dart") return icons::DART;
+    if (file_type == "nim") return icons::NIM;
+    if (file_type == "crystal") return icons::CRYSTAL;
+    if (file_type == "zig") return icons::ZIG;
+    if (file_type == "ocaml") return icons::OCAML;
+    if (file_type == "coq") return icons::COQ;
+    if (file_type == "agda") return icons::AGDA;
+    if (file_type == "idris") return icons::IDRIS;
+    if (file_type == "purescript") return icons::PURESCRIPT;
+    if (file_type == "reason") return icons::REASON;
+    if (file_type == "sml") return icons::SML;
+    if (file_type == "groovy") return icons::GROOVY;
+    if (file_type == "coffeescript") return icons::COFFEESCRIPT;
+    if (file_type == "pug") return icons::PUG;
+    if (file_type == "stylus") return icons::STYLUS;
+    if (file_type == "sass") return icons::SASS;
+    if (file_type == "less") return icons::LESS;
+    if (file_type == "postcss") return icons::POSTCSS;
+    if (file_type == "graphql") return icons::GRAPHQL;
+    if (file_type == "vue") return icons::VUE;
+    if (file_type == "svelte") return icons::SVELTE;
+    if (file_type == "fsharp") return icons::F_SHARP;
+    if (file_type == "csharp") return icons::CSHARP;
+    if (file_type == "vb") return icons::VB;
+    if (file_type == "assembly") return icons::ASSEMBLY;
+    if (file_type == "webassembly") return icons::WEBASSEMBLY;
+    if (file_type == "verilog") return icons::VERILOG;
+    if (file_type == "vhdl") return icons::VHDL;
+    if (file_type == "matlab") return icons::MATLAB;
+    if (file_type == "octave") return icons::OCTAVE;
+    if (file_type == "racket") return icons::RACKET;
+    if (file_type == "scheme") return icons::SCHEME;
+    if (file_type == "commonlisp") return icons::COMMON_LISP;
+    if (file_type == "emacslisp") return icons::EMACS_LISP;
+    if (file_type == "prolog") return icons::PROLOG;
+    if (file_type == "mercury") return icons::MERCURY;
+    if (file_type == "alloy") return icons::ALLOY;
+    if (file_type == "dafny") return icons::DAFNY;
+    if (file_type == "lean") return icons::LEAN;
+    if (file_type == "ballerina") return icons::BALLERINA;
+    if (file_type == "cadence") return icons::CADENCE;
+    if (file_type == "clarity") return icons::CLARITY;
+    if (file_type == "solidity") return icons::SOLIDITY;
+    if (file_type == "vyper") return icons::VYPER;
+    if (file_type == "carbon") return icons::CARBON;
+    if (file_type == "vala") return icons::VALA;
+    if (file_type == "genie") return icons::GENIE;
+    if (file_type == "dlang") return icons::D;
+    if (file_type == "pony") return icons::PONY;
+    if (file_type == "vlang") return icons::V_LANG;
+    if (file_type == "odin") return icons::ODIN;
+    if (file_type == "jai") return icons::JAI;
+    if (file_type == "nelua") return icons::NELUA;
+    if (file_type == "wren") return icons::WREN;
+    if (file_type == "moonscript") return icons::MOONSCRIPT;
+    if (file_type == "fantom") return icons::FANTOM;
+    if (file_type == "smalltalk") return icons::SMALLTALK;
+    if (file_type == "apl") return icons::APL;
+    if (file_type == "jlang") return icons::J;
+    if (file_type == "klang") return icons::K;
+    if (file_type == "qlang") return icons::Q;
+
+    // 更多脚本语言和特殊语言映射
+    if (file_type == "bash") return icons::BASH;
+    if (file_type == "zsh") return icons::ZSH;
+    if (file_type == "fish") return icons::FISH;
+    if (file_type == "applescript") return icons::APPLESCRIPT;
+    if (file_type == "visualbasic") return icons::VISUAL_BASIC;
+    if (file_type == "delphi") return icons::DELPHI;
+    if (file_type == "pascal") return icons::PASCAL;
+    if (file_type == "ada") return icons::ADA;
+    if (file_type == "cobol") return icons::COBOL;
+    if (file_type == "forth") return icons::FORTH;
+    if (file_type == "lisp") return icons::LISP;
+    if (file_type == "batch") return icons::BATCH;
+    if (file_type == "cmd") return icons::WINDOWS_CMD;
+    if (file_type == "clojure") return icons::CLOJURE;
+    if (file_type == "erlang") return icons::ERLANG;
+    if (file_type == "julia") return icons::JULIA;
+    if (file_type == "dart") return icons::DART;
+    if (file_type == "nim") return icons::NIM;
+    if (file_type == "crystal") return icons::CRYSTAL;
+    if (file_type == "zig") return icons::ZIG;
+    if (file_type == "ocaml") return icons::OCAML;
+    if (file_type == "coq") return icons::COQ;
+    if (file_type == "agda") return icons::AGDA;
+    if (file_type == "idris") return icons::IDRIS;
+    if (file_type == "purescript") return icons::PURESCRIPT;
+    if (file_type == "reason") return icons::REASON;
+    if (file_type == "sml") return icons::SML;
+    if (file_type == "groovy") return icons::GROOVY;
+    if (file_type == "coffeescript") return icons::COFFEESCRIPT;
+    if (file_type == "pug") return icons::PUG;
+    if (file_type == "stylus") return icons::STYLUS;
+    if (file_type == "sass") return icons::SASS;
+    if (file_type == "less") return icons::LESS;
+    if (file_type == "postcss") return icons::POSTCSS;
+    if (file_type == "graphql") return icons::GRAPHQL;
+    if (file_type == "vue") return icons::VUE;
+    if (file_type == "svelte") return icons::SVELTE;
+    if (file_type == "fsharp") return icons::F_SHARP;
+    if (file_type == "csharp") return icons::CSHARP;
+    if (file_type == "vb") return icons::VB;
+    if (file_type == "assembly") return icons::ASSEMBLY;
+    if (file_type == "webassembly") return icons::WEBASSEMBLY;
+    if (file_type == "verilog") return icons::VERILOG;
+    if (file_type == "vhdl") return icons::VHDL;
+    if (file_type == "matlab") return icons::MATLAB;
+    if (file_type == "octave") return icons::OCTAVE;
+    if (file_type == "racket") return icons::RACKET;
+    if (file_type == "scheme") return icons::SCHEME;
+    if (file_type == "commonlisp") return icons::COMMON_LISP;
+    if (file_type == "emacslisp") return icons::EMACS_LISP;
+    if (file_type == "prolog") return icons::PROLOG;
+    if (file_type == "mercury") return icons::MERCURY;
+    if (file_type == "alloy") return icons::ALLOY;
+    if (file_type == "dafny") return icons::DAFNY;
+    if (file_type == "lean") return icons::LEAN;
+    if (file_type == "ballerina") return icons::BALLERINA;
+    if (file_type == "cadence") return icons::CADENCE;
+    if (file_type == "clarity") return icons::CLARITY;
+    if (file_type == "solidity") return icons::SOLIDITY;
+    if (file_type == "vyper") return icons::VYPER;
+    if (file_type == "carbon") return icons::CARBON;
+    if (file_type == "vala") return icons::VALA;
+    if (file_type == "genie") return icons::GENIE;
+    if (file_type == "dlang") return icons::D;
+    if (file_type == "pony") return icons::PONY;
+    if (file_type == "vlang") return icons::V_LANG;
+    if (file_type == "odin") return icons::ODIN;
+    if (file_type == "jai") return icons::JAI;
+    if (file_type == "nelua") return icons::NELUA;
+    if (file_type == "wren") return icons::WREN;
+    if (file_type == "moonscript") return icons::MOONSCRIPT;
+    if (file_type == "fantom") return icons::FANTOM;
+    if (file_type == "smalltalk") return icons::SMALLTALK;
+    if (file_type == "apl") return icons::APL;
+    if (file_type == "jlang") return icons::J;
+    if (file_type == "klang") return icons::K;
+    if (file_type == "qlang") return icons::Q;
+
+    // 更多脚本语言和特殊语言映射
+    if (file_type == "bash") return icons::BASH;
+    if (file_type == "zsh") return icons::ZSH;
+    if (file_type == "fish") return icons::FISH;
+    if (file_type == "applescript") return icons::APPLESCRIPT;
+    if (file_type == "visualbasic") return icons::VISUAL_BASIC;
+    if (file_type == "delphi") return icons::DELPHI;
+    if (file_type == "pascal") return icons::PASCAL;
+    if (file_type == "ada") return icons::ADA;
+    if (file_type == "cobol") return icons::COBOL;
+    if (file_type == "forth") return icons::FORTH;
+    if (file_type == "lisp") return icons::LISP;
+    if (file_type == "batch") return icons::BATCH;
+    if (file_type == "cmd") return icons::WINDOWS_CMD;
+
     return icons::FILE;  // 使用命名空间别名避免冲突
 }
 
@@ -228,7 +428,7 @@ std::string Statusbar::getRegionIcon(const std::string& region_name) {
     return icons::INFO;
 }
 
-Element Statusbar::createIndicator(const std::string& icon, const std::string& label, 
+Element Statusbar::createIndicator(const std::string& icon, const std::string& label,
                                    Color fg_color, Color bg_color) {
     Elements elements;
     if (!icon.empty()) {
@@ -238,6 +438,60 @@ Element Statusbar::createIndicator(const std::string& icon, const std::string& l
         elements.push_back(text(" " + label + " ") | color(fg_color) | bgcolor(bg_color));
     }
     return hbox(elements);
+}
+
+// Git相关方法实现
+std::tuple<std::string, int> Statusbar::getGitInfo() {
+    std::string branch = getGitBranch();
+    int uncommitted_count = getGitUncommittedCount();
+    return std::make_tuple(branch, uncommitted_count);
+}
+
+std::string Statusbar::getGitBranch() {
+    // 执行 git branch --show-current 命令获取当前分支
+    std::array<char, 128> buffer;
+    std::string result;
+
+    // 使用 popen 执行 git 命令
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("git branch --show-current 2>/dev/null", "r"), pclose);
+    if (!pipe) {
+        return "";
+    }
+
+    // 读取命令输出
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+
+    // 移除末尾的换行符
+    if (!result.empty() && result.back() == '\n') {
+        result.pop_back();
+    }
+
+    return result;
+}
+
+int Statusbar::getGitUncommittedCount() {
+    // 执行 git status --porcelain 命令获取未提交的文件数
+    std::array<char, 1024> buffer;
+    std::string result;
+    int count = 0;
+
+    // 使用 popen 执行 git 命令
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("git status --porcelain 2>/dev/null", "r"), pclose);
+    if (!pipe) {
+        return 0;
+    }
+
+    // 读取命令输出并计数
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        // 每行代表一个未提交的文件
+        if (strlen(buffer.data()) > 0) {
+            count++;
+        }
+    }
+
+    return count;
 }
 
 } // namespace ui

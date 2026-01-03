@@ -3,6 +3,7 @@
 
 #include <ftxui/dom/elements.hpp>
 #include <string>
+#include <tuple>
 #include "ui/theme.h"
 
 namespace pnana {
@@ -28,9 +29,14 @@ public:
         const std::string& region_name = "",
         bool syntax_highlighting = true,
         bool has_selection = false,
-        size_t selection_length = 0
+        size_t selection_length = 0,
+        const std::string& git_branch = "",
+        int git_uncommitted_count = 0
     );
-    
+
+    // Git相关方法（公共接口）
+    static std::tuple<std::string, int> getGitInfo();
+
 private:
     Theme& theme_;
     
@@ -47,8 +53,12 @@ private:
     std::string getRegionIcon(const std::string& region_name);
     
     // 创建状态指示器
-    ftxui::Element createIndicator(const std::string& icon, const std::string& label, 
+    ftxui::Element createIndicator(const std::string& icon, const std::string& label,
                                    ftxui::Color fg_color, ftxui::Color bg_color);
+
+    // Git相关方法
+    static std::string getGitBranch();
+    static int getGitUncommittedCount();
 };
 
 } // namespace ui
