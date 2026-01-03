@@ -37,9 +37,32 @@ void printHelp() {
 }
 
 void printVersion() {
-    std::cout << "pnana version 0.0.3\n";
-    std::cout << "Modern Terminal Text Editor\n";
-    std::cout << "Built with FTXUI and C++17\n";
+    // ANSI颜色代码
+    const std::string RESET = "\033[0m";
+    const std::string BOLD = "\033[1m";
+    const std::string RED = "\033[31m";
+    const std::string GREEN = "\033[32m";
+    const std::string YELLOW = "\033[33m";
+    const std::string BLUE = "\033[34m";
+    const std::string MAGENTA = "\033[35m";
+    const std::string CYAN = "\033[36m";
+    const std::string WHITE = "\033[37m";
+    
+    std::cout << CYAN << BOLD << "  ██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ " << RESET << std::endl;
+    std::cout << CYAN << BOLD << "  ██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗" << RESET << std::endl;
+    std::cout << CYAN << BOLD << "  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║███████║" << RESET << std::endl;
+    std::cout << CYAN << BOLD << "  ██╔═══╝ ██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║" << RESET << std::endl;
+    std::cout << CYAN << BOLD << "  ██║     ██║ ╚████║██║  ██║██║ ╚████║██║  ██║" << RESET << std::endl;
+    std::cout << CYAN << BOLD << "  ╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝" << RESET << std::endl;
+    
+    std::cout << std::endl;
+    std::cout << GREEN << BOLD << "  Modern Terminal Text Editor" << RESET << std::endl;
+    std::cout << YELLOW << "  Built with FTXUI and C++17" << RESET << std::endl;
+    std::cout << MAGENTA << "  Latest development build" << RESET << std::endl;
+    
+    std::cout << std::endl;
+    std::cout << BLUE << "  Features: LSP Support, Syntax Highlighting, Plugin System" << RESET << std::endl;
+    std::cout << BLUE << "  Website: https://github.com/Cyxuan0311/PNANA.git" << RESET << std::endl;
 }
 
 // 空的信号处理器，用于屏蔽系统信号
