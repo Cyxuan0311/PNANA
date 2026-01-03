@@ -14,7 +14,8 @@
 #
 # 支持的语言:
 #   CPP, C, PYTHON, JAVASCRIPT, TYPESCRIPT, JSON, MARKDOWN, BASH, RUST, GO, JAVA,
-#   CMAKE, TCL, FORTRAN, HASKELL, LUA
+#   CMAKE, TCL, FORTRAN, HASKELL, LUA, YAML, XML, CSS, SQL, RUBY, PHP, SWIFT,
+#   KOTLIN, SCALA, R, PERL, DOCKERFILE, MAKEFILE, VIM, POWERSHELL
 
 # 查找函数
 function(find_tree_sitter_language lang_name lib_names display_name)
@@ -69,6 +70,23 @@ find_tree_sitter_language(FORTRAN "tree-sitter-fortran;libtree-sitter-fortran" "
 find_tree_sitter_language(HASKELL "tree-sitter-haskell;libtree-sitter-haskell" "Haskell")
 find_tree_sitter_language(LUA "tree-sitter-lua;libtree-sitter-lua" "Lua")
 
+# 新增语言支持
+find_tree_sitter_language(YAML "tree-sitter-yaml;libtree-sitter-yaml" "YAML")
+find_tree_sitter_language(XML "tree-sitter-xml;libtree-sitter-xml" "XML")
+find_tree_sitter_language(CSS "tree-sitter-css;libtree-sitter-css" "CSS")
+find_tree_sitter_language(SQL "tree-sitter-sql;libtree-sitter-sql" "SQL")
+find_tree_sitter_language(RUBY "tree-sitter-ruby;libtree-sitter-ruby" "Ruby")
+find_tree_sitter_language(PHP "tree-sitter-php;libtree-sitter-php" "PHP")
+find_tree_sitter_language(SWIFT "tree-sitter-swift;libtree-sitter-swift" "Swift")
+find_tree_sitter_language(KOTLIN "tree-sitter-kotlin;libtree-sitter-kotlin" "Kotlin")
+find_tree_sitter_language(SCALA "tree-sitter-scala;libtree-sitter-scala" "Scala")
+find_tree_sitter_language(R "tree-sitter-r;libtree-sitter-r" "R")
+find_tree_sitter_language(PERL "tree-sitter-perl;libtree-sitter-perl" "Perl")
+find_tree_sitter_language(DOCKERFILE "tree-sitter-dockerfile;libtree-sitter-dockerfile" "Dockerfile")
+find_tree_sitter_language(MAKEFILE "tree-sitter-makefile;libtree-sitter-makefile" "Makefile")
+find_tree_sitter_language(VIM "tree-sitter-vim;libtree-sitter-vim" "Vim")
+find_tree_sitter_language(POWERSHELL "tree-sitter-powershell;libtree-sitter-powershell" "PowerShell")
+
 # 标记为高级变量
 mark_as_advanced(
     TreeSitter_CPP_LIBRARY
@@ -87,5 +105,20 @@ mark_as_advanced(
     TreeSitter_FORTRAN_LIBRARY
     TreeSitter_HASKELL_LIBRARY
     TreeSitter_LUA_LIBRARY
+    TreeSitter_YAML_LIBRARY
+    TreeSitter_XML_LIBRARY
+    TreeSitter_CSS_LIBRARY
+    TreeSitter_SQL_LIBRARY
+    TreeSitter_RUBY_LIBRARY
+    TreeSitter_PHP_LIBRARY
+    TreeSitter_SWIFT_LIBRARY
+    TreeSitter_KOTLIN_LIBRARY
+    TreeSitter_SCALA_LIBRARY
+    TreeSitter_R_LIBRARY
+    TreeSitter_PERL_LIBRARY
+    TreeSitter_DOCKERFILE_LIBRARY
+    TreeSitter_MAKEFILE_LIBRARY
+    TreeSitter_VIM_LIBRARY
+    TreeSitter_POWERSHELL_LIBRARY
 )
 
