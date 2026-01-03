@@ -8,14 +8,8 @@
 #include <memory>
 #include <map>
 
-// Tree-sitter 前向声明
-extern "C" {
-    typedef struct TSLanguage TSLanguage;
-    typedef struct TSParser TSParser;
-    typedef struct TSTree TSTree;
-    typedef struct TSNode TSNode;
-    typedef struct TSTreeCursor TSTreeCursor;
-}
+// Tree-sitter 头文件包含
+#include <tree_sitter/api.h>
 
 namespace pnana {
 namespace features {
