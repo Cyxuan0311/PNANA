@@ -76,6 +76,82 @@ extern "C" {
     #ifdef BUILD_TREE_SITTER_LUA
     TSLanguage* tree_sitter_lua();
     #endif
+
+    // 新增语言支持
+    // YAML
+    #ifdef BUILD_TREE_SITTER_YAML
+    TSLanguage* tree_sitter_yaml();
+    #endif
+
+    // XML
+    #ifdef BUILD_TREE_SITTER_XML
+    TSLanguage* tree_sitter_xml();
+    #endif
+
+    // CSS
+    #ifdef BUILD_TREE_SITTER_CSS
+    TSLanguage* tree_sitter_css();
+    #endif
+
+    // SQL
+    #ifdef BUILD_TREE_SITTER_SQL
+    TSLanguage* tree_sitter_sql();
+    #endif
+
+    // Ruby
+    #ifdef BUILD_TREE_SITTER_RUBY
+    TSLanguage* tree_sitter_ruby();
+    #endif
+
+    // PHP
+    #ifdef BUILD_TREE_SITTER_PHP
+    TSLanguage* tree_sitter_php();
+    #endif
+
+    // Swift
+    #ifdef BUILD_TREE_SITTER_SWIFT
+    TSLanguage* tree_sitter_swift();
+    #endif
+
+    // Kotlin
+    #ifdef BUILD_TREE_SITTER_KOTLIN
+    TSLanguage* tree_sitter_kotlin();
+    #endif
+
+    // Scala
+    #ifdef BUILD_TREE_SITTER_SCALA
+    TSLanguage* tree_sitter_scala();
+    #endif
+
+    // R
+    #ifdef BUILD_TREE_SITTER_R
+    TSLanguage* tree_sitter_r();
+    #endif
+
+    // Perl
+    #ifdef BUILD_TREE_SITTER_PERL
+    TSLanguage* tree_sitter_perl();
+    #endif
+
+    // Dockerfile
+    #ifdef BUILD_TREE_SITTER_DOCKERFILE
+    TSLanguage* tree_sitter_dockerfile();
+    #endif
+
+    // Makefile
+    #ifdef BUILD_TREE_SITTER_MAKEFILE
+    TSLanguage* tree_sitter_make();
+    #endif
+
+    // Vim
+    #ifdef BUILD_TREE_SITTER_VIM
+    TSLanguage* tree_sitter_vim();
+    #endif
+
+    // PowerShell
+    #ifdef BUILD_TREE_SITTER_POWERSHELL
+    TSLanguage* tree_sitter_powershell();
+    #endif
 }
 
 using namespace ftxui;
@@ -267,6 +343,168 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["lua5.2"] = lua_lang;
         language_map_["lua5.3"] = lua_lang;
         language_map_["lua5.4"] = lua_lang;
+    }
+    #endif
+
+    // 新增语言支持
+    // YAML
+    #ifdef BUILD_TREE_SITTER_YAML
+    TSLanguage* yaml_lang = tree_sitter_yaml();
+    if (yaml_lang) {
+        language_map_["yaml"] = yaml_lang;
+        language_map_["yml"] = yaml_lang;
+    }
+    #endif
+
+    // XML
+    #ifdef BUILD_TREE_SITTER_XML
+    TSLanguage* xml_lang = tree_sitter_xml();
+    if (xml_lang) {
+        language_map_["xml"] = xml_lang;
+        language_map_["html"] = xml_lang;
+        language_map_["htm"] = xml_lang;
+        language_map_["xhtml"] = xml_lang;
+        language_map_["svg"] = xml_lang;
+    }
+    #endif
+
+    // CSS
+    #ifdef BUILD_TREE_SITTER_CSS
+    TSLanguage* css_lang = tree_sitter_css();
+    if (css_lang) {
+        language_map_["css"] = css_lang;
+        language_map_["scss"] = css_lang;
+        language_map_["sass"] = css_lang;
+        language_map_["less"] = css_lang;
+    }
+    #endif
+
+    // SQL
+    #ifdef BUILD_TREE_SITTER_SQL
+    TSLanguage* sql_lang = tree_sitter_sql();
+    if (sql_lang) {
+        language_map_["sql"] = sql_lang;
+        language_map_["mysql"] = sql_lang;
+        language_map_["postgresql"] = sql_lang;
+        language_map_["sqlite"] = sql_lang;
+        language_map_["oracle"] = sql_lang;
+        language_map_["mssql"] = sql_lang;
+    }
+    #endif
+
+    // Ruby
+    #ifdef BUILD_TREE_SITTER_RUBY
+    TSLanguage* ruby_lang = tree_sitter_ruby();
+    if (ruby_lang) {
+        language_map_["rb"] = ruby_lang;
+        language_map_["ruby"] = ruby_lang;
+        language_map_["rake"] = ruby_lang;
+        language_map_["gemspec"] = ruby_lang;
+    }
+    #endif
+
+    // PHP
+    #ifdef BUILD_TREE_SITTER_PHP
+    TSLanguage* php_lang = tree_sitter_php();
+    if (php_lang) {
+        language_map_["php"] = php_lang;
+        language_map_["phtml"] = php_lang;
+        language_map_["php3"] = php_lang;
+        language_map_["php4"] = php_lang;
+        language_map_["php5"] = php_lang;
+        language_map_["php7"] = php_lang;
+    }
+    #endif
+
+    // Swift
+    #ifdef BUILD_TREE_SITTER_SWIFT
+    TSLanguage* swift_lang = tree_sitter_swift();
+    if (swift_lang) {
+        language_map_["swift"] = swift_lang;
+    }
+    #endif
+
+    // Kotlin
+    #ifdef BUILD_TREE_SITTER_KOTLIN
+    TSLanguage* kotlin_lang = tree_sitter_kotlin();
+    if (kotlin_lang) {
+        language_map_["kt"] = kotlin_lang;
+        language_map_["kotlin"] = kotlin_lang;
+        language_map_["kts"] = kotlin_lang;
+    }
+    #endif
+
+    // Scala
+    #ifdef BUILD_TREE_SITTER_SCALA
+    TSLanguage* scala_lang = tree_sitter_scala();
+    if (scala_lang) {
+        language_map_["scala"] = scala_lang;
+        language_map_["sc"] = scala_lang;
+    }
+    #endif
+
+    // R
+    #ifdef BUILD_TREE_SITTER_R
+    TSLanguage* r_lang = tree_sitter_r();
+    if (r_lang) {
+        language_map_["r"] = r_lang;
+        language_map_["R"] = r_lang;
+        language_map_["rmd"] = r_lang;
+        language_map_["rscript"] = r_lang;
+    }
+    #endif
+
+    // Perl
+    #ifdef BUILD_TREE_SITTER_PERL
+    TSLanguage* perl_lang = tree_sitter_perl();
+    if (perl_lang) {
+        language_map_["pl"] = perl_lang;
+        language_map_["pm"] = perl_lang;
+        language_map_["perl"] = perl_lang;
+        language_map_["pod"] = perl_lang;
+    }
+    #endif
+
+    // Dockerfile
+    #ifdef BUILD_TREE_SITTER_DOCKERFILE
+    TSLanguage* dockerfile_lang = tree_sitter_dockerfile();
+    if (dockerfile_lang) {
+        language_map_["dockerfile"] = dockerfile_lang;
+        language_map_["Dockerfile"] = dockerfile_lang;
+        language_map_["containerfile"] = dockerfile_lang;
+    }
+    #endif
+
+    // Makefile
+    #ifdef BUILD_TREE_SITTER_MAKEFILE
+    TSLanguage* makefile_lang = tree_sitter_make();
+    if (makefile_lang) {
+        language_map_["makefile"] = makefile_lang;
+        language_map_["Makefile"] = makefile_lang;
+        language_map_["make"] = makefile_lang;
+        language_map_["mk"] = makefile_lang;
+    }
+    #endif
+
+    // Vim
+    #ifdef BUILD_TREE_SITTER_VIM
+    TSLanguage* vim_lang = tree_sitter_vim();
+    if (vim_lang) {
+        language_map_["vim"] = vim_lang;
+        language_map_["vimrc"] = vim_lang;
+        language_map_["nvim"] = vim_lang;
+        language_map_["vimscript"] = vim_lang;
+    }
+    #endif
+
+    // PowerShell
+    #ifdef BUILD_TREE_SITTER_POWERSHELL
+    TSLanguage* powershell_lang = tree_sitter_powershell();
+    if (powershell_lang) {
+        language_map_["ps1"] = powershell_lang;
+        language_map_["powershell"] = powershell_lang;
+        language_map_["psm1"] = powershell_lang;
+        language_map_["psd1"] = powershell_lang;
     }
     #endif
 }

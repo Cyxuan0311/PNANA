@@ -112,7 +112,94 @@ private:
     std::vector<Token> tokenizeTCL(const std::string& line);
     std::vector<Token> tokenizeFortran(const std::string& line);
     std::vector<Token> tokenizeHaskell(const std::string& line);
-    
+
+    // 新增语言的分词器
+    std::vector<Token> tokenizeYAML(const std::string& line);
+    std::vector<Token> tokenizeXML(const std::string& line);
+    std::vector<Token> tokenizeCSS(const std::string& line);
+    std::vector<Token> tokenizeSQL(const std::string& line);
+    std::vector<Token> tokenizeRuby(const std::string& line);
+    std::vector<Token> tokenizePHP(const std::string& line);
+    std::vector<Token> tokenizeSwift(const std::string& line);
+    std::vector<Token> tokenizeKotlin(const std::string& line);
+    std::vector<Token> tokenizeScala(const std::string& line);
+    std::vector<Token> tokenizeR(const std::string& line);
+    std::vector<Token> tokenizePerl(const std::string& line);
+    std::vector<Token> tokenizeDockerfile(const std::string& line);
+    std::vector<Token> tokenizeMakefile(const std::string& line);
+    std::vector<Token> tokenizeVim(const std::string& line);
+    std::vector<Token> tokenizePowerShell(const std::string& line);
+
+    // 通用基础tokenize函数
+    std::vector<Token> tokenizeGeneric(const std::string& line);
+
+    // 新增语言的tokenize函数
+    std::vector<Token> tokenizeElixir(const std::string& line);
+    std::vector<Token> tokenizeClojure(const std::string& line);
+    std::vector<Token> tokenizeErlang(const std::string& line);
+    std::vector<Token> tokenizeJulia(const std::string& line);
+    std::vector<Token> tokenizeDart(const std::string& line);
+    std::vector<Token> tokenizeNim(const std::string& line);
+    std::vector<Token> tokenizeCrystal(const std::string& line);
+    std::vector<Token> tokenizeZig(const std::string& line);
+    std::vector<Token> tokenizeOCaml(const std::string& line);
+    std::vector<Token> tokenizeCoq(const std::string& line);
+    std::vector<Token> tokenizeAgda(const std::string& line);
+    std::vector<Token> tokenizeIdris(const std::string& line);
+    std::vector<Token> tokenizePureScript(const std::string& line);
+    std::vector<Token> tokenizeReason(const std::string& line);
+    std::vector<Token> tokenizeSML(const std::string& line);
+    std::vector<Token> tokenizeGroovy(const std::string& line);
+    std::vector<Token> tokenizeCoffeeScript(const std::string& line);
+    std::vector<Token> tokenizePug(const std::string& line);
+    std::vector<Token> tokenizeStylus(const std::string& line);
+    std::vector<Token> tokenizeSass(const std::string& line);
+    std::vector<Token> tokenizeLess(const std::string& line);
+    std::vector<Token> tokenizePostCSS(const std::string& line);
+    std::vector<Token> tokenizeGraphQL(const std::string& line);
+    std::vector<Token> tokenizeVue(const std::string& line);
+    std::vector<Token> tokenizeSvelte(const std::string& line);
+    std::vector<Token> tokenizeFSharp(const std::string& line);
+    std::vector<Token> tokenizeCSharp(const std::string& line);
+    std::vector<Token> tokenizeVB(const std::string& line);
+    std::vector<Token> tokenizeAssembly(const std::string& line);
+    std::vector<Token> tokenizeWebAssembly(const std::string& line);
+    std::vector<Token> tokenizeVerilog(const std::string& line);
+    std::vector<Token> tokenizeVHDL(const std::string& line);
+    std::vector<Token> tokenizeMATLAB(const std::string& line);
+    std::vector<Token> tokenizeOctave(const std::string& line);
+    std::vector<Token> tokenizeRacket(const std::string& line);
+    std::vector<Token> tokenizeScheme(const std::string& line);
+    std::vector<Token> tokenizeCommonLisp(const std::string& line);
+    std::vector<Token> tokenizeEmacsLisp(const std::string& line);
+    std::vector<Token> tokenizeProlog(const std::string& line);
+    std::vector<Token> tokenizeMercury(const std::string& line);
+    std::vector<Token> tokenizeAlloy(const std::string& line);
+    std::vector<Token> tokenizeDafny(const std::string& line);
+    std::vector<Token> tokenizeLean(const std::string& line);
+    std::vector<Token> tokenizeBallerina(const std::string& line);
+    std::vector<Token> tokenizeCadence(const std::string& line);
+    std::vector<Token> tokenizeClarity(const std::string& line);
+    std::vector<Token> tokenizeSolidity(const std::string& line);
+    std::vector<Token> tokenizeVyper(const std::string& line);
+    std::vector<Token> tokenizeCarbon(const std::string& line);
+    std::vector<Token> tokenizeVala(const std::string& line);
+    std::vector<Token> tokenizeGenie(const std::string& line);
+    std::vector<Token> tokenizeD(const std::string& line);
+    std::vector<Token> tokenizePony(const std::string& line);
+    std::vector<Token> tokenizeV(const std::string& line);
+    std::vector<Token> tokenizeOdin(const std::string& line);
+    std::vector<Token> tokenizeJai(const std::string& line);
+    std::vector<Token> tokenizeNelua(const std::string& line);
+    std::vector<Token> tokenizeWren(const std::string& line);
+    std::vector<Token> tokenizeMoonScript(const std::string& line);
+    std::vector<Token> tokenizeFantom(const std::string& line);
+    std::vector<Token> tokenizeSmalltalk(const std::string& line);
+    std::vector<Token> tokenizeAPL(const std::string& line);
+    std::vector<Token> tokenizeJ(const std::string& line);
+    std::vector<Token> tokenizeK(const std::string& line);
+    std::vector<Token> tokenizeQ(const std::string& line);
+
     // 辅助方法（原有实现）
     bool isKeyword(const std::string& word) const;
     bool isType(const std::string& word) const;
