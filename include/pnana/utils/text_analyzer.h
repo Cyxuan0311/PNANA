@@ -12,7 +12,7 @@ namespace utils {
  * 用于分析文本内容，如检测中文、排除注释等
  */
 class TextAnalyzer {
-public:
+  public:
     /**
      * 检测文件是否包含大量中文字符（排除注释）
      * @param lines 文件的所有行
@@ -21,14 +21,11 @@ public:
      * @param threshold 中文字符占比阈值（百分比）
      * @return 如果中文字符占比超过阈值，返回true
      */
-    static bool hasChineseContent(
-        const std::vector<std::string>& lines,
-        const std::string& file_type = "",
-        size_t check_limit = 1000,
-        int threshold = 10
-    );
-    
-private:
+    static bool hasChineseContent(const std::vector<std::string>& lines,
+                                  const std::string& file_type = "", size_t check_limit = 1000,
+                                  int threshold = 10);
+
+  private:
     /**
      * 检查位置是否在注释中
      * @param line 当前行
@@ -37,13 +34,9 @@ private:
      * @param in_multiline_comment 是否在多行注释中（输入输出参数）
      * @return 如果位置在注释中，返回true
      */
-    static bool isInComment(
-        const std::string& line,
-        size_t pos,
-        const std::string& file_type,
-        bool& in_multiline_comment
-    );
-    
+    static bool isInComment(const std::string& line, size_t pos, const std::string& file_type,
+                            bool& in_multiline_comment);
+
     /**
      * 检测UTF-8中文字符
      * @param line 当前行
@@ -57,4 +50,3 @@ private:
 } // namespace pnana
 
 #endif // PNANA_UTILS_TEXT_ANALYZER_H
-

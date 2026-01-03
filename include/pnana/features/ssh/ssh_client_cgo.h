@@ -31,4 +31,3 @@ void FreeSSHResult(SSHResult_C* result);
 #endif
 
 #endif // PNANA_FEATURES_SSH_SSH_CLIENT_CGO_H
-

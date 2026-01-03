@@ -1,14 +1,14 @@
 // 输入处理相关实现
 #include "core/editor.h"
 #include "core/input/input_router.h"
-#include "ui/icons.h"
-#include "input/key_action.h"
 #include "input/event_parser.h"
+#include "input/key_action.h"
+#include "ui/icons.h"
 #include "utils/logger.h"
+#include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <iostream>
 #include <sstream>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -19,47 +19,46 @@ namespace core {
 
 // 事件处理
 void Editor::handleInput(Event event) {
-    
     // 记录事件处理开始（仅对关键事件）
-    if (event == Event::Return || event == Event::Escape || 
-        event == Event::ArrowUp || event == Event::ArrowDown ||
-        event == Event::ArrowLeft || event == Event::ArrowRight) {
+    if (event == Event::Return || event == Event::Escape || event == Event::ArrowUp ||
+        event == Event::ArrowDown || event == Event::ArrowLeft || event == Event::ArrowRight) {
         LOG("handleInput() called for event: " + event.input());
     }
-    
+
     // GOTO_LINE 模式：完全参考搜索模式的实现，不做任何特殊处理
     // 搜索模式在 handleInput() 中没有任何特殊处理，直接路由到 handleSearchMode()
     // 所以 GOTO_LINE 模式也应该一样，不做任何特殊处理
-    
+
     // 更新区域可用性
     region_manager_.setTabAreaEnabled(document_manager_.getDocumentCount() > 1);
     region_manager_.setFileBrowserEnabled(file_browser_.isVisible());
     region_manager_.setTerminalEnabled(terminal_.isVisible());
     region_manager_.setHelpWindowEnabled(show_help_);
-    
+
     // 使用 InputRouter 处理输入（如果已初始化）
     // 支持终端和文件浏览器区域
     if (input_router_) {
         // 如果当前在终端或文件浏览器区域，使用 InputRouter
         EditorRegion current_region = region_manager_.getCurrentRegion();
-        if (current_region == EditorRegion::TERMINAL || current_region == EditorRegion::FILE_BROWSER) {
+        if (current_region == EditorRegion::TERMINAL ||
+            current_region == EditorRegion::FILE_BROWSER) {
             if (input_router_->route(event, this)) {
                 LOG("InputRouter handled event for region: " + region_manager_.getRegionName());
                 return;
             }
         }
     }
-    
+
     // 如果 InputRouter 未初始化且终端可见，使用原有逻辑
     if (terminal_.isVisible() && !input_router_) {
         handleTerminalInput(event);
         return;
     }
-    
+
     // 首先检查全局快捷键（在任何模式下都有效，包括对话框打开时）
     // 使用新的输入处理系统
     using namespace pnana::input;
-    
+
     // 检查是否是 Tab 键
     if (event == Event::Tab) {
         LOG("=== Tab key pressed ===");
@@ -68,55 +67,58 @@ void Editor::handleInput(Event event) {
         LOG("Command palette open: " + std::string(command_palette_.isOpen() ? "true" : "false"));
         Document* doc = getCurrentDocument();
         LOG("Current document: " + std::string(doc ? doc->getFileName() : "null"));
-        LOG("Cursor position: row=" + std::to_string(cursor_row_) + ", col=" + std::to_string(cursor_col_));
+        LOG("Cursor position: row=" + std::to_string(cursor_row_) +
+            ", col=" + std::to_string(cursor_col_));
     }
-    
+
     // 调试信息：检查 Ctrl+P 事件
     if (event == ftxui::Event::CtrlP) {
         LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
     }
-    
+
     KeyAction action = key_binding_manager_.getAction(event);
-    
+
     // 调试信息：检查 Ctrl+P 事件解析结果
     if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) + 
-            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + 
+        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) +
+            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) +
             ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
     }
-    
+
     if (event == Event::Tab) {
         LOG("Tab key action resolved to: " + std::to_string(static_cast<int>(action)));
         LOG("INDENT_LINE enum value: " + std::to_string(static_cast<int>(KeyAction::INDENT_LINE)));
         LOG("UNKNOWN enum value: " + std::to_string(static_cast<int>(KeyAction::UNKNOWN)));
-        
+
         // 检查事件解析 - 直接查找 "tab" 键
         KeyAction tab_action = key_binding_manager_.getActionForKey("tab");
         LOG("Direct lookup for 'tab' key: " + std::to_string(static_cast<int>(tab_action)));
-        
+
         // 检查键绑定映射表
-        
+
         if (action == KeyAction::UNKNOWN) {
             LOG_ERROR("Tab key action is UNKNOWN! Event parsing may have failed.");
-            LOG_ERROR("Checking if event is actually Tab: " + std::string(event == Event::Tab ? "yes" : "no"));
+            LOG_ERROR("Checking if event is actually Tab: " +
+                      std::string(event == Event::Tab ? "yes" : "no"));
         } else if (action == KeyAction::INDENT_LINE) {
         }
     }
-    
+
     // Alt+A (另存为)、Alt+F (创建文件夹) 和 Alt+M (文件选择器) 应该能够在任何情况下工作
     // 包括在对话框中或文件浏览器打开时
-    if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER || action == KeyAction::FILE_PICKER) {
+    if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER ||
+        action == KeyAction::FILE_PICKER) {
         if (action_executor_.execute(action)) {
             return;
         }
     }
-    
+
     // 如果命令面板打开，优先处理
     if (command_palette_.isOpen()) {
         handleCommandPaletteInput(event);
         return;
     }
-    
+
     // 如果 SSH 对话框打开，优先处理（类似帮助窗口）
     if (ssh_dialog_.isVisible()) {
         if (ssh_dialog_.handleInput(event)) {
@@ -126,19 +128,22 @@ void Editor::handleInput(Event event) {
         // 如果对话框仍然打开，继续处理其他输入
         return;
     }
-    
+
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
-    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ || split_dialog_.isVisible() || ssh_dialog_.isVisible() || cursor_config_dialog_.isVisible()
+    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ ||
+                     split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
+                     cursor_config_dialog_.isVisible()
 #ifdef BUILD_LUA_SUPPORT
-        || plugin_manager_dialog_.isVisible()
+                     || plugin_manager_dialog_.isVisible()
 #endif
-    ;
-    
+        ;
+
     // 如果当前在搜索模式，优先处理输入（除了 Escape 和 Return）
     bool in_search_mode = (mode_ == EditorMode::SEARCH);
-    bool should_skip_shortcuts = in_search_mode && (event != Event::Escape && event != Event::Return);
-    
+    bool should_skip_shortcuts =
+        in_search_mode && (event != Event::Escape && event != Event::Return);
+
     if (in_dialog) {
         // 对话框内的输入处理在下面
         // 但文件选择器仍然可以打开
@@ -147,14 +152,15 @@ void Editor::handleInput(Event event) {
                 return;
             }
         }
-    } else if (action != KeyAction::UNKNOWN && action != KeyAction::SPLIT_VIEW && !should_skip_shortcuts) {
+    } else if (action != KeyAction::UNKNOWN && action != KeyAction::SPLIT_VIEW &&
+               !should_skip_shortcuts) {
         // 不在对话框中，处理其他全局快捷键（除了 SPLIT_VIEW，它在文件浏览器中处理）
         // 搜索模式下跳过（除了 Escape）
         if (action_executor_.execute(action)) {
             return;
         }
     }
-    
+
     // 如果另存为对话框打开，优先处理
     if (show_save_as_) {
         if (event == Event::Escape) {
@@ -175,7 +181,9 @@ void Editor::handleInput(Event event) {
                         filepath = (current_path.parent_path() / input).string();
                     } else {
                         // 使用文件浏览器的当前目录
-                        filepath = (std::filesystem::path(file_browser_.getCurrentDirectory()) / input).string();
+                        filepath =
+                            (std::filesystem::path(file_browser_.getCurrentDirectory()) / input)
+                                .string();
                     }
                 }
                 // 保存文件
@@ -204,7 +212,7 @@ void Editor::handleInput(Event event) {
         }
         return;
     }
-    
+
     // 如果创建文件夹对话框打开，优先处理
     if (show_create_folder_) {
         if (event == Event::Escape) {
@@ -223,12 +231,15 @@ void Editor::handleInput(Event event) {
                         file_browser_.refresh();
                         // 自动选中新创建的文件夹
                         file_browser_.selectItemByName(input);
-                        setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " Folder created: " + input);
+                        setStatusMessage(std::string(pnana::ui::icons::FOLDER) +
+                                         " Folder created: " + input);
                     } else {
-                        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to create folder (may already exist): " + input);
+                        setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                         " Failed to create folder (may already exist): " + input);
                     }
                 } catch (const std::exception& e) {
-                    setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Error: " + std::string(e.what()));
+                    setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                     " Error: " + std::string(e.what()));
                 }
             }
         } else if (event == Event::Backspace) {
@@ -242,7 +253,7 @@ void Editor::handleInput(Event event) {
             if (ch.length() == 1) {
                 char c = ch[0];
                 // 只接受可打印ASCII字符，排除文件名禁用字符
-                if ((c >= 32 && c < 127) && c != '/' && c != '\\' && c != ':' && c != '*' && 
+                if ((c >= 32 && c < 127) && c != '/' && c != '\\' && c != ':' && c != '*' &&
                     c != '?' && c != '"' && c != '<' && c != '>' && c != '|') {
                     std::string input = create_folder_dialog_.getInput();
                     input += c;
@@ -252,7 +263,7 @@ void Editor::handleInput(Event event) {
         }
         return;
     }
-    
+
     // 如果帮助窗口打开，优先处理
     if (show_help_) {
         region_manager_.setRegion(EditorRegion::HELP_WINDOW);
@@ -269,12 +280,13 @@ void Editor::handleInput(Event event) {
         }
         return;
     }
-    
+
     // 如果主题菜单打开，优先处理
     if (show_theme_menu_) {
         if (event == Event::Escape) {
             show_theme_menu_ = false;
-            setStatusMessage("Theme selection cancelled | Region: " + region_manager_.getRegionName());
+            setStatusMessage("Theme selection cancelled | Region: " +
+                             region_manager_.getRegionName());
         } else if (event == Event::ArrowUp || event == Event::Character('k')) {
             selectPreviousTheme();
         } else if (event == Event::ArrowDown || event == Event::Character('j')) {
@@ -285,14 +297,14 @@ void Editor::handleInput(Event event) {
         }
         return;
     }
-    
+
     // 优先处理光标配置对话框输入
     if (cursor_config_dialog_.isVisible()) {
         if (cursor_config_dialog_.handleInput(event)) {
             return;
         }
     }
-    
+
 #ifdef BUILD_LUA_SUPPORT
     // 优先处理插件管理对话框输入
     if (plugin_manager_dialog_.isVisible()) {
@@ -301,67 +313,68 @@ void Editor::handleInput(Event event) {
         }
     }
 #endif
-    
+
     // 优先处理对话框输入
     if (dialog_.isVisible()) {
         if (dialog_.handleInput(event)) {
             return;
         }
     }
-    
+
     // 优先处理文件选择器输入
     if (file_picker_.isVisible()) {
         if (file_picker_.handleInput(event)) {
             return;
         }
     }
-    
+
     // 编码对话框输入处理
     if (encoding_dialog_.isVisible()) {
         handleEncodingDialogInput(event);
         return;
     }
-    
+
     // 优先处理分屏对话框输入
     if (split_dialog_.isVisible()) {
         if (split_dialog_.handleInput(event)) {
             return;
         }
     }
-    
+
     // 处理鼠标事件（用于拖动分屏线）
     if (event.is_mouse() && split_view_manager_.hasSplits()) {
         int screen_width = screen_.dimx();
         int screen_height = screen_.dimy();
-        
+
         // 计算编辑器区域的偏移（考虑文件浏览器、标签栏等）
         int editor_x_offset = 0;
-        int editor_y_offset = 1;  // 标签栏
-        
+        int editor_y_offset = 1; // 标签栏
+
         if (file_browser_.isVisible()) {
-            editor_x_offset = file_browser_width_ + 1;  // 文件浏览器宽度 + 分隔符
+            editor_x_offset = file_browser_width_ + 1; // 文件浏览器宽度 + 分隔符
         }
-        
+
         // 计算编辑器区域尺寸（偏移在 handleMouseEvent 中处理）
         int editor_width = screen_width - editor_x_offset;
-        int editor_height = screen_height - 6;  // 减去标签栏、状态栏等
-        
-        if (split_view_manager_.handleMouseEvent(event, editor_width, editor_height, editor_x_offset, editor_y_offset)) {
+        int editor_height = screen_height - 6; // 减去标签栏、状态栏等
+
+        if (split_view_manager_.handleMouseEvent(event, editor_width, editor_height,
+                                                 editor_x_offset, editor_y_offset)) {
             return;
         }
     }
-    
+
     // Ctrl+L: 如果已经有分屏，显示关闭分屏对话框（在代码区也可以使用）
     if (event == Event::CtrlL && split_view_manager_.hasSplits()) {
         showSplitDialog();
         return;
     }
-    
+
     // 如果有分屏，优先处理分屏导航快捷键（Ctrl+方向键）
     if (split_view_manager_.hasSplits()) {
         using namespace pnana::input;
         KeyAction nav_action = key_binding_manager_.getAction(event);
-        if (nav_action == KeyAction::FOCUS_LEFT_REGION || 
+        if (nav_action == KeyAction::FOCUS_LEFT_REGION ||
             nav_action == KeyAction::FOCUS_RIGHT_REGION ||
             nav_action == KeyAction::FOCUS_UP_REGION ||
             nav_action == KeyAction::FOCUS_DOWN_REGION) {
@@ -370,12 +383,13 @@ void Editor::handleInput(Event event) {
             }
         }
     }
-    
+
     // 如果文件浏览器打开，处理文件浏览器输入
     // 但全局快捷键（如 Alt+A, Alt+F）应该优先处理
     if (file_browser_.isVisible()) {
         // 先检查是否是全局快捷键（Alt+A, Alt+F, Alt+M 等）
-        if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER || action == KeyAction::FILE_PICKER) {
+        if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER ||
+            action == KeyAction::FILE_PICKER) {
             if (action_executor_.execute(action)) {
                 return;
             }
@@ -385,24 +399,24 @@ void Editor::handleInput(Event event) {
         handleFileBrowserInput(event);
         return;
     }
-    
+
     // 再次检查全局快捷键（如果之前没有处理）
     // 这确保在非对话框模式下，所有快捷键都能正常工作
     // 但搜索模式下不处理（除了 Escape）
     // 剪贴板操作和选择操作（Ctrl+C/V/X, Ctrl+A, Alt+D, Alt+Shift+方向键）只在代码区生效
     if (action != KeyAction::UNKNOWN && !should_skip_shortcuts) {
         EditorRegion current_region = region_manager_.getCurrentRegion();
-        
+
         // 剪贴板操作和选择操作只在代码区生效
         if (action == KeyAction::COPY || action == KeyAction::PASTE || action == KeyAction::CUT ||
             action == KeyAction::SELECT_ALL || action == KeyAction::SELECT_WORD ||
             action == KeyAction::SELECT_EXTEND_UP || action == KeyAction::SELECT_EXTEND_DOWN ||
             action == KeyAction::SELECT_EXTEND_LEFT || action == KeyAction::SELECT_EXTEND_RIGHT) {
-            LOG("[DEBUG COPY] Action detected: " + std::to_string(static_cast<int>(action)) + 
+            LOG("[DEBUG COPY] Action detected: " + std::to_string(static_cast<int>(action)) +
                 " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
-            LOG("[DEBUG COPY] Current region: " + std::to_string(static_cast<int>(current_region)) + 
+            LOG("[DEBUG COPY] Current region: " + std::to_string(static_cast<int>(current_region)) +
                 " (CODE_AREA=" + std::to_string(static_cast<int>(EditorRegion::CODE_AREA)) + ")");
-            
+
             if (current_region != EditorRegion::CODE_AREA) {
                 // 不在代码区，忽略这些操作
                 LOG("[DEBUG COPY] Not in CODE_AREA, ignoring copy action");
@@ -415,9 +429,9 @@ void Editor::handleInput(Event event) {
             }
             LOG("[DEBUG COPY] Region check passed, proceeding with copy");
         }
-        
+
         LOG("[DEBUG COPY] About to execute action: " + std::to_string(static_cast<int>(action)));
-        
+
         if (action_executor_.execute(action)) {
             LOG("[DEBUG COPY] ActionExecutor returned true");
             return;
@@ -427,12 +441,13 @@ void Editor::handleInput(Event event) {
     } else {
         if (event == ftxui::Event::CtrlP) {
             LOG("[DEBUG COPY] Ctrl+P event but action is UNKNOWN or shortcuts skipped");
-            LOG("[DEBUG COPY] action: " + std::to_string(static_cast<int>(action)) + 
+            LOG("[DEBUG COPY] action: " + std::to_string(static_cast<int>(action)) +
                 " (UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-            LOG("[DEBUG COPY] should_skip_shortcuts: " + std::string(should_skip_shortcuts ? "true" : "false"));
+            LOG("[DEBUG COPY] should_skip_shortcuts: " +
+                std::string(should_skip_shortcuts ? "true" : "false"));
         }
     }
-    
+
     // 根据模式处理其他输入
     switch (mode_) {
         case EditorMode::NORMAL:
@@ -445,9 +460,9 @@ void Editor::handleInput(Event event) {
             handleReplaceMode(event);
             break;
     }
-    
+
     adjustViewOffset();
-    
+
     // 注意：退出逻辑现在在 quit() 方法中直接处理
     // 这里保留检查是为了兼容性，但通常不会到达这里
     if (should_quit_) {
@@ -461,28 +476,29 @@ void Editor::handleNormalMode(Event event) {
         std::string ch = event.character();
         if (ch == "i" || ch == "I") {
             newFile();
-            setStatusMessage(std::string(pnana::ui::icons::NEW) + " New document created | Region: " + region_manager_.getRegionName());
+            setStatusMessage(std::string(pnana::ui::icons::NEW) +
+                             " New document created | Region: " + region_manager_.getRegionName());
             return;
         }
     }
-    
+
     // If no document, ignore other inputs
     if (getCurrentDocument() == nullptr) {
         return;
     }
-    
+
 #ifdef BUILD_LSP_SUPPORT
     // 优先处理补全弹窗的导航键，避免影响代码区光标
     // 必须在处理其他按键之前检查，确保补全导航优先
     if (completion_popup_.isVisible()) {
-        if (event == Event::ArrowUp || event == Event::ArrowDown || 
-            event == Event::Return || event == Event::Tab || event == Event::Escape) {
+        if (event == Event::ArrowUp || event == Event::ArrowDown || event == Event::Return ||
+            event == Event::Tab || event == Event::Escape) {
             handleCompletionInput(event);
-            return;  // 补全弹窗打开时，这些键只用于补全导航，不继续处理
+            return; // 补全弹窗打开时，这些键只用于补全导航，不继续处理
         }
     }
 #endif
-    
+
     // Normal mode = editing mode, can input directly
     // Arrow keys - 智能区域导航系统
     if (event == Event::ArrowUp) {
@@ -495,7 +511,8 @@ void Editor::handleNormalMode(Event event) {
             if (cursor_row_ == 0 && document_manager_.getDocumentCount() > 1) {
                 if (region_manager_.navigateUp()) {
                     region_manager_.setTabIndex(document_manager_.getCurrentIndex());
-                    setStatusMessage("Region: " + region_manager_.getRegionName() + " | ←→: Switch tabs, ↓: Return");
+                    setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                     " | ←→: Switch tabs, ↓: Return");
                     return;
                 }
             }
@@ -504,8 +521,8 @@ void Editor::handleNormalMode(Event event) {
             // 终端：向上切换到代码区
             if (region_manager_.navigateUp()) {
                 setStatusMessage("Region: " + region_manager_.getRegionName());
-            return;
-        }
+                return;
+            }
         } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
             // 文件浏览器：向上切换到标签区
             if (region_manager_.navigateUp()) {
@@ -530,7 +547,8 @@ void Editor::handleNormalMode(Event event) {
                 size_t last_visible_row = view_offset_row_ + screen_height - 1;
                 if (cursor_row_ >= total_lines - 1 && cursor_row_ >= last_visible_row) {
                     if (region_manager_.navigateDown()) {
-                        setStatusMessage("Region: " + region_manager_.getRegionName() + " | ↑: Return to editor");
+                        setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                         " | ↑: Return to editor");
                         return;
                     }
                 }
@@ -553,7 +571,7 @@ void Editor::handleNormalMode(Event event) {
             int old_index = region_manager_.getTabIndex();
             region_manager_.previousTab();
             int new_index = region_manager_.getTabIndex();
-            if (new_index != old_index && new_index >= 0 && 
+            if (new_index != old_index && new_index >= 0 &&
                 new_index < static_cast<int>(document_manager_.getDocumentCount())) {
                 document_manager_.switchToDocument(new_index);
                 cursor_row_ = 0;
@@ -561,14 +579,16 @@ void Editor::handleNormalMode(Event event) {
                 view_offset_row_ = 0;
                 view_offset_col_ = 0;
                 syntax_highlighter_.setFileType(getFileType());
-                setStatusMessage("Region: " + region_manager_.getRegionName() + " | Tab: " + getCurrentDocument()->getFileName());
+                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                 " | Tab: " + getCurrentDocument()->getFileName());
             }
             return;
         } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
             // 代码区：在左边界时切换到文件浏览器，否则移动光标
             if (cursor_col_ == 0 && file_browser_.isVisible()) {
                 if (region_manager_.navigateLeft()) {
-                    setStatusMessage("Region: " + region_manager_.getRegionName() + " | →: Return to editor");
+                    setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                     " | →: Return to editor");
                     return;
                 }
             }
@@ -590,7 +610,7 @@ void Editor::handleNormalMode(Event event) {
             int old_index = region_manager_.getTabIndex();
             region_manager_.nextTab();
             int new_index = region_manager_.getTabIndex();
-            if (new_index != old_index && new_index >= 0 && 
+            if (new_index != old_index && new_index >= 0 &&
                 new_index < static_cast<int>(document_manager_.getDocumentCount())) {
                 document_manager_.switchToDocument(new_index);
                 cursor_row_ = 0;
@@ -598,7 +618,8 @@ void Editor::handleNormalMode(Event event) {
                 view_offset_row_ = 0;
                 view_offset_col_ = 0;
                 syntax_highlighter_.setFileType(getFileType());
-                setStatusMessage("Region: " + region_manager_.getRegionName() + " | Tab: " + getCurrentDocument()->getFileName());
+                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                 " | Tab: " + getCurrentDocument()->getFileName());
             }
             return;
         } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
@@ -608,8 +629,8 @@ void Editor::handleNormalMode(Event event) {
             // 文件浏览器：向右切换到代码区
             if (region_manager_.navigateRight()) {
                 setStatusMessage("Region: " + region_manager_.getRegionName());
-            return;
-        }
+                return;
+            }
         } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
             // 终端：向右切换到代码区
             if (region_manager_.navigateRight()) {
@@ -617,11 +638,12 @@ void Editor::handleNormalMode(Event event) {
                 return;
             }
         }
-    } 
+    }
     // Shift+方向键进行选择（只在代码区生效，直接移动光标，不调用 moveCursor* 避免取消选中）
     else if (event == Event::ArrowUpCtrl) {
         // 只在代码区生效
-        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA ||
+            !getCurrentDocument()) {
             return;
         }
         if (!selection_active_) {
@@ -635,7 +657,8 @@ void Editor::handleNormalMode(Event event) {
         }
     } else if (event == Event::ArrowDownCtrl) {
         // 只在代码区生效
-        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA ||
+            !getCurrentDocument()) {
             return;
         }
         if (!selection_active_) {
@@ -649,7 +672,8 @@ void Editor::handleNormalMode(Event event) {
         }
     } else if (event == Event::ArrowLeftCtrl) {
         // 只在代码区生效
-        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA ||
+            !getCurrentDocument()) {
             return;
         }
         if (!selection_active_) {
@@ -666,7 +690,8 @@ void Editor::handleNormalMode(Event event) {
         }
     } else if (event == Event::ArrowRightCtrl) {
         // 只在代码区生效
-        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA || !getCurrentDocument()) {
+        if (region_manager_.getCurrentRegion() != EditorRegion::CODE_AREA ||
+            !getCurrentDocument()) {
             return;
         }
         if (!selection_active_) {
@@ -725,7 +750,7 @@ void Editor::handleNormalMode(Event event) {
 void Editor::handleSearchMode(Event event) {
     // 在搜索模式下，阻止所有字符输入到文档
     if (event == Event::Return) {
-        executeSearch(true);  // 按 Enter 时移动光标
+        executeSearch(true); // 按 Enter 时移动光标
         mode_ = EditorMode::NORMAL;
     } else if (event == Event::Escape) {
         mode_ = EditorMode::NORMAL;
@@ -736,7 +761,7 @@ void Editor::handleSearchMode(Event event) {
             input_buffer_.pop_back();
             // 实时执行搜索（如果还有输入）
             if (!input_buffer_.empty()) {
-                executeSearch(false);  // 实时搜索时不移动光标
+                executeSearch(false); // 实时搜索时不移动光标
             } else {
                 search_engine_.clearSearch();
                 setStatusMessage("Search: ");
@@ -753,7 +778,7 @@ void Editor::handleSearchMode(Event event) {
                 input_buffer_ += ch;
                 // 实时执行搜索（不移动光标，只高亮）
                 executeSearch(false);
-    }
+            }
         }
     }
     // 其他事件（如方向键等）在搜索模式下被忽略，不会传递到文档编辑
@@ -777,35 +802,34 @@ void Editor::handleReplaceMode(Event event) {
     }
 }
 
-
 void Editor::handleFileBrowserInput(Event event) {
     LOG("Event type check - Return: " + std::string(event == Event::Return ? "yes" : "no"));
     LOG("Event type check - Escape: " + std::string(event == Event::Escape ? "yes" : "no"));
     LOG("Event input string: '" + event.input() + "'");
     LOG("Event is_character: " + std::string(event.is_character() ? "yes" : "no"));
-    
+
     // 确保当前区域是文件浏览器
     if (region_manager_.getCurrentRegion() != EditorRegion::FILE_BROWSER) {
         LOG("Setting region to FILE_BROWSER");
         region_manager_.setRegion(EditorRegion::FILE_BROWSER);
     }
     LOG("Current region: " + region_manager_.getRegionName());
-    
+
     // 首先检查是否是全局快捷键（Alt+A, Alt+F 等）
     // 这些快捷键应该在文件浏览器中也能工作
     using namespace pnana::input;
-    
+
     // 调试信息：检查 Ctrl+P 事件
     if (event == ftxui::Event::CtrlP) {
         LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
     }
-    
+
     KeyAction action = key_binding_manager_.getAction(event);
-    
+
     // 调试信息：检查 Ctrl+P 事件解析结果
     if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) + 
-            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + 
+        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) +
+            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) +
             ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
     }
     LOG("Action resolved: " + std::to_string(static_cast<int>(action)));
@@ -816,7 +840,7 @@ void Editor::handleFileBrowserInput(Event event) {
             return;
         }
     }
-    
+
     // Ctrl+L: 在文件浏览器中选择文件后，触发分屏或关闭分屏
     // 直接检查事件，因为 Ctrl+L 不在全局快捷键中
     if (event == Event::CtrlL) {
@@ -825,7 +849,7 @@ void Editor::handleFileBrowserInput(Event event) {
             showSplitDialog();
             return;
         }
-        
+
         // 没有分屏，检查是否有选中的文件
         if (file_browser_.hasSelection()) {
             std::string selected_file = file_browser_.getSelectedFile();
@@ -845,13 +869,14 @@ void Editor::handleFileBrowserInput(Event event) {
             return;
         }
     }
-    
+
     // 处理方向键区域切换
     if (event == Event::ArrowUp) {
         // 文件浏览器顶部时，向上切换到标签区
         if (file_browser_.getSelectedIndex() == 0 && document_manager_.getDocumentCount() > 1) {
             if (region_manager_.navigateUp()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName() + " | ↓: Return to file browser");
+                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                 " | ↓: Return to file browser");
                 return;
             }
         }
@@ -861,7 +886,8 @@ void Editor::handleFileBrowserInput(Event event) {
         // 文件浏览器底部时，向下切换到代码区
         if (file_browser_.getSelectedIndex() >= file_browser_.getItemCount() - 1) {
             if (region_manager_.navigateDown()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName() + " | ↑: Return to file browser");
+                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                 " | ↑: Return to file browser");
                 return;
             }
         }
@@ -873,24 +899,26 @@ void Editor::handleFileBrowserInput(Event event) {
     } else if (event == Event::ArrowRight) {
         // 文件浏览器：向右切换到代码区
         if (region_manager_.navigateRight()) {
-            setStatusMessage("Region: " + region_manager_.getRegionName() + " | ←: Return to file browser");
+            setStatusMessage("Region: " + region_manager_.getRegionName() +
+                             " | ←: Return to file browser");
             return;
         }
     }
-    
+
     // Check for Alt+D (increase width) and Alt+S (decrease width)
     // 使用 EventParser 来检测 Alt 组合键
     using namespace pnana::input;
     EventParser parser;
     std::string key_string = parser.eventToKey(event);
-        
-        // Alt+D : Increase width
+
+    // Alt+D : Increase width
     if (key_string == "alt_d") {
-            if (file_browser_width_ < 80) {  // Max 80 columns
-                file_browser_width_ += 5;
-                setStatusMessage(std::string(pnana::ui::icons::ARROW_RIGHT) + " Browser width: " + 
-                               std::to_string(file_browser_width_) + " columns | Alt+D increase, Alt+S decrease");
-                return;
+        if (file_browser_width_ < 80) { // Max 80 columns
+            file_browser_width_ += 5;
+            setStatusMessage(std::string(pnana::ui::icons::ARROW_RIGHT) +
+                             " Browser width: " + std::to_string(file_browser_width_) +
+                             " columns | Alt+D increase, Alt+S decrease");
+            return;
         } else {
             setStatusMessage("Browser width already at maximum (80 columns)");
             return;
@@ -898,17 +926,18 @@ void Editor::handleFileBrowserInput(Event event) {
     }
     // Alt+S : Decrease width
     else if (key_string == "alt_s") {
-            if (file_browser_width_ > 20) {  // Min 20 columns
-                file_browser_width_ -= 5;
-                setStatusMessage(std::string(pnana::ui::icons::ARROW_LEFT) + " Browser width: " + 
-                               std::to_string(file_browser_width_) + " columns | Alt+D increase, Alt+S decrease");
-                return;
+        if (file_browser_width_ > 20) { // Min 20 columns
+            file_browser_width_ -= 5;
+            setStatusMessage(std::string(pnana::ui::icons::ARROW_LEFT) +
+                             " Browser width: " + std::to_string(file_browser_width_) +
+                             " columns | Alt+D increase, Alt+S decrease");
+            return;
         } else {
             setStatusMessage("Browser width already at minimum (20 columns)");
             return;
         }
     }
-    
+
     if (event == Event::CtrlO) {
         // Ctrl+O closes file browser
         file_browser_.setVisible(false);
@@ -925,52 +954,58 @@ void Editor::handleFileBrowserInput(Event event) {
         LOG("Current directory: " + file_browser_.getCurrentDirectory());
         LOG("Calling file_browser_.toggleSelected()...");
         bool is_file = file_browser_.toggleSelected();
-        LOG("toggleSelected() returned: " + std::string(is_file ? "true (file)" : "false (directory)"));
-        
+        LOG("toggleSelected() returned: " +
+            std::string(is_file ? "true (file)" : "false (directory)"));
+
         if (is_file) {
             LOG("Getting selected file...");
             std::string selected = file_browser_.getSelectedFile();
             LOG("Selected file path: " + selected);
             LOG("Selected file length: " + std::to_string(selected.length()));
             LOG("Selected file empty check: " + std::string(selected.empty() ? "true" : "false"));
-            
+
             if (!selected.empty()) {
                 // It's a file, open it but keep browser open
                 LOG("--- Starting file open process ---");
                 LOG("Calling openFile() with path: " + selected);
-                
+
                 try {
                     bool open_result = openFile(selected);
                     LOG("openFile() returned: " + std::string(open_result ? "true" : "false"));
-                    
+
                     if (open_result) {
                         Document* doc = getCurrentDocument();
                         if (doc) {
-                            LOG("File opened successfully, document pointer: " + std::to_string(reinterpret_cast<uintptr_t>(doc)));
+                            LOG("File opened successfully, document pointer: " +
+                                std::to_string(reinterpret_cast<uintptr_t>(doc)));
                             LOG("Document file name: " + doc->getFileName());
                             LOG("Document file path: " + doc->getFilePath());
                             LOG("Document line count: " + std::to_string(doc->lineCount()));
-                setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + 
-                                           doc->getFileName() + " | Press Ctrl+O to close browser | Region: " + 
-                               region_manager_.getRegionName());
+                            setStatusMessage(std::string(pnana::ui::icons::OPEN) +
+                                             " Opened: " + doc->getFileName() +
+                                             " | Press Ctrl+O to close browser | Region: " +
+                                             region_manager_.getRegionName());
                         } else {
                             LOG_ERROR("openFile() returned true but getCurrentDocument() is null!");
-                            setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to open file: Document is null");
+                            setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                             " Failed to open file: Document is null");
                         }
                     } else {
                         LOG_ERROR("openFile() returned false - file open failed");
-                        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Failed to open file");
+                        setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                         " Failed to open file");
                     }
                 } catch (const std::exception& e) {
                     LOG_ERROR("Exception in openFile(): " + std::string(e.what()));
-                    setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Exception: " + std::string(e.what()));
+                    setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                     " Exception: " + std::string(e.what()));
                 } catch (...) {
                     LOG_ERROR("Unknown exception in openFile()");
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Unknown exception");
                 }
-                
+
                 LOG("--- File open process completed ---");
-                
+
                 // 文件打开后，关闭文件浏览器并切换到代码区域
                 file_browser_.setVisible(false);
                 region_manager_.setRegion(EditorRegion::CODE_AREA);
@@ -978,12 +1013,12 @@ void Editor::handleFileBrowserInput(Event event) {
             } else {
                 LOG_WARNING("Selected file path is empty!");
             }
-            } else {
+        } else {
             // It's a directory, toggled expand/collapse
             LOG("Directory toggled, current directory: " + file_browser_.getCurrentDirectory());
-                setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " " + 
-                               file_browser_.getCurrentDirectory() + " | Region: " + 
-                               region_manager_.getRegionName());
+            setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " " +
+                             file_browser_.getCurrentDirectory() +
+                             " | Region: " + region_manager_.getRegionName());
         }
         LOG("=== File Browser: Return key handling completed ===");
         LOG("File browser visible: " + std::string(file_browser_.isVisible() ? "true" : "false"));
@@ -992,32 +1027,33 @@ void Editor::handleFileBrowserInput(Event event) {
     } else if (event == Event::Backspace) {
         // Go to parent directory
         if (file_browser_.goUp()) {
-            setStatusMessage(std::string(pnana::ui::icons::FOLDER_UP) + " " + 
-                           file_browser_.getCurrentDirectory() + " | Region: " + 
-                           region_manager_.getRegionName());
+            setStatusMessage(std::string(pnana::ui::icons::FOLDER_UP) + " " +
+                             file_browser_.getCurrentDirectory() +
+                             " | Region: " + region_manager_.getRegionName());
         }
     } else if (event.is_character()) {
         std::string ch = event.character();
         if (ch == "h") {
             // Toggle show hidden files
             file_browser_.setShowHidden(!file_browser_.getShowHidden());
-            setStatusMessage(file_browser_.getShowHidden() ? 
-                           "Showing hidden files | Region: " + region_manager_.getRegionName() : 
-                           "Hiding hidden files | Region: " + region_manager_.getRegionName());
+            setStatusMessage(
+                file_browser_.getShowHidden()
+                    ? "Showing hidden files | Region: " + region_manager_.getRegionName()
+                    : "Hiding hidden files | Region: " + region_manager_.getRegionName());
         } else if (ch == "r") {
             // Refresh
             file_browser_.refresh();
-            setStatusMessage(std::string(pnana::ui::icons::REFRESH) + " File list refreshed | Region: " + 
-                           region_manager_.getRegionName());
+            setStatusMessage(std::string(pnana::ui::icons::REFRESH) +
+                             " File list refreshed | Region: " + region_manager_.getRegionName());
         }
     }
-    
+
     // F2: 重命名
     if (event == Event::F2) {
         handleRenameFile();
         return;
     }
-    
+
     // Delete: 删除文件/文件夹
     if (event == Event::Delete) {
         LOG("Delete key in file browser - deleting file");
@@ -1046,10 +1082,10 @@ void Editor::searchNext() {
             cursor_row_ = match->line;
             cursor_col_ = match->column;
             adjustViewOffset();
-            
+
             std::ostringstream oss;
-            oss << "Match " << (search_engine_.getCurrentMatchIndex() + 1)
-                << " of " << search_engine_.getTotalMatches();
+            oss << "Match " << (search_engine_.getCurrentMatchIndex() + 1) << " of "
+                << search_engine_.getTotalMatches();
             setStatusMessage(oss.str());
         }
     }
@@ -1062,10 +1098,10 @@ void Editor::searchPrevious() {
             cursor_row_ = match->line;
             cursor_col_ = match->column;
             adjustViewOffset();
-            
+
             std::ostringstream oss;
-            oss << "Match " << (search_engine_.getCurrentMatchIndex() + 1)
-                << " of " << search_engine_.getTotalMatches();
+            oss << "Match " << (search_engine_.getCurrentMatchIndex() + 1) << " of "
+                << search_engine_.getTotalMatches();
             setStatusMessage(oss.str());
         }
     }
@@ -1086,20 +1122,20 @@ void Editor::executeSearch(bool move_cursor) {
         setStatusMessage("Empty search pattern");
         return;
     }
-    
+
     features::SearchOptions options;
     search_engine_.search(input_buffer_, getCurrentDocument()->getLines(), options);
-    
+
     if (search_engine_.hasMatches()) {
         const auto* match = search_engine_.getCurrentMatch();
         if (match) {
             if (move_cursor) {
                 // 只在按 Enter 时移动光标
-            cursor_row_ = match->line;
-            cursor_col_ = match->column;
-            adjustViewOffset();
+                cursor_row_ = match->line;
+                cursor_col_ = match->column;
+                adjustViewOffset();
             }
-            
+
             std::ostringstream oss;
             oss << "Found " << search_engine_.getTotalMatches() << " matches";
             setStatusMessage(oss.str());
@@ -1112,7 +1148,6 @@ void Editor::executeSearch(bool move_cursor) {
 void Editor::executeReplace() {
     setStatusMessage("Replace feature coming soon!");
 }
-
 
 } // namespace core
 } // namespace pnana

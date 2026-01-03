@@ -1,8 +1,8 @@
 #ifndef PNANA_UI_FILE_BROWSER_VIEW_H
 #define PNANA_UI_FILE_BROWSER_VIEW_H
 
-#include "ui/theme.h"
 #include "features/file_browser.h"
+#include "ui/theme.h"
 #include <ftxui/dom/elements.hpp>
 #include <string>
 #include <vector>
@@ -12,36 +12,32 @@ namespace ui {
 
 // 文件浏览器视图类 - 负责 UI 渲染
 class FileBrowserView {
-public:
+  public:
     explicit FileBrowserView(Theme& theme);
-    
+
     // 渲染文件浏览器
     ftxui::Element render(const features::FileBrowser& browser, int height);
-    
-private:
+
+  private:
     Theme& theme_;
-    
+
     // UI 辅助方法
     std::string getFileIcon(const features::FileItem& item) const;
     std::string getFileExtension(const std::string& filename) const;
     ftxui::Color getFileColor(const features::FileItem& item) const;
     std::string truncateMiddle(const std::string& str, size_t max_length) const;
-    
+
     // 渲染辅助方法
     ftxui::Element renderHeader(const std::string& current_directory) const;
-    ftxui::Element renderFileList(const features::FileBrowser& browser, 
-                                  size_t visible_start, 
+    ftxui::Element renderFileList(const features::FileBrowser& browser, size_t visible_start,
                                   size_t visible_count) const;
     ftxui::Element renderStatusBar(const features::FileBrowser& browser) const;
-    ftxui::Element renderFileItem(const features::FileItem* item, 
-                                  size_t index, 
+    ftxui::Element renderFileItem(const features::FileItem* item, size_t index,
                                   size_t selected_index,
                                   const std::vector<features::FileItem*>& flat_items) const;
-    std::string buildTreePrefix(const features::FileItem* item, 
-                               size_t index,
-                               const std::vector<features::FileItem*>& flat_items) const;
-    std::string buildExpandPrefix(const features::FileItem* item,
-                                  size_t index,
+    std::string buildTreePrefix(const features::FileItem* item, size_t index,
+                                const std::vector<features::FileItem*>& flat_items) const;
+    std::string buildExpandPrefix(const features::FileItem* item, size_t index,
                                   const std::vector<features::FileItem*>& flat_items) const;
 };
 
@@ -49,4 +45,3 @@ private:
 } // namespace pnana
 
 #endif // PNANA_UI_FILE_BROWSER_VIEW_H
-

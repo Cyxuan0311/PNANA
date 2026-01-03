@@ -34,4 +34,3 @@ bool BaseRegionHandler::isAtRight(Editor* editor) const {
 } // namespace input
 } // namespace core
 } // namespace pnana
-

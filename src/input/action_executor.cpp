@@ -6,14 +6,13 @@
 namespace pnana {
 namespace input {
 
-ActionExecutor::ActionExecutor(core::Editor* editor) : editor_(editor) {
-}
+ActionExecutor::ActionExecutor(core::Editor* editor) : editor_(editor) {}
 
 bool ActionExecutor::execute(KeyAction action) {
     if (!editor_ || !canExecute(action)) {
         return false;
     }
-    
+
     switch (action) {
         case KeyAction::SAVE_FILE:
         case KeyAction::SAVE_AS:
@@ -24,7 +23,7 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::CREATE_FOLDER:
         case KeyAction::FILE_PICKER:
             return executeFileOperation(action);
-            
+
         case KeyAction::UNDO:
         case KeyAction::REDO:
         case KeyAction::CUT:
@@ -49,7 +48,7 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::TRIGGER_COMPLETION:
             return executeEditOperation(action);
 #endif
-            
+
         case KeyAction::SEARCH:
         case KeyAction::REPLACE:
         case KeyAction::GOTO_LINE:
@@ -60,7 +59,7 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::GOTO_LINE_START:
         case KeyAction::GOTO_LINE_END:
             return executeSearchNavigation(action);
-            
+
         case KeyAction::TOGGLE_THEME_MENU:
         case KeyAction::TOGGLE_FILE_BROWSER:
         case KeyAction::TOGGLE_HELP:
@@ -72,17 +71,17 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::OPEN_PLUGIN_MANAGER:
 #endif
             return executeViewOperation(action);
-            
+
         case KeyAction::NEXT_TAB:
         case KeyAction::PREV_TAB:
             return executeTabOperation(action);
-            
+
         case KeyAction::FOCUS_LEFT_REGION:
         case KeyAction::FOCUS_RIGHT_REGION:
         case KeyAction::FOCUS_UP_REGION:
         case KeyAction::FOCUS_DOWN_REGION:
             return executeSplitNavigation(action);
-            
+
         case KeyAction::UNKNOWN:
         default:
             return false;
@@ -320,4 +319,3 @@ bool ActionExecutor::executeTabOperation(KeyAction action) {
 
 } // namespace input
 } // namespace pnana
-

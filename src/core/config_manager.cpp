@@ -1,10 +1,10 @@
 #include "core/config_manager.h"
-#include <fstream>
-#include <sstream>
 #include <algorithm>
 #include <cctype>
-#include <filesystem>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -41,7 +41,7 @@ static std::string expandPath(const std::string& path) {
     if (path.empty()) {
         return path;
     }
-    
+
     // 如果路径以 ~ 开头，展开为用户主目录
     if (path[0] == '~') {
         const char* home = std::getenv("HOME");
@@ -52,7 +52,7 @@ static std::string expandPath(const std::string& path) {
             }
         }
     }
-    
+
     return path;
 }
 
@@ -66,12 +66,12 @@ bool ConfigManager::loadConfig(const std::string& config_path) {
         // 展开路径中的 ~ 符号
         config_path_ = expandPath(config_path);
     }
-    
+
     // 如果指定的配置文件不存在，尝试从默认配置加载并创建新文件
     if (!fs::exists(config_path_)) {
         std::string default_path = getDefaultConfigPath();
         bool loaded_from_default = false;
-        
+
         // 尝试从默认配置文件加载
         if (fs::exists(default_path)) {
             std::ifstream default_file(default_path);
@@ -80,18 +80,18 @@ bool ConfigManager::loadConfig(const std::string& config_path) {
                 buffer << default_file.rdbuf();
                 std::string content = buffer.str();
                 default_file.close();
-                
+
                 if (parseJSON(content)) {
                     loaded_from_default = true;
                 }
             }
         }
-        
+
         // 如果从默认配置加载失败，使用内置默认值
         if (!loaded_from_default) {
             resetToDefaults();
         }
-        
+
         // 保存配置到用户指定的路径（创建新文件）
         if (saveConfig(config_path_)) {
             loaded_ = true;
@@ -99,30 +99,30 @@ bool ConfigManager::loadConfig(const std::string& config_path) {
         } else {
             // 如果保存失败，至少使用默认配置
             if (!loaded_from_default) {
-            resetToDefaults();
+                resetToDefaults();
             }
             loaded_ = true;
             return true;
         }
     }
-    
+
     // 配置文件存在，正常加载
     std::ifstream file(config_path_);
     if (!file.is_open()) {
         resetToDefaults();
         return false;
     }
-    
+
     std::stringstream buffer;
     buffer << file.rdbuf();
     std::string content = buffer.str();
     file.close();
-    
+
     if (parseJSON(content)) {
         loaded_ = true;
         return true;
     }
-    
+
     // 解析失败，使用默认配置并保存
     resetToDefaults();
     saveConfig(config_path_);
@@ -135,18 +135,18 @@ bool ConfigManager::saveConfig(const std::string& config_path) {
         // 展开路径中的 ~ 符号
         config_path_ = expandPath(config_path);
     }
-    
+
     // 确保目录存在
     fs::path path(config_path_);
     if (path.has_parent_path()) {
         fs::create_directories(path.parent_path());
     }
-    
+
     std::ofstream file(config_path_);
     if (!file.is_open()) {
         return false;
     }
-    
+
     file << generateJSON();
     file.close();
     return true;
@@ -166,18 +166,18 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
             cleaned += c;
         }
     }
-    
+
     // 简单的键值对解析
     // 这里实现一个基本的解析逻辑
     // 由于 JSON 解析比较复杂，我们使用一个更简单的方法
-    
+
     // 查找各个配置段
     size_t editor_pos = cleaned.find("\"editor\":{");
     size_t display_pos = cleaned.find("\"display\":{");
     /* size_t files_pos = cleaned.find("\"files\":{"); */
     /* size_t search_pos = cleaned.find("\"search\":{"); */
     size_t themes_pos = cleaned.find("\"themes\":{");
-    
+
     // 解析 editor 配置
     if (editor_pos != std::string::npos) {
         // 提取 theme
@@ -190,11 +190,11 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
                 config_.current_theme = config_.editor.theme;
             }
         }
-        
+
         // 提取其他 editor 配置（简化处理）
         // font_size, tab_size 等
     }
-    
+
     // 解析 display 配置
     if (display_pos != std::string::npos) {
         // 提取 cursor_style
@@ -206,7 +206,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
                 config_.display.cursor_style = cleaned.substr(style_pos, style_end - style_pos);
             }
         }
-        
+
         // 提取 cursor_color
         size_t color_pos = cleaned.find("\"cursor_color\":\"", display_pos);
         if (color_pos != std::string::npos && color_pos < display_pos + 200) {
@@ -216,7 +216,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
                 config_.display.cursor_color = cleaned.substr(color_pos, color_end - color_pos);
             }
         }
-        
+
         // 提取 cursor_blink_rate
         size_t rate_pos = cleaned.find("\"cursor_blink_rate\":", display_pos);
         if (rate_pos != std::string::npos && rate_pos < display_pos + 200) {
@@ -231,16 +231,16 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
                 }
             }
         }
-        
+
         // 提取 cursor_smooth
         size_t smooth_pos = cleaned.find("\"cursor_smooth\":", display_pos);
         if (smooth_pos != std::string::npos && smooth_pos < display_pos + 200) {
-            smooth_pos += 16; // 跳过 "cursor_smooth":
+            smooth_pos += 16;                                       // 跳过 "cursor_smooth":
             std::string smooth_str = cleaned.substr(smooth_pos, 4); // "true" 或 "fals"
             config_.display.cursor_smooth = (smooth_str.find("true") != std::string::npos);
         }
     }
-    
+
     // 解析 themes 配置
     if (themes_pos != std::string::npos) {
         // 提取 current theme
@@ -253,11 +253,11 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
                 config_.editor.theme = config_.current_theme;
             }
         }
-        
+
         // 解析自定义主题（简化处理）
         // 这里可以扩展解析 custom 主题
     }
-    
+
     return true;
 }
 
@@ -273,10 +273,14 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"auto_indent\": " << (config_.editor.auto_indent ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"display\": {\n";
-    oss << "    \"show_line_numbers\": " << (config_.display.show_line_numbers ? "true" : "false") << ",\n";
-    oss << "    \"relative_line_numbers\": " << (config_.display.relative_line_numbers ? "true" : "false") << ",\n";
-    oss << "    \"highlight_current_line\": " << (config_.display.highlight_current_line ? "true" : "false") << ",\n";
-    oss << "    \"show_whitespace\": " << (config_.display.show_whitespace ? "true" : "false") << ",\n";
+    oss << "    \"show_line_numbers\": " << (config_.display.show_line_numbers ? "true" : "false")
+        << ",\n";
+    oss << "    \"relative_line_numbers\": "
+        << (config_.display.relative_line_numbers ? "true" : "false") << ",\n";
+    oss << "    \"highlight_current_line\": "
+        << (config_.display.highlight_current_line ? "true" : "false") << ",\n";
+    oss << "    \"show_whitespace\": " << (config_.display.show_whitespace ? "true" : "false")
+        << ",\n";
     oss << "    \"cursor_style\": \"" << config_.display.cursor_style << "\",\n";
     oss << "    \"cursor_color\": \"" << config_.display.cursor_color << "\",\n";
     oss << "    \"cursor_blink_rate\": " << config_.display.cursor_blink_rate << ",\n";
@@ -285,13 +289,16 @@ std::string ConfigManager::generateJSON() const {
     oss << "  \"files\": {\n";
     oss << "    \"encoding\": \"" << config_.files.encoding << "\",\n";
     oss << "    \"line_ending\": \"" << config_.files.line_ending << "\",\n";
-    oss << "    \"trim_trailing_whitespace\": " << (config_.files.trim_trailing_whitespace ? "true" : "false") << ",\n";
-    oss << "    \"insert_final_newline\": " << (config_.files.insert_final_newline ? "true" : "false") << ",\n";
+    oss << "    \"trim_trailing_whitespace\": "
+        << (config_.files.trim_trailing_whitespace ? "true" : "false") << ",\n";
+    oss << "    \"insert_final_newline\": "
+        << (config_.files.insert_final_newline ? "true" : "false") << ",\n";
     oss << "    \"auto_save\": " << (config_.files.auto_save ? "true" : "false") << ",\n";
     oss << "    \"auto_save_interval\": " << config_.files.auto_save_interval << "\n";
     oss << "  },\n";
     oss << "  \"search\": {\n";
-    oss << "    \"case_sensitive\": " << (config_.search.case_sensitive ? "true" : "false") << ",\n";
+    oss << "    \"case_sensitive\": " << (config_.search.case_sensitive ? "true" : "false")
+        << ",\n";
     oss << "    \"whole_word\": " << (config_.search.whole_word ? "true" : "false") << ",\n";
     oss << "    \"regex\": " << (config_.search.regex ? "true" : "false") << ",\n";
     oss << "    \"wrap_around\": " << (config_.search.wrap_around ? "true" : "false") << "\n";
@@ -301,7 +308,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"available\": [\n";
     for (size_t i = 0; i < config_.available_themes.size(); ++i) {
         oss << "      \"" << config_.available_themes[i] << "\"";
-        if (i < config_.available_themes.size() - 1) oss << ",";
+        if (i < config_.available_themes.size() - 1)
+            oss << ",";
         oss << "\n";
     }
     oss << "    ]\n";
@@ -344,8 +352,7 @@ std::vector<int> ConfigManager::parseColorArray(const std::string& /* color_str 
 
 std::string ConfigManager::colorArrayToString(const std::vector<int>& color) const {
     if (color.size() >= 3) {
-        return "[" + std::to_string(color[0]) + "," + 
-               std::to_string(color[1]) + "," + 
+        return "[" + std::to_string(color[0]) + "," + std::to_string(color[1]) + "," +
                std::to_string(color[2]) + "]";
     }
     return "[0,0,0]";
@@ -365,4 +372,3 @@ int ConfigManager::stringToInt(const std::string& str) {
 
 } // namespace core
 } // namespace pnana
-

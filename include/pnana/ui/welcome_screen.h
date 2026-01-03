@@ -9,13 +9,13 @@ namespace ui {
 
 // 欢迎界面组件
 class WelcomeScreen {
-public:
+  public:
     explicit WelcomeScreen(Theme& theme);
-    
+
     // 渲染欢迎界面
     ftxui::Element render();
 
-private:
+  private:
     Theme& theme_;
 };
 
@@ -23,4 +23,3 @@ private:
 } // namespace pnana
 
 #endif // PNANA_UI_WELCOME_SCREEN_H
-

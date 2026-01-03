@@ -2,9 +2,9 @@
 #include <string>
 
 namespace jsonrpccxx {
-    class IClientConnector {
-    public:
-        virtual ~IClientConnector() = default;
-        virtual std::string Send(const std::string &request) = 0;
-    };
-}
+class IClientConnector {
+  public:
+    virtual ~IClientConnector() = default;
+    virtual std::string Send(const std::string& request) = 0;
+};
+} // namespace jsonrpccxx

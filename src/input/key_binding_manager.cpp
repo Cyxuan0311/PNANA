@@ -80,7 +80,7 @@ void KeyBindingManager::initializeViewOperationBindings() {
     bindKey("alt_p", KeyAction::OPEN_PLUGIN_MANAGER);
 #endif
     // Ctrl+L ???????????????????
-    
+
     // ??????? Ctrl+?????? tmux?
     bindKey("ctrl_left", KeyAction::FOCUS_LEFT_REGION);
     bindKey("ctrl_right", KeyAction::FOCUS_RIGHT_REGION);
@@ -97,23 +97,24 @@ void KeyBindingManager::initializeTabOperationBindings() {
 
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
     std::string key = parser_.eventToKey(event);
-    
+
     // ??????? Ctrl+P ??
     if (event == ftxui::Event::CtrlP) {
         LOG("[DEBUG COPY] KeyBindingManager::getAction() - Ctrl+P detected");
         LOG("[DEBUG COPY] eventToKey() returned: '" + key + "'");
     }
-    
+
     // ????????? Tab ??
     if (event == ftxui::Event::Tab) {
         LOG("KeyBindingManager::getAction() - Tab key detected");
         LOG("eventToKey() returned: '" + key + "'");
         LOG("Key string empty: " + std::string(key.empty() ? "yes" : "no"));
-        
+
         if (!key.empty()) {
             auto it = key_to_action_.find(key);
             if (it != key_to_action_.end()) {
-                LOG("Found action in key_to_action_ map: " + std::to_string(static_cast<int>(it->second)));
+                LOG("Found action in key_to_action_ map: " +
+                    std::to_string(static_cast<int>(it->second)));
             } else {
                 LOG_ERROR("Key '" + key + "' not found in key_to_action_ map!");
                 LOG_ERROR("Total keys in map: " + std::to_string(key_to_action_.size()));
@@ -122,7 +123,8 @@ KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
                 int tab_count = 0;
                 for (const auto& pair : key_to_action_) {
                     if (pair.first == "tab") {
-                        LOG("Found 'tab' key in map! Action: " + std::to_string(static_cast<int>(pair.second)));
+                        LOG("Found 'tab' key in map! Action: " +
+                            std::to_string(static_cast<int>(pair.second)));
                         tab_count++;
                     }
                 }
@@ -132,23 +134,24 @@ KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
             }
         }
     }
-    
+
     if (key.empty()) {
         if (event == ftxui::Event::CtrlP) {
             LOG_ERROR("[DEBUG COPY] Key string is empty for Ctrl+P!");
         }
         return KeyAction::UNKNOWN;
     }
-    
+
     auto it = key_to_action_.find(key);
     if (it != key_to_action_.end()) {
         if (event == ftxui::Event::CtrlP) {
-            LOG("[DEBUG COPY] Found action in map: " + std::to_string(static_cast<int>(it->second)) + 
+            LOG("[DEBUG COPY] Found action in map: " +
+                std::to_string(static_cast<int>(it->second)) +
                 " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
         }
         return it->second;
     }
-    
+
     if (event == ftxui::Event::CtrlP) {
         LOG_ERROR("[DEBUG COPY] Key '" + key + "' not found in key_to_action_ map!");
         LOG_ERROR("[DEBUG COPY] Total keys in map: " + std::to_string(key_to_action_.size()));
@@ -156,7 +159,7 @@ KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
         int ctrl_p_count = 0;
         for (const auto& pair : key_to_action_) {
             if (pair.first == "ctrl_p") {
-                LOG("[DEBUG COPY] Found 'ctrl_p' key in map! Action: " + 
+                LOG("[DEBUG COPY] Found 'ctrl_p' key in map! Action: " +
                     std::to_string(static_cast<int>(pair.second)));
                 ctrl_p_count++;
             }
@@ -165,13 +168,13 @@ KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
             LOG_ERROR("[DEBUG COPY] 'ctrl_p' key NOT found in map at all!");
         }
     }
-    
+
     return KeyAction::UNKNOWN;
 }
 
 void KeyBindingManager::bindKey(const std::string& key, KeyAction action) {
     key_to_action_[key] = action;
-    
+
     // ??????
     auto& keys = action_to_keys_[action];
     if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
@@ -190,7 +193,7 @@ void KeyBindingManager::unbindKey(const std::string& key) {
     if (it != key_to_action_.end()) {
         KeyAction action = it->second;
         key_to_action_.erase(it);
-        
+
         // ????????
         auto& keys = action_to_keys_[action];
         keys.erase(std::remove(keys.begin(), keys.end(), key), keys.end());
@@ -226,4 +229,3 @@ void KeyBindingManager::resetToDefaults() {
 
 } // namespace input
 } // namespace pnana
-

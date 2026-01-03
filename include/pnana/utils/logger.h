@@ -1,10 +1,10 @@
 #ifndef PNANA_UTILS_LOGGER_H
 #define PNANA_UTILS_LOGGER_H
 
-#include <string>
 #include <fstream>
-#include <mutex>
 #include <memory>
+#include <mutex>
+#include <string>
 
 namespace pnana {
 namespace utils {
@@ -15,33 +15,33 @@ namespace utils {
  * 只有在调用 initialize() 后才会写入日志文件
  */
 class Logger {
-public:
+  public:
     static Logger& getInstance();
-    
+
     // 初始化日志文件（可选，只有调用此方法后才会写入日志）
     void initialize(const std::string& log_file = "pnana.log");
-    
+
     // 检查日志是否已启用
     bool isEnabled() const;
-    
+
     // 写入日志（如果未初始化，则静默忽略）
     void log(const std::string& message);
     void logError(const std::string& message);
     void logWarning(const std::string& message);
-    
+
     // 关闭日志
     void close();
-    
-private:
+
+  private:
     Logger() : initialized_(false) {}
     ~Logger();
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
-    
+
     std::ofstream log_file_;
     mutable std::mutex log_mutex_;
     bool initialized_;
-    
+
     void writeLog(const std::string& level, const std::string& message);
     std::string getTimestamp();
 };
@@ -55,4 +55,3 @@ private:
 } // namespace pnana
 
 #endif // PNANA_UTILS_LOGGER_H
-

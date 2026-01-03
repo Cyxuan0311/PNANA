@@ -8,7 +8,7 @@ namespace features {
 struct LspPosition {
     int line;
     int character;
-    
+
     LspPosition(int l = 0, int c = 0) : line(l), character(c) {}
 };
 
@@ -16,14 +16,12 @@ struct LspPosition {
 struct LspRange {
     LspPosition start;
     LspPosition end;
-    
+
     LspRange() = default;
-    LspRange(const LspPosition& s, const LspPosition& e) 
-        : start(s), end(e) {}
+    LspRange(const LspPosition& s, const LspPosition& e) : start(s), end(e) {}
 };
 
 } // namespace features
 } // namespace pnana
 
 #endif // PNANA_FEATURES_LSP_LSP_TYPES_H
-

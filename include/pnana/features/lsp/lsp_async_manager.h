@@ -2,50 +2,48 @@
 #define PNANA_FEATURES_LSP_LSP_ASYNC_MANAGER_H
 
 #include "features/lsp/lsp_client.h"
-#include <functional>
-#include <thread>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
+#include <condition_variable>
+#include <functional>
 #include <memory>
-#include <vector>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <thread>
+#include <vector>
 
 namespace pnana {
 namespace features {
 
 class LspAsyncManager {
-public:
+  public:
     using CompletionCallback = std::function<void(std::vector<CompletionItem>)>;
     using ErrorCallback = std::function<void(const std::string& error)>;
-    
+
     LspAsyncManager();
     ~LspAsyncManager();
-    
+
     // 禁用拷贝构造和赋值
     LspAsyncManager(const LspAsyncManager&) = delete;
     LspAsyncManager& operator=(const LspAsyncManager&) = delete;
-    
+
     // 异步补全请求
-    void requestCompletionAsync(
-        LspClient* client,
-        const std::string& uri,
-        const LspPosition& position,
-        CompletionCallback on_success,
-        ErrorCallback on_error = nullptr
-    );
-    
+    void requestCompletionAsync(LspClient* client, const std::string& uri,
+                                const LspPosition& position, CompletionCallback on_success,
+                                ErrorCallback on_error = nullptr);
+
     // 取消所有待处理的请求
     void cancelPendingRequests();
-    
+
     // 停止工作线程
     void stop();
-    
+
     // 检查是否正在运行
-    bool isRunning() const { return running_; }
-    
-private:
+    bool isRunning() const {
+        return running_;
+    }
+
+  private:
     struct RequestTask {
         enum Type { COMPLETION, HOVER, DEFINITION };
         Type type;
@@ -55,9 +53,9 @@ private:
         CompletionCallback completion_callback;
         ErrorCallback error_callback;
     };
-    
+
     void workerThread();
-    
+
     std::thread worker_thread_;
     std::queue<RequestTask> request_queue_;
     std::mutex queue_mutex_;
@@ -69,4 +67,3 @@ private:
 } // namespace pnana
 
 #endif // PNANA_FEATURES_LSP_LSP_ASYNC_MANAGER_H
-

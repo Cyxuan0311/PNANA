@@ -1,13 +1,13 @@
 #include "features/terminal/terminal_utils.h"
-#include <unistd.h>
-#include <pwd.h>
-#include <sys/utsname.h>
-#include <filesystem>
-#include <ctime>
-#include <iomanip>
-#include <fstream>
 #include <cstring>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <pwd.h>
 #include <sstream>
+#include <sys/utsname.h>
+#include <unistd.h>
 
 namespace fs = std::filesystem;
 
@@ -35,21 +35,20 @@ std::string TerminalUtils::getHostname() {
 std::string TerminalUtils::getCurrentTime() {
     auto now = std::time(nullptr);
     auto tm = *std::localtime(&now);
-    
+
     std::ostringstream oss;
-    oss << std::setfill('0') << std::setw(2) << tm.tm_hour << ":"
-        << std::setfill('0') << std::setw(2) << tm.tm_min << ":"
-        << std::setfill('0') << std::setw(2) << tm.tm_sec;
-    
+    oss << std::setfill('0') << std::setw(2) << tm.tm_hour << ":" << std::setfill('0')
+        << std::setw(2) << tm.tm_min << ":" << std::setfill('0') << std::setw(2) << tm.tm_sec;
+
     return oss.str();
 }
 
 std::string TerminalUtils::getGitBranch(const std::string& directory) {
     fs::path git_dir = fs::path(directory) / ".git";
     fs::path check_dir = directory;
-    
+
     // 检查当前目录或父目录是否有 .git
-    for (int i = 0; i < 10; ++i) {  // 最多向上查找10级
+    for (int i = 0; i < 10; ++i) { // 最多向上查找10级
         git_dir = check_dir / ".git";
         if (fs::exists(git_dir)) {
             // 读取 HEAD 文件
@@ -74,14 +73,14 @@ std::string TerminalUtils::getGitBranch(const std::string& directory) {
             }
             break;
         }
-        
+
         // 检查父目录
         if (check_dir == check_dir.parent_path()) {
-            break;  // 已到达根目录
+            break; // 已到达根目录
         }
         check_dir = check_dir.parent_path();
     }
-    
+
     return "";
 }
 
@@ -97,7 +96,7 @@ std::string TerminalUtils::truncatePath(const std::string& path, size_t max_leng
     if (path.length() <= max_length) {
         return path;
     }
-    
+
     size_t last_slash = path.find_last_of('/');
     if (last_slash != std::string::npos && last_slash < path.length() - 1) {
         return "..." + path.substr(last_slash);
@@ -108,4 +107,3 @@ std::string TerminalUtils::truncatePath(const std::string& path, size_t max_leng
 } // namespace terminal
 } // namespace features
 } // namespace pnana
-

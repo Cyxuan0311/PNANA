@@ -1,15 +1,15 @@
 #include <iostream>
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 // C++示例 - Hello World with modern features
 class HelloWorld {
-private:
+  private:
     std::string message_;
     int count_;
 
-public:
+  public:
     // 构造函数
     HelloWorld(std::string msg, int count) : message_(msg), count_(count) {}
 
@@ -26,12 +26,12 @@ public:
     }
 };
 
-template<typename T>
+template <typename T>
 class Container {
-private:
+  private:
     std::vector<T> data_;
 
-public:
+  public:
     void add(T item) {
         data_.push_back(item);
     }

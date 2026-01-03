@@ -17,21 +17,23 @@ namespace input {
 
 // 终端区域输入处理器
 class TerminalHandler : public BaseRegionHandler {
-public:
+  public:
     TerminalHandler();
     ~TerminalHandler() override = default;
-    
+
     // 处理输入事件
     bool handleInput(ftxui::Event event, Editor* editor) override;
-    
+
     // 处理区域导航（上下左右键）
     bool handleNavigation(ftxui::Event event, Editor* editor) override;
-    
+
     // 获取支持的快捷键列表
     std::vector<pnana::input::KeyAction> getSupportedActions() const override;
-    
+
     // 获取区域类型
-    EditorRegion getRegionType() const override { return EditorRegion::TERMINAL; }
+    EditorRegion getRegionType() const override {
+        return EditorRegion::TERMINAL;
+    }
 };
 
 } // namespace input
@@ -39,4 +41,3 @@ public:
 } // namespace pnana
 
 #endif // PNANA_CORE_INPUT_REGION_HANDLERS_TERMINAL_HANDLER_H
-

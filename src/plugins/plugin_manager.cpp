@@ -3,20 +3,18 @@
 #include "plugins/plugin_manager.h"
 #include "core/editor.h"
 #include "utils/logger.h"
+#include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <algorithm>
-#include <cstdlib>
 
 namespace fs = std::filesystem;
 
 namespace pnana {
 namespace plugins {
 
-PluginManager::PluginManager(core::Editor* editor)
-    : editor_(editor) {
-}
+PluginManager::PluginManager(core::Editor* editor) : editor_(editor) {}
 
 PluginManager::~PluginManager() {
     // 清理插件
@@ -34,7 +32,7 @@ bool PluginManager::initialize() {
         LOG_ERROR("Failed to create Lua engine");
         return false;
     }
-    
+
     // 创建 Lua API
     lua_api_ = std::make_unique<LuaAPI>(editor_);
     if (!lua_api_) {
@@ -42,29 +40,30 @@ bool PluginManager::initialize() {
         return false;
     }
     lua_api_->initialize(lua_engine_.get());
-    
+
     // 设置插件路径
     setupPluginPaths();
-    
+
     // 加载插件
     std::string plugin_dir = findPluginDirectory();
     if (!plugin_dir.empty()) {
         loadPlugins(plugin_dir);
     }
-    
+
     return true;
 }
 
 void PluginManager::setupPluginPaths() {
-    if (!lua_engine_) return;
-    
+    if (!lua_engine_)
+        return;
+
     // 设置 Lua package.path
     std::string plugin_dir = findPluginDirectory();
     if (!plugin_dir.empty()) {
         std::string lua_path = plugin_dir + "/?.lua;" + plugin_dir + "/?/init.lua";
         lua_engine_->setPackagePath(lua_path);
     }
-    
+
     // 设置插件运行时路径
     std::string runtime_path = plugin_dir + "/runtime";
     if (fs::exists(runtime_path)) {
@@ -78,25 +77,21 @@ std::string PluginManager::findPluginDirectory() {
     // 1. ~/.config/pnana/plugins
     // 2. ./plugins
     // 3. ./lua
-    
+
     const char* home = getenv("HOME");
     if (!home) {
         home = ".";
     }
-    
-    std::vector<std::string> candidates = {
-        std::string(home) + "/.config/pnana/plugins",
-        "./plugins",
-        "./lua",
-        "./.pnana/plugins"
-    };
-    
+
+    std::vector<std::string> candidates = {std::string(home) + "/.config/pnana/plugins",
+                                           "./plugins", "./lua", "./.pnana/plugins"};
+
     for (const auto& dir : candidates) {
         if (fs::exists(dir) && fs::is_directory(dir)) {
             return dir;
         }
     }
-    
+
     // 如果都不存在，创建默认目录
     std::string default_dir = std::string(home) + "/.config/pnana/plugins";
     try {
@@ -112,28 +107,28 @@ void PluginManager::loadPlugins(const std::string& plugin_dir) {
     if (!fs::exists(plugin_dir) || !fs::is_directory(plugin_dir)) {
         return;
     }
-    
+
     // 遍历插件目录，扫描所有插件
     try {
         for (const auto& entry : fs::directory_iterator(plugin_dir)) {
             if (!entry.is_directory()) {
                 continue;
             }
-            
+
             std::string plugin_path = entry.path().string();
             std::string plugin_name = entry.path().filename().string();
-            
+
             // 跳过以 . 开头的目录
             if (plugin_name[0] == '.') {
                 continue;
             }
-            
+
             // 注册插件（扫描配置但不加载）
             PluginInfo info;
             info.path = plugin_path;
             info.name = plugin_name;
             info.loaded = false;
-            
+
             // 加载插件配置（只有在 Lua 引擎已初始化时才能读取配置）
             if (lua_engine_ && lua_engine_->getState()) {
                 if (!loadPluginConfig(plugin_path, info)) {
@@ -148,7 +143,7 @@ void PluginManager::loadPlugins(const std::string& plugin_dir) {
                 info.description = "No description";
                 info.author = "Unknown";
             }
-            
+
             // 注册插件
             plugins_[info.name] = info;
             plugin_paths_[info.name] = plugin_path;
@@ -162,42 +157,42 @@ bool PluginManager::loadPlugin(const std::string& plugin_path) {
     if (!lua_engine_ || !lua_api_) {
         return false;
     }
-    
+
     PluginInfo info;
     info.path = plugin_path;
     info.name = fs::path(plugin_path).filename().string();
-    
+
     // 如果插件已经注册，使用已有信息
     auto it = plugins_.find(info.name);
     if (it != plugins_.end()) {
         info = it->second;
     } else {
-    // 加载插件配置
-    if (!loadPluginConfig(plugin_path, info)) {
-        // 如果没有配置文件，使用默认值
-        info.version = "1.0.0";
-        info.description = "No description";
-        info.author = "Unknown";
+        // 加载插件配置
+        if (!loadPluginConfig(plugin_path, info)) {
+            // 如果没有配置文件，使用默认值
+            info.version = "1.0.0";
+            info.description = "No description";
+            info.author = "Unknown";
         }
-        
+
         // 注册插件（但不加载）
         plugins_[info.name] = info;
         plugin_paths_[info.name] = plugin_path;
     }
-    
+
     // 如果已经加载，直接返回
     if (info.loaded) {
         return true;
     }
-    
+
     // 执行插件初始化
     if (!executePluginInit(plugin_path)) {
         return false;
     }
-    
+
     // 更新加载状态
     plugins_[info.name].loaded = true;
-    
+
     return true;
 }
 
@@ -205,13 +200,11 @@ bool PluginManager::loadPluginConfig(const std::string& plugin_path, PluginInfo&
     if (!lua_engine_ || !lua_engine_->getState()) {
         return false;
     }
-    
+
     // 查找 plugin.lua 或 init.lua
-    std::vector<std::string> config_files = {
-        plugin_path + "/plugin.lua",
-        plugin_path + "/init.lua"
-    };
-    
+    std::vector<std::string> config_files = {plugin_path + "/plugin.lua",
+                                             plugin_path + "/init.lua"};
+
     for (const auto& config_file : config_files) {
         if (fs::exists(config_file)) {
             // 执行插件文件
@@ -221,20 +214,20 @@ bool PluginManager::loadPluginConfig(const std::string& plugin_path, PluginInfo&
                 if (info.name.empty()) {
                     info.name = fs::path(plugin_path).filename().string();
                 }
-                
+
                 info.version = lua_engine_->getGlobalString("plugin_version");
                 if (info.version.empty()) {
                     info.version = "1.0.0";
                 }
-                
+
                 info.description = lua_engine_->getGlobalString("plugin_description");
                 info.author = lua_engine_->getGlobalString("plugin_author");
-                
+
                 return true;
             }
         }
     }
-    
+
     return false;
 }
 
@@ -244,13 +237,13 @@ bool PluginManager::executePluginInit(const std::string& plugin_path) {
     if (fs::exists(init_file)) {
         return lua_engine_->executeFile(init_file);
     }
-    
+
     // 如果没有 init.lua，查找 plugin.lua
     std::string plugin_file = plugin_path + "/plugin.lua";
     if (fs::exists(plugin_file)) {
         return lua_engine_->executeFile(plugin_file);
     }
-    
+
     // 查找 lua/ 子目录
     std::string lua_dir = plugin_path + "/lua";
     if (fs::exists(lua_dir) && fs::is_directory(lua_dir)) {
@@ -267,7 +260,7 @@ bool PluginManager::executePluginInit(const std::string& plugin_path) {
         }
         return file_count > 0;
     }
-    
+
     return false;
 }
 
@@ -276,10 +269,10 @@ bool PluginManager::unloadPlugin(const std::string& plugin_name) {
     if (it == plugins_.end() || !it->second.loaded) {
         return false;
     }
-    
+
     // 触发卸载事件
     triggerEvent("PluginUnload", {plugin_name});
-    
+
     it->second.loaded = false;
     return true;
 }
@@ -289,10 +282,10 @@ bool PluginManager::reloadPlugin(const std::string& plugin_name) {
     if (it == plugin_paths_.end()) {
         return false;
     }
-    
+
     // 先卸载
     unloadPlugin(plugin_name);
-    
+
     // 再加载
     return loadPlugin(it->second);
 }
@@ -328,13 +321,13 @@ bool PluginManager::enablePlugin(const std::string& plugin_name) {
     if (it == plugin_paths_.end()) {
         return false;
     }
-    
+
     // 如果已经加载，直接返回成功
     auto plugin_it = plugins_.find(plugin_name);
     if (plugin_it != plugins_.end() && plugin_it->second.loaded) {
         return true;
     }
-    
+
     // 加载插件
     return loadPlugin(it->second);
 }
@@ -353,17 +346,20 @@ bool PluginManager::executeCommand(const std::string& command_name) {
     if (!lua_api_) {
         return false;
     }
-    
+
     // 查找命令
     // 这里需要通过 Lua API 查找并执行
     // 简化实现：直接调用 Lua 函数
     if (lua_engine_) {
-        std::string code = "if pnana_commands and pnana_commands['" + command_name + "'] then "
-                          "pnana_commands['" + command_name + "']() "
-                          "end";
+        std::string code = "if pnana_commands and pnana_commands['" + command_name +
+                           "'] then "
+                           "pnana_commands['" +
+                           command_name +
+                           "']() "
+                           "end";
         return lua_engine_->executeString(code);
     }
-    
+
     return false;
 }
 
@@ -371,15 +367,20 @@ bool PluginManager::handleKeymap(const std::string& mode, const std::string& key
     if (!lua_api_ || !lua_engine_) {
         return false;
     }
-    
+
     // 查找键位映射
-    std::string code = "if pnana_keymaps and pnana_keymaps['" + mode + "'] and "
-                      "pnana_keymaps['" + mode + "']['" + keys + "'] then "
-                      "pnana_keymaps['" + mode + "']['" + keys + "']() "
-                      "return true "
-                      "end "
-                      "return false";
-    
+    std::string code = "if pnana_keymaps and pnana_keymaps['" + mode +
+                       "'] and "
+                       "pnana_keymaps['" +
+                       mode + "']['" + keys +
+                       "'] then "
+                       "pnana_keymaps['" +
+                       mode + "']['" + keys +
+                       "']() "
+                       "return true "
+                       "end "
+                       "return false";
+
     lua_engine_->executeString(code);
     bool result = lua_engine_->getGlobalBool("keymap_result");
     return result;
@@ -389,4 +390,3 @@ bool PluginManager::handleKeymap(const std::string& mode, const std::string& key
 } // namespace pnana
 
 #endif // BUILD_LUA_SUPPORT
-

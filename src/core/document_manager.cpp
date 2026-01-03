@@ -4,9 +4,7 @@
 namespace pnana {
 namespace core {
 
-DocumentManager::DocumentManager()
-    : current_index_(0),
-      next_untitled_number_(1) {
+DocumentManager::DocumentManager() : current_index_(0), next_untitled_number_(1) {
     // 不自动创建文档，让用户主动创建
 }
 
@@ -17,7 +15,7 @@ size_t DocumentManager::openDocument(const std::string& filepath) {
         switchToDocument(static_cast<size_t>(existing));
         return static_cast<size_t>(existing);
     }
-    
+
     // 创建新文档
     auto doc = std::make_unique<Document>(filepath);
     documents_.push_back(std::move(doc));
@@ -39,15 +37,15 @@ bool DocumentManager::closeDocument(size_t index) {
     if (index >= documents_.size()) {
         return false;
     }
-    
+
     // 如果文档有未保存的修改，先检查
     if (documents_[index]->isModified()) {
         // 这里应该提示用户，但现在先简单返回false
         return false;
     }
-    
+
     documents_.erase(documents_.begin() + index);
-    
+
     // 调整当前索引（如果文档列表不为空）
     if (!documents_.empty()) {
         if (current_index_ >= documents_.size()) {
@@ -57,7 +55,7 @@ bool DocumentManager::closeDocument(size_t index) {
         // 所有文档已关闭，不自动创建新文档，保持空状态
         current_index_ = 0;
     }
-    
+
     return true;
 }
 
@@ -72,7 +70,7 @@ bool DocumentManager::closeAllDocuments() {
             return false;
         }
     }
-    
+
     documents_.clear();
     current_index_ = 0;
     // 不自动创建新文档，保持空状态以显示欢迎界面
@@ -86,12 +84,14 @@ void DocumentManager::switchToDocument(size_t index) {
 }
 
 void DocumentManager::switchToNextDocument() {
-    if (documents_.empty()) return;
+    if (documents_.empty())
+        return;
     current_index_ = (current_index_ + 1) % documents_.size();
 }
 
 void DocumentManager::switchToPreviousDocument() {
-    if (documents_.empty()) return;
+    if (documents_.empty())
+        return;
     if (current_index_ == 0) {
         current_index_ = documents_.size() - 1;
     } else {
@@ -154,4 +154,3 @@ std::vector<DocumentManager::TabInfo> DocumentManager::getAllTabs() const {
 
 } // namespace core
 } // namespace pnana
-

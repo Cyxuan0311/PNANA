@@ -7,14 +7,14 @@ namespace terminal {
 
 std::vector<std::string> CommandParser::parse(const std::string& command) {
     std::vector<std::string> args;
-    
+
     bool in_quotes = false;
     char quote_char = '\0';
     std::string current_arg;
-    
+
     for (size_t i = 0; i < command.length(); ++i) {
         char c = command[i];
-        
+
         if (in_quotes) {
             if (c == quote_char) {
                 in_quotes = false;
@@ -44,29 +44,25 @@ std::vector<std::string> CommandParser::parse(const std::string& command) {
             }
         }
     }
-    
+
     if (!current_arg.empty()) {
         args.push_back(current_arg);
     }
-    
+
     return args;
 }
 
 bool CommandParser::hasShellFeatures(const std::string& command) {
-    return (command.find('|') != std::string::npos ||
-            command.find('>') != std::string::npos ||
-            command.find('<') != std::string::npos ||
-            command.find('&') != std::string::npos ||
-            command.find('$') != std::string::npos ||
-            command.find('*') != std::string::npos ||
-            command.find('?') != std::string::npos ||
-            command.find('(') != std::string::npos ||
-            command.find('`') != std::string::npos ||
-            command.find("&&") != std::string::npos ||
+    return (command.find('|') != std::string::npos || command.find('>') != std::string::npos ||
+            command.find('<') != std::string::npos || command.find('&') != std::string::npos ||
+            command.find('$') != std::string::npos || command.find('*') != std::string::npos ||
+            command.find('?') != std::string::npos || command.find('(') != std::string::npos ||
+            command.find('`') != std::string::npos || command.find("&&") != std::string::npos ||
             command.find("||") != std::string::npos);
 }
 
-bool CommandParser::isBackgroundCommand(const std::string& command, std::string& cmd_without_ampersand) {
+bool CommandParser::isBackgroundCommand(const std::string& command,
+                                        std::string& cmd_without_ampersand) {
     cmd_without_ampersand = command;
     if (!cmd_without_ampersand.empty() && cmd_without_ampersand.back() == '&') {
         cmd_without_ampersand.pop_back();
@@ -82,4 +78,3 @@ bool CommandParser::isBackgroundCommand(const std::string& command, std::string&
 } // namespace terminal
 } // namespace features
 } // namespace pnana
-

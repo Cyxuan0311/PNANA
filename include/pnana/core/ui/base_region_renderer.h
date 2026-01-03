@@ -14,19 +14,19 @@ namespace ui {
 
 // 区域渲染器基类
 class BaseRegionRenderer {
-public:
+  public:
     virtual ~BaseRegionRenderer() = default;
-    
+
     // 渲染区域内容
     virtual ftxui::Element render(Editor* editor) = 0;
-    
+
     // 渲染带边框的区域（边框颜色根据是否激活变化）
     ftxui::Element renderWithBorder(Editor* editor, bool is_active);
-    
+
     // 获取区域类型
     virtual EditorRegion getRegionType() const = 0;
-    
-protected:
+
+  protected:
     // 获取边框颜色（激活时使用高亮色，非激活时使用默认色）
     ftxui::Color getBorderColor(bool is_active, Editor* editor) const;
 };
@@ -36,4 +36,3 @@ protected:
 } // namespace pnana
 
 #endif // PNANA_CORE_UI_BASE_REGION_RENDERER_H
-

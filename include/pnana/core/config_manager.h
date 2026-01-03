@@ -1,10 +1,10 @@
 #ifndef PNANA_CORE_CONFIG_MANAGER_H
 #define PNANA_CORE_CONFIG_MANAGER_H
 
-#include <string>
 #include <map>
-#include <vector>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace pnana {
 namespace core {
@@ -25,9 +25,9 @@ struct DisplayConfig {
     bool relative_line_numbers = false;
     bool highlight_current_line = true;
     bool show_whitespace = false;
-    
+
     // 光标配置
-    std::string cursor_style = "block";      // block, underline, bar, hollow
+    std::string cursor_style = "block";       // block, underline, bar, hollow
     std::string cursor_color = "255,255,255"; // RGB格式，逗号分隔
     int cursor_blink_rate = 500;              // 闪烁频率（毫秒），0表示不闪烁
     bool cursor_smooth = false;               // 流动光标效果
@@ -60,18 +60,18 @@ struct ThemeColorConfig {
     std::vector<int> selection = {73, 72, 62};
     std::vector<int> line_number = {144, 144, 138};
     std::vector<int> line_number_current = {248, 248, 242};
-    
+
     // 状态栏
     std::vector<int> statusbar_bg = {45, 45, 45};
     std::vector<int> statusbar_fg = {248, 248, 242};
-    
+
     // 菜单和帮助栏
     std::vector<int> menubar_bg = {30, 31, 27};
     std::vector<int> menubar_fg = {248, 248, 242};
     std::vector<int> helpbar_bg = {45, 45, 45};
     std::vector<int> helpbar_fg = {117, 113, 94};
     std::vector<int> helpbar_key = {166, 226, 46};
-    
+
     // 语法高亮
     std::vector<int> keyword = {249, 38, 114};
     std::vector<int> string = {230, 219, 116};
@@ -80,7 +80,7 @@ struct ThemeColorConfig {
     std::vector<int> function = {166, 226, 46};
     std::vector<int> type = {102, 217, 239};
     std::vector<int> operator_color = {249, 38, 114};
-    
+
     // 特殊元素
     std::vector<int> error = {249, 38, 114};
     std::vector<int> warning = {253, 151, 31};
@@ -94,7 +94,7 @@ struct AppConfig {
     DisplayConfig display;
     FileConfig files;
     SearchConfig search;
-    
+
     // 主题配置
     std::string current_theme = "monokai";
     std::map<std::string, ThemeColorConfig> custom_themes;
@@ -103,37 +103,43 @@ struct AppConfig {
 
 // 配置管理器
 class ConfigManager {
-public:
+  public:
     ConfigManager();
     ~ConfigManager();
-    
+
     // 加载配置文件
     bool loadConfig(const std::string& config_path = "");
-    
+
     // 保存配置文件
     bool saveConfig(const std::string& config_path = "");
-    
+
     // 获取配置
-    const AppConfig& getConfig() const { return config_; }
-    AppConfig& getConfig() { return config_; }
-    
+    const AppConfig& getConfig() const {
+        return config_;
+    }
+    AppConfig& getConfig() {
+        return config_;
+    }
+
     // 获取默认配置路径
     static std::string getDefaultConfigPath();
-    
+
     // 获取用户配置路径
     static std::string getUserConfigPath();
-    
+
     // 检查配置是否已加载
-    bool isLoaded() const { return loaded_; }
-    
+    bool isLoaded() const {
+        return loaded_;
+    }
+
     // 重置为默认配置
     void resetToDefaults();
-    
-private:
+
+  private:
     AppConfig config_;
     std::string config_path_;
     bool loaded_;
-    
+
     // JSON 解析辅助方法
     bool parseJSON(const std::string& json_content);
     bool parseEditorConfig(const std::map<std::string, std::string>& data);
@@ -141,10 +147,10 @@ private:
     bool parseFileConfig(const std::map<std::string, std::string>& data);
     bool parseSearchConfig(const std::map<std::string, std::string>& data);
     bool parseThemeConfig(const std::map<std::string, std::string>& data);
-    
+
     // JSON 生成辅助方法
     std::string generateJSON() const;
-    
+
     // 工具方法
     std::vector<int> parseColorArray(const std::string& color_str);
     std::string colorArrayToString(const std::vector<int>& color) const;
@@ -156,4 +162,3 @@ private:
 } // namespace pnana
 
 #endif // PNANA_CORE_CONFIG_MANAGER_H
-

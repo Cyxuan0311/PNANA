@@ -1,6 +1,6 @@
 #include "core/ui/base_region_renderer.h"
-#include "core/ui/border_manager.h"
 #include "core/editor.h"
+#include "core/ui/border_manager.h"
 #include <ftxui/dom/elements.hpp>
 
 namespace pnana {
@@ -9,7 +9,7 @@ namespace ui {
 
 ftxui::Element BaseRegionRenderer::renderWithBorder(Editor* editor, bool is_active) {
     ftxui::Element content = render(editor);
-    
+
     // 使用 BorderManager 应用边框
     BorderManager border_manager;
     return border_manager.applyBorder(content, getRegionType(), is_active, editor->getTheme());
@@ -27,4 +27,3 @@ ftxui::Color BaseRegionRenderer::getBorderColor(bool is_active, Editor* editor) 
 } // namespace ui
 } // namespace core
 } // namespace pnana
-

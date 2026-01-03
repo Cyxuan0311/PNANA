@@ -8,7 +8,7 @@ namespace utils {
 
 // 文件类型检测器
 class FileTypeDetector {
-public:
+  public:
     // 根据文件名和扩展名检测文件类型
     static std::string detectFileType(const std::string& filename, const std::string& extension);
 };

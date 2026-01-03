@@ -14,4 +14,3 @@ ftxui::Element renderTerminal(features::Terminal& terminal, int height);
 } // namespace pnana
 
 #endif // PNANA_UI_TERMINAL_UI_H
-
