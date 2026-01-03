@@ -1,6 +1,7 @@
 #include "features/lsp/lsp_server_manager.h"
 #include <filesystem>
 #include <algorithm>
+#include <sys/stat.h>
 
 namespace fs = std::filesystem;
 
@@ -72,13 +73,22 @@ LspClient* LspServerManager::getClientForLanguage(const std::string& language_id
 }
 
 std::unique_ptr<LspClient> LspServerManager::createClient(const LspServerConfig& config) {
+    // 确保缓存目录存在
+    for (const auto& [key, value] : config.env_vars) {
+        if (key == "XDG_CACHE_HOME" || key == "TMPDIR" ||
+            key == "GOMODCACHE" || key == "RUSTUP_HOME" || key == "CARGO_HOME") {
+            // 创建目录
+            mkdir(value.c_str(), 0755);
+        }
+    }
+
     // 构建完整命令（包括参数）
     std::string full_command = config.command;
     for (const auto& arg : config.args) {
         full_command += " " + arg;
     }
     
-    return std::make_unique<LspClient>(full_command);
+    return std::make_unique<LspClient>(full_command, config.env_vars);
 }
 
 bool LspServerManager::initializeClient(const std::string& language_id, 

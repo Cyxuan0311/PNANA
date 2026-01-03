@@ -9,6 +9,7 @@
 #include <atomic>
 #include <queue>
 #include <functional>
+#include <map>
 
 // 使用标准库实现跨平台进程通信
 // 如果系统支持，可以使用 boost::process
@@ -32,6 +33,8 @@ namespace features {
 class LspStdioConnector : public jsonrpccxx::IClientConnector {
 public:
     explicit LspStdioConnector(const std::string& server_command);
+    LspStdioConnector(const std::string& server_command,
+                     const std::map<std::string, std::string>& env_vars);
     ~LspStdioConnector() override;
     
     // 启动语言服务器
@@ -61,6 +64,7 @@ public:
 
 private:
     std::string server_command_;
+    std::map<std::string, std::string> env_vars_;
     
 #ifdef USE_BOOST_PROCESS
     std::unique_ptr<bp::child> server_process_;

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <map>
 
 namespace pnana {
 namespace features {
@@ -18,6 +19,7 @@ struct LspServerConfig {
     std::string language_id;       // LSP 语言 ID（如 "cpp", "python"）
     std::set<std::string> file_extensions;  // 支持的文件扩展名（如 {".cpp", ".h", ".c"}）
     std::vector<std::string> args; // 额外的命令行参数
+    std::map<std::string, std::string> env_vars; // 环境变量配置
     
     LspServerConfig() = default;
     
@@ -28,6 +30,15 @@ struct LspServerConfig {
         : name(name), command(command), language_id(language_id),
           file_extensions(extensions) {}
     
+    LspServerConfig(const std::string& name,
+                   const std::string& command,
+                   const std::string& language_id,
+                   const std::set<std::string>& extensions,
+                   const std::vector<std::string>& args,
+                   const std::map<std::string, std::string>& env_vars = {})
+        : name(name), command(command), language_id(language_id),
+          file_extensions(extensions), args(args), env_vars(env_vars) {}
+
     // 检查文件扩展名是否匹配
     bool matchesExtension(const std::string& ext) const {
         return file_extensions.find(ext) != file_extensions.end();

@@ -13,6 +13,17 @@ namespace features {
 LspClient::LspClient(const std::string& server_command) {
     connector_ = std::make_unique<LspStdioConnector>(server_command);
     rpc_client_ = std::make_unique<jsonrpccxx::JsonRpcClient>(*connector_, jsonrpccxx::version::v2);
+
+    // 设置通知回调
+    connector_->setNotificationCallback([this](const std::string& notification) {
+        handleNotification(notification);
+    });
+}
+
+LspClient::LspClient(const std::string& server_command,
+                    const std::map<std::string, std::string>& env_vars) {
+    connector_ = std::make_unique<LspStdioConnector>(server_command, env_vars);
+    rpc_client_ = std::make_unique<jsonrpccxx::JsonRpcClient>(*connector_, jsonrpccxx::version::v2);
     
     // 设置通知回调
     connector_->setNotificationCallback([this](const std::string& notification) {

@@ -60,7 +60,20 @@ static bool checkCommandExists(const std::string& command) {
 }
 
 LspStdioConnector::LspStdioConnector(const std::string& server_command)
-    : server_command_(server_command)
+    : server_command_(server_command), env_vars_({})
+#ifdef USE_BOOST_PROCESS
+    , server_process_(nullptr), stdout_stream_(nullptr), stdin_stream_(nullptr)
+#else
+    , server_pid_(-1), stdin_file_(nullptr), stdout_file_(nullptr),
+      stdin_fd_(-1), stdout_fd_(-1)
+#endif
+    , running_(false)
+{
+}
+
+LspStdioConnector::LspStdioConnector(const std::string& server_command,
+                                   const std::map<std::string, std::string>& env_vars)
+    : server_command_(server_command), env_vars_(env_vars)
 #ifdef USE_BOOST_PROCESS
     , server_process_(nullptr), stdout_stream_(nullptr), stdin_stream_(nullptr)
 #else
@@ -115,33 +128,38 @@ bool LspStdioConnector::start() {
             std::cerr << "Failed to create pipes" << std::endl;
             return false;
         }
-        
+
         LOG("Forking process for LSP server...");
         server_pid_ = fork();
         if (server_pid_ < 0) {
             LOG_ERROR("Failed to fork process: " + std::string(strerror(errno)));
             return false;
         }
-        
+
         if (server_pid_ == 0) {
             LOG("Child process: executing LSP server: " + server_command_);
             // 子进程：语言服务器
             close(stdin_pipe[1]);   // 关闭写端
             close(stdout_pipe[0]);  // 关闭读端
-            
+
             dup2(stdin_pipe[0], STDIN_FILENO);
             dup2(stdout_pipe[1], STDOUT_FILENO);
-            
+
             // 重定向 stderr 到 /dev/null，抑制 clangd 的日志输出
             int stderr_fd = open("/dev/null", O_WRONLY);
             if (stderr_fd >= 0) {
                 dup2(stderr_fd, STDERR_FILENO);
                 close(stderr_fd);
             }
-            
+
             close(stdin_pipe[0]);
             close(stdout_pipe[1]);
-            
+
+            // 设置环境变量
+            for (const auto& [key, value] : env_vars_) {
+                setenv(key.c_str(), value.c_str(), 1); // 1 = overwrite existing
+            }
+
             // 执行语言服务器
             // 如果 execlp 成功，不会返回；如果失败，会继续执行
             execlp(server_command_.c_str(), server_command_.c_str(), (char*)nullptr);

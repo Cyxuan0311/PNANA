@@ -53,6 +53,8 @@ struct HoverInfo {
 class LspClient {
 public:
     explicit LspClient(const std::string& server_command);
+    LspClient(const std::string& server_command,
+             const std::map<std::string, std::string>& env_vars);
     ~LspClient();
     
     // 初始化和清理
