@@ -1,5 +1,6 @@
 #include "core/input/region_handlers/file_browser_handler.h"
 #include "core/editor.h"
+#include "input/event_parser.h"
 #include "utils/logger.h"
 #include <ftxui/component/event.hpp>
 
@@ -76,12 +77,34 @@ bool FileBrowserHandler::handleNavigation(Event event, Editor* editor) {
         // 左键：文件浏览器已经在最左侧，无法再向左
         return false;
     }
-    
+
+    // PageUp/PageDown键直接在这里处理
+    if (event == Event::PageUp) {
+        editor->pageUp();
+        return true;
+    } else if (event == Event::PageDown) {
+        editor->pageDown();
+        return true;
+    }
+
+    // 检查 Alt+0 和 Alt+9 组合键用于页面滚动
+    pnana::input::EventParser parser;
+    std::string key_str = parser.eventToKey(event);
+    if (key_str == "alt_0") {
+        LOG("FileBrowserHandler: Alt+0 detected, calling pageUp()");
+        editor->pageUp();
+        return true;
+    } else if (key_str == "alt_9") {
+        LOG("FileBrowserHandler: Alt+9 detected, calling pageDown()");
+        editor->pageDown();
+        return true;
+    }
+
     // 上下键在文件浏览器内处理（文件列表导航）
     if (event == Event::ArrowUp || event == Event::ArrowDown) {
         return false;  // 让文件浏览器内部处理
     }
-    
+
     return false;
 }
 

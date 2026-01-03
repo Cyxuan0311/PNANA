@@ -83,6 +83,19 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
         editor->getTerminal().handleKeyEvent("ArrowDown");
         return true;
     }
+
+    // PageUp/PageDown：滚动查看终端历史输出
+    if (event == Event::PageUp) {
+        // PageUp：向上滚动历史输出
+        editor->getTerminal().scrollUp();
+        editor->setStatusMessage("Terminal: Scrolled up (PageUp: scroll up, PageDown: scroll down)");
+        return true;
+    } else if (event == Event::PageDown) {
+        // PageDown：向下滚动历史输出
+        editor->getTerminal().scrollDown();
+        editor->setStatusMessage("Terminal: Scrolled down (PageUp: scroll up, PageDown: scroll down)");
+        return true;
+    }
     
     // 左右键在 handleNavigation 中处理，用于切换面板
     // 这里不处理左右键，让它们传递给 handleNavigation
