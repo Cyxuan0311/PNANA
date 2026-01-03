@@ -64,6 +64,13 @@ public:
     std::string getGitBranch() const;
     std::string getCurrentTime() const;
 
+    // 滚动功能
+    void scrollUp();
+    void scrollDown();
+    void scrollToTop();
+    void scrollToBottom();
+    size_t getScrollOffset() const { return scroll_offset_; }
+
 private:
     ui::Theme& theme_;
     bool visible_;
@@ -80,7 +87,10 @@ private:
     // 输出行
     std::vector<TerminalLine> output_lines_;
     size_t max_output_lines_;
-    
+
+    // 输出滚动
+    size_t scroll_offset_;  // 从输出的开头开始的偏移量（用于向上滚动）
+
     // 当前工作目录
     std::string current_directory_;
     

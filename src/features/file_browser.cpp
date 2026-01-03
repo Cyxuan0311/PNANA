@@ -195,6 +195,39 @@ void FileBrowser::selectLast() {
     }
 }
 
+void FileBrowser::selectPageUp() {
+    if (flat_items_.empty()) {
+        return;
+    }
+
+    // 假设页面大小为可见区域的高度，这里简化为固定值20
+    // 实际应该根据UI的高度动态计算
+    const size_t page_size = 20;
+
+    if (selected_index_ < page_size) {
+        selected_index_ = 0;
+    } else {
+        selected_index_ -= page_size;
+    }
+}
+
+void FileBrowser::selectPageDown() {
+    if (flat_items_.empty()) {
+        return;
+    }
+
+    // 假设页面大小为可见区域的高度，这里简化为固定值20
+    // 实际应该根据UI的高度动态计算
+    const size_t page_size = 20;
+
+    size_t max_index = flat_items_.size() - 1;
+    if (selected_index_ + page_size > max_index) {
+        selected_index_ = max_index;
+    } else {
+        selected_index_ += page_size;
+    }
+}
+
 bool FileBrowser::toggleSelected() {
     if (flat_items_.empty() || selected_index_ >= flat_items_.size()) {
         return false;

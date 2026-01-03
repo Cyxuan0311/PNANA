@@ -46,6 +46,8 @@ public:
     void selectPrevious();
     void selectFirst();
     void selectLast();
+    void selectPageUp();    // 向上翻页
+    void selectPageDown();  // 向下翻页
     bool toggleSelected();  // 切换展开/折叠或打开文件
     bool goUp();  // 返回上级目录
     
