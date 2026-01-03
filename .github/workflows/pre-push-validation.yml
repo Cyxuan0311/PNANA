@@ -1,0 +1,106 @@
+name: Pre-Push Validation
+
+on:
+  push:
+    branches: [ master, develop, main ]
+  pull_request:
+    branches: [ master, develop, main ]
+
+jobs:
+  validate-build:
+    name: Validate Build Before Push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          pkg-config \
+          libftxui-dev \
+          nlohmann-json3-dev \
+          liblua5.4-dev \
+          libtree-sitter-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          libswscale-dev \
+          libavutil-dev \
+          golang-go
+
+    - name: Validate compilation
+      run: |
+        echo "🔍 开始编译验证..."
+        chmod +x ./build.sh
+        if ./build.sh --clean; then
+          echo "✅ 编译验证通过！"
+          echo "build_status=success" >> $GITHUB_ENV
+        else
+          echo "❌ 编译验证失败！"
+          echo "build_status=failure" >> $GITHUB_ENV
+          exit 1
+        fi
+
+    - name: Run tests (if compilation successful)
+      run: |
+        echo "🧪 运行测试..."
+        cd build
+        if ctest --output-on-failure; then
+          echo "✅ 测试通过！"
+        else
+          echo "❌ 测试失败！"
+          exit 1
+        fi
+      if: env.build_status == 'success'
+
+    - name: Create issue on build failure
+      if: failure() && github.event_name == 'push'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = `🚨 Build Failed: ${github.sha.substring(0, 7)}`;
+          const body = `
+          ## Build Validation Failed
+
+          **Commit:** ${github.sha}
+          **Branch:** ${github.ref}
+          **Author:** ${github.actor}
+
+          The code failed to compile. Please check the build logs and fix the compilation errors before pushing again.
+
+          ### Actions Required:
+          - Fix compilation errors
+          - Run \`./build.sh --clean\` locally to verify
+          - Commit and push the fixes
+
+          [View Build Logs](${github.server_url}/${github.repository}/actions/runs/${github.run_id})
+          `;
+
+          // Check if an issue already exists for this commit
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: ['build-failure', 'automated'],
+            state: 'open'
+          });
+
+          const existingIssue = issues.data.find(issue =>
+            issue.title.includes(github.sha.substring(0, 7))
+          );
+
+          if (!existingIssue) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['build-failure', 'automated', 'high-priority']
+            });
+          }

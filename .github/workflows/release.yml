@@ -1,0 +1,234 @@
+name: Release and Package
+
+on:
+  push:
+    tags:
+      - 'v*'  # 触发条件：推送以 v 开头的标签，如 v1.0.0
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-22.04]  # 支持多个Ubuntu版本
+        include:
+          - os: ubuntu-20.04
+            artifact_name: pnana-ubuntu20.04
+            display_name: Ubuntu 20.04
+          - os: ubuntu-22.04
+            artifact_name: pnana-ubuntu22.04
+            display_name: Ubuntu 22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive  # 确保子模块也被检出
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          pkg-config \
+          libftxui-dev \
+          nlohmann-json3-dev \
+          liblua5.4-dev \
+          libtree-sitter-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          libswscale-dev \
+          libavutil-dev \
+          golang-go
+
+    - name: Build project
+      run: |
+        chmod +x ./build.sh
+        ./build.sh --clean
+
+    - name: Create package
+      run: |
+        mkdir -p package
+        cd package
+        
+        # 创建目录结构
+        mkdir -p bin share/pnana/themes share/pnana/plugins share/doc/pnana
+        
+        # 复制二进制文件
+        cp ../build/pnana/pnana bin/
+        
+        # 复制配置文件
+        cp ../config/default.json share/pnana/ 2>/dev/null || echo "Default config not found, skipping"
+        
+        # 复制主题文件
+        cp -r ../themes/* share/pnana/themes/ 2>/dev/null || echo "Themes not found, skipping"
+        
+        # 复制插件文件
+        cp -r ../plugins/* share/pnana/plugins/ 2>/dev/null || echo "Plugins not found, skipping"
+        
+        # 复制文档
+        cp -r ../docs/* share/doc/pnana/ 2>/dev/null || echo "Docs not found, skipping"
+        cp ../README.md ../LICENSE ../ 2>/dev/null || echo "Root docs not found, skipping"
+        
+        # 创建安装脚本
+        cat > install.sh << 'EOF'
+        #!/bin/bash
+        # pnana 安装脚本
+        
+        set -e
+        
+        # 检查是否有root权限
+        if [ "$EUID" -ne 0 ]; then
+          echo "请使用 sudo 运行此脚本"
+          exit 1
+        fi
+        
+        # 安装目录
+        PREFIX=${1:-/usr/local}
+        
+        echo "安装 pnana 到 $PREFIX..."
+        
+        # 创建目录
+        mkdir -p $PREFIX/bin
+        mkdir -p $PREFIX/share/pnana
+        
+        # 复制文件
+        cp -r bin/* $PREFIX/bin/
+        cp -r share/pnana/* $PREFIX/share/pnana/
+        
+        # 设置权限
+        chmod +x $PREFIX/bin/pnana
+        
+        echo "安装完成！"
+        echo "现在可以使用 'pnana' 命令启动编辑器"
+        EOF
+        
+        chmod +x install.sh
+        
+        # 创建压缩包
+        tar -czf ../${{ matrix.artifact_name }}.tar.gz .
+        
+        # 创建 deb 包
+        cd ..
+        mkdir -p deb-pkg/DEBIAN
+        cd deb-pkg
+        
+        # 创建控制文件
+        cat > DEBIAN/control << EOF
+        Package: pnana
+        Version: ${{ github.ref_name }}
+        Section: editors
+        Priority: optional
+        Architecture: amd64
+        Depends: libftxui-dev, liblua5.4-dev, nlohmann-json3-dev
+        Maintainer: pnana team
+        Description: Modern Terminal Text Editor
+         pnana is a modern terminal text editor built with FTXUI.
+         It provides a friendly user interface, intuitive shortcuts,
+         and powerful editing features.
+        EOF
+        
+        # 创建 postinst 脚本
+        cat > DEBIAN/postinst << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        # 更新 man 数据库
+        if command -v mandb >/dev/null 2>&1; then
+          mandb -q
+        fi
+        EOF
+        
+        chmod +x DEBIAN/postinst
+        
+        # 复制文件到 deb 包结构
+        mkdir -p usr/bin usr/share/pnana usr/share/doc/pnana
+        cp -r ../package/bin/* usr/bin/
+        cp -r ../package/share/pnana/* usr/share/pnana/
+        cp -r ../package/share/doc/pnana/* usr/share/doc/pnana/
+        cp ../README.md ../LICENSE usr/share/doc/pnana/ 2>/dev/null || echo "Root docs not found, skipping"
+        
+        # 构建 deb 包
+        dpkg-deb --build . ../pnana_${{ github.ref_name }}_amd64.deb
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: |
+          ${{ matrix.artifact_name }}.tar.gz
+          pnana_${{ github.ref_name }}_amd64.deb
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')  # 只有在推送标签时才创建发布
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+
+    - name: Generate Release Notes
+      id: generate_notes
+      run: |
+        # 获取上一个版本号
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        # 生成发布说明
+        chmod +x ./scripts/generate_release_notes.sh
+        ./scripts/generate_release_notes.sh ${{ github.ref_name }} ${PREV_TAG#v}
+        
+        # 设置输出变量
+        echo "release_notes_file=release_notes_${{ github.ref_name }}.md" >> $GITHUB_OUTPUT
+        echo "prev_tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: Release ${{ github.ref_name }}
+        body_path: ${{ steps.generate_notes.outputs.release_notes_file }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: artifacts/pnana-ubuntu20.04/pnana-ubuntu20.04.tar.gz
+        asset_name: pnana-ubuntu20.04.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload Release Assets (Ubuntu 22.04)
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: artifacts/pnana-ubuntu22.04/pnana-ubuntu22.04.tar.gz
+        asset_name: pnana-ubuntu22.04.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload Release Assets (DEB)
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: artifacts/pnana-ubuntu20.04/pnana_${{ github.ref_name }}_amd64.deb
+        asset_name: pnana_${{ github.ref_name }}_amd64.deb
+        asset_content_type: application/vnd.debian.binary-package

@@ -1,0 +1,123 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-22.04]
+        build_type: [Debug, Release]
+        include:
+          - os: ubuntu-20.04
+            cc: gcc-9
+            cxx: g++-9
+          - os: ubuntu-22.04
+            cc: gcc-11
+            cxx: g++-11
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          pkg-config \
+          libftxui-dev \
+          nlohmann-json3-dev \
+          liblua5.4-dev \
+          libtree-sitter-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          libswscale-dev \
+          libavutil-dev \
+          golang-go
+
+    - name: Setup environment
+      run: |
+        echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
+
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: |
+        cd build
+        make -j$(nproc)
+
+    - name: Test
+      run: |
+        cd build
+        ctest --output-on-failure
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      if: matrix.build_type == 'Release'
+      with:
+        name: pnana-${{ matrix.os }}-${{ matrix.build_type }}
+        path: build/pnana/pnana
+        retention-days: 7
+
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史记录，用于 git blame
+
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format
+
+    - name: Check code formatting
+      run: |
+        # 检查所有 C++ 源文件的格式
+        find src -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror
+        echo "Code formatting check passed!"
+
+    - name: Run static analysis
+      run: |
+        # 安装 cppcheck
+        sudo apt-get install -y cppcheck
+        
+        # 运行静态分析
+        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem src/
+        echo "Static analysis passed!"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

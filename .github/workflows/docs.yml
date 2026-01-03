@@ -1,0 +1,73 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ master ]
+    paths: [ 'docs/**', 'README.md', 'CHANGELOG.md' ]
+  pull_request:
+    branches: [ master ]
+    paths: [ 'docs/**', 'README.md', 'CHANGELOG.md' ]
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+
+    - name: Build documentation
+      run: |
+        # 创建 Doxygen 配置文件（如果不存在）
+        if [ ! -f Doxyfile ]; then
+          cat > Doxyfile << 'EOF'
+          PROJECT_NAME           = "pnana"
+          PROJECT_NUMBER         = "latest"
+          OUTPUT_DIRECTORY       = "docs/build"
+          INPUT                  = "src"
+          RECURSIVE              = YES
+          EXTRACT_ALL            = YES
+          EXTRACT_STATIC         = YES
+          EXTRACT_PRIVATE        = NO
+          EXTRACT_LOCAL_CLASSES  = YES
+          HIDE_UNDOC_MEMBERS     = NO
+          HIDE_UNDOC_CLASSES     = NO
+          GENERATE_HTML          = YES
+          GENERATE_LATEX         = NO
+          HTML_OUTPUT            = "html"
+          HTML_COLORSTYLE_HUE    = 220
+          HTML_COLORSTYLE_SAT    = 100
+          HTML_COLORSTYLE_GAMMA  = 80
+          HTML_TIMESTAMP         = YES
+          HTML_DYNAMIC_SECTIONS  = YES
+          GENERATE_TREEVIEW      = YES
+          TREEVIEW_WIDTH         = 250
+          EOF
+        fi
+        
+        # 创建文档构建目录
+        mkdir -p docs/build
+        
+        # 生成 API 文档
+        doxygen Doxyfile
+        
+        # 复制 README 和其他文档
+        cp README.md CHANGELOG.md docs/build/ 2>/dev/null || echo "Some docs not found, skipping"
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/master'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/build/html
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: docs/build
+        retention-days: 30
