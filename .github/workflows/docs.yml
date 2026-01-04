@@ -2,10 +2,10 @@ name: Documentation
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master , fix/ci-actions ]
     paths: [ 'docs/**', 'README.md', 'CHANGELOG.md' ]
   pull_request:
-    branches: [ master ]
+    branches: [ master , fix/ci-actions ]
     paths: [ 'docs/**', 'README.md', 'CHANGELOG.md' ]
 
 jobs:

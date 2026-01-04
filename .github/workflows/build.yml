@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ master, develop ]
+    branches: [ master, develop,fix/ci-actions ]
   pull_request:
-    branches: [ master, develop ]
+    branches: [ master, develop,fix/ci-actions ]
 
 jobs:
   build:
@@ -27,16 +27,16 @@ jobs:
             cxx: g++-9
           - os: ubuntu-20.04
             compiler: clang
-            cc: clang-10
-            cxx: clang++-10
+            cc: clang-12
+            cxx: clang++-12
           - os: ubuntu-22.04
             compiler: gcc
             cc: gcc-11
             cxx: g++-11
           - os: ubuntu-22.04
             compiler: clang
-            cc: clang-14
-            cxx: clang++-14
+            cc: clang-15
+            cxx: clang++-15
 
     steps:
     - name: Checkout code
@@ -80,8 +80,8 @@ jobs:
           libtinfo-dev \
           git \
           ccache \
-          clang-10 \
-          clang-14
+          clang-12 \
+          clang-15
 
     - name: Build and install FTXUI
       run: |

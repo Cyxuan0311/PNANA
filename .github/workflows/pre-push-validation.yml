@@ -2,9 +2,9 @@ name: Pre-Push Validation
 
 on:
   push:
-    branches: [ master, develop, main ]
+    branches: [ master, develop, fix/ci-actions ]
   pull_request:
-    branches: [ master, develop, main ]
+    branches: [ master, develop, fix/ci-actions ]
 
 jobs:
   validate-build:
