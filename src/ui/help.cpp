@@ -106,6 +106,12 @@ std::vector<HelpEntry> Help::getAllHelp() {
         {"Terminal", "+/-", "Adjust terminal height"},
         {"Terminal", "←→", "Switch between regions"},
 
+        //插件
+        {"Plugin", "Alt+P", "Open plugin manager"},
+        {"Plugin", "↑↓", "Navigate plugins"},
+        {"Plugin", "Enter", "Toggle plugin"},
+        {"Plugin", "Esc", "Close plugin manager"},
+
         // 帮助
         {"Help", "F1", "Show/hide help"},
         {"Help", "↑↓/j/k", "Scroll help"},
