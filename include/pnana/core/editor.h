@@ -415,6 +415,7 @@ class Editor {
     // 辅助方法
     void adjustCursor();
     void adjustViewOffset();
+    void adjustViewOffsetForUndo(size_t target_row, size_t target_col);
     void setStatusMessage(const std::string& message);
     std::string getFileType() const;
     void executeSearch(bool move_cursor = true);
