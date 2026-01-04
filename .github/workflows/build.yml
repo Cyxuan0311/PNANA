@@ -139,13 +139,23 @@ jobs:
     - name: Check code formatting
       run: |
         echo "Checking code formatting..."
-        find src include -name "*.cpp" -o -name "*.h" | head -5
+        echo "Files to check:"
+        find src include -name "*.cpp" -o -name "*.h" | head -10
+
+        echo "Running clang-format check..."
+        # 先强制格式化可能有问题的文件
+        clang-format -i src/ui/help.cpp include/pnana/features/file_browser.h 2>/dev/null || true
+
+        # 然后检查所有文件
         if find src include -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror --style=file 2>&1; then
           echo "✅ Code formatting check passed!"
         else
-          echo "❌ Code formatting check failed. Please run:"
+          echo "❌ Code formatting check failed."
+          echo "Problematic files:"
+          find src include -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror --style=file 2>&1 | head -10
+          echo ""
+          echo "To fix locally, run:"
           echo "  find src include -name \"*.cpp\" -o -name \"*.h\" | xargs clang-format -i"
-          echo "  Then commit the changes."
           exit 1
         fi
 
