@@ -24,29 +24,29 @@ jobs:
       run: |
         # 创建 Doxygen 配置文件（如果不存在）
         if [ ! -f Doxyfile ]; then
-          cat > Doxyfile << 'EOF'
-          PROJECT_NAME           = "pnana"
-          PROJECT_NUMBER         = "latest"
-          OUTPUT_DIRECTORY       = "docs/build"
-          INPUT                  = "src"
-          RECURSIVE              = YES
-          EXTRACT_ALL            = YES
-          EXTRACT_STATIC         = YES
-          EXTRACT_PRIVATE        = NO
-          EXTRACT_LOCAL_CLASSES  = YES
-          HIDE_UNDOC_MEMBERS     = NO
-          HIDE_UNDOC_CLASSES     = NO
-          GENERATE_HTML          = YES
-          GENERATE_LATEX         = NO
-          HTML_OUTPUT            = "html"
-          HTML_COLORSTYLE_HUE    = 220
-          HTML_COLORSTYLE_SAT    = 100
-          HTML_COLORSTYLE_GAMMA  = 80
-          HTML_TIMESTAMP         = YES
-          HTML_DYNAMIC_SECTIONS  = YES
-          GENERATE_TREEVIEW      = YES
-          TREEVIEW_WIDTH         = 250
-          EOF
+          cat > Doxyfile << EOF
+        PROJECT_NAME           = "pnana"
+        PROJECT_NUMBER         = "latest"
+        OUTPUT_DIRECTORY       = "docs/build"
+        INPUT                  = "src"
+        RECURSIVE              = YES
+        EXTRACT_ALL            = YES
+        EXTRACT_STATIC         = YES
+        EXTRACT_PRIVATE        = NO
+        EXTRACT_LOCAL_CLASSES  = YES
+        HIDE_UNDOC_MEMBERS     = NO
+        HIDE_UNDOC_CLASSES     = NO
+        GENERATE_HTML          = YES
+        GENERATE_LATEX         = NO
+        HTML_OUTPUT            = "html"
+        HTML_COLORSTYLE_HUE    = 220
+        HTML_COLORSTYLE_SAT    = 100
+        HTML_COLORSTYLE_GAMMA  = 80
+        HTML_TIMESTAMP         = YES
+        HTML_DYNAMIC_SECTIONS  = YES
+        GENERATE_TREEVIEW      = YES
+        TREEVIEW_WIDTH         = 250
+        EOF
         fi
         
         # 创建文档构建目录
