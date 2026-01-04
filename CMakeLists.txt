@@ -15,27 +15,37 @@ find_package(ftxui REQUIRED)
 # 添加自定义 CMake 模块路径
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# 查找 FFmpeg 库（用于图片预览，可选）
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(LIBAV QUIET
-        libavformat
-        libavcodec
-        libswscale
-        libavutil
-    )
-endif()
+# 图片预览支持（手动启用，使用FFmpeg）
+option(BUILD_IMAGE_PREVIEW "Enable image preview support with FFmpeg" OFF)
 
-if(LIBAV_FOUND)
-    set(BUILD_IMAGE_PREVIEW_SUPPORT ON)
-    message(STATUS "✓ FFmpeg found - image preview enabled")
-    message(STATUS "  Libraries: ${LIBAV_LIBRARIES}")
-    message(STATUS "  Include dirs: ${LIBAV_INCLUDE_DIRS}")
+if(BUILD_IMAGE_PREVIEW)
+    message(STATUS "Image preview support enabled - checking for FFmpeg...")
+
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(LIBAV QUIET
+            libavformat
+            libavcodec
+            libswscale
+            libavutil
+        )
+    endif()
+
+    if(LIBAV_FOUND)
+        set(BUILD_IMAGE_PREVIEW_SUPPORT ON)
+        message(STATUS "✓ FFmpeg found - image preview enabled")
+        message(STATUS "  Libraries: ${LIBAV_LIBRARIES}")
+        message(STATUS "  Include dirs: ${LIBAV_INCLUDE_DIRS}")
+    else()
+        set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
+        message(FATAL_ERROR "✗ FFmpeg not found but BUILD_IMAGE_PREVIEW is enabled")
+        message(STATUS "  Install with: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
+        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_IMAGE_PREVIEW=ON ..")
+    endif()
 else()
     set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
-    message(WARNING "✗ FFmpeg not found, image preview will be disabled")
-    message(STATUS "  Install with: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
-    message(STATUS "  After installation, run: rm -rf build && mkdir build && cd build && cmake ..")
+    message(STATUS "Image preview support disabled (use -DBUILD_IMAGE_PREVIEW=ON to enable)")
+    message(STATUS "  Requires: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
 endif()
 
 # 查找 nlohmann/json (用于 LSP 支持)
