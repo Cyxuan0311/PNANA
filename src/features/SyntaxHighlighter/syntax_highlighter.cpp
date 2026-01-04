@@ -772,6 +772,108 @@ void SyntaxHighlighter::initializeLanguages() {
                             "Service",
                             "EventLog",
                             "RegistryKey"};
+
+    // Meson 构建系统
+    keywords_["meson"] = {"project",
+                          "meson",
+                          "subdir",
+                          "subdir_done",
+                          "executable",
+                          "library",
+                          "shared_library",
+                          "static_library",
+                          "both_libraries",
+                          "dependency",
+                          "find_program",
+                          "find_library",
+                          "find_path",
+                          "pkgconfig",
+                          "cmake",
+                          "python3",
+                          "python",
+                          "compiler",
+                          "subproject",
+                          "get_option",
+                          "option",
+                          "files",
+                          "include_directories",
+                          "declare_dependency",
+                          "summary",
+                          "warning",
+                          "error",
+                          "message",
+                          "assert",
+                          "is_disabler",
+                          "disabler",
+                          "if",
+                          "else",
+                          "elif",
+                          "endif",
+                          "foreach",
+                          "endforeach",
+                          "break",
+                          "continue",
+                          "return",
+                          "and",
+                          "or",
+                          "not",
+                          "true",
+                          "false",
+                          "import",
+                          "run_command",
+                          "run_target",
+                          "custom_target",
+                          "generator",
+                          "configure_file",
+                          "install_data",
+                          "install_headers",
+                          "install_man",
+                          "install_subdir",
+                          "subdir",
+                          "join_paths",
+                          "environment",
+                          "jar",
+                          "build_machine",
+                          "host_machine",
+                          "target_machine"};
+
+    types_["meson"] = {"str", "int", "bool", "list", "dict", "exe", "lib", "dep", "inc", "tgt"};
+
+    // TOML 配置格式
+    keywords_["toml"] = {"true", "false", "null", "nan", "inf", "-inf"};
+
+    // HTML
+    keywords_["html"] = {
+        "html",    "head",     "body",      "div",     "span",     "p",           "a",
+        "img",     "br",       "hr",        "table",   "tr",       "td",          "th",
+        "thead",   "tbody",    "tfoot",     "ul",      "ol",       "li",          "dl",
+        "dt",      "dd",       "h1",        "h2",      "h3",       "h4",          "h5",
+        "h6",      "form",     "input",     "button",  "select",   "option",      "textarea",
+        "label",   "fieldset", "legend",    "script",  "style",    "link",        "meta",
+        "title",   "DOCTYPE",  "xml",       "version", "encoding", "standalone",  "xmlns",
+        "class",   "id",       "name",      "type",    "value",    "href",        "src",
+        "alt",     "title",    "width",     "height",  "border",   "cellpadding", "cellspacing",
+        "colspan", "rowspan",  "align",     "valign",  "bgcolor",  "color",       "face",
+        "size",    "action",   "method",    "enctype", "target",   "rel",         "media",
+        "charset", "content",  "http-equiv"};
+
+    // Nim 编程语言
+    keywords_["nim"] = {
+        "addr",     "and",       "as",      "asm",   "atomic",   "bind",      "block",  "break",
+        "case",     "cast",      "concept", "const", "continue", "converter", "defer",  "discard",
+        "distinct", "div",       "do",      "elif",  "else",     "end",       "enum",   "except",
+        "export",   "finally",   "for",     "from",  "func",     "if",        "import", "in",
+        "include",  "interface", "is",      "isnot", "iterator", "let",       "macro",  "method",
+        "mixin",    "mod",       "nil",     "not",   "notin",    "object",    "of",     "or",
+        "out",      "proc",      "ptr",     "raise", "ref",      "return",    "shl",    "shr",
+        "static",   "template",  "try",     "tuple", "type",     "using",     "var",    "when",
+        "while",    "with",      "without", "xor",   "yield"};
+
+    types_["nim"] = {"int",       "int8",    "int16",    "int32",    "int64",   "uint",    "uint8",
+                     "uint16",    "uint32",  "uint64",   "float",    "float32", "float64", "bool",
+                     "char",      "string",  "cstring",  "pointer",  "byte",    "seq",     "array",
+                     "openarray", "varargs", "set",      "enum",     "object",  "tuple",   "ref",
+                     "ptr",       "proc",    "iterator", "distinct", "void"};
 }
 
 void SyntaxHighlighter::setFileType(const std::string& file_type) {
@@ -890,9 +992,14 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizeHaskell(line);
     } else if (current_file_type_ == "yaml" || current_file_type_ == "yml") {
         return tokenizeYAML(line);
-    } else if (current_file_type_ == "xml" || current_file_type_ == "html" ||
-               current_file_type_ == "htm") {
+    } else if (current_file_type_ == "xml") {
         return tokenizeXML(line);
+    } else if (current_file_type_ == "html" || current_file_type_ == "htm") {
+        return tokenizeHTML(line);
+    } else if (current_file_type_ == "meson") {
+        return tokenizeMeson(line);
+    } else if (current_file_type_ == "toml") {
+        return tokenizeTOML(line);
     } else if (current_file_type_ == "css" || current_file_type_ == "scss" ||
                current_file_type_ == "sass") {
         return tokenizeCSS(line);
@@ -4480,6 +4587,328 @@ std::vector<Token> SyntaxHighlighter::tokenizeK(const std::string& line) {
 }
 std::vector<Token> SyntaxHighlighter::tokenizeQ(const std::string& line) {
     return tokenizeGeneric(line);
+}
+
+std::vector<Token> SyntaxHighlighter::tokenizeMeson(const std::string& line) {
+    std::vector<Token> tokens;
+    size_t i = 0;
+
+    while (i < line.length()) {
+        // 跳过空白
+        if (std::isspace(line[i])) {
+            size_t start = i;
+            while (i < line.length() && std::isspace(line[i]))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            continue;
+        }
+
+        // 注释
+        if (line[i] == '#') {
+            tokens.push_back({line.substr(i), TokenType::COMMENT, i, line.length()});
+            break;
+        }
+
+        // 字符串
+        if (line[i] == '"' || line[i] == '\'') {
+            char quote = line[i];
+            size_t start = i;
+            i++;
+            while (i < line.length() && line[i] != quote) {
+                if (line[i] == '\\' && i + 1 < line.length())
+                    i += 2;
+                else
+                    i++;
+            }
+            if (i < line.length())
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 多行字符串开始
+        if (line.substr(i, 3) == "'''") {
+            size_t start = i;
+            i += 3;
+            while (i < line.length() && line.substr(i, 3) != "'''") {
+                i++;
+            }
+            if (i < line.length())
+                i += 3;
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 数字
+        if (std::isdigit(line[i]) ||
+            (line[i] == '-' && i + 1 < line.length() && std::isdigit(line[i + 1]))) {
+            size_t start = i;
+            if (line[i] == '-')
+                i++;
+            while (i < line.length() && (std::isdigit(line[i]) || line[i] == '.'))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NUMBER, start, i});
+            continue;
+        }
+
+        // 标识符和关键字
+        if (std::isalpha(line[i]) || line[i] == '_') {
+            size_t start = i;
+            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_'))
+                i++;
+            std::string word = line.substr(start, i - start);
+
+            // 检查是否是关键字
+            if (std::find(keywords_["meson"].begin(), keywords_["meson"].end(), word) !=
+                keywords_["meson"].end()) {
+                tokens.push_back({word, TokenType::KEYWORD, start, i});
+            }
+            // 检查是否是类型
+            else if (std::find(types_["meson"].begin(), types_["meson"].end(), word) !=
+                     types_["meson"].end()) {
+                tokens.push_back({word, TokenType::TYPE, start, i});
+            }
+            // 检查是否是布尔值
+            else if (word == "true" || word == "false") {
+                tokens.push_back({word, TokenType::KEYWORD, start, i});
+            } else {
+                tokens.push_back({word, TokenType::NORMAL, start, i});
+            }
+            continue;
+        }
+
+        // 操作符和标点符号
+        if (strchr("()[]{},.:;=+-*/%!&|^~<>?", line[i])) {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 其他字符
+        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        i++;
+    }
+
+    return tokens;
+}
+
+std::vector<Token> SyntaxHighlighter::tokenizeTOML(const std::string& line) {
+    std::vector<Token> tokens;
+    size_t i = 0;
+
+    while (i < line.length()) {
+        // 跳过空白
+        if (std::isspace(line[i])) {
+            size_t start = i;
+            while (i < line.length() && std::isspace(line[i]))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            continue;
+        }
+
+        // 注释
+        if (line[i] == '#') {
+            tokens.push_back({line.substr(i), TokenType::COMMENT, i, line.length()});
+            break;
+        }
+
+        // 字符串
+        if (line[i] == '"' || line[i] == '\'') {
+            char quote = line[i];
+            size_t start = i;
+            i++;
+            while (i < line.length() && line[i] != quote) {
+                if (line[i] == '\\' && i + 1 < line.length())
+                    i += 2;
+                else
+                    i++;
+            }
+            if (i < line.length())
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 多行字符串开始
+        if (line.substr(i, 3) == "\"\"\"") {
+            size_t start = i;
+            i += 3;
+            while (i < line.length() && line.substr(i, 3) != "\"\"\"") {
+                i++;
+            }
+            if (i < line.length())
+                i += 3;
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 数字
+        if (std::isdigit(line[i]) ||
+            (line[i] == '-' && i + 1 < line.length() && std::isdigit(line[i + 1])) ||
+            (line[i] == '+' && i + 1 < line.length() && std::isdigit(line[i + 1]))) {
+            size_t start = i;
+            if (line[i] == '-' || line[i] == '+')
+                i++;
+            while (i < line.length() &&
+                   (std::isdigit(line[i]) || line[i] == '.' || line[i] == 'e' || line[i] == 'E' ||
+                    line[i] == '-' || line[i] == '+'))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NUMBER, start, i});
+            continue;
+        }
+
+        // 数组和内联表
+        if (line[i] == '[' || line[i] == ']' || line[i] == '{') {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 等号
+        if (line[i] == '=') {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 标识符和关键字
+        if (std::isalpha(line[i]) || line[i] == '_') {
+            size_t start = i;
+            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_' || line[i] == '-'))
+                i++;
+            std::string word = line.substr(start, i - start);
+
+            // 检查是否是关键字
+            if (std::find(keywords_["toml"].begin(), keywords_["toml"].end(), word) !=
+                keywords_["toml"].end()) {
+                tokens.push_back({word, TokenType::KEYWORD, start, i});
+            } else {
+                tokens.push_back({word, TokenType::NORMAL, start, i});
+            }
+            continue;
+        }
+
+        // 点号（用于表路径）
+        if (line[i] == '.') {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 其他字符
+        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        i++;
+    }
+
+    return tokens;
+}
+
+std::vector<Token> SyntaxHighlighter::tokenizeHTML(const std::string& line) {
+    std::vector<Token> tokens;
+    size_t i = 0;
+
+    while (i < line.length()) {
+        // 跳过空白
+        if (std::isspace(line[i])) {
+            size_t start = i;
+            while (i < line.length() && std::isspace(line[i]))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            continue;
+        }
+
+        // HTML 注释
+        if (line.substr(i, 4) == "<!--") {
+            size_t start = i;
+            i += 4;
+            while (i < line.length() && line.substr(i, 3) != "-->") {
+                i++;
+            }
+            if (i < line.length())
+                i += 3;
+            tokens.push_back({line.substr(start, i - start), TokenType::COMMENT, start, i});
+            continue;
+        }
+
+        // HTML 标签开始
+        if (line[i] == '<') {
+            if (i + 1 < line.length()) {
+                if (line[i + 1] == '/') { // 结束标签
+                    size_t start = i;
+                    i += 2; // 跳过 </
+                    while (i < line.length() && line[i] != '>' && !std::isspace(line[i]))
+                        i++;
+                    if (i < line.length() && line[i] == '>') {
+                        i++;
+                        tokens.push_back(
+                            {line.substr(start, i - start), TokenType::KEYWORD, start, i});
+                        continue;
+                    }
+                } else if (std::isalpha(line[i + 1])) { // 开始标签
+                    size_t start = i;
+                    i++; // 跳过 <
+                    while (i < line.length() && line[i] != '>' && !std::isspace(line[i]))
+                        i++;
+                    if (i < line.length()) {
+                        std::string tag_content = line.substr(start + 1, i - start - 1);
+                        if (std::find(keywords_["html"].begin(), keywords_["html"].end(),
+                                      tag_content) != keywords_["html"].end()) {
+                            tokens.push_back({line.substr(start, i - start + 1), TokenType::KEYWORD,
+                                              start, i + 1});
+                        } else {
+                            tokens.push_back(
+                                {line.substr(start, i - start + 1), TokenType::TYPE, start, i + 1});
+                        }
+                        if (line[i] == '>')
+                            i++;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // 结束标签 >
+        if (line[i] == '>') {
+            tokens.push_back({std::string(1, line[i]), TokenType::KEYWORD, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 属性值（引号中的字符串）
+        if (line[i] == '"' || line[i] == '\'') {
+            char quote = line[i];
+            size_t start = i;
+            i++;
+            while (i < line.length() && line[i] != quote) {
+                if (line[i] == '\\' && i + 1 < line.length())
+                    i += 2;
+                else
+                    i++;
+            }
+            if (i < line.length())
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 实体引用
+        if (line[i] == '&') {
+            size_t start = i;
+            i++;
+            while (i < line.length() && line[i] != ';' && std::isalnum(line[i]))
+                i++;
+            if (i < line.length() && line[i] == ';')
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::TYPE, start, i});
+            continue;
+        }
+
+        // 其他字符
+        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        i++;
+    }
+
+    return tokens;
 }
 
 } // namespace features

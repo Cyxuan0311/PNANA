@@ -152,6 +152,21 @@ TSLanguage* tree_sitter_vim();
 #ifdef BUILD_TREE_SITTER_POWERSHELL
 TSLanguage* tree_sitter_powershell();
 #endif
+
+// Meson
+#ifdef BUILD_TREE_SITTER_MESON
+TSLanguage* tree_sitter_meson();
+#endif
+
+// TOML
+#ifdef BUILD_TREE_SITTER_TOML
+TSLanguage* tree_sitter_toml();
+#endif
+
+// Nim
+#ifdef BUILD_TREE_SITTER_NIM
+TSLanguage* tree_sitter_nim();
+#endif
 }
 
 using namespace ftxui;
@@ -505,6 +520,37 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["powershell"] = powershell_lang;
         language_map_["psm1"] = powershell_lang;
         language_map_["psd1"] = powershell_lang;
+    }
+#endif
+
+// Meson
+#ifdef BUILD_TREE_SITTER_MESON
+    TSLanguage* meson_lang = tree_sitter_meson();
+    if (meson_lang) {
+        language_map_["meson"] = meson_lang;
+        language_map_["meson.build"] = meson_lang;
+        language_map_["meson_options.txt"] = meson_lang;
+    }
+#endif
+
+// TOML
+#ifdef BUILD_TREE_SITTER_TOML
+    TSLanguage* toml_lang = tree_sitter_toml();
+    if (toml_lang) {
+        language_map_["toml"] = toml_lang;
+        language_map_["Cargo.lock"] = toml_lang;   // Rust Cargo.lock files
+        language_map_["Pipfile.lock"] = toml_lang; // Python Pipfile.lock
+        language_map_["poetry.lock"] = toml_lang;  // Python Poetry lock files
+    }
+#endif
+
+// Nim
+#ifdef BUILD_TREE_SITTER_NIM
+    TSLanguage* nim_lang = tree_sitter_nim();
+    if (nim_lang) {
+        language_map_["nim"] = nim_lang;
+        language_map_["nims"] = nim_lang;   // Nim script files
+        language_map_["nimble"] = nim_lang; // Nimble package files
     }
 #endif
 }
