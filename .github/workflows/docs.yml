@@ -8,6 +8,11 @@ on:
     branches: [ master, fix/ci-actions ]
     paths: [ 'docs/**', 'README.md', 'CHANGELOG.md' ]
 
+permissions:
+  contents: write      # 允许写入仓库内容（用于推送到 gh-pages 分支）
+  pages: write         # 允许写入 GitHub Pages
+  id-token: write      # 允许写入 ID 令牌
+
 jobs:
   build-docs:
     runs-on: ubuntu-latest

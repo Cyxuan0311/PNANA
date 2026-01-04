@@ -124,7 +124,8 @@ jobs:
 
       - name: Install FTXUI
         run: |
-          sudo cp -r ftxui-download/usr/local/* /usr/local/
+          sudo cp -r ftxui-download/usr/local/* /usr/local/ 2>/dev/null || true
+          ls -la /usr/local/lib/cmake/ftxui/ 2>/dev/null || echo "FTXUI cmake files not found"
           rm -rf ftxui-download
 
       - name: Setup environment
@@ -149,6 +150,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_PREFIX_PATH=/usr/local \
             -DBUILD_TESTING=ON
 
       - name: Build
