@@ -18,8 +18,16 @@ class FileBrowserView {
     // 渲染文件浏览器
     ftxui::Element render(const features::FileBrowser& browser, int height);
 
+    // 滚动控制
+    void scrollTo(size_t index);
+    void scrollUp(size_t lines = 1);
+    void scrollDown(size_t lines = 1);
+    void scrollToTop();
+    void scrollToBottom();
+
   private:
     Theme& theme_;
+    size_t scroll_offset_; // 当前滚动偏移量（显示的第一个项目的索引）
 
     // UI 辅助方法
     std::string getFileIcon(const features::FileItem& item) const;

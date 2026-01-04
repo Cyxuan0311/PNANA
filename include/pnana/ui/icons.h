@@ -363,6 +363,7 @@ constexpr const char* PACKAGE_JSON = "\ue60e"; // nf-dev-npm (npm/package.json)
 constexpr const char* PACKAGE_LOCK = "\ue60e"; // nf-dev-npm (package-lock.json)
 constexpr const char* YARN = "\uf1e6";         // nf-fa-yarn (yarn.lock)
 constexpr const char* CARGO = "\ue7a8";        // nf-dev-rust (Cargo.toml)
+constexpr const char* CARGO_LOCK = "\ue7a8";   // nf-dev-rust (Cargo.lock)
 constexpr const char* PIP = "\ue63c";          // nf-dev-python (requirements.txt)
 constexpr const char* MAVEN = "\ue256";        // nf-dev-java (pom.xml)
 constexpr const char* GRADLE = "\ue256";       // nf-dev-java (build.gradle)
@@ -370,6 +371,7 @@ constexpr const char* GEMFILE = "\ue739";      // nf-dev-ruby (Gemfile)
 constexpr const char* COMPOSER = "\ue73d";     // nf-dev-php (composer.json)
 constexpr const char* GO_MOD = "\ue627";       // nf-dev-go (go.mod)
 constexpr const char* GO_SUM = "\ue627";       // nf-dev-go (go.sum)
+constexpr const char* TOML = "\ue60b";         // nf-dev-json (TOML文件)
 
 // 环境配置文件
 constexpr const char* ENV = "\uf462";          // nf-mdi-key (环境变量文件)
@@ -429,6 +431,7 @@ constexpr const char* FONT = "\uf031"; // nf-fa-font (字体文件)
 
 // 其他特殊文件
 constexpr const char* DOCKER_COMPOSE = "\ue7b0"; // nf-dev-docker (docker-compose.yml)
+constexpr const char* MESON = "\uf489";          // nf-mdi-console (Meson构建文件)
 constexpr const char* KUBERNETES = "\ufd31";     // nf-mdi-kubernetes (Kubernetes)
 constexpr const char* TERRAFORM = "\uf1c0";      // nf-fa-cube (Terraform)
 constexpr const char* ANSIBLE = "\uf013";        // nf-fa-cog (Ansible)
@@ -442,6 +445,409 @@ constexpr const char* BOOK = "\uf02d";   // nf-fa-book (文档)
 
 // 终端
 constexpr const char* TERMINAL = "\uf120"; // nf-fa-terminal (终端)
+
+// 文件类型图标映射函数
+inline std::string getFileTypeIcon(const std::string& file_type) {
+    // 编程语言文件
+    if (file_type == "cpp" || file_type == "cc" || file_type == "cxx" || file_type == "h" ||
+        file_type == "hpp" || file_type == "hxx" || file_type == "hh") {
+        return std::string(CPP);
+    }
+    if (file_type == "c") {
+        return std::string(C);
+    }
+    if (file_type == "python" || file_type == "py") {
+        return std::string(PYTHON);
+    }
+    if (file_type == "javascript" || file_type == "js") {
+        return std::string(JAVASCRIPT);
+    }
+    if (file_type == "typescript" || file_type == "ts") {
+        return std::string(TYPESCRIPT);
+    }
+    if (file_type == "java") {
+        return std::string(JAVA);
+    }
+    if (file_type == "go") {
+        return std::string(GO);
+    }
+    if (file_type == "rust" || file_type == "rs") {
+        return std::string(RUST);
+    }
+    if (file_type == "ruby" || file_type == "rb") {
+        return std::string(RUBY);
+    }
+    if (file_type == "php") {
+        return std::string(PHP);
+    }
+    if (file_type == "lua") {
+        return std::string(LUA);
+    }
+    if (file_type == "html") {
+        return std::string(HTML);
+    }
+    if (file_type == "css") {
+        return std::string(CSS);
+    }
+    if (file_type == "json") {
+        return std::string(JSON);
+    }
+    if (file_type == "xml") {
+        return std::string(XML);
+    }
+    if (file_type == "markdown" || file_type == "md") {
+        return std::string(MARKDOWN);
+    }
+    if (file_type == "yaml" || file_type == "yml") {
+        return std::string(YAML);
+    }
+    if (file_type == "sql") {
+        return std::string(SQL);
+    }
+    if (file_type == "shell" || file_type == "sh") {
+        return std::string(SHELL);
+    }
+    if (file_type == "dockerfile") {
+        return std::string(DOCKER);
+    }
+    if (file_type == "makefile") {
+        return std::string(MAKEFILE);
+    }
+    if (file_type == "cmake") {
+        return std::string(CMAKE);
+    }
+    if (file_type == "toml") {
+        return std::string(TOML);
+    }
+    if (file_type == "meson") {
+        return std::string(MESON);
+    }
+
+    // 更多编程语言
+    if (file_type == "swift") {
+        return std::string(SWIFT);
+    }
+    if (file_type == "kotlin") {
+        return std::string(KOTLIN);
+    }
+    if (file_type == "scala") {
+        return std::string(SCALA);
+    }
+    if (file_type == "r") {
+        return std::string(R);
+    }
+    if (file_type == "perl") {
+        return std::string(PERL);
+    }
+    if (file_type == "haskell") {
+        return std::string(HASKELL);
+    }
+    if (file_type == "elixir") {
+        return std::string(ELIXIR);
+    }
+    if (file_type == "clojure") {
+        return std::string(CLOJURE);
+    }
+    if (file_type == "erlang") {
+        return std::string(ERLANG);
+    }
+    if (file_type == "julia") {
+        return std::string(JULIA);
+    }
+    if (file_type == "dart") {
+        return std::string(DART);
+    }
+    if (file_type == "nim") {
+        return std::string(NIM);
+    }
+    if (file_type == "crystal") {
+        return std::string(CRYSTAL);
+    }
+    if (file_type == "zig") {
+        return std::string(ZIG);
+    }
+    if (file_type == "ocaml") {
+        return std::string(OCAML);
+    }
+    if (file_type == "coq") {
+        return std::string(COQ);
+    }
+    if (file_type == "agda") {
+        return std::string(AGDA);
+    }
+    if (file_type == "idris") {
+        return std::string(IDRIS);
+    }
+    if (file_type == "purescript") {
+        return std::string(PURESCRIPT);
+    }
+    if (file_type == "reason") {
+        return std::string(REASON);
+    }
+    if (file_type == "sml") {
+        return std::string(SML);
+    }
+    if (file_type == "groovy") {
+        return std::string(GROOVY);
+    }
+    if (file_type == "coffeescript") {
+        return std::string(COFFEESCRIPT);
+    }
+    if (file_type == "pug") {
+        return std::string(PUG);
+    }
+    if (file_type == "stylus") {
+        return std::string(STYLUS);
+    }
+    if (file_type == "sass") {
+        return std::string(SASS);
+    }
+    if (file_type == "less") {
+        return std::string(LESS);
+    }
+    if (file_type == "postcss") {
+        return std::string(POSTCSS);
+    }
+    if (file_type == "graphql") {
+        return std::string(GRAPHQL);
+    }
+    if (file_type == "vue") {
+        return std::string(VUE);
+    }
+    if (file_type == "svelte") {
+        return std::string(SVELTE);
+    }
+    if (file_type == "csharp" || file_type == "cs") {
+        return std::string(CSHARP);
+    }
+    if (file_type == "fsharp" || file_type == "fs") {
+        return std::string(F_SHARP);
+    }
+    if (file_type == "vb") {
+        return std::string(VB);
+    }
+    if (file_type == "assembly") {
+        return std::string(ASSEMBLY);
+    }
+    if (file_type == "webassembly") {
+        return std::string(WEBASSEMBLY);
+    }
+    if (file_type == "verilog") {
+        return std::string(VERILOG);
+    }
+    if (file_type == "vhdl") {
+        return std::string(VHDL);
+    }
+    if (file_type == "matlab") {
+        return std::string(MATLAB);
+    }
+    if (file_type == "octave") {
+        return std::string(OCTAVE);
+    }
+    if (file_type == "racket") {
+        return std::string(RACKET);
+    }
+    if (file_type == "scheme") {
+        return std::string(SCHEME);
+    }
+    if (file_type == "commonlisp") {
+        return std::string(COMMON_LISP);
+    }
+    if (file_type == "emacslisp") {
+        return std::string(EMACS_LISP);
+    }
+    if (file_type == "prolog") {
+        return std::string(PROLOG);
+    }
+    if (file_type == "mercury") {
+        return std::string(MERCURY);
+    }
+    if (file_type == "alloy") {
+        return std::string(ALLOY);
+    }
+    if (file_type == "dafny") {
+        return std::string(DAFNY);
+    }
+    if (file_type == "lean") {
+        return std::string(LEAN);
+    }
+    if (file_type == "ballerina") {
+        return std::string(BALLERINA);
+    }
+    if (file_type == "cadence") {
+        return std::string(CADENCE);
+    }
+    if (file_type == "clarity") {
+        return std::string(CLARITY);
+    }
+    if (file_type == "solidity") {
+        return std::string(SOLIDITY);
+    }
+    if (file_type == "vyper") {
+        return std::string(VYPER);
+    }
+    if (file_type == "carbon") {
+        return std::string(CARBON);
+    }
+    if (file_type == "vala") {
+        return std::string(VALA);
+    }
+    if (file_type == "genie") {
+        return std::string(GENIE);
+    }
+    if (file_type == "dlang") {
+        return std::string(D);
+    }
+    if (file_type == "pony") {
+        return std::string(PONY);
+    }
+    if (file_type == "vlang") {
+        return std::string(V_LANG);
+    }
+    if (file_type == "odin") {
+        return std::string(ODIN);
+    }
+    if (file_type == "jai") {
+        return std::string(JAI);
+    }
+    if (file_type == "nelua") {
+        return std::string(NELUA);
+    }
+    if (file_type == "wren") {
+        return std::string(WREN);
+    }
+    if (file_type == "moonscript") {
+        return std::string(MOONSCRIPT);
+    }
+    if (file_type == "fantom") {
+        return std::string(FANTOM);
+    }
+    if (file_type == "smalltalk") {
+        return std::string(SMALLTALK);
+    }
+    if (file_type == "apl") {
+        return std::string(APL);
+    }
+    if (file_type == "jlang") {
+        return std::string(J);
+    }
+    if (file_type == "klang") {
+        return std::string(K);
+    }
+    if (file_type == "qlang") {
+        return std::string(Q);
+    }
+
+    // 配置文件和构建文件
+    if (file_type == "package.json") {
+        return std::string(PACKAGE_JSON);
+    }
+    if (file_type == "cargo.toml") {
+        return std::string(CARGO);
+    }
+    if (file_type == "cargo.lock") {
+        return std::string(CARGO_LOCK);
+    }
+    if (file_type == "gemfile") {
+        return std::string(GEMFILE);
+    }
+    if (file_type == "composer.json") {
+        return std::string(COMPOSER);
+    }
+    if (file_type == "go.mod") {
+        return std::string(GO_MOD);
+    }
+    if (file_type == "go.sum") {
+        return std::string(GO_SUM);
+    }
+    if (file_type == "requirements.txt") {
+        return std::string(PIP);
+    }
+    if (file_type == "pyproject.toml") {
+        return std::string(TOML);
+    }
+    if (file_type == "meson.build") {
+        return std::string(MESON);
+    }
+    if (file_type == "docker-compose.yml") {
+        return std::string(DOCKER_COMPOSE);
+    }
+    if (file_type == "dockerfile") {
+        return std::string(DOCKER);
+    }
+
+    // 文档文件
+    if (file_type == "readme") {
+        return std::string(README);
+    }
+    if (file_type == "license") {
+        return std::string(LICENSE);
+    }
+    if (file_type == "changelog") {
+        return std::string(CHANGELOG);
+    }
+
+    // 数据文件
+    if (file_type == "csv") {
+        return std::string(CSV);
+    }
+    if (file_type == "tsv") {
+        return std::string(TSV);
+    }
+    if (file_type == "excel") {
+        return std::string(EXCEL);
+    }
+
+    // 图片文件
+    if (file_type == "image") {
+        return std::string(IMAGE);
+    }
+    if (file_type == "jpg" || file_type == "jpeg" || file_type == "png" || file_type == "gif" ||
+        file_type == "bmp" || file_type == "webp") {
+        return std::string(IMAGE);
+    }
+
+    // 视频文件
+    if (file_type == "mp4" || file_type == "avi" || file_type == "mkv" || file_type == "mov" ||
+        file_type == "wmv") {
+        return std::string(VIDEO);
+    }
+
+    // 音频文件
+    if (file_type == "mp3" || file_type == "wav" || file_type == "flac" || file_type == "aac" ||
+        file_type == "ogg") {
+        return std::string(AUDIO);
+    }
+
+    // 压缩文件
+    if (file_type == "zip" || file_type == "tar" || file_type == "gz" || file_type == "rar" ||
+        file_type == "7z") {
+        return std::string(ARCHIVE);
+    }
+
+    // 数据库文件
+    if (file_type == "db" || file_type == "sqlite" || file_type == "sql") {
+        return std::string(DATABASE);
+    }
+
+    // 可执行文件
+    if (file_type == "exe" || file_type == "bin" || file_type == "out") {
+        return std::string(EXECUTABLE);
+    }
+
+    // 配置文件
+    if (file_type == "config" || file_type == "conf" || file_type == "ini") {
+        return std::string(CONFIG);
+    }
+
+    // 日志文件
+    if (file_type == "log") {
+        return std::string(LOG);
+    }
+
+    // 默认文件图标
+    return std::string(FILE);
+}
 
 } // namespace icons
 } // namespace ui
