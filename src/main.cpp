@@ -63,8 +63,7 @@ void printVersion() {
 
     std::cout << std::endl;
     std::cout << GREEN << BOLD << "  Modern Terminal Text Editor" << RESET << std::endl;
-    std::cout << RED << BOLD << "  Version: "
-              << " 0.0.4 " << std::endl;
+    std::cout << RED << BOLD << "  Version: " << RESET << " 0.0.4 " << std::endl;
     std::cout << YELLOW << "  Built with FTXUI and C++17" << RESET << std::endl;
     std::cout << MAGENTA << "  Latest development build" << RESET << std::endl;
 
