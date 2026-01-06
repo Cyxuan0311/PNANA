@@ -1,0 +1,269 @@
+#!/bin/bash
+# PNANA 完整安装脚本
+# 安装可执行文件、配置文件和插件到正确的位置
+#
+# 此脚本由CMake在构建时自动生成
+
+set -e  # 遇到错误立即退出
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 显示帮助信息
+show_help() {
+    echo "PNANA Installation Script"
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message"
+    echo "  -p, --prefix DIR    Installation prefix (default: auto-detect)"
+    echo "  --no-plugins        Skip plugin installation"
+    echo "  --no-config         Skip configuration file installation"
+    echo "  --dry-run           Show what would be installed without doing it"
+    echo ""
+    echo "This script installs PNANA to the system:"
+    echo "  - Binary: /usr/local/bin/pnana"
+    echo "  - Config: ~/.config/pnana/config.json"
+    echo "  - Plugins: ~/.config/pnana/plugins/"
+    echo ""
+    echo "Run with sudo if installing system-wide."
+}
+
+# 解析命令行参数
+SKIP_PLUGINS=false
+SKIP_CONFIG=false
+DRY_RUN=false
+PREFIX=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -p|--prefix)
+            PREFIX="$2"
+            shift 2
+            ;;
+        --no-plugins)
+            SKIP_PLUGINS=true
+            shift
+            ;;
+        --no-config)
+            SKIP_CONFIG=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# 检查是否在构建目录中
+if [ ! -f "pnana" ]; then
+    log_error "Please run this script from the build directory where 'pnana' executable is located."
+    log_info "Example: cd build && sudo ./install.sh"
+    exit 1
+fi
+
+log_info "Starting PNANA installation..."
+
+# 检测实际用户（如果通过 sudo 运行，使用 SUDO_USER）
+ACTUAL_USER="${SUDO_USER:-$USER}"
+if [ "$ACTUAL_USER" = "root" ] && [ -n "$SUDO_USER" ]; then
+    ACTUAL_USER="$SUDO_USER"
+fi
+
+# 获取实际用户的主目录
+if [ "$ACTUAL_USER" = "root" ]; then
+    # 如果是 root，尝试从环境变量获取
+    if [ -n "$SUDO_USER" ]; then
+        ACTUAL_USER="$SUDO_USER"
+        HOME=$(eval echo ~$ACTUAL_USER)
+    else
+        # 如果没有 SUDO_USER，使用当前登录用户
+        ACTUAL_USER=$(logname 2>/dev/null || echo "$USER")
+        HOME=$(eval echo ~$ACTUAL_USER)
+    fi
+else
+    HOME=$(eval echo ~$ACTUAL_USER)
+fi
+
+# 如果仍然无法确定，尝试从 /etc/passwd 获取
+if [ ! -d "$HOME" ] || [ "$HOME" = "/root" ]; then
+    # 尝试获取第一个非 root 用户的主目录
+    for user in $(getent passwd | awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' | head -1); do
+        if [ -n "$user" ]; then
+            ACTUAL_USER="$user"
+            HOME=$(eval echo ~$ACTUAL_USER)
+            if [ -d "$HOME" ]; then
+                break
+            fi
+        fi
+    done
+fi
+
+log_info "Detected user: $ACTUAL_USER"
+log_info "Home directory: $HOME"
+
+# 定义安装目录
+CONFIG_DIR="$HOME/.config/pnana"
+PLUGIN_DIR="$CONFIG_DIR/plugins"
+BINARY_PATH="/usr/local/bin/pnana"
+
+# 检查是否以 root 权限运行
+if [ "$EUID" -ne 0 ]; then
+    log_error "This script must be run with sudo privileges for system installation"
+    log_info "Usage: sudo ./install.sh"
+    exit 1
+fi
+
+# 1. 安装可执行文件
+log_info "Installing executable to $BINARY_PATH..."
+if [ "$DRY_RUN" = false ]; then
+    cp pnana "$BINARY_PATH"
+    chmod 755 "$BINARY_PATH"
+fi
+log_success "Executable installed successfully"
+
+# 2. 创建用户配置目录
+log_info "Creating user configuration directory: $CONFIG_DIR"
+if [ "$DRY_RUN" = false ]; then
+    if [ -n "$SUDO_USER" ] && [ "$USER" = "root" ]; then
+        # 如果通过 sudo 运行，使用实际用户创建目录
+        sudo -u "$ACTUAL_USER" mkdir -p "$CONFIG_DIR" 2>/dev/null || mkdir -p "$CONFIG_DIR"
+        if [ "$SKIP_PLUGINS" = false ]; then
+            sudo -u "$ACTUAL_USER" mkdir -p "$PLUGIN_DIR" 2>/dev/null || mkdir -p "$PLUGIN_DIR"
+        fi
+        # 设置正确的所有者
+        chown -R "$ACTUAL_USER:$ACTUAL_USER" "$CONFIG_DIR" 2>/dev/null || true
+    else
+        mkdir -p "$CONFIG_DIR"
+        if [ "$SKIP_PLUGINS" = false ]; then
+            mkdir -p "$PLUGIN_DIR"
+        fi
+    fi
+fi
+
+# 3. 安装默认配置文件
+if [ "$SKIP_CONFIG" = false ]; then
+    log_info "Installing default configuration..."
+    if [ -f "default_config.json" ]; then
+        if [ "$DRY_RUN" = false ]; then
+            if [ -n "$SUDO_USER" ] && [ "$USER" = "root" ]; then
+                sudo -u "$ACTUAL_USER" cp default_config.json "$CONFIG_DIR/config.json"
+            else
+                cp default_config.json "$CONFIG_DIR/config.json"
+            fi
+        fi
+        log_success "Configuration file installed to $CONFIG_DIR/config.json"
+    else
+        log_warning "Default configuration file not found, skipping..."
+    fi
+fi
+
+# 4. 安装插件文件
+if [ "$SKIP_PLUGINS" = false ]; then
+    log_info "Installing plugins..."
+    if [ -d "plugins" ] && [ "$(ls -A plugins 2>/dev/null)" ]; then
+        if [ "$DRY_RUN" = false ]; then
+            if [ -n "$SUDO_USER" ] && [ "$USER" = "root" ]; then
+                sudo -u "$ACTUAL_USER" cp -r plugins/* "$PLUGIN_DIR/" 2>/dev/null || true
+            else
+                cp -r plugins/* "$PLUGIN_DIR/" 2>/dev/null || true
+            fi
+        fi
+        log_success "Plugins installed to $PLUGIN_DIR"
+    else
+        log_warning "No plugins directory found or it's empty"
+    fi
+fi
+
+# 5. 验证安装
+log_info "Verifying installation..."
+
+# 检查可执行文件
+if [ -x "$BINARY_PATH" ]; then
+    log_success "✓ Executable: $BINARY_PATH"
+elif [ "$DRY_RUN" = true ]; then
+    log_info "- Executable would be installed to: $BINARY_PATH"
+else
+    log_error "✗ Executable not found or not executable: $BINARY_PATH"
+fi
+
+# 检查配置文件
+if [ "$SKIP_CONFIG" = false ]; then
+    if [ -f "$CONFIG_DIR/config.json" ] || [ "$DRY_RUN" = true ]; then
+        if [ "$DRY_RUN" = true ]; then
+            log_info "- Configuration would be installed to: $CONFIG_DIR/config.json"
+        else
+            log_success "✓ Configuration: $CONFIG_DIR/config.json"
+        fi
+    else
+        log_warning "⚠ Configuration file not found: $CONFIG_DIR/config.json"
+    fi
+elif [ "$SKIP_CONFIG" = true ]; then
+    log_info "- Configuration installation skipped"
+fi
+
+# 检查插件目录
+if [ "$SKIP_PLUGINS" = false ]; then
+    if [ -d "$PLUGIN_DIR" ] || [ "$DRY_RUN" = true ]; then
+        if [ "$DRY_RUN" = true ]; then
+            log_info "- Plugins would be installed to: $PLUGIN_DIR"
+        else
+            plugin_count=$(find "$PLUGIN_DIR" -type f 2>/dev/null | wc -l)
+            log_success "✓ Plugins directory: $PLUGIN_DIR ($plugin_count files)"
+        fi
+    else
+        log_warning "⚠ Plugins directory not found: $PLUGIN_DIR"
+    fi
+elif [ "$SKIP_PLUGINS" = true ]; then
+    log_info "- Plugin installation skipped"
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    log_info ""
+    log_info "This was a dry run. No files were actually installed."
+    log_info "Run without --dry-run to perform the actual installation."
+else
+    log_success "PNANA installation completed!"
+    echo ""
+    log_info "To start PNANA, run: pnana"
+    if [ "$SKIP_CONFIG" = false ]; then
+        log_info "Configuration file: $CONFIG_DIR/config.json"
+    fi
+    if [ "$SKIP_PLUGINS" = false ]; then
+        log_info "Plugins directory: $PLUGIN_DIR"
+    fi
+    echo ""
+    log_info "You can now run 'pnana' from anywhere in the terminal."
+fi
+
+exit 0
