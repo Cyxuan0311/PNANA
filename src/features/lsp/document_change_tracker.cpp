@@ -15,6 +15,13 @@ TextDocumentContentChangeEvent::TextDocumentContentChangeEvent(const LspRange& r
     : range(r), rangeLength(len), text(new_text) {}
 
 DocumentChangeTracker::DocumentChangeTracker() {}
+DocumentChangeTracker::~DocumentChangeTracker() {
+    // stop debounce thread if running
+    debounce_running_.store(false);
+    debounce_cv_.notify_all();
+    if (debounce_thread_.joinable())
+        debounce_thread_.join();
+}
 
 void DocumentChangeTracker::recordChange(int line, int col, const std::string& old_text,
                                          const std::string& new_text) {
@@ -111,6 +118,41 @@ void DocumentChangeTracker::mergeChanges() {
     }
 
     changes_ = merged;
+}
+
+void DocumentChangeTracker::scheduleDelayedSync(std::chrono::milliseconds delay,
+                                                std::function<void()> on_flush) {
+    {
+        std::lock_guard<std::mutex> lock(debounce_mutex_);
+        debounce_delay_ = delay;
+        debounce_callback_ = std::move(on_flush);
+        if (!debounce_running_.load()) {
+            debounce_running_.store(true);
+            debounce_thread_ = std::thread([this]() {
+                std::unique_lock<std::mutex> lock(this->debounce_mutex_);
+                while (this->debounce_running_.load()) {
+                    if (this->debounce_cv_.wait_for(lock, this->debounce_delay_) ==
+                        std::cv_status::timeout) {
+                        // timeout => invoke callback outside lock
+                        auto cb = this->debounce_callback_;
+                        lock.unlock();
+                        try {
+                            if (cb)
+                                cb();
+                        } catch (...) {
+                            // swallow
+                        }
+                        lock.lock();
+                    } else {
+                        // notified (possibly stop or reschedule), loop
+                    }
+                }
+            });
+        } else {
+            // already running, just notify to reset timer
+            debounce_cv_.notify_all();
+        }
+    }
 }
 
 } // namespace features

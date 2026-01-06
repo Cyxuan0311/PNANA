@@ -3,6 +3,7 @@
 
 #include "features/lsp/lsp_client.h"
 #include <chrono>
+#include <list>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -68,9 +69,12 @@ class LspCompletionCache {
 
   private:
     std::map<CacheKey, CacheValue> cache_;
+    // LRU list (most-recent at front)
+    std::list<CacheKey> lru_list_;
+    std::map<CacheKey, std::list<CacheKey>::iterator> lru_index_;
     mutable std::mutex cache_mutex_;
 
-    static constexpr size_t MAX_CACHE_SIZE = 100;
+    static constexpr size_t MAX_CACHE_SIZE = 500; // larger default
     static constexpr auto CACHE_TTL = std::chrono::minutes(5);
 
     // 清理过期缓存
@@ -78,6 +82,9 @@ class LspCompletionCache {
 
     // 清理最旧的缓存项（当缓存满时）
     void evictOldest();
+
+    // 更新 LRU（move key to front）
+    void touchLRU(const CacheKey& key);
 };
 
 } // namespace features

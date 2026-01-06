@@ -85,7 +85,7 @@ class LspClient {
                                          bool include_declaration = false);
 
     // 代码格式化
-    std::string formatDocument(const std::string& uri);
+    std::string formatDocument(const std::string& uri, const std::string& original_content);
 
     // 重命名符号
     std::map<std::string, std::vector<LspRange>> rename(const std::string& uri,
@@ -106,6 +106,9 @@ class LspClient {
     }
 
   private:
+    // 辅助函数
+    std::string applyTextEdits(const std::string& original_content, const jsonrpccxx::json& edits);
+    size_t positionToOffset(const std::string& content, const LspPosition& position);
     std::unique_ptr<LspStdioConnector> connector_;
     std::unique_ptr<jsonrpccxx::JsonRpcClient> rpc_client_;
 

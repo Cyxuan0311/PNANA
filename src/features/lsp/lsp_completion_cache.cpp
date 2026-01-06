@@ -20,10 +20,16 @@ std::optional<std::vector<CompletionItem>> LspCompletionCache::get(const CacheKe
     auto now = std::chrono::steady_clock::now();
     auto age = std::chrono::duration_cast<std::chrono::minutes>(now - it->second.timestamp);
     if (age > CACHE_TTL) {
+        // erase from cache and LRU structures
+        if (lru_index_.count(key)) {
+            lru_list_.erase(lru_index_[key]);
+            lru_index_.erase(key);
+        }
         cache_.erase(it);
         return std::nullopt;
     }
-
+    // Update LRU
+    touchLRU(key);
     return it->second.items;
 }
 
@@ -31,17 +37,27 @@ void LspCompletionCache::set(const CacheKey& key, const std::vector<CompletionIt
                              bool is_complete) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
 
-    // 如果缓存已满，清理最旧的项
-    if (cache_.size() >= MAX_CACHE_SIZE) {
-        evictOldest();
-    }
-
+    // 如果已存在，更新并移动到 LRU front
     CacheValue value;
     value.items = items;
     value.is_complete = is_complete;
     value.timestamp = std::chrono::steady_clock::now();
 
+    if (cache_.count(key)) {
+        cache_[key] = value;
+        touchLRU(key);
+        return;
+    }
+
+    // 如果缓存已满，清理最旧的项
+    if (cache_.size() >= MAX_CACHE_SIZE) {
+        evictOldest();
+    }
+
+    // 插入新项，并加入 LRU
     cache_[key] = value;
+    lru_list_.push_front(key);
+    lru_index_[key] = lru_list_.begin();
 }
 
 void LspCompletionCache::invalidate(const std::string& uri) {
@@ -51,6 +67,11 @@ void LspCompletionCache::invalidate(const std::string& uri) {
     auto it = cache_.begin();
     while (it != cache_.end()) {
         if (it->first.uri == uri) {
+            // remove from LRU structures
+            if (lru_index_.count(it->first)) {
+                lru_list_.erase(lru_index_[it->first]);
+                lru_index_.erase(it->first);
+            }
             it = cache_.erase(it);
         } else {
             ++it;
@@ -62,10 +83,7 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                                                                const std::string& new_prefix) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
 
-    LOG("[CACHE] filterByPrefix: searching for uri=" + key.uri +
-        ", line=" + std::to_string(key.line) + ", char=" + std::to_string(key.character) +
-        ", new_prefix=\"" + new_prefix + "\"");
-    LOG("[CACHE] filterByPrefix: cache size=" + std::to_string(cache_.size()));
+    (void)new_prefix;
 
     // 查找相同位置但不同前缀的缓存项
     // 优化：允许在同一行的不同位置之间共享缓存（因为补全结果通常在同一行内是相似的）
@@ -79,8 +97,7 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
         if (cached_key.uri == key.uri && cached_key.line == key.line &&
             !cached_value.items.empty()) {
             found_candidates++;
-            LOG("[CACHE] filterByPrefix: found candidate cache with prefix=\"" + cached_key.prefix +
-                "\", items=" + std::to_string(cached_value.items.size()));
+            (void)cached_value;
 
             // 如果新前缀是旧前缀的扩展，可以过滤
             // 或者旧前缀是空（所有结果），也可以过滤
@@ -88,9 +105,9 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                               new_prefix.find(cached_key.prefix) == 0 ||
                               cached_key.prefix.find(new_prefix) == 0;
 
-            std::string can_filter_str = can_filter ? "true" : "false";
-            LOG("[CACHE] filterByPrefix: can_filter=" + can_filter_str + " (cached_prefix=\"" +
-                cached_key.prefix + "\", new_prefix=\"" + new_prefix + "\")");
+            (void)can_filter;
+            (void)cached_key;
+            (void)new_prefix;
 
             if (can_filter) {
                 // 使用智能评分系统过滤和排序
@@ -291,23 +308,22 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                     filtered.resize(30);
                 }
 
-                LOG("[CACHE] filterByPrefix: filtered " +
-                    std::to_string(cached_value.items.size()) + " items to " +
-                    std::to_string(filtered.size()) + " items");
+                (void)filtered;
                 return filtered;
             }
         }
     }
 
-    LOG("[CACHE] filterByPrefix: checked " + std::to_string(checked_count) +
-        " cache entries, found " + std::to_string(found_candidates) +
-        " candidates, but none matched");
+    (void)checked_count;
+    (void)found_candidates;
     return {};
 }
 
 void LspCompletionCache::clear() {
     std::lock_guard<std::mutex> lock(cache_mutex_);
     cache_.clear();
+    lru_list_.clear();
+    lru_index_.clear();
 }
 
 size_t LspCompletionCache::size() const {
@@ -318,10 +334,13 @@ size_t LspCompletionCache::size() const {
 void LspCompletionCache::cleanupExpired() {
     auto now = std::chrono::steady_clock::now();
     auto it = cache_.begin();
-
     while (it != cache_.end()) {
         auto age = std::chrono::duration_cast<std::chrono::minutes>(now - it->second.timestamp);
         if (age > CACHE_TTL) {
+            if (lru_index_.count(it->first)) {
+                lru_list_.erase(lru_index_[it->first]);
+                lru_index_.erase(it->first);
+            }
             it = cache_.erase(it);
         } else {
             ++it;
@@ -335,17 +354,27 @@ void LspCompletionCache::evictOldest() {
     }
 
     // 找到最旧的项
-    auto oldest_it = cache_.begin();
-    auto oldest_time = oldest_it->second.timestamp;
-
-    for (auto it = cache_.begin(); it != cache_.end(); ++it) {
-        if (it->second.timestamp < oldest_time) {
-            oldest_time = it->second.timestamp;
-            oldest_it = it;
-        }
+    // 使用 LRU 列表的末尾作为最旧项
+    if (!lru_list_.empty()) {
+        CacheKey oldest_key = lru_list_.back();
+        lru_list_.pop_back();
+        lru_index_.erase(oldest_key);
+        cache_.erase(oldest_key);
+    } else {
+        // fallback: remove first map item
+        auto it = cache_.begin();
+        cache_.erase(it);
     }
+}
 
-    cache_.erase(oldest_it);
+void LspCompletionCache::touchLRU(const CacheKey& key) {
+    // Move key to front of LRU list
+    if (lru_index_.count(key)) {
+        auto it = lru_index_[key];
+        lru_list_.erase(it);
+    }
+    lru_list_.push_front(key);
+    lru_index_[key] = lru_list_.begin();
 }
 
 } // namespace features

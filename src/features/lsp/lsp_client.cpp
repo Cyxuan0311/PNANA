@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <future>
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
@@ -36,48 +37,31 @@ LspClient::~LspClient() {
 }
 
 bool LspClient::initialize(const std::string& root_path) {
-    LOG("LspClient::initialize() called with root_path: " + root_path);
-
-    LOG("Starting LSP connector...");
     if (!connector_->start()) {
         LOG_WARNING("Failed to start LSP connector (server may not be installed)");
         return false;
     }
-    LOG("LSP connector started successfully");
 
     // 等待一小段时间，确保服务器已准备好
-    LOG("Waiting for server to be ready (50ms)...");
     usleep(50000); // 50ms
-    LOG("Wait completed");
 
     try {
         // 发送 initialize 请求
-        LOG("Preparing initialize request...");
         jsonrpccxx::json params;
         params["processId"] = static_cast<int>(getpid());
-        params["rootPath"] = root_path;
+
         if (root_path.empty()) {
             params["rootUri"] = jsonrpccxx::json(nullptr);
-            LOG("rootUri set to null (root_path is empty)");
         } else {
             std::string root_uri = filepathToUri(root_path);
             params["rootUri"] = root_uri;
-            LOG("rootUri: " + root_uri);
         }
 
-        // 客户端能力
-        LOG("Setting client capabilities...");
+        // 简化客户端能力 - 只包含最基本的
         jsonrpccxx::json capabilities;
-        capabilities["textDocument"]["completion"]["completionItem"]["snippetSupport"] = true;
-        capabilities["textDocument"]["hover"]["contentFormat"] =
-            jsonrpccxx::json::array({"markdown", "plaintext"});
-        capabilities["textDocument"]["definition"]["linkSupport"] = true;
-        capabilities["textDocument"]["references"] = jsonrpccxx::json::object();
         capabilities["textDocument"]["formatting"] = jsonrpccxx::json::object();
-        capabilities["textDocument"]["rename"] = jsonrpccxx::json::object();
 
         params["capabilities"] = capabilities;
-        LOG("Client capabilities set");
 
         int request_id = 1;
         jsonrpccxx::named_parameter named_params;
@@ -86,32 +70,22 @@ bool LspClient::initialize(const std::string& root_path) {
         }
 
         // 调用 initialize 方法
-        LOG("Sending initialize request to LSP server...");
         jsonrpccxx::json result =
             rpc_client_->CallMethodNamed<jsonrpccxx::json>(request_id, "initialize", named_params);
-        LOG("Initialize request sent, received response");
 
         // 保存服务器能力
         if (result.contains("capabilities")) {
             server_capabilities_ = result["capabilities"];
-            LOG("Server capabilities received and saved");
         } else {
             LOG_WARNING("Initialize response missing capabilities");
         }
 
-        // 发送 initialized 通知（无参数）
-        // 注意：这应该在收到 initialize 响应后立即发送
-        LOG("Sending initialized notification...");
+        // 发送 initialized 通知
         rpc_client_->CallNotificationNamed("initialized", jsonrpccxx::named_parameter());
-        LOG("Initialized notification sent");
 
-        // 初始化完成后，启动通知监听线程（在后台线程中运行，不阻塞主线程）
-        // 注意：通知监听线程使用非阻塞模式，不会阻塞主线程
-        LOG("Starting notification listener...");
+        // 启动通知监听线程
         connector_->startNotificationListener();
-        LOG("Notification listener started");
 
-        LOG("LspClient::initialize() completed successfully");
         return true;
     } catch (const jsonrpccxx::JsonRpcException& e) {
         LOG_ERROR("LspClient::initialize() JsonRpcException: " + std::string(e.what()) +
@@ -298,18 +272,12 @@ void LspClient::didSave(const std::string& uri) {
 
 std::vector<CompletionItem> LspClient::completion(const std::string& uri,
                                                   const LspPosition& position) {
-    auto completion_start = std::chrono::steady_clock::now();
-    LOG("[COMPLETION] [LspClient] completion() called for URI: " + uri + " at line " +
-        std::to_string(position.line) + ", char " + std::to_string(position.character));
-
     std::vector<CompletionItem> items;
     if (!isConnected()) {
-        LOG("[COMPLETION] [LspClient] Not connected");
         return items;
     }
 
     try {
-        auto prepare_start = std::chrono::steady_clock::now();
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
         params["position"] = positionToJson(position);
@@ -324,22 +292,10 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
         }
-        auto prepare_end = std::chrono::steady_clock::now();
-        auto prepare_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(prepare_end - prepare_start);
-        LOG("[COMPLETION] [LspClient] Prepared request params (took " +
-            std::to_string(prepare_time.count() / 1000.0) + " ms)");
-
-        auto rpc_start = std::chrono::steady_clock::now();
-        LOG("[COMPLETION] [LspClient] Calling RPC method textDocument/completion...");
+        // 直接调用RPC方法，超时控制交给上层异步管理器
         jsonrpccxx::json result = rpc_client_->CallMethodNamed<jsonrpccxx::json>(
             request_id, "textDocument/completion", named_params);
-        auto rpc_end = std::chrono::steady_clock::now();
-        auto rpc_time = std::chrono::duration_cast<std::chrono::milliseconds>(rpc_end - rpc_start);
-        LOG("[COMPLETION] [LspClient] RPC call completed (took " +
-            std::to_string(rpc_time.count()) + " ms)");
 
-        auto parse_start = std::chrono::steady_clock::now();
         if (result.contains("items") && result["items"].is_array()) {
             for (const auto& item : result["items"]) {
                 items.push_back(jsonToCompletionItem(item));
@@ -349,18 +305,8 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
                 items.push_back(jsonToCompletionItem(item));
             }
         }
-        auto parse_end = std::chrono::steady_clock::now();
-        auto parse_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(parse_end - parse_start);
-        LOG("[COMPLETION] [LspClient] Parsed " + std::to_string(items.size()) + " items (took " +
-            std::to_string(parse_time.count() / 1000.0) + " ms)");
 
         // 按相关性排序：优先显示更相关的项
-        // 1. 函数/方法优先
-        // 2. 变量/字段次之
-        // 3. 其他类型
-        // 4. 相同类型内按字母顺序
-        auto sort_start = std::chrono::steady_clock::now();
         std::sort(items.begin(), items.end(), [](const CompletionItem& a, const CompletionItem& b) {
             // 获取类型优先级
             auto getPriority = [](const std::string& kind) -> int {
@@ -385,28 +331,11 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
             // 相同优先级，按字母顺序
             return a.label < b.label;
         });
-        auto sort_end = std::chrono::steady_clock::now();
-        auto sort_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(sort_end - sort_start);
-        LOG("[COMPLETION] [LspClient] Sorted " + std::to_string(items.size()) + " items (took " +
-            std::to_string(sort_time.count() / 1000.0) + " ms)");
-
-        auto completion_end = std::chrono::steady_clock::now();
-        auto completion_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-            completion_end - completion_start);
-        LOG("[COMPLETION] [LspClient] completion() total time: " +
-            std::to_string(completion_time.count()) + " ms");
 
     } catch (const std::exception& e) {
-        auto error_time = std::chrono::steady_clock::now();
-        auto completion_time =
-            std::chrono::duration_cast<std::chrono::milliseconds>(error_time - completion_start);
-        LOG_ERROR("[COMPLETION] [LspClient] completion() failed after " +
-                  std::to_string(completion_time.count()) + " ms: " + e.what());
-        std::cerr << "completion failed: " << e.what() << std::endl;
+        LOG_ERROR("LSP completion failed: " + std::string(e.what()));
     }
 
-    LOG("[COMPLETION] [LspClient] Returning " + std::to_string(items.size()) + " items");
     return items;
 }
 
@@ -501,7 +430,72 @@ std::vector<Location> LspClient::findReferences(const std::string& uri, const Ls
     return locations;
 }
 
-std::string LspClient::formatDocument(const std::string& uri) {
+std::string LspClient::applyTextEdits(const std::string& original_content,
+                                      const jsonrpccxx::json& edits) {
+    if (!edits.is_array() || edits.empty()) {
+        return original_content;
+    }
+
+    std::string result = original_content;
+    std::vector<std::pair<size_t, std::pair<size_t, std::string>>> operations;
+
+    // 收集所有编辑操作，按起始位置排序（从后往前应用）
+    for (const auto& edit : edits) {
+        if (edit.contains("range") && edit.contains("newText")) {
+            LspRange range = jsonToRange(edit["range"]);
+            std::string new_text = edit["newText"].get<std::string>();
+
+            // 将行/列位置转换为字符串偏移量
+            size_t start_offset = positionToOffset(original_content, range.start);
+            size_t end_offset = positionToOffset(original_content, range.end);
+
+            operations.emplace_back(start_offset, std::make_pair(end_offset, new_text));
+        }
+    }
+
+    // 按起始位置从大到小排序，确保从后往前应用编辑
+    std::sort(operations.rbegin(), operations.rend());
+
+    // 应用编辑
+    for (const auto& op : operations) {
+        size_t start_offset = op.first;
+        size_t end_offset = op.second.first;
+        const std::string& new_text = op.second.second;
+
+        if (start_offset <= result.length() && end_offset <= result.length() &&
+            start_offset <= end_offset) {
+            result.replace(start_offset, end_offset - start_offset, new_text);
+        }
+    }
+
+    return result;
+}
+
+size_t LspClient::positionToOffset(const std::string& content, const LspPosition& position) {
+    size_t offset = 0;
+    size_t current_line = 0;
+    size_t current_char = 0;
+
+    for (size_t i = 0; i < content.length(); ++i) {
+        if (static_cast<int>(current_line) == position.line &&
+            static_cast<int>(current_char) == position.character) {
+            return offset;
+        }
+
+        if (content[i] == '\n') {
+            current_line++;
+            current_char = 0;
+        } else {
+            current_char++;
+        }
+        offset++;
+    }
+
+    // 如果超出范围，返回字符串末尾
+    return content.length();
+}
+
+std::string LspClient::formatDocument(const std::string& uri, const std::string& original_content) {
     if (!isConnected())
         return "";
 
@@ -517,12 +511,9 @@ std::string LspClient::formatDocument(const std::string& uri) {
         jsonrpccxx::json result = rpc_client_->CallMethodNamed<jsonrpccxx::json>(
             request_id, "textDocument/formatting", named_params);
 
-        // 格式化结果通常是 TextEdit 数组
-        if (result.is_array() && !result.empty()) {
-            // 简化处理：返回第一个编辑的文本
-            if (result[0].contains("newText") && result[0]["newText"].is_string()) {
-                return result[0]["newText"].get<std::string>();
-            }
+        // 格式化结果是 TextEdit 数组，需要应用到原始内容上
+        if (result.is_array()) {
+            return applyTextEdits(original_content, result);
         }
     } catch (const std::exception& e) {
         std::cerr << "formatDocument failed: " << e.what() << std::endl;

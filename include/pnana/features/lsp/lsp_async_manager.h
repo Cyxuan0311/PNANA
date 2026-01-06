@@ -61,6 +61,7 @@ class LspAsyncManager {
     std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
     std::atomic<bool> running_;
+    bool json_perf_enabled_;
 };
 
 } // namespace features

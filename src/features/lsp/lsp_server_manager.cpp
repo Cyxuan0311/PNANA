@@ -45,6 +45,8 @@ LspClient* LspServerManager::getClientForLanguage(const std::string& language_id
     // 检查是否已存在客户端
     auto it = clients_.find(language_id);
     if (it != clients_.end()) {
+        // 客户端已存在，只返回指针，不在这里初始化
+        // 初始化将在实际使用时进行（延迟初始化）
         return it->second.get();
     }
 
@@ -67,6 +69,8 @@ LspClient* LspServerManager::getClientForLanguage(const std::string& language_id
 
     LspClient* client_ptr = client.get();
     clients_[language_id] = std::move(client);
+
+    // 不在这里初始化，采用延迟初始化策略
 
     return client_ptr;
 }

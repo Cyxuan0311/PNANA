@@ -21,6 +21,9 @@ struct LspRange {
     LspRange(const LspPosition& s, const LspPosition& e) : start(s), end(e) {}
 };
 
+// LSP 诊断严重程度枚举
+enum DiagnosticSeverity { ERROR = 1, WARNING = 2, INFORMATION = 3, HINT = 4 };
+
 } // namespace features
 } // namespace pnana
 

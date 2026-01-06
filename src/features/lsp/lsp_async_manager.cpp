@@ -2,6 +2,7 @@
 #include "features/lsp/lsp_client.h"
 #include "utils/logger.h"
 #include <chrono>
+#include <future>
 #include <stdexcept>
 
 namespace pnana {
@@ -9,6 +10,9 @@ namespace features {
 
 LspAsyncManager::LspAsyncManager() : running_(true) {
     worker_thread_ = std::thread(&LspAsyncManager::workerThread, this);
+    const char* env = std::getenv("PNANA_PERF_JSON");
+    json_perf_enabled_ = (env && std::string(env) == "1");
+    // 移除性能日志以提高性能
 }
 
 LspAsyncManager::~LspAsyncManager() {
@@ -19,10 +23,7 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
                                              const LspPosition& position,
                                              CompletionCallback on_success,
                                              ErrorCallback on_error) {
-    LOG("[COMPLETION] [AsyncManager] requestCompletionAsync() called");
-
     if (!client || !running_) {
-        LOG("[COMPLETION] [AsyncManager] Client is null or manager is stopped");
         if (on_error) {
             on_error("Client is null or manager is stopped");
         }
@@ -40,11 +41,10 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
     {
         std::lock_guard<std::mutex> lock(queue_mutex_);
         request_queue_.push(task);
-        LOG("[COMPLETION] [AsyncManager] Task queued (queue size: " +
-            std::to_string(request_queue_.size()) + ")");
+        // 移除所有调试日志以提高性能
     }
     queue_cv_.notify_one();
-    LOG("[COMPLETION] [AsyncManager] Worker thread notified");
+    (void)0;
 }
 
 void LspAsyncManager::workerThread() {
@@ -65,33 +65,27 @@ void LspAsyncManager::workerThread() {
 
             try {
                 if (task.type == RequestTask::COMPLETION) {
-                    auto worker_start = std::chrono::steady_clock::now();
-                    LOG("[COMPLETION] [AsyncManager] Worker thread processing completion "
-                        "request...");
-
                     if (task.client && task.client->isConnected()) {
-                        LOG("[COMPLETION] [AsyncManager] Calling client->completion()...");
-                        auto items = task.client->completion(task.uri, task.position);
-                        auto worker_end = std::chrono::steady_clock::now();
-                        auto worker_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            worker_end - worker_start);
-                        LOG("[COMPLETION] [AsyncManager] client->completion() returned " +
-                            std::to_string(items.size()) + " items (took " +
-                            std::to_string(worker_time.count()) + " ms)");
+                        // 使用带超时的异步调用，避免长时间阻塞
+                        auto completion_future = std::async(std::launch::async, [&]() {
+                            return task.client->completion(task.uri, task.position);
+                        });
 
-                        if (task.completion_callback) {
-                            auto callback_start = std::chrono::steady_clock::now();
-                            LOG("[COMPLETION] [AsyncManager] Executing completion callback...");
-                            task.completion_callback(items);
-                            auto callback_end = std::chrono::steady_clock::now();
-                            auto callback_time =
-                                std::chrono::duration_cast<std::chrono::microseconds>(
-                                    callback_end - callback_start);
-                            LOG("[COMPLETION] [AsyncManager] Callback executed (took " +
-                                std::to_string(callback_time.count() / 1000.0) + " ms)");
+                        // 等待最多500ms，避免UI卡顿但允许合理的响应时间
+                        if (completion_future.wait_for(std::chrono::milliseconds(500)) ==
+                            std::future_status::timeout) {
+                            LOG_WARNING("[ASYNC] Completion timeout for " + task.uri +
+                                        " after 500ms");
+                            if (task.error_callback) {
+                                task.error_callback("Completion request timeout");
+                            }
+                        } else {
+                            auto items = completion_future.get();
+                            if (task.completion_callback) {
+                                task.completion_callback(items);
+                            }
                         }
                     } else {
-                        LOG("[COMPLETION] [AsyncManager] Client not connected");
                         if (task.error_callback) {
                             task.error_callback("LSP client is not connected");
                         }

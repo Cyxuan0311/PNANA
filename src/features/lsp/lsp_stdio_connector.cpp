@@ -90,10 +90,7 @@ LspStdioConnector::~LspStdioConnector() {
 }
 
 bool LspStdioConnector::start() {
-    LOG("LspStdioConnector::start() called, server_command: " + server_command_);
-
     if (running_) {
-        LOG("LSP connector already running");
         return true;
     }
 
@@ -103,7 +100,6 @@ bool LspStdioConnector::start() {
                     ", skipping LSP initialization");
         return false;
     }
-    LOG("LSP server command found: " + server_command_);
 
     try {
 #ifdef USE_BOOST_PROCESS
@@ -128,7 +124,6 @@ bool LspStdioConnector::start() {
             return false;
         }
 
-        LOG("Forking process for LSP server...");
         server_pid_ = fork();
         if (server_pid_ < 0) {
             LOG_ERROR("Failed to fork process: " + std::string(strerror(errno)));
@@ -136,7 +131,6 @@ bool LspStdioConnector::start() {
         }
 
         if (server_pid_ == 0) {
-            LOG("Child process: executing LSP server: " + server_command_);
             // 子进程：语言服务器
             close(stdin_pipe[1]);  // 关闭写端
             close(stdout_pipe[0]); // 关闭读端
@@ -168,7 +162,6 @@ bool LspStdioConnector::start() {
             _exit(1);
         } else {
             // 父进程：编辑器
-            LOG("Parent process: setting up pipes, child PID: " + std::to_string(server_pid_));
             close(stdin_pipe[0]);  // 关闭读端
             close(stdout_pipe[1]); // 关闭写端
 
@@ -188,13 +181,9 @@ bool LspStdioConnector::start() {
             setvbuf(stdin_file_, nullptr, _IOLBF, 0);
             // stdout 使用行缓冲，因为头部是行分隔的
             setvbuf(stdout_file_, nullptr, _IOLBF, 0);
-            LOG("File streams created and buffering set");
-
-            // 设置为非阻塞模式，用于通知监听线程
-            // 但在 Send() 方法中会临时改为阻塞模式以确保完整读取响应
+            // 保持非阻塞模式
             int flags = fcntl(stdout_fd_, F_GETFL, 0);
             fcntl(stdout_fd_, F_SETFL, flags | O_NONBLOCK);
-            LOG("stdout set to non-blocking mode");
 
             // 等待一小段时间，检查子进程是否还在运行
             usleep(100000); // 100ms
@@ -215,9 +204,6 @@ bool LspStdioConnector::start() {
             }
 
             running_ = true;
-            LOG("LSP connector started successfully");
-            // 延迟启动通知监听线程，确保初始化请求先发送
-            // startNotificationListener();
             return true;
         }
 #endif
@@ -357,12 +343,8 @@ std::string LspStdioConnector::Send(const std::string& request) {
     std::lock_guard<std::mutex> lock(request_mutex_);
 
 #ifndef USE_BOOST_PROCESS
-    // 对于请求，临时设置为阻塞模式，确保完整读取响应
-    // 对于通知，保持非阻塞模式（不需要响应）
-    int flags = fcntl(stdout_fd_, F_GETFL, 0);
-    if (!is_notification) {
-        fcntl(stdout_fd_, F_SETFL, flags & ~O_NONBLOCK);
-    }
+    // 在非阻塞模式下，需要循环等待响应
+    // 通知监听线程不会干扰，因为它只读取通知消息（没有id字段）
 #endif
 
     // 写入请求（自动添加 Content-Length 头部）
@@ -404,7 +386,81 @@ std::string LspStdioConnector::Send(const std::string& request) {
 
             // 检查是否是通知消息（包含 method 字段，没有 id 字段或 id 为 null）
             try {
-                jsonrpccxx::json response_json = jsonrpccxx::json::parse(response);
+                jsonrpccxx::json response_json;
+                bool parsed = false;
+                // 尝试清理响应两端的控制字符（避免因前导/尾随控制字符导致解析失败）
+                auto trim_control_ends = [](std::string& s) {
+                    while (!s.empty() && static_cast<unsigned char>(s.front()) <= 0x20) {
+                        s.erase(0, 1);
+                    }
+                    while (!s.empty() && static_cast<unsigned char>(s.back()) <= 0x20) {
+                        s.pop_back();
+                    }
+                };
+                trim_control_ends(response);
+
+                try {
+                    response_json = jsonrpccxx::json::parse(response);
+                    parsed = true;
+                } catch (const jsonrpccxx::json::parse_error& pe) {
+                    // 尝试裁剪尾部最多 256 字节以恢复（避免无限循环）
+                    std::string trimmed = response;
+                    size_t max_trim = std::min<size_t>(trimmed.size(), 256);
+                    for (size_t t = 1; t <= max_trim; ++t) {
+                        trimmed.pop_back();
+                        try {
+                            response_json = jsonrpccxx::json::parse(trimmed);
+                            parsed = true;
+                            break;
+                        } catch (...) {
+                            continue;
+                        }
+                    }
+                    if (!parsed) {
+                        // 尝试通过提取首个 '{' 到最后 '}' 之间的内容来恢复
+                        size_t first_brace = response.find('{');
+                        size_t last_brace = response.rfind('}');
+                        if (first_brace != std::string::npos && last_brace != std::string::npos &&
+                            last_brace > first_brace) {
+                            std::string between =
+                                response.substr(first_brace, last_brace - first_brace + 1);
+                            try {
+                                response_json = jsonrpccxx::json::parse(between);
+                                parsed = true;
+                                response = between;
+                            } catch (...) {
+                                // Brace-extraction fallback failed
+                            }
+                        }
+
+                        if (!parsed) {
+                            // 替换内部不可打印控制字符（除了 \t \n \r）为空格，然后尝试解析
+                            std::string sanitized = response;
+                            bool changed = false;
+                            for (size_t i = 0; i < sanitized.size(); ++i) {
+                                unsigned char uc = static_cast<unsigned char>(sanitized[i]);
+                                if (uc < 0x20 && uc != 9 && uc != 10 && uc != 13) {
+                                    sanitized[i] = ' ';
+                                    changed = true;
+                                }
+                            }
+                            if (changed) {
+                                try {
+                                    response_json = jsonrpccxx::json::parse(sanitized);
+                                    parsed = true;
+                                    response = sanitized;
+                                } catch (...) {
+                                    // Sanitizing fallback failed
+                                }
+                            }
+
+                            if (!parsed) {
+                                // 返回原始响应，交由上层处理
+                                return response;
+                            }
+                        }
+                    }
+                }
 
                 // 如果是通知消息（有 method 字段），跳过它
                 if (response_json.contains("method") &&
@@ -425,18 +481,11 @@ std::string LspStdioConnector::Send(const std::string& request) {
                 }
 
                 // 找到了匹配的响应
-#ifndef USE_BOOST_PROCESS
-                // 恢复非阻塞模式（用于通知监听线程）
-                fcntl(stdout_fd_, F_SETFL, flags | O_NONBLOCK);
-#endif
                 return response;
 
             } catch (const std::exception& e) {
-                // JSON 解析失败，可能是格式错误，直接返回
-#ifndef USE_BOOST_PROCESS
-                // 恢复非阻塞模式
-                fcntl(stdout_fd_, F_SETFL, flags | O_NONBLOCK);
-#endif
+                // JSON 解析或其他错误时，返回原始响应以便上层处理
+                LOG(std::string("LSP <- Exception while handling response: ") + e.what());
                 return response;
             }
         }
@@ -447,10 +496,6 @@ std::string LspStdioConnector::Send(const std::string& request) {
             "Failed to find matching response after " + std::to_string(max_attempts) + " attempts");
 
     } catch (const jsonrpccxx::JsonRpcException& e) {
-#ifndef USE_BOOST_PROCESS
-        // 恢复非阻塞模式
-        fcntl(stdout_fd_, F_SETFL, flags | O_NONBLOCK);
-#endif
         // 重新抛出异常
         throw;
     }
@@ -466,6 +511,10 @@ void LspStdioConnector::writeLspMessage(const std::string& message) {
     stdin_stream_->flush();
 #else
     std::string full_message = header.str() + message;
+    // 记录写入的头部和消息（限长以避免日志过大）
+    std::string preview =
+        message.size() > 512 ? message.substr(0, 512) + "...(truncated)" : message;
+    LOG("LSP -> Writing message (header + preview):\n" + header.str() + preview);
     fwrite(full_message.c_str(), 1, full_message.size(), stdin_file_);
     fflush(stdin_file_);
 #endif
@@ -554,127 +603,202 @@ std::string LspStdioConnector::readLine() {
 }
 
 std::string LspStdioConnector::readLspMessage() {
-    auto read_start = std::chrono::steady_clock::now();
-    std::string line;
+    // 使用更稳健的消息读取方式：逐字节读取头部，避免行读取导致的边界问题
+    std::string header_data;
     int content_length = -1;
+    bool found_content_length = false;
     bool found_empty_line = false;
-    int max_header_lines = 10; // 最多读取 10 行头部，防止无限循环
-    int line_count = 0;
-    std::string header_lines; // 用于调试
 
-    // 读取头部（LSP 协议：头部以空行结束）
-    // 格式：Content-Length: <number>\r\n\r\n
-    while (line_count < max_header_lines) {
-        line = readLine();
-        line_count++;
+    // 读取头部数据，直到找到空行（\r\n\r\n）
+    const int max_header_size = 4096; // 最大头部大小，防止无限读取
+    size_t header_bytes_read = 0;
 
-        // 检查是否是 EOF 标记
-        if (line == "\x01EOF\x01") {
-            // EOF 是正常的（当服务器关闭连接时），不应该抛出异常
-            // 在通知监听线程中，这会优雅地退出循环
-            throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
-                                               "EOF while reading headers");
-        }
+    // 整体超时控制
+    const int max_wait_ms = 10000; // 10秒最大等待时间
+    int total_wait_ms = 0;
 
-        // 检查是否是错误标记
-        if (line == "\x02ERROR\x02") {
+    while (!found_empty_line && header_bytes_read < max_header_size &&
+           total_wait_ms < max_wait_ms) {
+        // 检查是否有数据可用
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(stdout_fd_, &read_fds);
+        struct timeval timeout = {0, 100000}; // 100ms超时，更短的轮询间隔
+
+        int result = select(stdout_fd_ + 1, &read_fds, nullptr, nullptr, &timeout);
+
+        if (result < 0) {
+            // select错误
+            if (feof(stdout_file_)) {
+                throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                                   "EOF while reading headers");
+            }
             throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
                                                "Error reading from LSP server");
         }
 
-        // 检查是否是超时标记（阻塞模式下的超时）
-        if (line == "\x02TIMEOUT\x02") {
-            auto timeout_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - read_start);
+        if (result == 0) {
+            // 超时，没有数据，继续等待但不要抛出异常
+            // 这在非阻塞模式下是正常的
+            total_wait_ms += 100; // select超时了100ms
+            continue;
+        }
+
+        // 有数据可用，使用read()而不是fgetc()来确保非阻塞读取
+        char single_char;
+        ssize_t bytes_read = read(stdout_fd_, &single_char, 1);
+
+        if (bytes_read < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                continue; // 暂时没有数据，继续等待
+            }
             throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
-                                               "Timeout waiting for message headers (waited " +
-                                                   std::to_string(timeout_time.count()) + " ms)");
+                                               "Read error while reading headers");
         }
 
-        // 在非阻塞模式下，readLine() 可能返回空字符串（超时）
-        // 在阻塞模式下，这不应该发生（应该返回 TIMEOUT 标记）
-        if (line.empty() && line_count == 1) {
-            // 第一次读取就返回空，可能是非阻塞模式下的超时
-            // 在非阻塞模式下，这表示暂时没有数据，应该抛出异常
+        if (bytes_read == 0) {
             throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
-                                               "Timeout waiting for message headers");
+                                               "Unexpected EOF while reading headers");
         }
 
-        // 保存头部行用于调试
-        if (!line.empty()) {
-            header_lines += line + "\n";
+        header_data += single_char;
+        header_bytes_read++;
+
+        // 检查是否找到了空行（\r\n\r\n的结束）
+        if (header_data.size() >= 4) {
+            size_t len = header_data.size();
+            if (header_data[len - 4] == '\r' && header_data[len - 3] == '\n' &&
+                header_data[len - 2] == '\r' && header_data[len - 1] == '\n') {
+                found_empty_line = true;
+                break;
+            }
         }
 
-        // 空行表示头部结束
-        if (line.empty()) {
-            found_empty_line = true;
-            break;
-        }
+        // 尝试解析 Content-Length（当我们有足够的数据时）
+        if (!found_content_length && header_data.find("Content-Length:") != std::string::npos) {
+            // 查找 Content-Length 头部
+            std::string lower_header = header_data;
+            std::transform(lower_header.begin(), lower_header.end(), lower_header.begin(),
+                           ::tolower);
 
-        // 解析 Content-Length（不区分大小写）
-        std::string lower_line = line;
-        std::transform(lower_line.begin(), lower_line.end(), lower_line.begin(), ::tolower);
-
-        // 查找 Content-Length 头部
-        if (lower_line.find("content-length") != std::string::npos) {
-            // 提取数字部分 - 使用更简单的字符串处理
-            size_t colon_pos = lower_line.find(':');
-            if (colon_pos != std::string::npos) {
-                std::string value = line.substr(colon_pos + 1);
-                // 去除前后空白
-                value.erase(0, value.find_first_not_of(" \t\r\n"));
-                value.erase(value.find_last_not_of(" \t\r\n") + 1);
-                try {
-                    content_length = std::stoi(value);
-                } catch (const std::exception& e) {
-                    // 解析失败，尝试正则表达式
-                    std::regex re(R"(content-length:\s*(\d+))", std::regex::icase);
-                    std::smatch match;
-                    if (std::regex_search(line, match, re)) {
+            size_t cl_pos = lower_header.find("content-length:");
+            if (cl_pos != std::string::npos) {
+                size_t colon_pos = header_data.find(':', cl_pos);
+                if (colon_pos != std::string::npos) {
+                    size_t end_pos = header_data.find('\r', colon_pos);
+                    if (end_pos == std::string::npos) {
+                        end_pos = header_data.find('\n', colon_pos);
+                    }
+                    if (end_pos != std::string::npos) {
+                        std::string value =
+                            header_data.substr(colon_pos + 1, end_pos - colon_pos - 1);
+                        // 去除前后空白
+                        value.erase(0, value.find_first_not_of(" \t\r\n"));
+                        value.erase(value.find_last_not_of(" \t\r\n") + 1);
                         try {
-                            content_length = std::stoi(match[1].str());
-                        } catch (const std::exception& e2) {
-                            // 解析失败，继续查找
+                            content_length = std::stoi(value);
+                            found_content_length = true;
+                        } catch (const std::exception& e) {
+                            // Failed to parse Content-Length
                         }
                     }
                 }
             }
         }
-        // 忽略其他头部字段（如 Content-Type）
+    }
+
+    // 检查是否因为超时而退出循环
+    if (!found_empty_line) {
+        if (total_wait_ms >= max_wait_ms) {
+            std::string preview = header_data.substr(0, std::min<size_t>(header_data.size(), 200));
+            if (header_data.size() > 200) {
+                preview += "...(truncated)";
+            }
+            throw jsonrpccxx::JsonRpcException(
+                jsonrpccxx::error_type::internal_error,
+                "Timeout waiting for complete headers. Waited " + std::to_string(total_wait_ms) +
+                    " ms. Header data (" + std::to_string(header_bytes_read) +
+                    " bytes): " + preview);
+        } else if (header_bytes_read >= max_header_size) {
+            std::string preview = header_data.substr(0, std::min<size_t>(header_data.size(), 200));
+            throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                               "Header data too large (" +
+                                                   std::to_string(header_bytes_read) +
+                                                   " bytes). Preview: " + preview);
+        } else {
+            std::string preview = header_data.substr(0, std::min<size_t>(header_data.size(), 200));
+            throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                               "Unexpected end of header reading. Header data (" +
+                                                   std::to_string(header_bytes_read) +
+                                                   " bytes): " + preview);
+        }
     }
 
     if (!found_empty_line) {
+        std::string preview = header_data.substr(0, std::min<size_t>(header_data.size(), 200));
+        if (header_data.size() > 200) {
+            preview += "...(truncated)";
+        }
         throw jsonrpccxx::JsonRpcException(
             jsonrpccxx::error_type::internal_error,
-            "Headers not properly terminated with empty line (read " + std::to_string(line_count) +
-                " lines). Headers: " + header_lines);
+            "Headers not properly terminated with empty line. Header data (" +
+                std::to_string(header_bytes_read) + " bytes): " + preview);
     }
 
     if (content_length <= 0) {
+        std::string preview = header_data.substr(0, std::min<size_t>(header_data.size(), 200));
+        if (header_data.size() > 200) {
+            preview += "...(truncated)";
+        }
         throw jsonrpccxx::JsonRpcException(
             jsonrpccxx::error_type::internal_error,
-            "Invalid Content-Length header: " + std::to_string(content_length) +
-                ". Headers: " + header_lines);
+            "Invalid Content-Length header: " + std::to_string(content_length) + ". Header data (" +
+                std::to_string(header_bytes_read) + " bytes): " + preview);
     }
 
     // 读取消息体
     std::string message;
     message.resize(content_length);
-
-#ifdef USE_BOOST_PROCESS
-    stdout_stream_->read(&message[0], content_length);
-    if (stdout_stream_->gcount() != static_cast<std::streamsize>(content_length)) {
-        throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
-                                           "Failed to read complete message: expected " +
-                                               std::to_string(content_length) + " bytes, got " +
-                                               std::to_string(stdout_stream_->gcount()));
-    }
-#else
-    // 确保读取完整的消息体
     size_t total_read = 0;
     size_t expected = static_cast<size_t>(content_length);
 
+#ifdef USE_BOOST_PROCESS
+    // 对于 BOOST_PROCESS，使用流读取
+    stdout_stream_->read(&message[0], content_length);
+    total_read = stdout_stream_->gcount();
+    if (total_read != expected) {
+        throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                           "Failed to read complete message: expected " +
+                                               std::to_string(expected) + " bytes, got " +
+                                               std::to_string(total_read));
+    }
+#else
+    // 对于 POSIX，使用更稳健的读取方式
     while (total_read < expected) {
+        // 检查是否有数据可用
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(stdout_fd_, &read_fds);
+        struct timeval timeout = {5, 0}; // 5秒超时
+
+        int result = select(stdout_fd_ + 1, &read_fds, nullptr, nullptr, &timeout);
+        if (result <= 0) {
+            if (result == 0) {
+                throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                                   "Timeout waiting for message body data (" +
+                                                       std::to_string(total_read) + "/" +
+                                                       std::to_string(expected) + " bytes read)");
+            }
+            if (feof(stdout_file_)) {
+                throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                                   "EOF while reading message body (" +
+                                                       std::to_string(total_read) + "/" +
+                                                       std::to_string(expected) + " bytes read)");
+            }
+            throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                               "Error reading message body");
+        }
+
         size_t to_read = expected - total_read;
         size_t read = fread(&message[total_read], 1, to_read, stdout_file_);
 
@@ -682,11 +806,10 @@ std::string LspStdioConnector::readLspMessage() {
             if (feof(stdout_file_)) {
                 throw jsonrpccxx::JsonRpcException(
                     jsonrpccxx::error_type::internal_error,
-                    "Unexpected EOF while reading message: expected " + std::to_string(expected) +
-                        " bytes, got " + std::to_string(total_read));
+                    "Unexpected EOF while reading message body: expected " +
+                        std::to_string(expected) + " bytes, got " + std::to_string(total_read));
             }
-            // 如果不是EOF，可能是暂时没有数据，等待一下
-            usleep(10000); // 10ms
+            // 可能是暂时没有数据，继续等待
             continue;
         }
         total_read += read;
@@ -699,6 +822,37 @@ std::string LspStdioConnector::readLspMessage() {
                                                std::to_string(total_read));
     }
 #endif
+    // 若花括号不平衡（'{'>'}'），尝试补足缺失的右花括号（最多补 8 个），作为最后的容错措施
+    int open_braces = 0, close_braces = 0;
+    for (char c : message) {
+        if (c == '{')
+            open_braces++;
+        else if (c == '}')
+            close_braces++;
+    }
+    if (open_braces > close_braces) {
+        int need = open_braces - close_braces;
+        int to_append = std::min(need, 8);
+        message.append(to_append, '}');
+    }
+
+    std::string preview = message;
+    if (preview.size() > 1024) {
+        preview = preview.substr(0, 1024) + "...(truncated)";
+    }
+    // 如果消息长度较大，将完整二进制内容写入临时文件供调试使用
+    try {
+        std::string dump_path = std::string("/tmp/pnana_lsp_msg.bin");
+        FILE* dump = fopen(dump_path.c_str(), "wb");
+        if (dump) {
+            fwrite(message.data(), 1, message.size(), dump);
+            fflush(dump);
+            fclose(dump);
+        }
+    } catch (...) {
+        // 忽略写入错误，不影响主流程
+    }
+
     return message;
 }
 
