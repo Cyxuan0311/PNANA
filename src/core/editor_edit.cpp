@@ -11,25 +11,39 @@ namespace core {
 
 // 编辑操作
 void Editor::insertChar(char ch) {
-    Document* doc = getCurrentDocument();
-    if (!doc)
-        return;
+    LOG("[EDIT] insertChar called with char: '" + std::string(1, ch) + "' at pos (" +
+        std::to_string(cursor_row_) + ", " + std::to_string(cursor_col_) + ")");
 
-        // 记录变更（阶段2优化：增量更新）
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        LOG("[EDIT] No current document, returning");
+        return;
+    }
+
+    // 记录变更（阶段2优化：增量更新）
 #ifdef BUILD_LSP_SUPPORT
     if (lsp_enabled_ && document_change_tracker_) {
+        LOG("[EDIT] Recording change to document_change_tracker_");
         std::string new_text(1, ch); // 新文本是插入的字符
         document_change_tracker_->recordInsert(static_cast<int>(cursor_row_),
                                                static_cast<int>(cursor_col_), new_text);
     }
 #endif
 
+    auto start_time = std::chrono::steady_clock::now();
     doc->insertChar(cursor_row_, cursor_col_, ch);
     cursor_col_++;
+    auto end_time = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    LOG("[EDIT] Document insertChar took " + std::to_string(duration.count()) + " us");
 
 #ifdef BUILD_LSP_SUPPORT
-    // 更新 LSP 文档（现在使用增量更新）
-    updateLspDocument();
+    // 智能LSP文档更新策略
+    // 只有在以下情况下才更新LSP文档：
+    // 1. 触发completion时（按需更新）
+    // 2. 文件保存时
+    // 3. 切换文件时
+    // 不应该在每次字符输入时都更新，以避免性能问题
 
     // 触发代码补全（在输入字母、数字、下划线或点号时）
     // 使用防抖机制，提升编辑流畅度
@@ -37,17 +51,32 @@ void Editor::insertChar(char ch) {
         if (std::isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '-' || ch == '>') {
             // 使用延迟触发，避免每次输入都立即请求（提升流畅度）
             completion_trigger_delay_++;
-            // 输入3个字符后触发，进一步提升流畅度
+            LOG("[EDIT] Completion trigger delay: " + std::to_string(completion_trigger_delay_));
+
+            // 增加延迟到3个字符后触发，平衡响应速度和性能
             if (completion_trigger_delay_ >= 3) {
+                LOG("[EDIT] Triggering completion and LSP document update");
                 completion_trigger_delay_ = 0;
+
+                // 在触发completion时才更新LSP文档，确保LSP服务器有最新状态
+                auto lsp_update_start = std::chrono::steady_clock::now();
+                updateLspDocument();
+                auto lsp_update_end = std::chrono::steady_clock::now();
+                auto lsp_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    lsp_update_end - lsp_update_start);
+                LOG("[EDIT] LSP document update took " + std::to_string(lsp_duration.count()) +
+                    "ms");
+
                 triggerCompletion();
             }
         } else if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '(' || ch == '[' || ch == '{') {
             // 空格、制表符、换行、括号时隐藏补全弹窗
+            LOG("[EDIT] Hiding completion popup (terminator char)");
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
         } else {
             // 其他字符，隐藏补全弹窗并重置延迟
+            LOG("[EDIT] Hiding completion popup (other char)");
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
         }
@@ -605,9 +634,11 @@ void Editor::undo() {
         // 确保光标位置有效（防止越界）
         adjustCursor();
 
-        // Neovim风格的视图调整：使用scrolloff机制，平滑调整视图
-        // 撤销操作应该尽量保持用户的视觉上下文，避免剧烈跳跃
-        adjustViewOffsetForUndo(cursor_row_, cursor_col_);
+        // Neovim/VSCode 优化：撤销操作时使用极度保守的视图调整策略
+        // 1. 如果光标已在可见范围内，绝对不调整视图（避免闪烁）
+        // 2. 只在光标完全不可见时才调整，且调整幅度最小化
+        // 3. 不使用scrolloff机制，因为撤销操作应该保持视觉连续性
+        adjustViewOffsetForUndoConservative(cursor_row_, cursor_col_);
 
         // 清除选择（VSCode 行为：撤销后清除选择）
         selection_active_ = false;

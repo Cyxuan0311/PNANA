@@ -119,6 +119,22 @@ void Editor::handleInput(Event event) {
         return;
     }
 
+    // 如果搜索对话框打开，优先处理
+    if (search_dialog_.isVisible()) {
+        if (search_dialog_.handleInput(event)) {
+            return;
+        }
+        // 如果搜索对话框打开但没有处理输入，屏蔽其他输入
+        return;
+    }
+
+    // 如果 SSH 传输对话框打开，优先处理
+    if (ssh_transfer_dialog_.isVisible()) {
+        if (ssh_transfer_dialog_.handleInput(event)) {
+            return;
+        }
+    }
+
     // 如果 SSH 对话框打开，优先处理（类似帮助窗口）
     if (ssh_dialog_.isVisible()) {
         if (ssh_dialog_.handleInput(event)) {
@@ -133,7 +149,7 @@ void Editor::handleInput(Event event) {
     // 但文件选择器可以在任何情况下打开
     bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ ||
                      split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
-                     cursor_config_dialog_.isVisible()
+                     search_dialog_.isVisible() || cursor_config_dialog_.isVisible()
 #ifdef BUILD_LUA_SUPPORT
                      || plugin_manager_dialog_.isVisible()
 #endif
@@ -341,6 +357,13 @@ void Editor::handleInput(Event event) {
         }
     }
 
+    // 优先处理格式化对话框输入
+    if (format_dialog_.isOpen()) {
+        if (format_dialog_.handleInput(event)) {
+            return;
+        }
+    }
+
     // 处理鼠标事件（用于拖动分屏线）
     if (event.is_mouse() && split_view_manager_.hasSplits()) {
         int screen_width = screen_.dimx();
@@ -497,145 +520,471 @@ void Editor::handleNormalMode(Event event) {
             return; // 补全弹窗打开时，这些键只用于补全导航，不继续处理
         }
     }
+
+    // 处理诊断弹窗的输入
+    if (show_diagnostics_popup_) {
+        // diagnostics popup is visible, processing input
+        // 首先检查是否是关闭弹窗的快捷键（Alt+E）
+        pnana::input::EventParser parser;
+        std::string key_str = parser.eventToKey(event);
+        // parsed key: key_str
+        if (key_str == "alt_e") {
+            // Alt+E detected, hiding diagnostics popup
+            hideDiagnosticsPopup();
+            return;
+        }
+
+        // 处理弹窗内的导航和操作
+        bool handled = diagnostics_popup_.handleInput(event);
+
+        // 如果弹窗内部处理了隐藏（如按 Esc），同步更新编辑器的显示标志
+        if (handled && !diagnostics_popup_.isVisible()) {
+            show_diagnostics_popup_ = false;
+            // ensure fully hidden
+            diagnostics_popup_.hide();
+        }
+
+        return; // 诊断弹窗打开时，优先处理其输入
+    }
 #endif
 
     // Normal mode = editing mode, can input directly
     // Arrow keys - 智能区域导航系统
+
+    // 标签区域的特殊处理（总是有效）
+    if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
+        if (event == Event::ArrowLeft || event == Event::ArrowRight) {
+            // 标签区域：左右键切换标签
+            int old_index = region_manager_.getTabIndex();
+            if (event == Event::ArrowLeft) {
+                region_manager_.previousTab();
+            } else {
+                region_manager_.nextTab();
+            }
+            int new_index = region_manager_.getTabIndex();
+            if (new_index != old_index && new_index >= 0 &&
+                new_index < static_cast<int>(document_manager_.getDocumentCount())) {
+                document_manager_.switchToDocument(new_index);
+
+                // 如果在分屏模式下，更新激活区域的文档索引
+                if (split_view_manager_.hasSplits()) {
+                    split_view_manager_.setCurrentDocumentIndex(new_index);
+                }
+
+                cursor_row_ = 0;
+                cursor_col_ = 0;
+                view_offset_row_ = 0;
+                view_offset_col_ = 0;
+                syntax_highlighter_.setFileType(getFileType());
+                setStatusMessage(
+                    "Region: " + region_manager_.getRegionName() +
+                    " | Tab: " + getCurrentDocument()->getFileName() +
+                    (split_view_manager_.hasSplits() ? " | ↓: Return to split view" : ""));
+            }
+            return;
+        } else if (event == Event::ArrowDown) {
+            // 标签区域：下键切换到代码区
+            if (region_manager_.navigateDown()) {
+                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                 (split_view_manager_.hasSplits() ? " | ↑: Return to tabs" : ""));
+                return;
+            }
+        }
+        // 其他方向键在标签区域不处理
+        return;
+    }
+
     if (event == Event::ArrowUp) {
         // 处理不同区域的向上导航
-        if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
-            // 标签区已经在最上方，不移动
-            return;
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
-            // 代码区：在顶部时切换到标签区，否则移动光标
-            if (cursor_row_ == 0 && document_manager_.getDocumentCount() > 1) {
-                if (region_manager_.navigateUp()) {
-                    region_manager_.setTabIndex(document_manager_.getCurrentIndex());
-                    setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                     " | ←→: Switch tabs, ↓: Return");
+        if (split_view_manager_.hasSplits()) {
+            // 分屏模式下：优先尝试区域切换（到标签区域），然后是分屏导航
+            if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 在代码区顶部时，切换到标签区域
+                if (cursor_row_ == 0) {
+                    if (region_manager_.navigateUp()) {
+                        region_manager_.setTabIndex(document_manager_.getCurrentIndex());
+                        setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                         " | ←→: Switch tabs, ↓: Return to split view");
+                        return;
+                    }
+                }
+                // 不在顶部时，尝试分屏导航
+                size_t old_active_index = 0;
+                const auto* old_active = split_view_manager_.getActiveRegion();
+                if (old_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == old_active) {
+                            old_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                split_view_manager_.focusUpRegion();
+
+                const auto* new_active = split_view_manager_.getActiveRegion();
+                size_t new_active_index = 0;
+                if (new_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == new_active) {
+                            new_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (new_active_index != old_active_index) {
+                    // 分屏导航成功，保存当前状态，更新文档，恢复新区域状态
+                    saveCurrentRegionState();
+
+                    const auto* active_region = split_view_manager_.getActiveRegion();
+                    if (active_region) {
+                        document_manager_.switchToDocument(active_region->document_index);
+                        // 恢复新区域的状态
+                        restoreRegionState(new_active_index);
+                        syntax_highlighter_.setFileType(getFileType());
+                    }
+                    setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
+                                     "/" + std::to_string(split_view_manager_.getRegionCount()) +
+                                     " | Use ↑↓←→ to navigate between regions");
                     return;
                 }
-            }
-            moveCursorUp();
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-            // 终端：向上切换到代码区
-            if (region_manager_.navigateUp()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
+                // 分屏导航失败，在当前区域内移动光标
+                moveCursorUp();
                 return;
             }
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-            // 文件浏览器：向上切换到标签区
-            if (region_manager_.navigateUp()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
-                return;
+        } else {
+            // 非分屏模式下的传统导航
+            if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 代码区：在顶部时切换到标签区，否则移动光标
+                if (cursor_row_ == 0 && document_manager_.getDocumentCount() > 1) {
+                    if (region_manager_.navigateUp()) {
+                        region_manager_.setTabIndex(document_manager_.getCurrentIndex());
+                        setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                         " | ←→: Switch tabs, ↓: Return");
+                        return;
+                    }
+                }
+                moveCursorUp();
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 终端：向上切换到代码区
+                if (region_manager_.navigateUp()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 文件浏览器：向上切换到标签区
+                if (region_manager_.navigateUp()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
             }
         }
     } else if (event == Event::ArrowDown) {
         // 处理不同区域的向下导航
-        if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
-            // 标签区：向下切换到代码区
-            if (region_manager_.navigateDown()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
-                return;
-            }
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
-            // 代码区：在底部时切换到终端，否则移动光标
-            Document* doc = getCurrentDocument();
-            if (doc && terminal_.isVisible()) {
-                size_t total_lines = doc->lineCount();
-                int screen_height = screen_.dimy() - 6;
-                size_t last_visible_row = view_offset_row_ + screen_height - 1;
-                if (cursor_row_ >= total_lines - 1 && cursor_row_ >= last_visible_row) {
-                    if (region_manager_.navigateDown()) {
-                        setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                         " | ↑: Return to editor");
-                        return;
+        if (split_view_manager_.hasSplits()) {
+            // 分屏模式下：优先尝试分屏导航，然后是区域切换
+            if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 首先尝试分屏导航
+                size_t old_active_index = 0;
+                const auto* old_active = split_view_manager_.getActiveRegion();
+                if (old_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == old_active) {
+                            old_active_index = i;
+                            break;
+                        }
                     }
                 }
-            }
-            moveCursorDown();
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-            // 终端已经在最下方，不移动
-            return;
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-            // 文件浏览器：向下切换到代码区
-            if (region_manager_.navigateDown()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
+
+                split_view_manager_.focusDownRegion();
+
+                const auto* new_active = split_view_manager_.getActiveRegion();
+                size_t new_active_index = 0;
+                if (new_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == new_active) {
+                            new_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (new_active_index != old_active_index) {
+                    // 分屏导航成功，保存当前状态，更新文档，恢复新区域状态
+                    saveCurrentRegionState();
+
+                    const auto* active_region = split_view_manager_.getActiveRegion();
+                    if (active_region) {
+                        document_manager_.switchToDocument(active_region->document_index);
+                        // 恢复新区域的状态
+                        restoreRegionState(new_active_index);
+                        syntax_highlighter_.setFileType(getFileType());
+                    }
+                    setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
+                                     "/" + std::to_string(split_view_manager_.getRegionCount()) +
+                                     " | Use ↑↓←→ to navigate between regions");
+                    return;
+                }
+
+                // 分屏导航失败，尝试区域切换（当光标在底部时）
+                Document* doc = getCurrentDocument();
+                if (doc) {
+                    size_t total_lines = doc->lineCount();
+                    int screen_height = screen_.dimy() - 6;
+                    size_t last_visible_row = view_offset_row_ + screen_height - 1;
+
+                    if (cursor_row_ >= total_lines - 1 || cursor_row_ >= last_visible_row) {
+                        if (terminal_.isVisible()) {
+                            if (region_manager_.navigateDown()) {
+                                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                                 " | ↑: Return to split view");
+                                return;
+                            }
+                        } else if (file_browser_.isVisible()) {
+                            // 如果终端不可见，尝试切换到文件浏览器
+                            if (region_manager_.navigateDown()) {
+                                setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                                 " | ↑: Return to split view");
+                                return;
+                            }
+                        }
+                    }
+                }
+                // 都不成功，在当前区域内移动光标
+                moveCursorDown();
                 return;
+            }
+        } else {
+            // 非分屏模式下的传统导航
+            if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
+                // 标签区：向下切换到代码区
+                if (region_manager_.navigateDown()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 代码区：在底部时切换到终端，否则移动光标
+                Document* doc = getCurrentDocument();
+                if (doc && terminal_.isVisible()) {
+                    size_t total_lines = doc->lineCount();
+                    int screen_height = screen_.dimy() - 6;
+                    size_t last_visible_row = view_offset_row_ + screen_height - 1;
+                    if (cursor_row_ >= total_lines - 1 && cursor_row_ >= last_visible_row) {
+                        if (region_manager_.navigateDown()) {
+                            setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                             " | ↑: Return to editor");
+                            return;
+                        }
+                    }
+                }
+                moveCursorDown();
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 终端已经在最下方，不移动
+                return;
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 文件浏览器：向下切换到代码区
+                if (region_manager_.navigateDown()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
             }
         }
     } else if (event == Event::ArrowLeft) {
         // 处理不同区域的向左导航
-        if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
-            // 标签区：左右键切换标签
-            int old_index = region_manager_.getTabIndex();
-            region_manager_.previousTab();
-            int new_index = region_manager_.getTabIndex();
-            if (new_index != old_index && new_index >= 0 &&
-                new_index < static_cast<int>(document_manager_.getDocumentCount())) {
-                document_manager_.switchToDocument(new_index);
-                cursor_row_ = 0;
-                cursor_col_ = 0;
-                view_offset_row_ = 0;
-                view_offset_col_ = 0;
-                syntax_highlighter_.setFileType(getFileType());
-                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                 " | Tab: " + getCurrentDocument()->getFileName());
-            }
-            return;
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
-            // 代码区：在左边界时切换到文件浏览器，否则移动光标
-            if (cursor_col_ == 0 && file_browser_.isVisible()) {
-                if (region_manager_.navigateLeft()) {
-                    setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                     " | →: Return to editor");
+        if (split_view_manager_.hasSplits()) {
+            // 分屏模式下：优先尝试分屏导航，然后是区域切换
+            if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 首先尝试分屏导航
+                size_t old_active_index = 0;
+                const auto* old_active = split_view_manager_.getActiveRegion();
+                if (old_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == old_active) {
+                            old_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                split_view_manager_.focusLeftRegion();
+
+                const auto* new_active = split_view_manager_.getActiveRegion();
+                size_t new_active_index = 0;
+                if (new_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == new_active) {
+                            new_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (new_active_index != old_active_index) {
+                    // 分屏导航成功，保存当前状态，更新文档，恢复新区域状态
+                    saveCurrentRegionState();
+
+                    const auto* active_region = split_view_manager_.getActiveRegion();
+                    if (active_region) {
+                        document_manager_.switchToDocument(active_region->document_index);
+                        // 恢复新区域的状态
+                        restoreRegionState(new_active_index);
+                        syntax_highlighter_.setFileType(getFileType());
+                    }
+                    setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
+                                     "/" + std::to_string(split_view_manager_.getRegionCount()) +
+                                     " | Use ↑↓←→ to navigate between regions");
                     return;
                 }
-            }
-            moveCursorLeft();
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-            // 文件浏览器已经在最左侧，不移动
-            return;
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-            // 终端：向左切换到文件浏览器或代码区
-            if (region_manager_.navigateLeft()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
+
+                // 分屏导航失败，尝试区域切换（当光标在行首时）
+                if (cursor_col_ == 0 && file_browser_.isVisible()) {
+                    if (region_manager_.navigateLeft()) {
+                        setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                         " | →: Return to split view");
+                        return;
+                    }
+                }
+                // 都不成功，在当前区域内移动光标
+                moveCursorLeft();
                 return;
+            }
+        } else {
+            // 非分屏模式下的传统导航
+            if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
+                // 标签区：左右键切换标签
+                int old_index = region_manager_.getTabIndex();
+                region_manager_.previousTab();
+                int new_index = region_manager_.getTabIndex();
+                if (new_index != old_index && new_index >= 0 &&
+                    new_index < static_cast<int>(document_manager_.getDocumentCount())) {
+                    document_manager_.switchToDocument(new_index);
+                    cursor_row_ = 0;
+                    cursor_col_ = 0;
+                    view_offset_row_ = 0;
+                    view_offset_col_ = 0;
+                    syntax_highlighter_.setFileType(getFileType());
+                    setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                     " | Tab: " + getCurrentDocument()->getFileName());
+                }
+                return;
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 代码区：在左边界时切换到文件浏览器，否则移动光标
+                if (cursor_col_ == 0 && file_browser_.isVisible()) {
+                    if (region_manager_.navigateLeft()) {
+                        setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                         " | →: Return to editor");
+                        return;
+                    }
+                }
+                moveCursorLeft();
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 文件浏览器已经在最左侧，不移动
+                return;
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 终端：向左切换到文件浏览器或代码区
+                if (region_manager_.navigateLeft()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
             }
         }
     } else if (event == Event::ArrowRight) {
         // 处理不同区域的向右导航
-        if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
-            // 标签区：左右键切换标签
-            int old_index = region_manager_.getTabIndex();
-            region_manager_.nextTab();
-            int new_index = region_manager_.getTabIndex();
-            if (new_index != old_index && new_index >= 0 &&
-                new_index < static_cast<int>(document_manager_.getDocumentCount())) {
-                document_manager_.switchToDocument(new_index);
-                cursor_row_ = 0;
-                cursor_col_ = 0;
-                view_offset_row_ = 0;
-                view_offset_col_ = 0;
-                syntax_highlighter_.setFileType(getFileType());
-                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                 " | Tab: " + getCurrentDocument()->getFileName());
-            }
-            return;
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
-            // 代码区：向右没有其他区域，移动光标
-            moveCursorRight();
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-            // 文件浏览器：向右切换到代码区
-            if (region_manager_.navigateRight()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
+        if (split_view_manager_.hasSplits()) {
+            // 分屏模式下：优先尝试分屏导航
+            if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 首先尝试分屏导航
+                size_t old_active_index = 0;
+                const auto* old_active = split_view_manager_.getActiveRegion();
+                if (old_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == old_active) {
+                            old_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                split_view_manager_.focusRightRegion();
+
+                const auto* new_active = split_view_manager_.getActiveRegion();
+                size_t new_active_index = 0;
+                if (new_active) {
+                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                        if (&split_view_manager_.getRegions()[i] == new_active) {
+                            new_active_index = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (new_active_index != old_active_index) {
+                    // 分屏导航成功，保存当前状态，更新文档，恢复新区域状态
+                    saveCurrentRegionState();
+
+                    const auto* active_region = split_view_manager_.getActiveRegion();
+                    if (active_region) {
+                        document_manager_.switchToDocument(active_region->document_index);
+                        // 恢复新区域的状态
+                        restoreRegionState(new_active_index);
+                        syntax_highlighter_.setFileType(getFileType());
+                    }
+                    setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
+                                     "/" + std::to_string(split_view_manager_.getRegionCount()) +
+                                     " | Use ↑↓←→ to navigate between regions");
+                    return;
+                }
+                // 分屏导航失败，在当前区域内移动光标
+                moveCursorRight();
                 return;
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 文件浏览器：向右切换到代码区
+                if (region_manager_.navigateRight()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 终端：向右切换到代码区
+                if (region_manager_.navigateRight()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
             }
-        } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-            // 终端：向右切换到代码区
-            if (region_manager_.navigateRight()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName());
+        } else {
+            // 非分屏模式下的传统导航
+            if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
+                // 标签区：左右键切换标签
+                int old_index = region_manager_.getTabIndex();
+                region_manager_.nextTab();
+                int new_index = region_manager_.getTabIndex();
+                if (new_index != old_index && new_index >= 0 &&
+                    new_index < static_cast<int>(document_manager_.getDocumentCount())) {
+                    document_manager_.switchToDocument(new_index);
+                    cursor_row_ = 0;
+                    cursor_col_ = 0;
+                    view_offset_row_ = 0;
+                    view_offset_col_ = 0;
+                    syntax_highlighter_.setFileType(getFileType());
+                    setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                     " | Tab: " + getCurrentDocument()->getFileName());
+                }
                 return;
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+                // 代码区：向右没有其他区域，移动光标
+                moveCursorRight();
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 文件浏览器：向右切换到代码区
+                if (region_manager_.navigateRight()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 终端：向右切换到代码区
+                if (region_manager_.navigateRight()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName());
+                    return;
+                }
             }
         }
     }
@@ -870,6 +1219,26 @@ void Editor::handleFileBrowserInput(Event event) {
         }
     }
 
+    // F5: SSH文件传输（仅当有SSH连接时）
+    if (event == Event::F5) {
+        if (!current_ssh_config_.host.empty()) {
+            showSSHTransferDialog();
+            return;
+        }
+    }
+
+    // Ctrl+F: 搜索
+    if (isCtrlKey(event, 'f')) {
+        startSearch();
+        return;
+    }
+
+    // Ctrl+R: 替换
+    if (isCtrlKey(event, 'r')) {
+        startReplace();
+        return;
+    }
+
     // 处理方向键区域切换
     if (event == Event::ArrowUp) {
         // 文件浏览器顶部时，向上切换到标签区
@@ -1064,15 +1433,160 @@ void Editor::handleFileBrowserInput(Event event) {
 
 // 搜索和替换
 void Editor::startSearch() {
-    mode_ = EditorMode::SEARCH;
-    input_buffer_ = "";
-    setStatusMessage("Search: ");
+    if (!getCurrentDocument()) {
+        setStatusMessage("No document to search in");
+        return;
+    }
+
+    search_dialog_.show(
+        [this](const std::string& pattern, const features::SearchOptions& options) {
+            performSearch(pattern, options);
+        },
+        [this](const std::string& replacement) {
+            performReplace(replacement);
+        },
+        [this](const std::string& replacement) {
+            performReplaceAll(replacement);
+        },
+        [this]() {
+            setStatusMessage("Search cancelled");
+        });
+}
+
+void Editor::performSearch(const std::string& pattern, const features::SearchOptions& options) {
+    if (!getCurrentDocument()) {
+        setStatusMessage("No document to search in");
+        return;
+    }
+
+    // 执行搜索
+    const auto& lines = getCurrentDocument()->getLines();
+    search_engine_.search(pattern, lines, options);
+
+    current_search_options_ = options;
+
+    if (search_engine_.hasMatches()) {
+        search_highlight_active_ = true;
+        search_dialog_.updateResults(search_engine_.getCurrentMatchIndex(),
+                                     search_engine_.getTotalMatches());
+
+        // 跳转到第一个匹配
+        const auto* match = search_engine_.getCurrentMatch();
+        if (match) {
+            cursor_row_ = match->line;
+            cursor_col_ = match->column;
+            adjustViewOffset();
+        }
+
+        setStatusMessage("Found " + std::to_string(search_engine_.getTotalMatches()) +
+                         " matches for: " + pattern);
+    } else {
+        search_highlight_active_ = false;
+        setStatusMessage("No matches found for: " + pattern);
+    }
+}
+
+void Editor::clearSearchHighlight() {
+    if (search_highlight_active_) {
+        search_highlight_active_ = false;
+        search_engine_.clearSearch();
+    }
+}
+
+void Editor::performReplace(const std::string& replacement) {
+    if (!getCurrentDocument() || !search_highlight_active_ || !search_engine_.hasMatches()) {
+        setStatusMessage("No active search to replace");
+        return;
+    }
+
+    Document* doc = getCurrentDocument();
+    const auto* match = search_engine_.getCurrentMatch();
+    if (!match) {
+        setStatusMessage("No current match to replace");
+        return;
+    }
+
+    // 获取当前行的内容
+    std::string line = doc->getLine(match->line);
+    if (match->column + match->length > line.length()) {
+        setStatusMessage("Invalid match position");
+        return;
+    }
+
+    // 删除匹配的文本
+    doc->deleteRange(match->line, match->column, match->line, match->column + match->length);
+
+    // 插入替换文本
+    if (!replacement.empty()) {
+        doc->insertText(match->line, match->column, replacement);
+    }
+
+    // 重新搜索以更新匹配
+    const auto& pattern = search_engine_.getPattern();
+    const auto& lines = doc->getLines();
+    search_engine_.search(pattern, lines, current_search_options_);
+
+    // 更新搜索结果显示
+    if (search_engine_.hasMatches()) {
+        search_dialog_.updateResults(search_engine_.getCurrentMatchIndex(),
+                                     search_engine_.getTotalMatches());
+        setStatusMessage("Replaced 1 occurrence. " +
+                         std::to_string(search_engine_.getTotalMatches()) + " matches remaining");
+    } else {
+        search_highlight_active_ = false;
+        search_dialog_.updateResults(0, 0);
+        setStatusMessage("Replaced 1 occurrence. No more matches");
+    }
+}
+
+void Editor::performReplaceAll(const std::string& replacement) {
+    if (!getCurrentDocument() || !search_highlight_active_ || !search_engine_.hasMatches()) {
+        setStatusMessage("No active search to replace");
+        return;
+    }
+
+    Document* doc = getCurrentDocument();
+    const auto& matches = search_engine_.getAllMatches();
+    size_t replaced_count = 0;
+
+    // 从后往前替换，避免位置偏移
+    for (auto it = matches.rbegin(); it != matches.rend(); ++it) {
+        const auto& match = *it;
+
+        if (match.line >= doc->lineCount()) {
+            continue;
+        }
+
+        std::string line = doc->getLine(match.line);
+        if (match.column + match.length > line.length()) {
+            continue;
+        }
+
+        // 删除匹配的文本
+        doc->deleteRange(match.line, match.column, match.line, match.column + match.length);
+
+        // 插入替换文本
+        if (!replacement.empty()) {
+            doc->insertText(match.line, match.column, replacement);
+        }
+
+        replaced_count++;
+    }
+
+    if (replaced_count > 0) {
+        // 清除搜索状态
+        search_highlight_active_ = false;
+        search_engine_.clearSearch();
+        search_dialog_.updateResults(0, 0);
+
+        setStatusMessage("Replaced " + std::to_string(replaced_count) + " occurrences");
+    } else {
+        setStatusMessage("No replacements made");
+    }
 }
 
 void Editor::startReplace() {
-    mode_ = EditorMode::REPLACE;
-    input_buffer_ = "";
-    setStatusMessage("Replace: ");
+    startSearch(); // 替换实际上使用相同的对话框
 }
 
 void Editor::searchNext() {

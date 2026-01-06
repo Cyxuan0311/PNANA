@@ -88,7 +88,63 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
     // 设置语法高亮
     syntax_highlighter_.setFileType(getFileType());
 
+    // 保存SSH连接信息（用于后续文件传输）
+    current_ssh_config_ = config;
+
     setStatusMessage("SSH: Connected and loaded " + config.remote_path);
+}
+
+void Editor::showSSHTransferDialog() {
+    if (current_ssh_config_.host.empty()) {
+        setStatusMessage("SSH: No active SSH connection. Please connect first.");
+        return;
+    }
+
+    ssh_transfer_dialog_.show(
+        [this](const std::vector<pnana::ui::SSHTransferItem>& items) {
+            handleSSHFileTransfer(items);
+        },
+        [this]() {
+            handleSSHTransferCancel();
+        });
+}
+
+void Editor::handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items) {
+    if (current_ssh_config_.host.empty()) {
+        setStatusMessage("SSH: No active SSH connection");
+        return;
+    }
+
+    setStatusMessage("SSH: Starting file transfer...");
+
+    // 这里应该启动异步文件传输
+    // 暂时使用同步方式处理第一个项目作为示例
+    if (!items.empty()) {
+        const auto& item = items[0];
+        features::ssh::Client ssh_client;
+
+        if (item.direction == "upload") {
+            auto result =
+                ssh_client.uploadFile(current_ssh_config_, item.local_path, item.remote_path);
+            if (result.success) {
+                setStatusMessage("SSH: File uploaded successfully: " + item.local_path);
+            } else {
+                setStatusMessage("SSH: Upload failed: " + result.error);
+            }
+        } else if (item.direction == "download") {
+            auto result =
+                ssh_client.downloadFile(current_ssh_config_, item.remote_path, item.local_path);
+            if (result.success) {
+                setStatusMessage("SSH: File downloaded successfully: " + item.local_path);
+            } else {
+                setStatusMessage("SSH: Download failed: " + result.error);
+            }
+        }
+    }
+}
+
+void Editor::handleSSHTransferCancel() {
+    setStatusMessage("SSH: File transfer cancelled");
 }
 
 } // namespace core

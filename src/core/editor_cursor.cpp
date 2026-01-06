@@ -76,6 +76,9 @@ void Editor::moveCursorUp() {
         // 立即调整视图偏移，使光标移动更流畅
         adjustViewOffset();
     }
+
+    // 清除搜索高亮
+    clearSearchHighlight();
 }
 
 void Editor::moveCursorDown() {
@@ -90,6 +93,9 @@ void Editor::moveCursorDown() {
         // 立即调整视图偏移，使光标移动更流畅
         adjustViewOffset();
     }
+
+    // 清除搜索高亮
+    clearSearchHighlight();
 }
 
 void Editor::moveCursorLeft() {
@@ -585,6 +591,51 @@ void Editor::adjustViewOffsetForUndo(size_t target_row, size_t /*target_col*/) {
         }
     }
     // 如果光标已在可见范围内，完全不调整视图，这是Neovim风格的核心优化
+}
+
+// Neovim/VSCode 极度保守的撤销视图调整：最大限度避免闪烁
+void Editor::adjustViewOffsetForUndoConservative(size_t target_row, size_t /*target_col*/) {
+    // 撤销操作的核心优化原则：
+    // 1. 优先保持视觉连续性，避免任何不必要的视图跳跃
+    // 2. 只有当光标完全超出可见区域时才调整，且调整幅度最小
+    // 3. 完全避免使用scrolloff机制，因为撤销应该保持用户的视觉上下文
+
+    int screen_height = screen_.dimy() - 6;
+    if (screen_height <= 0) {
+        screen_height = 1;
+    }
+
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        return;
+    }
+
+    size_t total_lines = doc->lineCount();
+    if (total_lines == 0) {
+        view_offset_row_ = 0;
+        return;
+    }
+
+    // 计算目标光标在当前视图中的位置
+    int cursor_screen_pos = static_cast<int>(target_row) - static_cast<int>(view_offset_row_);
+
+    // 超极度保守策略：只有在光标完全不可见时才调整，且调整幅度极小
+    // 这种策略最大限度地避免了撤销操作时的屏幕闪烁
+    if (cursor_screen_pos < 0) {
+        // 光标在可见区域上方，仅当完全不可见时才调整
+        // 精确调整到刚好可见，不使用任何buffer
+        view_offset_row_ = target_row;
+    } else if (cursor_screen_pos >= screen_height) {
+        // 光标在可见区域下方，仅当完全不可见时才调整
+        // 精确调整到刚好可见，不使用任何buffer
+        size_t max_offset =
+            (total_lines > static_cast<size_t>(screen_height)) ? total_lines - screen_height : 0;
+        view_offset_row_ = target_row - (screen_height - 1);
+        if (view_offset_row_ > max_offset) {
+            view_offset_row_ = max_offset;
+        }
+    }
+    // 如果光标已在可见范围内，绝对不调整视图 - 这是避免闪烁的关键
 }
 
 void Editor::pageUp() {

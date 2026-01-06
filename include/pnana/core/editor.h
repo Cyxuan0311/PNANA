@@ -16,12 +16,15 @@
 #include "ui/dialog.h"
 #include "ui/encoding_dialog.h"
 #include "ui/file_picker.h"
+#include "ui/format_dialog.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
 #include "ui/new_file_prompt.h"
 #include "ui/save_as_dialog.h"
+#include "ui/search_dialog.h"
 #include "ui/split_dialog.h"
 #include "ui/ssh_dialog.h"
+#include "ui/ssh_transfer_dialog.h"
 #include "ui/statusbar.h"
 #include "ui/tabbar.h"
 #include "ui/theme.h"
@@ -39,12 +42,17 @@
 #include "features/command_palette.h"
 #include "features/split_view.h"
 #include "features/terminal.h"
+#include "vgit/git_panel.h"
 #ifdef BUILD_LSP_SUPPORT
 #include "features/lsp/document_change_tracker.h"
 #include "features/lsp/lsp_async_manager.h"
 #include "features/lsp/lsp_completion_cache.h"
+#include "features/lsp/lsp_formatter.h"
+#include "features/lsp/lsp_request_manager.h"
 #include "features/lsp/lsp_server_manager.h"
+#include "features/lsp/lsp_worker_pool.h"
 #include "ui/completion_popup.h"
+#include "ui/diagnostics_popup.h"
 #endif
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
@@ -56,6 +64,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace pnana {
@@ -65,6 +74,7 @@ namespace core {
 namespace input {
 class TerminalHandler;
 class FileBrowserHandler;
+class GitPanelHandler;
 } // namespace input
 
 // 编辑器模式
@@ -84,6 +94,10 @@ class Editor {
     friend class pnana::core::input::TerminalHandler;
     // 友元类：允许FileBrowserHandler访问setStatusMessage
     friend class pnana::core::input::FileBrowserHandler;
+    // 友元类：允许InputRouter访问setStatusMessage
+    friend class pnana::core::input::InputRouter;
+    // 友元类：允许GitPanelHandler访问toggleGitPanel和setStatusMessage
+    friend class pnana::core::input::GitPanelHandler;
 #ifdef BUILD_LUA_SUPPORT
     // 友元类：允许LuaAPI访问私有方法
     friend class plugins::LuaAPI;
@@ -162,6 +176,10 @@ class Editor {
     // 搜索和替换
     void startSearch();
     void startReplace();
+    void performSearch(const std::string& pattern, const features::SearchOptions& options);
+    void performReplace(const std::string& replacement);
+    void performReplaceAll(const std::string& replacement);
+    void clearSearchHighlight();
     void searchNext();
     void searchPrevious();
     void replaceCurrentMatch();
@@ -182,6 +200,20 @@ class Editor {
     void showSplitDialog();
     void splitView(features::SplitDirection direction);
     void closeSplitRegion(size_t region_index); // 关闭指定分屏区域
+
+    // 分屏文档管理
+    Document* getDocumentForActiveRegion();
+    const Document* getDocumentForActiveRegion() const;
+    size_t getDocumentIndexForActiveRegion() const;
+    void setDocumentForActiveRegion(size_t document_index);
+    void openDocumentInActiveRegion(const std::string& file_path);
+
+    // 分屏状态管理
+    void saveCurrentRegionState();
+    void restoreRegionState(size_t region_index);
+
+    // 分屏大小调整
+    bool resizeActiveSplitRegion(int delta);
     void focusLeftRegion();
     void focusRightRegion();
     void focusUpRegion();
@@ -218,8 +250,18 @@ class Editor {
     const pnana::input::ActionExecutor& getActionExecutor() const {
         return action_executor_;
     }
+    features::SplitViewManager& getSplitViewManager() {
+        return split_view_manager_;
+    }
+    const features::SplitViewManager& getSplitViewManager() const {
+        return split_view_manager_;
+    }
     bool isFileBrowserVisible() const;
     bool isTerminalVisible() const;
+    bool isGitPanelVisible() const;
+    vgit::GitPanel& getGitPanel() {
+        return git_panel_;
+    }
     features::Terminal& getTerminal() {
         return terminal_;
     }
@@ -277,8 +319,10 @@ class Editor {
     pnana::ui::Help help_;
     pnana::ui::Dialog dialog_;
     pnana::ui::FilePicker file_picker_;
+    pnana::ui::SearchDialog search_dialog_;
     pnana::ui::SplitDialog split_dialog_;
     pnana::ui::SSHDialog ssh_dialog_;
+    pnana::ui::SSHTransferDialog ssh_transfer_dialog_;
     pnana::ui::WelcomeScreen welcome_screen_;
     pnana::ui::NewFilePrompt new_file_prompt_;
     pnana::ui::ThemeMenu theme_menu_;
@@ -287,13 +331,19 @@ class Editor {
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
     pnana::ui::BinaryFileView binary_file_view_;
     pnana::ui::EncodingDialog encoding_dialog_;
+    pnana::ui::FormatDialog format_dialog_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
+    pnana::vgit::GitPanel git_panel_;
 
     // 功能模块
     features::SearchEngine search_engine_;
     features::FileBrowser file_browser_;
+
+    // 当前搜索状态
+    bool search_highlight_active_;
+    features::SearchOptions current_search_options_;
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
     features::ImagePreview image_preview_;
 #endif
@@ -301,6 +351,15 @@ class Editor {
     features::CommandPalette command_palette_;
     features::Terminal terminal_;
     features::SplitViewManager split_view_manager_;
+
+    // 分屏区域状态存储
+    struct RegionState {
+        size_t cursor_row = 0;
+        size_t cursor_col = 0;
+        size_t view_offset_row = 0;
+        size_t view_offset_col = 0;
+    };
+    std::vector<RegionState> region_states_;
 
 #ifdef BUILD_LSP_SUPPORT
     // LSP 服务器管理器（支持多语言）
@@ -314,6 +373,9 @@ class Editor {
     // URI 缓存（阶段1优化）
     std::map<std::string, std::string> uri_cache_; // filepath -> uri
     std::mutex uri_cache_mutex_;                   // 保护 URI 缓存的互斥锁
+
+    // LSP 格式化器
+    std::unique_ptr<features::LspFormatter> lsp_formatter_;
 
     // 文档更新防抖（阶段1优化）
     std::chrono::steady_clock::time_point last_document_update_time_;
@@ -331,12 +393,28 @@ class Editor {
 
     // 异步请求管理器（阶段2优化）
     std::unique_ptr<features::LspAsyncManager> lsp_async_manager_;
+    // 请求队列与线程池（阶段2优化）
+    std::unique_ptr<features::LspRequestManager> lsp_request_manager_;
+    std::unique_ptr<features::LspWorkerPool> lsp_worker_pool_;
 
     // 文档变更跟踪器（阶段2优化）
     std::unique_ptr<features::DocumentChangeTracker> document_change_tracker_;
 
     // 补全缓存（阶段2优化）
     std::unique_ptr<features::LspCompletionCache> completion_cache_;
+
+    // 诊断错误弹窗
+    pnana::ui::DiagnosticsPopup diagnostics_popup_;
+    bool show_diagnostics_popup_;
+    std::vector<features::Diagnostic> current_file_diagnostics_;
+    std::mutex diagnostics_mutex_;
+#ifdef BUILD_LSP_SUPPORT
+    // Completion popup last shown state (用于防抖/去抖动显示)
+    std::chrono::steady_clock::time_point last_popup_shown_time_;
+    int last_popup_shown_count_ = 0;
+    int last_popup_row_ = -1;
+    int last_popup_col_ = -1;
+#endif
 #endif
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理器
@@ -349,6 +427,9 @@ class Editor {
     size_t cursor_col_;
     size_t view_offset_row_;
     size_t view_offset_col_;
+
+    // SSH连接状态
+    pnana::ui::SSHConfig current_ssh_config_;
 
     // 主题选择
     bool show_theme_menu_;
@@ -382,6 +463,9 @@ class Editor {
     std::string status_message_;
     bool should_quit_;
 
+    // UI更新控制
+    bool force_ui_update_;
+
     // FTXUI
     ftxui::ScreenInteractive screen_;
     ftxui::Component main_component_;
@@ -410,12 +494,14 @@ class Editor {
     ftxui::Element renderHelp();
     ftxui::Element renderCommandPalette(); // 命令面板
     ftxui::Element renderTerminal();       // 终端
+    ftxui::Element renderGitPanel();       // Git 面板
     ftxui::Element renderFilePicker();     // 文件选择器
 
     // 辅助方法
     void adjustCursor();
     void adjustViewOffset();
     void adjustViewOffsetForUndo(size_t target_row, size_t target_col);
+    void adjustViewOffsetForUndoConservative(size_t target_row, size_t target_col);
     void setStatusMessage(const std::string& message);
     std::string getFileType() const;
     void executeSearch(bool move_cursor = true);
@@ -445,6 +531,11 @@ class Editor {
     void showSSHDialog();
     void handleSSHConnect(const pnana::ui::SSHConfig& config);
 
+    // SSH 文件传输
+    void showSSHTransferDialog();
+    void handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items);
+    void handleSSHTransferCancel();
+
     // 标签页管理
     void closeCurrentTab();
     void switchToNextTab();
@@ -454,10 +545,18 @@ class Editor {
     // 帮助系统
     void toggleHelp();
 
+    // Git 面板
+    void toggleGitPanel();
+
     // 光标配置
     void openCursorConfig();
     void openEncodingDialog();
     void applyCursorConfig();
+
+    // 代码格式化
+    void openFormatDialog();
+    void formatSelectedFiles(const std::vector<std::string>& file_paths);
+    void handleFormatDialogInput(ftxui::Event event);
 
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理
@@ -498,6 +597,16 @@ class Editor {
     void applyCompletion();
     void updateLspDocument();
     ftxui::Element renderCompletionPopup();
+    void showCompletionPopupIfChanged(const std::vector<features::CompletionItem>& items, int row,
+                                      int col, int screen_w, int screen_h);
+
+    // 诊断相关方法
+    void showDiagnosticsPopup();
+    void hideDiagnosticsPopup();
+    void updateDiagnosticsStatus(const std::vector<features::Diagnostic>& diagnostics);
+    void copySelectedDiagnostic();
+    void jumpToDiagnostic(const features::Diagnostic& diagnostic);
+    ftxui::Element renderDiagnosticsPopup();
 #endif
 
     // 获取当前文档（便捷方法）

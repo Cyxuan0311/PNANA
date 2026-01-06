@@ -167,6 +167,17 @@ Element Editor::overlayDialogs(Element main_ui) {
         return dbox({main_ui, renderCommandPalette() | center});
     }
 
+    // 如果格式化对话框打开，叠加显示
+    if (format_dialog_.isOpen()) {
+        return dbox({main_ui, format_dialog_.render() | center});
+    }
+
+    // 如果Git面板打开，叠加显示
+    if (isGitPanelVisible()) {
+        Elements dialog_elements = {main_ui | dim, renderGitPanel() | center};
+        return dbox(dialog_elements);
+    }
+
     // 如果对话框打开，叠加显示
     if (dialog_.isVisible()) {
         Elements dialog_elements = {main_ui | dim, dialog_.render() | center};
@@ -176,6 +187,8 @@ Element Editor::overlayDialogs(Element main_ui) {
 #ifdef BUILD_LSP_SUPPORT
     // 如果补全弹窗打开，叠加显示
     if (completion_popup_.isVisible()) {
+        LOG("[UI] Rendering completion popup");
+
         // 计算补全弹窗的位置（在光标下方）
         int popup_x = completion_popup_.getPopupX();
         int popup_y = completion_popup_.getPopupY();
@@ -185,8 +198,17 @@ Element Editor::overlayDialogs(Element main_ui) {
         int editor_start_y = 2;
         int actual_popup_y = popup_y + editor_start_y;
 
+        LOG("[UI] Completion popup position: x=" + std::to_string(popup_x) + ", y=" +
+            std::to_string(popup_y) + " (actual_y=" + std::to_string(actual_popup_y) + ")");
+
         // 使用dbox叠加显示弹窗
+        auto render_start = std::chrono::steady_clock::now();
         Element popup = renderCompletionPopup();
+        auto render_end = std::chrono::steady_clock::now();
+        auto render_duration =
+            std::chrono::duration_cast<std::chrono::microseconds>(render_end - render_start);
+
+        LOG("[UI] Completion popup render took " + std::to_string(render_duration.count()) + "us");
 
         // 创建定位容器：左侧空白 + 弹窗 + 右侧空白
         Element horizontal_layout = hbox({filler() | size(WIDTH, EQUAL, popup_x), popup, filler()});
@@ -197,6 +219,12 @@ Element Editor::overlayDialogs(Element main_ui) {
 
         Elements completion_elements = {main_ui, vertical_layout};
         return dbox(completion_elements);
+    }
+
+    // 如果诊断弹窗打开，叠加显示（要求弹窗对象也显示，以避免残留遮罩）
+    if (show_diagnostics_popup_ && diagnostics_popup_.isVisible()) {
+        Elements diagnostics_elements = {main_ui | dim, renderDiagnosticsPopup() | center};
+        return dbox(diagnostics_elements);
     }
 #endif
 
@@ -210,6 +238,18 @@ Element Editor::overlayDialogs(Element main_ui) {
     if (split_dialog_.isVisible()) {
         Elements split_elements = {main_ui | dim, split_dialog_.render() | center};
         return dbox(split_elements);
+    }
+
+    // 如果搜索对话框打开，叠加显示
+    if (search_dialog_.isVisible()) {
+        Elements search_elements = {main_ui | dim, search_dialog_.render() | center};
+        return dbox(search_elements);
+    }
+
+    // 如果 SSH 传输对话框打开，叠加显示
+    if (ssh_transfer_dialog_.isVisible()) {
+        Elements ssh_transfer_elements = {main_ui | dim, ssh_transfer_dialog_.render() | center};
+        return dbox(ssh_transfer_elements);
     }
 
     // 如果 SSH 对话框打开，叠加显示
@@ -236,6 +276,27 @@ Element Editor::renderTabbar() {
         return hbox({text(" "), text(pnana::ui::icons::ROCKET) | color(theme_.getColors().keyword),
                      text(" Welcome ") | color(theme_.getColors().foreground) | bold, text(" ")}) |
                bgcolor(theme_.getColors().menubar_bg);
+    }
+
+    // 如果有分屏，修改标签显示以反映当前激活区域的文档
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->document_index < tabs.size()) {
+            // 创建修改后的标签列表，将激活区域的文档标记为当前文档
+            std::vector<DocumentManager::TabInfo> modified_tabs = tabs;
+
+            // 先将所有标签标记为非当前
+            for (auto& tab : modified_tabs) {
+                tab.is_current = false;
+            }
+
+            // 将激活区域的文档标记为当前
+            if (active_region->document_index < modified_tabs.size()) {
+                modified_tabs[active_region->document_index].is_current = true;
+            }
+
+            return tabbar_.render(modified_tabs);
+        }
     }
 
     return tabbar_.render(tabs);
@@ -770,7 +831,7 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
 
     // 获取当前行的搜索匹配
     std::vector<features::SearchMatch> line_matches;
-    if (search_engine_.hasMatches()) {
+    if (search_highlight_active_ && search_engine_.hasMatches()) {
         const auto& all_matches = search_engine_.getAllMatches();
         for (const auto& match : all_matches) {
             if (match.line == line_num) {
@@ -1152,8 +1213,51 @@ Element Editor::renderLineNumber(size_t line_num, bool is_current) {
         line_str = " " + line_str;
     }
 
-    return text(line_str) | (is_current ? color(theme_.getColors().line_number_current) | bold
-                                        : color(theme_.getColors().line_number));
+    // 检查是否有诊断信息
+    bool has_diagnostic = false;
+    ftxui::Color line_number_bg = ftxui::Color::Default;
+    ftxui::Color line_number_fg = theme_.getColors().line_number;
+
+#ifdef BUILD_LSP_SUPPORT
+    if (lsp_enabled_) {
+        std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+        for (const auto& diagnostic : current_file_diagnostics_) {
+            if (static_cast<size_t>(diagnostic.range.start.line) == line_num) {
+                has_diagnostic = true;
+                if (diagnostic.severity == 1) { // Error - 红色背景
+                    line_number_bg = ftxui::Color::Red;
+                    line_number_fg = ftxui::Color::White; // 白色文字以提高对比度
+                } else if (diagnostic.severity == 2) { // Warning - 黄色背景（更适合警告）
+                    line_number_bg = ftxui::Color::Yellow;
+                    line_number_fg = ftxui::Color::Black; // 黑色文字以提高对比度
+                }
+                break;
+            }
+        }
+    }
+#endif
+
+    // 渲染行号文本
+    Element line_number_element;
+    if (is_current) {
+        // 当前行：使用当前行颜色，但如果有诊断则覆盖
+        if (has_diagnostic) {
+            line_number_element =
+                text(line_str) | color(line_number_fg) | bgcolor(line_number_bg) | bold;
+        } else {
+            line_number_element =
+                text(line_str) | color(theme_.getColors().line_number_current) | bold;
+        }
+    } else {
+        // 普通行：如果有诊断则使用诊断颜色，否则使用普通颜色
+        if (has_diagnostic) {
+            line_number_element = text(line_str) | color(line_number_fg) | bgcolor(line_number_bg);
+        } else {
+            line_number_element = text(line_str) | color(theme_.getColors().line_number);
+        }
+    }
+
+    return line_number_element;
 }
 
 Element Editor::renderStatusbar() {
@@ -1169,8 +1273,21 @@ Element Editor::renderStatusbar() {
         git_uncommitted_count = cached_git_uncommitted_count;
     }
 
+    // 构建状态消息，包含SSH连接信息
+    std::string display_message = status_message_;
+    if (!current_ssh_config_.host.empty()) {
+        std::string ssh_info = "SSH: " + current_ssh_config_.user + "@" + current_ssh_config_.host;
+        if (!display_message.empty()) {
+            display_message += " | " + ssh_info;
+        } else {
+            display_message = ssh_info;
+        }
+    }
+
     // If no document, show welcome status
     if (getCurrentDocument() == nullptr) {
+        std::string welcome_msg =
+            display_message.empty() ? "Press i to start editing" : display_message;
         return statusbar_.render(
             "Welcome",
             false, // not modified
@@ -1178,13 +1295,11 @@ Element Editor::renderStatusbar() {
             0,     // line
             0,     // col
             0,     // total lines
-            "UTF-8", "LF", "text",
-            status_message_.empty() ? "Press i to start editing" : status_message_,
-            region_manager_.getRegionName(),
+            "UTF-8", "LF", "text", welcome_msg, region_manager_.getRegionName(),
             false, // syntax highlighting
             false, // has selection
             0,     // selection length
-            git_branch, git_uncommitted_count);
+            git_branch, git_uncommitted_count, current_ssh_config_.host, current_ssh_config_.user);
     }
 
     // 获取行尾类型
@@ -1205,12 +1320,12 @@ Element Editor::renderStatusbar() {
         getCurrentDocument()->getFileName(), getCurrentDocument()->isModified(),
         getCurrentDocument()->isReadOnly(), cursor_row_, cursor_col_,
         getCurrentDocument()->lineCount(), getCurrentDocument()->getEncoding(), line_ending,
-        getFileType(), status_message_, region_manager_.getRegionName(), syntax_highlighting_,
+        getFileType(), display_message, region_manager_.getRegionName(), syntax_highlighting_,
         selection_active_,
         selection_active_
             ? (cursor_row_ != selection_start_row_ || cursor_col_ != selection_start_col_ ? 1 : 0)
             : 0,
-        git_branch, git_uncommitted_count);
+        git_branch, git_uncommitted_count, current_ssh_config_.host, current_ssh_config_.user);
 }
 
 Element Editor::renderHelpbar() {
@@ -1247,6 +1362,10 @@ Element Editor::renderTerminal() {
         height = screen_.dimy() / 3;
     }
     return pnana::ui::renderTerminal(terminal_, height);
+}
+
+Element Editor::renderGitPanel() {
+    return git_panel_.getComponent()->Render();
 }
 
 Element Editor::renderFilePicker() {

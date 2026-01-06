@@ -25,18 +25,19 @@ namespace core {
 Editor::Editor()
     : document_manager_(), key_binding_manager_(), action_executor_(this), theme_(),
       statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
-      file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_), welcome_screen_(theme_),
-      new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
-      save_as_dialog_(theme_), cursor_config_dialog_(theme_), binary_file_view_(theme_),
-      encoding_dialog_(theme_),
+      file_picker_(theme_), search_dialog_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
+      ssh_transfer_dialog_(theme_), welcome_screen_(theme_), new_file_prompt_(theme_),
+      theme_menu_(theme_), create_folder_dialog_(theme_), save_as_dialog_(theme_),
+      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
+      format_dialog_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
-      search_engine_(), file_browser_(theme_),
+      git_panel_(theme_), search_engine_(), file_browser_(theme_), search_highlight_active_(false),
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
       image_preview_(),
 #endif
-      syntax_highlighter_(theme_), terminal_(theme_), split_view_manager_(),
+      syntax_highlighter_(theme_), command_palette_(), terminal_(theme_), split_view_manager_(),
       mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
       view_offset_col_(0), show_theme_menu_(false), show_help_(false), show_create_folder_(false),
       show_save_as_(false), selection_active_(false), selection_start_row_(0),
@@ -46,7 +47,7 @@ Editor::Editor()
       input_buffer_(""),
       status_message_(
           "pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | Ctrl+O Files | F1 Help"),
-      should_quit_(false), screen_(ScreenInteractive::Fullscreen()) {
+      should_quit_(false), force_ui_update_(false), screen_(ScreenInteractive::Fullscreen()) {
     // 加载配置文件（使用默认路径）
     loadConfig();
 
@@ -69,6 +70,8 @@ Editor::Editor()
     initializeLsp();
     // 注意：lsp_enabled_ 在 initializeLsp() 中已经设置，不要重置为 false
     completion_trigger_delay_ = 0;
+    // 设置文档更新防抖时间为300ms，避免过于频繁的LSP更新
+    document_update_debounce_interval_ = std::chrono::milliseconds(300);
 
     // 清理和迁移本地缓存文件到配置目录
     cleanupLocalCacheFiles();
@@ -407,6 +410,26 @@ void Editor::toggleHelp() {
     }
 }
 
+// Git 面板
+void Editor::toggleGitPanel() {
+    git_panel_.toggle();
+    if (git_panel_.isVisible()) {
+        git_panel_.onShow();
+        region_manager_.setGitPanelEnabled(true);
+        region_manager_.setRegion(EditorRegion::GIT_PANEL);
+        setStatusMessage(std::string(pnana::ui::icons::GIT_BRANCH) +
+                         " Git Panel opened | Space: select | s: stage | u: unstage | c: commit | "
+                         "b: branch | r: remote");
+    } else {
+        git_panel_.onHide();
+        region_manager_.setGitPanelEnabled(false);
+        if (region_manager_.getCurrentRegion() == EditorRegion::GIT_PANEL) {
+            region_manager_.setRegion(EditorRegion::CODE_AREA);
+        }
+        setStatusMessage("Git Panel closed");
+    }
+}
+
 // 终端
 void Editor::toggleTerminal() {
     terminal_.toggle();
@@ -683,6 +706,84 @@ void Editor::handleEncodingDialogInput(Event event) {
     }
 }
 
+void Editor::openFormatDialog() {
+#ifndef BUILD_LSP_SUPPORT
+    setStatusMessage("LSP support not enabled");
+    return;
+#endif
+
+    if (!lsp_enabled_ || !lsp_formatter_) {
+        setStatusMessage("LSP not available. Format feature requires LSP support.");
+        return;
+    }
+
+    // 获取项目根目录（总是递归扫描整个项目）
+    std::string current_dir = std::filesystem::current_path().string();
+
+    // 获取目录中支持格式化的文件
+    auto supported_files = lsp_formatter_->getSupportedFilesInDirectory(current_dir);
+
+    if (supported_files.empty()) {
+        setStatusMessage(
+            "No supported files found in project directory. Check LSP server installation.");
+        return;
+    }
+
+    // 打开格式化对话框
+    format_dialog_.open(supported_files, current_dir);
+    format_dialog_.setOnConfirm([this](const std::vector<std::string>& files_to_format) {
+        formatSelectedFiles(files_to_format);
+    });
+    format_dialog_.setOnCancel([this]() {
+        setStatusMessage("Format cancelled");
+    });
+
+    setStatusMessage(
+        "Format Dialog - ↑↓: Navigate, Space: Select, A: Select All, Enter: Format, Esc: Cancel");
+}
+
+void Editor::formatSelectedFiles(const std::vector<std::string>& file_paths) {
+    if (file_paths.empty()) {
+        setStatusMessage("No files selected for formatting");
+        return;
+    }
+
+    if (!lsp_formatter_) {
+        setStatusMessage("LSP formatter not available");
+        return;
+    }
+
+    setStatusMessage("Formatting " + std::to_string(file_paths.size()) +
+                     " file(s) in background...");
+
+    // 在后台线程执行格式化，避免阻塞UI
+    std::thread([this, file_paths]() {
+        LOG("Async format: Starting background formatting thread");
+        bool success = lsp_formatter_->formatFiles(file_paths);
+        LOG("Async format: Formatting completed, success: " +
+            std::string(success ? "true" : "false"));
+
+        // 在主线程中更新状态消息
+        LOG("Async format: Posting UI update to main thread");
+        screen_.Post([this, success, count = file_paths.size()]() {
+            LOG("Async format: UI update callback executed");
+            if (success) {
+                setStatusMessage("✓ Successfully formatted " + std::to_string(count) + " file(s)");
+            } else {
+                setStatusMessage("✗ Failed to format some files. Check LSP server status.");
+            }
+            LOG("Async format: Status message updated");
+        });
+        LOG("Async format: Background thread completed");
+    }).detach(); // 分离线程，让它在后台运行
+}
+
+void Editor::handleFormatDialogInput(Event event) {
+    if (format_dialog_.handleInput(event)) {
+        return;
+    }
+}
+
 void Editor::handleCommandPaletteInput(Event event) {
     // 处理特殊键
     if (event == Event::Escape) {
@@ -847,15 +948,19 @@ void Editor::initializeCommandPalette() {
                                                  openEncodingDialog();
                                              }));
 
-    // 预留位置：未来可以添加更多命令
-    // 例如：git提交、在线终端、设置等
-    // command_palette_.registerCommand(Command(
-    //     "git.commit",
-    //     "Git Commit",
-    //     "Commit changes to git",
-    //     {"git", "commit", "version"},
-    //     [this]() { /* TODO: 实现git提交 */ }
-    // ));
+    // 代码格式化命令
+    command_palette_.registerCommand(
+        Command("code.format", "Format Code", "Format selected files using LSP",
+                {"format", "formatter", "code", "lsp", "beautify"}, [this]() {
+                    openFormatDialog();
+                }));
+
+    // Git 版本控制命令
+    command_palette_.registerCommand(
+        Command("git.panel", "Git Panel", "Open git version control panel",
+                {"git", "vgit", "version", "control", "repository"}, [this]() {
+                    toggleGitPanel();
+                }));
 }
 
 // 辅助方法
@@ -1101,6 +1206,164 @@ void Editor::closeSplitRegion(size_t region_index) {
     }
 }
 
+Document* Editor::getDocumentForActiveRegion() {
+    if (!split_view_manager_.hasSplits()) {
+        return getCurrentDocument();
+    }
+
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        return document_manager_.getDocument(active_region->document_index);
+    }
+    return nullptr;
+}
+
+const Document* Editor::getDocumentForActiveRegion() const {
+    if (!split_view_manager_.hasSplits()) {
+        return getCurrentDocument();
+    }
+
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        return document_manager_.getDocument(active_region->document_index);
+    }
+    return nullptr;
+}
+
+size_t Editor::getDocumentIndexForActiveRegion() const {
+    if (!split_view_manager_.hasSplits()) {
+        return document_manager_.getCurrentIndex();
+    }
+
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region) {
+        return active_region->document_index;
+    }
+    return 0;
+}
+
+void Editor::setDocumentForActiveRegion(size_t document_index) {
+    if (!split_view_manager_.hasSplits()) {
+        document_manager_.switchToDocument(document_index);
+        return;
+    }
+
+    split_view_manager_.setCurrentDocumentIndex(document_index);
+
+    // 如果这是当前激活的区域，也切换全局文档管理器
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (active_region && active_region->document_index == document_index) {
+        document_manager_.switchToDocument(document_index);
+    }
+}
+
+void Editor::openDocumentInActiveRegion(const std::string& file_path) {
+    // 先尝试打开文档
+    size_t new_doc_index = document_manager_.openDocument(file_path);
+    if (new_doc_index == static_cast<size_t>(-1)) {
+        return; // 打开失败
+    }
+
+    // 设置为激活区域的文档
+    if (split_view_manager_.hasSplits()) {
+        split_view_manager_.setCurrentDocumentIndex(new_doc_index);
+    }
+}
+
+void Editor::saveCurrentRegionState() {
+    if (!split_view_manager_.hasSplits()) {
+        return;
+    }
+
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (!active_region) {
+        return;
+    }
+
+    // 找到激活区域的索引
+    size_t region_index = 0;
+    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+        if (&split_view_manager_.getRegions()[i] == active_region) {
+            region_index = i;
+            break;
+        }
+    }
+
+    // 确保 region_states_ 有足够的容量
+    if (region_states_.size() <= region_index) {
+        region_states_.resize(region_index + 1);
+    }
+
+    // 保存当前状态
+    region_states_[region_index].cursor_row = cursor_row_;
+    region_states_[region_index].cursor_col = cursor_col_;
+    region_states_[region_index].view_offset_row = view_offset_row_;
+    region_states_[region_index].view_offset_col = view_offset_col_;
+}
+
+void Editor::restoreRegionState(size_t region_index) {
+    if (region_index >= region_states_.size()) {
+        // 如果没有保存的状态，使用默认值
+        cursor_row_ = 0;
+        cursor_col_ = 0;
+        view_offset_row_ = 0;
+        view_offset_col_ = 0;
+        return;
+    }
+
+    // 恢复状态
+    cursor_row_ = region_states_[region_index].cursor_row;
+    cursor_col_ = region_states_[region_index].cursor_col;
+    view_offset_row_ = region_states_[region_index].view_offset_row;
+    view_offset_col_ = region_states_[region_index].view_offset_col;
+
+    // 调整光标位置以确保有效
+    adjustCursor();
+    adjustViewOffset();
+}
+
+bool Editor::resizeActiveSplitRegion(int delta) {
+    if (!split_view_manager_.hasSplits()) {
+        return false;
+    }
+
+    const auto* active_region = split_view_manager_.getActiveRegion();
+    if (!active_region) {
+        return false;
+    }
+
+    // 找到与激活区域相邻的分屏线
+    const auto& split_lines = split_view_manager_.getSplitLines();
+
+    for (size_t i = 0; i < split_lines.size(); ++i) {
+        const auto& line = split_lines[i];
+        bool should_adjust = false;
+
+        // 检查分屏线是否与激活区域相邻
+        if (line.is_vertical) {
+            // 竖直分屏线：检查是否在激活区域的左右边界
+            if (std::abs(active_region->x + active_region->width - line.position) <= 1 ||
+                std::abs(active_region->x - line.position) <= 1) {
+                should_adjust = true;
+            }
+        } else {
+            // 横向分屏线：检查是否在激活区域的上下边界
+            if (std::abs(active_region->y + active_region->height - line.position) <= 1 ||
+                std::abs(active_region->y - line.position) <= 1) {
+                should_adjust = true;
+            }
+        }
+
+        if (should_adjust) {
+            // 调整分屏线位置
+            split_view_manager_.adjustSplitLinePosition(i, delta, screen_.dimx(), screen_.dimy());
+            return true;
+        }
+    }
+
+    return false; // 没有找到可调整的分屏线
+}
+
 void Editor::splitView(features::SplitDirection direction) {
     // 确保当前有文档
     Document* current_doc = getCurrentDocument();
@@ -1162,15 +1425,27 @@ void Editor::focusLeftRegion() {
     if (!split_view_manager_.hasSplits()) {
         return;
     }
+
+    // 保存当前区域状态
+    saveCurrentRegionState();
+
     split_view_manager_.focusLeftRegion();
 
-    // 切换到激活区域的文档
+    // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        auto tabs = document_manager_.getAllTabs();
-        if (active_region->document_index < tabs.size()) {
-            document_manager_.switchToDocument(active_region->document_index);
+        document_manager_.switchToDocument(active_region->document_index);
+
+        // 找到新激活区域的索引并恢复状态
+        size_t region_index = 0;
+        for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+            if (&split_view_manager_.getRegions()[i] == active_region) {
+                region_index = i;
+                break;
+            }
         }
+        restoreRegionState(region_index);
+        syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus left region");
 }
@@ -1179,15 +1454,27 @@ void Editor::focusRightRegion() {
     if (!split_view_manager_.hasSplits()) {
         return;
     }
+
+    // 保存当前区域状态
+    saveCurrentRegionState();
+
     split_view_manager_.focusRightRegion();
 
-    // 切换到激活区域的文档
+    // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        auto tabs = document_manager_.getAllTabs();
-        if (active_region->document_index < tabs.size()) {
-            document_manager_.switchToDocument(active_region->document_index);
+        document_manager_.switchToDocument(active_region->document_index);
+
+        // 找到新激活区域的索引并恢复状态
+        size_t region_index = 0;
+        for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+            if (&split_view_manager_.getRegions()[i] == active_region) {
+                region_index = i;
+                break;
+            }
         }
+        restoreRegionState(region_index);
+        syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus right region");
 }
@@ -1196,15 +1483,27 @@ void Editor::focusUpRegion() {
     if (!split_view_manager_.hasSplits()) {
         return;
     }
+
+    // 保存当前区域状态
+    saveCurrentRegionState();
+
     split_view_manager_.focusUpRegion();
 
-    // 切换到激活区域的文档
+    // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        auto tabs = document_manager_.getAllTabs();
-        if (active_region->document_index < tabs.size()) {
-            document_manager_.switchToDocument(active_region->document_index);
+        document_manager_.switchToDocument(active_region->document_index);
+
+        // 找到新激活区域的索引并恢复状态
+        size_t region_index = 0;
+        for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+            if (&split_view_manager_.getRegions()[i] == active_region) {
+                region_index = i;
+                break;
+            }
         }
+        restoreRegionState(region_index);
+        syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus up region");
 }
@@ -1213,15 +1512,27 @@ void Editor::focusDownRegion() {
     if (!split_view_manager_.hasSplits()) {
         return;
     }
+
+    // 保存当前区域状态
+    saveCurrentRegionState();
+
     split_view_manager_.focusDownRegion();
 
-    // 切换到激活区域的文档
+    // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        auto tabs = document_manager_.getAllTabs();
-        if (active_region->document_index < tabs.size()) {
-            document_manager_.switchToDocument(active_region->document_index);
+        document_manager_.switchToDocument(active_region->document_index);
+
+        // 找到新激活区域的索引并恢复状态
+        size_t region_index = 0;
+        for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+            if (&split_view_manager_.getRegions()[i] == active_region) {
+                region_index = i;
+                break;
+            }
         }
+        restoreRegionState(region_index);
+        syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus down region");
 }
@@ -1254,6 +1565,10 @@ bool Editor::isFileBrowserVisible() const {
 
 bool Editor::isTerminalVisible() const {
     return terminal_.isVisible();
+}
+
+bool Editor::isGitPanelVisible() const {
+    return git_panel_.isVisible();
 }
 
 int Editor::getScreenHeight() const {

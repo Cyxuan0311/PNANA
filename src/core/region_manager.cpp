@@ -6,7 +6,7 @@ namespace core {
 RegionManager::RegionManager()
     : current_region_(EditorRegion::CODE_AREA), previous_region_(EditorRegion::CODE_AREA),
       tab_area_enabled_(false), file_browser_enabled_(false), terminal_enabled_(false),
-      help_window_enabled_(false), tab_index_(0) {}
+      git_panel_enabled_(false), help_window_enabled_(false), tab_index_(0) {}
 
 void RegionManager::setRegion(EditorRegion region) {
     if (canNavigateTo(region)) {
@@ -47,6 +47,14 @@ bool RegionManager::navigateUp() {
             setRegion(EditorRegion::CODE_AREA);
             return true;
 
+        case EditorRegion::GIT_PANEL:
+            // 从Git面板向上导航到标签区
+            if (tab_area_enabled_) {
+                setRegion(EditorRegion::TAB_AREA);
+                return true;
+            }
+            break;
+
         case EditorRegion::HELP_WINDOW:
             // 帮助窗口是模态的，不导航
             return false;
@@ -77,6 +85,14 @@ bool RegionManager::navigateDown() {
 
         case EditorRegion::TERMINAL:
             // 终端已经在最下方
+            return false;
+
+        case EditorRegion::GIT_PANEL:
+            // 从Git面板向下导航到终端（如果打开）
+            if (terminal_enabled_) {
+                setRegion(EditorRegion::TERMINAL);
+                return true;
+            }
             return false;
 
         case EditorRegion::HELP_WINDOW:
@@ -117,6 +133,11 @@ bool RegionManager::navigateLeft() {
                 return true;
             }
 
+        case EditorRegion::GIT_PANEL:
+            // 从Git面板向左导航到代码区
+            setRegion(EditorRegion::CODE_AREA);
+            return true;
+
         case EditorRegion::HELP_WINDOW:
             // 帮助窗口是模态的，不导航
             return false;
@@ -128,7 +149,11 @@ bool RegionManager::navigateLeft() {
 bool RegionManager::navigateRight() {
     switch (current_region_) {
         case EditorRegion::CODE_AREA:
-            // 代码区向右没有其他区域（终端在下方）
+            // 代码区向右导航到Git面板（如果启用）
+            if (git_panel_enabled_) {
+                setRegion(EditorRegion::GIT_PANEL);
+                return true;
+            }
             return false;
 
         case EditorRegion::TAB_AREA:
@@ -143,6 +168,11 @@ bool RegionManager::navigateRight() {
 
         case EditorRegion::TERMINAL:
             // 终端向右导航到代码区
+            setRegion(EditorRegion::CODE_AREA);
+            return true;
+
+        case EditorRegion::GIT_PANEL:
+            // 从Git面板向左导航到代码区
             setRegion(EditorRegion::CODE_AREA);
             return true;
 
@@ -168,6 +198,8 @@ std::string RegionManager::getRegionName(EditorRegion region) const {
             return "File Browser";
         case EditorRegion::TERMINAL:
             return "Terminal";
+        case EditorRegion::GIT_PANEL:
+            return "Git Panel";
         case EditorRegion::HELP_WINDOW:
             return "Help Window";
         default:
@@ -188,6 +220,9 @@ bool RegionManager::canNavigateTo(EditorRegion region) const {
 
         case EditorRegion::TERMINAL:
             return terminal_enabled_;
+
+        case EditorRegion::GIT_PANEL:
+            return git_panel_enabled_;
 
         case EditorRegion::HELP_WINDOW:
             return help_window_enabled_;

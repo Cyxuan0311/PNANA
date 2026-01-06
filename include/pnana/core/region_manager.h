@@ -12,6 +12,7 @@ enum class EditorRegion {
     TAB_AREA,     // 文件标签栏
     FILE_BROWSER, // 文件浏览器
     TERMINAL,     // 终端区域
+    GIT_PANEL,    // Git 面板
     HELP_WINDOW   // 帮助窗口（模态，不参与导航）
 };
 
@@ -48,6 +49,9 @@ class RegionManager {
     void setTerminalEnabled(bool enabled) {
         terminal_enabled_ = enabled;
     }
+    void setGitPanelEnabled(bool enabled) {
+        git_panel_enabled_ = enabled;
+    }
     void setHelpWindowEnabled(bool enabled) {
         help_window_enabled_ = enabled;
     }
@@ -60,6 +64,9 @@ class RegionManager {
     }
     bool isTerminalEnabled() const {
         return terminal_enabled_;
+    }
+    bool isGitPanelEnabled() const {
+        return git_panel_enabled_;
     }
     bool isHelpWindowEnabled() const {
         return help_window_enabled_;
@@ -88,6 +95,7 @@ class RegionManager {
     bool tab_area_enabled_;
     bool file_browser_enabled_;
     bool terminal_enabled_;
+    bool git_panel_enabled_;
     bool help_window_enabled_;
 
     // 标签栏状态

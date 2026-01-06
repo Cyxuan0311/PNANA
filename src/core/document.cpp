@@ -401,134 +401,109 @@ bool Document::undo(size_t* out_row, size_t* out_col) {
             // 撤销删除：恢复删除的文本
             // VSCode 行为：直接插入，因为操作是原子性的
             // 如果删除的内容包含换行符，需要分割成多行插入
+
+            size_t insert_row = change.row;
+            size_t insert_col = change.col;
+
             if (change.old_content.find('\n') != std::string::npos) {
                 // 多行内容：需要分割并插入多行
-                if (change.row < lines_.size()) {
-                    std::string& current_line = lines_[change.row];
-                    size_t line_len = current_line.length();
-                    size_t insert_col = std::min(change.col, line_len);
+                // 确保目标行存在
+                while (insert_row >= lines_.size()) {
+                    lines_.push_back("");
+                }
 
-                    // 分割删除的内容（按换行符）
-                    std::vector<std::string> restored_lines;
-                    std::istringstream iss(change.old_content);
-                    std::string line;
-                    while (std::getline(iss, line)) {
-                        // 移除行尾的\r（如果有）
-                        if (!line.empty() && line.back() == '\r') {
-                            line.pop_back();
+                std::string& current_line = lines_[insert_row];
+                size_t line_len = current_line.length();
+                size_t actual_insert_col = std::min(insert_col, line_len);
+
+                // 分割删除的内容（按换行符）
+                std::vector<std::string> restored_lines;
+                std::istringstream iss(change.old_content);
+                std::string line;
+                while (std::getline(iss, line)) {
+                    // 移除行尾的\r（如果有）
+                    if (!line.empty() && line.back() == '\r') {
+                        line.pop_back();
+                    }
+                    restored_lines.push_back(line);
+                }
+
+                // 如果原内容以换行符结尾，最后一行应该是空行
+                if (!change.old_content.empty() &&
+                    (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
+                    restored_lines.push_back("");
+                }
+
+                if (!restored_lines.empty()) {
+                    // 保存当前行的后半部分（插入位置之后的内容）
+                    std::string last_part = current_line.substr(actual_insert_col);
+
+                    // 第一行：当前行前半部分 + 恢复的第一行
+                    current_line = current_line.substr(0, actual_insert_col) + restored_lines[0];
+
+                    // 如果有多个行，需要插入新行
+                    if (restored_lines.size() > 1) {
+                        // 中间行：直接插入为新行
+                        for (size_t i = 1; i < restored_lines.size() - 1; ++i) {
+                            lines_.insert(lines_.begin() + insert_row + i, restored_lines[i]);
                         }
-                        restored_lines.push_back(line);
-                    }
 
-                    // 如果原内容以换行符结尾，最后一行应该是空行
-                    if (!change.old_content.empty() &&
-                        (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
-                        restored_lines.push_back("");
-                    }
-
-                    if (!restored_lines.empty()) {
-                        // 保存当前行的后半部分（插入位置之后的内容）
-                        std::string last_part = current_line.substr(insert_col);
-
-                        // 第一行：当前行前半部分 + 恢复的第一行
-                        current_line = current_line.substr(0, insert_col) + restored_lines[0];
-
-                        // 如果有多个行，需要插入新行
-                        if (restored_lines.size() > 1) {
-                            // 中间行：直接插入为新行
-                            for (size_t i = 1; i < restored_lines.size() - 1; ++i) {
-                                lines_.insert(lines_.begin() + change.row + i, restored_lines[i]);
-                            }
-
-                            // 最后一行：恢复的最后一行 + 当前行的后半部分
-                            std::string last_line = restored_lines.back() + last_part;
-                            lines_.insert(lines_.begin() + change.row + restored_lines.size() - 1,
-                                          last_line);
-                        } else {
-                            // 只有一行，直接追加当前行的后半部分
-                            current_line += last_part;
-                        }
-                    }
-                } else {
-                    // 行不存在，创建新行并分割内容
-                    while (lines_.size() <= change.row) {
-                        lines_.push_back("");
-                    }
-
-                    // 分割内容
-                    std::istringstream iss(change.old_content);
-                    std::string line;
-                    std::vector<std::string> restored_lines;
-                    while (std::getline(iss, line)) {
-                        if (!line.empty() && line.back() == '\r') {
-                            line.pop_back();
-                        }
-                        restored_lines.push_back(line);
-                    }
-
-                    if (!change.old_content.empty() &&
-                        (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
-                        restored_lines.push_back("");
-                    }
-
-                    // 插入所有行
-                    for (size_t i = 0; i < restored_lines.size(); ++i) {
-                        if (i == 0) {
-                            lines_[change.row] = restored_lines[i];
-                        } else {
-                            lines_.insert(lines_.begin() + change.row + i, restored_lines[i]);
-                        }
+                        // 最后一行：恢复的最后一行 + 当前行的后半部分
+                        std::string last_line = restored_lines.back() + last_part;
+                        lines_.insert(lines_.begin() + insert_row + restored_lines.size() - 1,
+                                      last_line);
+                    } else {
+                        // 只有一行，直接追加当前行的后半部分
+                        current_line += last_part;
                     }
                 }
             } else {
                 // 单行内容：判断是删除字符还是删除整行
-                // 删除整行的特征：col == 0 且 old_content 不包含换行符
-                // 删除整行时，应该在原位置插入新行，而不是插入到当前行
+                // 删除整行的特征：col == 0 且 old_content 不包含换行符且 old_content 非空
                 bool is_delete_line = (change.col == 0 && !change.old_content.empty());
 
                 if (is_delete_line) {
                     // 删除整行操作：在指定位置插入新行
-                    if (change.row < lines_.size()) {
-                        // 如果当前行存在，检查是否为空行
-                        // 如果为空行，可能是删除最后一行后的情况，直接替换
-                        if (lines_[change.row].empty() && change.row == lines_.size() - 1) {
-                            lines_[change.row] = change.old_content;
-                        } else {
-                            // 否则在指定位置插入新行
-                            lines_.insert(lines_.begin() + change.row, change.old_content);
-                        }
-                    } else if (change.row == lines_.size()) {
-                        // 如果行号等于当前行数，在末尾插入新行
+                    // 确保插入位置有效
+                    while (insert_row > lines_.size()) {
+                        lines_.push_back("");
+                    }
+
+                    if (insert_row == lines_.size()) {
+                        // 在末尾插入新行
                         lines_.push_back(change.old_content);
                     } else {
-                        // 如果行号超出范围，先创建空行，再插入
-                        while (lines_.size() < change.row) {
-                            lines_.push_back("");
-                        }
-                        lines_.push_back(change.old_content);
+                        // 在指定位置插入新行
+                        lines_.insert(lines_.begin() + insert_row, change.old_content);
                     }
                 } else {
                     // 删除字符操作：直接插入到当前行
-                    if (change.row < lines_.size()) {
-                        size_t line_len = lines_[change.row].length();
-                        // 确保插入位置不超过行尾（VSCode 行为：插入到删除位置）
-                        size_t insert_col = std::min(change.col, line_len);
-                        // 直接插入删除的内容
-                        lines_[change.row].insert(insert_col, change.old_content);
-                    } else {
-                        // 如果行不存在，创建新行（边界情况处理）
-                        while (lines_.size() <= change.row) {
-                            lines_.push_back("");
-                        }
-                        lines_[change.row] = change.old_content;
+                    // 确保目标行存在
+                    while (insert_row >= lines_.size()) {
+                        lines_.push_back("");
                     }
+
+                    std::string& current_line = lines_[insert_row];
+                    size_t line_len = current_line.length();
+                    // 确保插入位置不超过行尾（VSCode 行为：插入到删除位置）
+                    size_t actual_insert_col = std::min(insert_col, line_len);
+                    // 直接插入删除的内容
+                    current_line.insert(actual_insert_col, change.old_content);
                 }
             }
+
             // 光标回到删除开始位置（VSCode 行为）
+            // 对于多行内容，光标应该回到第一行第一列
+            // 对于单行内容，光标回到删除开始位置
             if (out_row)
-                *out_row = change.row;
-            if (out_col)
-                *out_col = change.col;
+                *out_row = insert_row;
+            if (out_col) {
+                if (change.old_content.find('\n') != std::string::npos) {
+                    *out_col = 0; // 多行内容，光标在行首
+                } else {
+                    *out_col = insert_col; // 单行内容，光标在删除开始位置
+                }
+            }
             break;
         }
 
