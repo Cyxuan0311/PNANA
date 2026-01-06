@@ -1053,7 +1053,7 @@ void Editor::handleDeleteFile() {
 
     dialog_.showConfirm(
         "Delete " + std::string(is_directory ? "Folder" : "File"), message,
-        [this, selected_path, selected_name, is_directory]() {
+        [this, selected_path, selected_name]() {
             if (file_browser_.deleteSelected()) {
                 setStatusMessage("Deleted: " + selected_name);
             } else {
