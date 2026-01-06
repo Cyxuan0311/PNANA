@@ -183,8 +183,14 @@ set(SOURCES
     src/ui/file_browser_view.cpp
     src/ui/split_dialog.cpp
     src/ui/terminal_ui.cpp
+    src/ui/search_dialog.cpp
     src/ui/ssh_dialog.cpp
+    src/ui/ssh_transfer_dialog.cpp
+    src/ui/file_type_color_mapper.cpp
     src/ui/completion_popup.cpp
+    src/ui/diagnostics_popup.cpp
+    src/ui/format_dialog.cpp
+    src/ui/git_panel.cpp
     # 工具模块
     src/utils/logger.cpp
     src/utils/text_analyzer.cpp
@@ -195,7 +201,9 @@ set(SOURCES
     src/features/file_browser.cpp
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
+    src/features/vgit/git_manager.cpp
     src/features/terminal/terminal.cpp
+    src/features/terminal/terminal_color.cpp
     src/features/terminal/terminal_parser.cpp
     src/features/terminal/terminal_builtin.cpp
     src/features/terminal/terminal_shell.cpp
@@ -211,6 +219,7 @@ set(SOURCES
     src/core/input/input_router.cpp
     src/core/input/region_handlers/terminal_handler.cpp
     src/core/input/region_handlers/file_browser_handler.cpp
+    src/core/input/region_handlers/git_panel_handler.cpp
     # 新的UI渲染模块（解耦优化）
     src/core/ui/base_region_renderer.cpp
     src/core/ui/border_manager.cpp
@@ -235,9 +244,13 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_client.cpp
         src/features/lsp/lsp_server_config.cpp
         src/features/lsp/lsp_server_manager.cpp
+        src/features/lsp/lsp_request_manager.cpp
+        src/features/lsp/lsp_worker_pool.cpp
+        src/features/lsp/document_change_tracker.cpp
         src/features/lsp/document_change_tracker.cpp
         src/features/lsp/lsp_async_manager.cpp
         src/features/lsp/lsp_completion_cache.cpp
+        src/features/lsp/lsp_formatter.cpp
     )
 endif()
 
@@ -281,6 +294,7 @@ set(HEADERS
     include/pnana/core/input/input_router.h
     include/pnana/core/input/region_handlers/terminal_handler.h
     include/pnana/core/input/region_handlers/file_browser_handler.h
+    include/pnana/core/input/region_handlers/git_panel_handler.h
     # 新的UI渲染模块（解耦优化）
     include/pnana/core/ui/base_region_renderer.h
     include/pnana/core/ui/border_manager.h
@@ -307,11 +321,14 @@ set(HEADERS
     include/pnana/ui/ssh_dialog.h
     include/pnana/ui/icons.h
     include/pnana/ui/completion_popup.h
+    include/pnana/ui/format_dialog.h
     # 功能模块头文件
     include/pnana/features/search.h
     include/pnana/features/file_browser.h
     include/pnana/features/SyntaxHighlighter/syntax_highlighter.h
     include/pnana/features/command_palette.h
+    include/pnana/vgit/git_manager.h
+    include/pnana/vgit/git_panel.h
     include/pnana/features/terminal.h
     include/pnana/features/split_view.h
     include/pnana/features/encoding_converter.h
@@ -340,11 +357,12 @@ if(BUILD_LSP_SUPPORT)
     list(APPEND HEADERS
         include/pnana/features/lsp/lsp_stdio_connector.h
         include/pnana/features/lsp/lsp_client.h
+        include/pnana/features/lsp/lsp_formatter.h
     )
 endif()
 
 # 创建可执行文件
-add_executable(pnana ${SOURCES} ${HEADERS})
+add_executable(pnana ${SOURCES})
 
 # 设置包含目录
 target_include_directories(pnana PRIVATE 
