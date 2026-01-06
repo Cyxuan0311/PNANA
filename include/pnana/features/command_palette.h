@@ -74,6 +74,7 @@ class CommandPalette {
     std::vector<Command> commands_;
     std::vector<Command> filtered_commands_;
     size_t selected_index_;
+    size_t scroll_offset_; // 滚动偏移，用于显示窗口
 
     // 过滤命令
     void filterCommands();
@@ -86,6 +87,9 @@ class CommandPalette {
 
     // 移动到上一个命令
     void selectPrevious();
+
+    // 更新滚动偏移以确保选中的命令可见
+    void updateScrollOffset();
 };
 
 } // namespace features

@@ -14,9 +14,11 @@ namespace features {
 // 终端输出行
 struct TerminalLine {
     std::string content;
-    bool is_command; // true 表示是用户输入的命令，false 表示是输出
+    bool is_command;      // true 表示是用户输入的命令，false 表示是输出
+    bool has_ansi_colors; // 是否包含ANSI颜色码
 
-    TerminalLine(const std::string& c, bool is_cmd = false) : content(c), is_command(is_cmd) {}
+    TerminalLine(const std::string& c, bool is_cmd = false, bool ansi_colors = false)
+        : content(c), is_command(is_cmd), has_ansi_colors(ansi_colors) {}
 };
 
 // 在线终端
@@ -61,6 +63,9 @@ class Terminal {
 
     // 清空终端
     void clear();
+
+    // 中断当前运行的命令
+    void interruptCommand();
 
     // 获取方法（供UI使用）
     ui::Theme& getTheme() const {
@@ -107,6 +112,10 @@ class Terminal {
     // 当前工作目录
     std::string current_directory_;
 
+    // 命令执行状态
+    bool command_running_; // 是否有命令正在运行
+    pid_t current_pid_;    // 当前运行命令的进程ID（用于中断）
+
     // 命令执行（保留以保持兼容性，实际已移至各个模块）
     std::string executeBuiltinCommand(const std::string& command,
                                       const std::vector<std::string>& args);
@@ -117,6 +126,7 @@ class Terminal {
 
     // 辅助方法
     void addOutputLine(const std::string& line, bool is_command = false);
+    void addOutputLines(const std::vector<std::string>& lines, bool is_command = false);
     std::string buildPrompt() const; // 构建提示符字符串
 
     // 样式

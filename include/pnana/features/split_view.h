@@ -92,8 +92,14 @@ class SplitViewManager {
     // 重置为单视图
     void reset();
 
-    // 设置当前文档索引
+    // 设置当前文档索引（为激活区域）
     void setCurrentDocumentIndex(size_t index);
+
+    // 设置指定区域的文档索引
+    void setDocumentIndexForRegion(size_t region_index, size_t document_index);
+
+    // 获取指定区域的文档索引
+    size_t getDocumentIndexForRegion(size_t region_index) const;
 
     // 获取区域数量
     size_t getRegionCount() const {
@@ -102,6 +108,9 @@ class SplitViewManager {
 
     // 更新区域尺寸
     void updateRegionSizes(int screen_width, int screen_height);
+
+    // 调整分屏线位置
+    void adjustSplitLinePosition(size_t line_index, int delta, int screen_width, int screen_height);
 
   private:
     std::vector<ViewRegion> regions_;

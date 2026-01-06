@@ -6,7 +6,8 @@
 namespace pnana {
 namespace features {
 
-CommandPalette::CommandPalette() : is_open_(false), input_(""), selected_index_(0) {}
+CommandPalette::CommandPalette()
+    : is_open_(false), input_(""), selected_index_(0), scroll_offset_(0) {}
 
 void CommandPalette::registerCommand(const Command& command) {
     commands_.push_back(command);
@@ -20,6 +21,7 @@ void CommandPalette::open() {
     is_open_ = true;
     input_ = "";
     selected_index_ = 0;
+    scroll_offset_ = 0;
     filterCommands();
 }
 
@@ -27,6 +29,7 @@ void CommandPalette::close() {
     is_open_ = false;
     input_ = "";
     selected_index_ = 0;
+    scroll_offset_ = 0;
     filtered_commands_.clear();
 }
 
@@ -34,6 +37,7 @@ void CommandPalette::handleInput(const std::string& input) {
     input_ = input;
     filterCommands();
     selected_index_ = 0; // 重置选中索引
+    scroll_offset_ = 0;  // 重置滚动偏移
 }
 
 bool CommandPalette::handleKeyEvent(const std::string& key) {
@@ -82,16 +86,18 @@ ftxui::Element CommandPalette::render() {
     dialog_content.push_back(text(""));
     dialog_content.push_back(separator());
 
+    // 限制显示的命令数量（最多15个）
+    size_t max_display = std::min(filtered_commands_.size(), size_t(15));
+
     // 命令列表
     if (filtered_commands_.empty()) {
         dialog_content.push_back(
             hbox({text("  "), text("No commands found") | color(Color::GrayDark) | dim}));
     } else {
-        // 限制显示的命令数量（最多10个）
-        size_t max_display = std::min(filtered_commands_.size(), size_t(10));
-        for (size_t i = 0; i < max_display; ++i) {
-            const auto& cmd = filtered_commands_[i];
-            bool is_selected = (i == selected_index_);
+        for (size_t i = 0; i < max_display && (scroll_offset_ + i) < filtered_commands_.size();
+             ++i) {
+            const auto& cmd = filtered_commands_[scroll_offset_ + i];
+            bool is_selected = ((scroll_offset_ + i) == selected_index_);
 
             Elements cmd_elements;
             cmd_elements.push_back(text("  "));
@@ -122,13 +128,24 @@ ftxui::Element CommandPalette::render() {
         }
 
         // 如果还有更多命令，显示提示
-        if (filtered_commands_.size() > max_display) {
+        size_t displayed_count = std::min(max_display, filtered_commands_.size() - scroll_offset_);
+        if (scroll_offset_ > 0 || (scroll_offset_ + displayed_count) < filtered_commands_.size()) {
             dialog_content.push_back(text(""));
+            std::string more_text;
+            if (scroll_offset_ > 0 &&
+                (scroll_offset_ + displayed_count) < filtered_commands_.size()) {
+                more_text =
+                    "... " + std::to_string(scroll_offset_) + " above and " +
+                    std::to_string(filtered_commands_.size() - scroll_offset_ - displayed_count) +
+                    " below";
+            } else if (scroll_offset_ > 0) {
+                more_text = "... " + std::to_string(scroll_offset_) + " more above";
+            } else {
+                more_text = "... " + std::to_string(filtered_commands_.size() - displayed_count) +
+                            " more below";
+            }
             dialog_content.push_back(
-                hbox({text("  "),
-                      text("... and " + std::to_string(filtered_commands_.size() - max_display) +
-                           " more") |
-                          color(Color::GrayDark) | dim}));
+                hbox({text("  "), text(more_text) | color(Color::GrayDark) | dim}));
         }
     }
 
@@ -142,7 +159,7 @@ ftxui::Element CommandPalette::render() {
               text("Esc") | color(Color::Cyan) | bold, text(": Cancel")}) |
         dim);
 
-    int height = std::min(20, int(15 + static_cast<int>(filtered_commands_.size())));
+    int height = std::min(22, int(15 + static_cast<int>(max_display)));
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 70) |
            size(HEIGHT, EQUAL, height) | bgcolor(Color::RGB(30, 30, 40)) | border;
 }
@@ -161,7 +178,7 @@ void CommandPalette::filterCommands() {
     filtered_commands_.clear();
 
     if (input_.empty()) {
-        // 如果没有输入，显示所有命令
+        // 如果没有输入，显示所有命令（按需加载思想：只有在需要时才过滤）
         filtered_commands_ = commands_;
     } else {
         // 过滤匹配的命令
@@ -212,6 +229,7 @@ bool CommandPalette::matchesCommand(const Command& cmd, const std::string& query
 void CommandPalette::selectNext() {
     if (!filtered_commands_.empty()) {
         selected_index_ = (selected_index_ + 1) % filtered_commands_.size();
+        updateScrollOffset();
     }
 }
 
@@ -222,6 +240,18 @@ void CommandPalette::selectPrevious() {
         } else {
             selected_index_--;
         }
+        updateScrollOffset();
+    }
+}
+
+void CommandPalette::updateScrollOffset() {
+    const size_t max_display = 15;
+    if (selected_index_ < scroll_offset_) {
+        // 选中的命令在可视区域上方，需要向上滚动
+        scroll_offset_ = selected_index_;
+    } else if (selected_index_ >= scroll_offset_ + max_display) {
+        // 选中的命令在可视区域下方，需要向下滚动
+        scroll_offset_ = selected_index_ - max_display + 1;
     }
 }
 

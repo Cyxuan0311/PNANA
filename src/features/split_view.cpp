@@ -445,6 +445,19 @@ void SplitViewManager::setCurrentDocumentIndex(size_t index) {
     }
 }
 
+void SplitViewManager::setDocumentIndexForRegion(size_t region_index, size_t document_index) {
+    if (region_index < regions_.size()) {
+        regions_[region_index].document_index = document_index;
+    }
+}
+
+size_t SplitViewManager::getDocumentIndexForRegion(size_t region_index) const {
+    if (region_index < regions_.size()) {
+        return regions_[region_index].document_index;
+    }
+    return 0; // 默认返回第一个文档
+}
+
 void SplitViewManager::updateRegionSizes(int screen_width, int screen_height) {
     if (regions_.empty()) {
         return;
@@ -462,6 +475,16 @@ void SplitViewManager::updateRegionSizes(int screen_width, int screen_height) {
     // 多视图：需要根据分屏线重新计算区域大小
     // 简化实现：这里可以根据分屏线的位置重新分配区域
     // 为了简化，我们假设区域已经正确设置
+}
+
+void SplitViewManager::adjustSplitLinePosition(size_t line_index, int delta, int screen_width,
+                                               int screen_height) {
+    if (line_index >= split_lines_.size()) {
+        return;
+    }
+
+    SplitLine& line = split_lines_[line_index];
+    adjustSplitLine(line, line.position + delta, screen_width, screen_height);
 }
 
 ViewRegion* SplitViewManager::findRegionAt(int x, int y) {
