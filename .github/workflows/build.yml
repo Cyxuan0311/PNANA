@@ -1,10 +1,11 @@
+---
 name: Build and Test
 
 on:
   push:
-    branches: [ master, develop, fix/ci-actions ]
+    branches: [master, develop, fix/ci-actions]
   pull_request:
-    branches: [ master, develop, fix/ci-actions ]
+    branches: [master, develop, fix/ci-actions]
 
 permissions:
   contents: read
@@ -59,7 +60,8 @@ jobs:
 
       - name: Build and install FTXUI
         run: |
-          git clone --depth 1 --branch main https://github.com/ArthurSonzogni/FTXUI.git
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
           cd FTXUI
           mkdir build && cd build
           cmake .. \
@@ -116,7 +118,8 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.build_type == 'Release'
         with:
-          name: pnana-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
+          name: pnana-${{ matrix.os }}-${{ matrix.compiler }}-\
+            ${{ matrix.build_type }}
           path: |
             build/pnana
             build/compile_commands.json
@@ -127,56 +130,60 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install clang-format
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-format
-        clang-format --version
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+          clang-format --version
 
-    - name: Check code formatting
-      run: |
-        echo "Checking code formatting..."
-        echo "Files to check:"
-        find src include -name "*.cpp" -o -name "*.h" | head -10
+      - name: Check code formatting
+        run: |
+          echo "Checking code formatting..."
+          echo "Files to check:"
+          find src include -name "*.cpp" -o -name "*.h" | head -10
 
-        echo "Running clang-format check..."
-        # 先强制格式化可能有问题的文件
-        clang-format -i src/ui/help.cpp include/pnana/features/file_browser.h 2>/dev/null || true
+          echo "Running clang-format check..."
+          # 先强制格式化可能有问题的文件
+          clang-format -i src/ui/help.cpp \
+            include/pnana/features/file_browser.h 2>/dev/null || true
 
-        # 然后检查所有文件
-        if find src include -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror --style=file 2>&1; then
-          echo "✅ Code formatting check passed!"
-        else
-          echo "❌ Code formatting check failed."
-          echo "Problematic files:"
-          find src include -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror --style=file 2>&1 | head -10
-          echo ""
-          echo "To fix locally, run:"
-          echo "  find src include -name \"*.cpp\" -o -name \"*.h\" | xargs clang-format -i"
-          exit 1
-        fi
+          # 然后检查所有文件
+          if find src include -name "*.cpp" -o -name "*.h" | \
+              xargs clang-format --dry-run --Werror --style=file 2>&1; then
+            echo "✅ Code formatting check passed!"
+          else
+            echo "❌ Code formatting check failed."
+            echo "Problematic files:"
+            find src include -name "*.cpp" -o -name "*.h" | \
+              xargs clang-format --dry-run --Werror --style=file 2>&1 | head -10
+            echo ""
+            echo "To fix locally, run:"
+            echo "  find src include -name \"*.cpp\" -o -name \"*.h\" | \
+              xargs clang-format -i"
+            exit 1
+          fi
 
   # 4️⃣ 安全扫描
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
 
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'

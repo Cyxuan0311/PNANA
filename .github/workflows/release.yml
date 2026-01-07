@@ -1,0 +1,275 @@
+---
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0).
+          If not provided, will extract from CHANGELOG.md'
+        required: false
+        type: string
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - beta
+          - alpha
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'CHANGELOG.md'
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+      release_notes: ${{ steps.generate-notes.outputs.release_notes }}
+      tag_name: ${{ steps.extract-version.outputs.tag_name }}
+      should_release: ${{ steps.check-release.outputs.should_release }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from CHANGELOG.md
+        id: extract-version
+        run: |
+          # 如果手动指定了版本，使用指定的版本
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # 从 CHANGELOG.md 提取版本号
+            # 查找第一个版本号（跳过 Unreleased）
+            VERSION=$(grep -E '^\#\# \[[0-9]+\.[0-9]+\.[0-9]+\]' \
+              CHANGELOG.md | head -1 | \
+              sed -E 's/^\#\# \[([0-9]+\.[0-9]+\.[0-9]+)\].*/\1/')
+            if [ -z "$VERSION" ]; then
+              echo "Error: Could not extract version from CHANGELOG.md"
+              exit 1
+            fi
+          fi
+
+          # 生成 tag 名称
+          RELEASE_TYPE="${{ github.event.inputs.release_type || 'stable' }}"
+          if [ "$RELEASE_TYPE" = "stable" ]; then
+            TAG_NAME="v${VERSION}"
+          else
+            TAG_NAME="v${VERSION}-${RELEASE_TYPE}"
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "Extracted version: ${VERSION}"
+          echo "Tag name: ${TAG_NAME}"
+
+      - name: Check if release should be created
+        id: check-release
+        run: |
+          # 检查是否已经有这个 tag
+          if git tag -l "${{ steps.extract-version.outputs.tag_name }}" | \
+              grep -q "${{ steps.extract-version.outputs.tag_name }}"; then
+            echo "Tag ${{ steps.extract-version.outputs.tag_name }} \
+              already exists"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        id: generate-notes
+        if: steps.check-release.outputs.should_release == 'true'
+        run: |
+          VERSION="${{ steps.extract-version.outputs.version }}"
+          RELEASE_TYPE="${{ github.event.inputs.release_type || 'stable' }}"
+
+          # 从 CHANGELOG.md 提取当前版本的变更
+          RELEASE_NOTES=$(awk -v version="$VERSION" '
+          BEGIN { found=0; in_section=0 }
+          /^\#\# \['version'\]/ { found=1; in_section=1; next }
+          /^\#\# \[/ && found { exit }
+          in_section && /^### / { print "## " $2; next }
+          in_section && /^-/ { print $0; next }
+          ' CHANGELOG.md)
+
+          # 如果没有找到变更，使用默认模板
+          if [ -z "$RELEASE_NOTES" ]; then
+            RELEASE_NOTES="## New Features
+          - Release notes will be generated based on CHANGELOG.md
+
+          ## Improvements
+          - Automated release process
+
+          ## Fixes
+          - Bug fixes and improvements"
+          fi
+
+          # 生成完整的 release notes
+          RELEASE_NOTES="# Release v${VERSION}
+
+          ${RELEASE_NOTES}
+
+          ## Installation
+
+          ### Ubuntu/Debian (.deb)
+          \`\`\`bash
+          wget https://github.com/${{ github.repository }}/releases/download/\
+            v${VERSION}/pnana_${VERSION}_amd64.deb
+          sudo dpkg -i pnana_${VERSION}_amd64.deb
+          sudo apt-get install -f  # If there are dependency issues
+          \`\`\`
+
+          ### Generic Linux (.tar.gz)
+          \`\`\`bash
+          wget https://github.com/${{ github.repository }}/releases/download/\
+            v${VERSION}/pnana-ubuntu22.04.tar.gz
+          tar -xzf pnana-ubuntu22.04.tar.gz
+          cd package
+          sudo ./install.sh
+          \`\`\`
+
+          ## Usage
+          \`\`\`bash
+          # Start blank editor
+          pnana
+
+          # Open file
+          pnana filename.txt
+
+          # View help
+          pnana --help
+          \`\`\`
+
+          ## What's Changed
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/\
+            blob/main/CHANGELOG.md) for full details."
+
+          # Escape newlines for GitHub output
+          RELEASE_NOTES="${RELEASE_NOTES//'%'/'%25'}"
+          RELEASE_NOTES="${RELEASE_NOTES//$'\n'/'%0A'}"
+          RELEASE_NOTES="${RELEASE_NOTES//$'\r'/'%0D'}"
+
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - package_type: deb
+            package_name: "pnana_${{ needs.prepare-release.outputs.version }}_\
+              amd64.deb"
+          - package_type: tar.gz
+            package_name: "pnana-ubuntu22.04.tar.gz"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libgtest-dev \
+            libgmock-dev \
+            libjsoncpp-dev \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            pkg-config \
+            dpkg-dev \
+            rpm \
+            libarchive-tools
+
+      - name: Build project
+        run: |
+          chmod +x ./build.sh
+          ./build.sh --clean
+
+      - name: Create DEB package
+        if: matrix.package_type == 'deb'
+        run: |
+          cd build
+          cpack -G DEB
+          ls -la *.deb
+
+      - name: Create TAR.GZ package
+        if: matrix.package_type == 'tar.gz'
+        run: |
+          cd build
+          cpack -G TGZ
+          ls -la *.tar.gz
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package_name }}
+          path: build/${{ matrix.package_name }}
+          retention-days: 30
+
+  create-release:
+    needs: [prepare-release, build]
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          find artifacts -type f -name "*.deb" -o -name "*.tar.gz" | head -10
+
+      - name: Create Git tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag ${{ needs.prepare-release.outputs.tag_name }}
+          git push origin ${{ needs.prepare-release.outputs.tag_name }}
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          name: Release ${{ needs.prepare-release.outputs.tag_name }}
+          body: ${{ needs.prepare-release.outputs.release_notes }}
+          draft: ${{ github.event.inputs.draft == 'true' }}
+          prerelease: ${{ github.event.inputs.release_type != 'stable' }}
+          files: |
+            artifacts/pnana_${{ needs.prepare-release.outputs.version }}_\
+              amd64.deb/
+              pnana_${{ needs.prepare-release.outputs.version }}_amd64.deb
+            artifacts/pnana-ubuntu22.04.tar.gz/pnana-ubuntu22.04.tar.gz
+
+      - name: Update CHANGELOG.md after release
+        if: github.event_name == 'push'
+        run: |
+          # 将 Unreleased 部分移动到已发布版本
+          # 这里可以添加更多的自动化处理逻辑

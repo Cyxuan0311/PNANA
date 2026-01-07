@@ -1,10 +1,11 @@
+---
 name: Pre-Push Validation
 
 on:
   push:
-    branches: [ master, develop, fix/ci-actions ]
+    branches: [master, develop, fix/ci-actions]
   pull_request:
-    branches: [ master, develop, fix/ci-actions ]
+    branches: [master, develop, fix/ci-actions]
 
 jobs:
   validate-build:
@@ -13,151 +14,158 @@ jobs:
     timeout-minutes: 15
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          cmake \
-          build-essential \
-          pkg-config \
-          nlohmann-json3-dev \
-          liblua5.4-dev \
-          libtree-sitter-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          libswscale-dev \
-          libavutil-dev \
-          golang-go \
-          git
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            build-essential \
+            pkg-config \
+            nlohmann-json3-dev \
+            liblua5.4-dev \
+            libtree-sitter-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            libswscale-dev \
+            libavutil-dev \
+            golang-go \
+            git
 
-    - name: Build and install FTXUI
-      run: |
-        echo "Building FTXUI from source..."
-        # Install FTXUI build dependencies
-        sudo apt-get update
-        sudo apt-get install -y \
-          libncurses-dev \
-          libtinfo-dev \
-          build-essential \
-          cmake \
-          git
+      - name: Build and install FTXUI
+        run: |
+          echo "Building FTXUI from source..."
+          # Install FTXUI build dependencies
+          sudo apt-get update
+          sudo apt-get install -y \
+            libncurses-dev \
+            libtinfo-dev \
+            build-essential \
+            cmake \
+            git
 
-        # Clone and build FTXUI
-        echo "Cloning FTXUI repository..."
-        git clone --depth 1 --branch main https://github.com/ArthurSonzogni/FTXUI.git
-        cd FTXUI
+          # Clone and build FTXUI
+          echo "Cloning FTXUI repository..."
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
 
-        echo "Building FTXUI..."
-        mkdir build && cd build
-        cmake .. \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_STANDARD=17 \
-          -DCMAKE_INSTALL_PREFIX=/usr/local \
-          -DFTXUI_BUILD_EXAMPLES=OFF \
-          -DFTXUI_BUILD_DOCS=OFF \
-          -DFTXUI_ENABLE_INSTALL=ON
+          echo "Building FTXUI..."
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_ENABLE_INSTALL=ON
 
-        echo "Compiling FTXUI..."
-        make -j$(nproc)
+          echo "Compiling FTXUI..."
+          make -j$(nproc)
 
-        echo "Installing FTXUI..."
-        sudo make install
+          echo "Installing FTXUI..."
+          sudo make install
 
-        echo "Verifying FTXUI installation..."
-        if [ -f "/usr/local/lib/cmake/ftxui/ftxui-config.cmake" ] || [ -f "/usr/local/lib/libftxui.a" ]; then
-          echo "FTXUI installation successful"
-        else
-          echo "FTXUI installation verification failed"
-          ls -la /usr/local/lib/ | grep ftxui || echo "FTXUI library not found"
-          exit 1
-        fi
+          echo "Verifying FTXUI installation..."
+          if [ -f "/usr/local/lib/cmake/ftxui/ftxui-config.cmake" ] || \
+              [ -f "/usr/local/lib/libftxui.a" ]; then
+            echo "FTXUI installation successful"
+          else
+            echo "FTXUI installation verification failed"
+            ls -la /usr/local/lib/ | grep ftxui || \
+              echo "FTXUI library not found"
+            exit 1
+          fi
 
-        # Cleanup
-        cd ../..
-        rm -rf FTXUI
-        echo "FTXUI installation completed successfully"
+          # Cleanup
+          cd ../..
+          rm -rf FTXUI
+          echo "FTXUI installation completed successfully"
 
-    - name: Validate compilation
-      run: |
-        echo "🔍 开始编译验证..."
-        chmod +x ./build.sh
-        if ./build.sh --clean; then
-          echo "✅ 编译验证通过！"
-          echo "build_status=success" >> $GITHUB_ENV
-        else
-          echo "❌ 编译验证失败！"
-          echo "build_status=failure" >> $GITHUB_ENV
-          exit 1
-        fi
+      - name: Validate compilation
+        run: |
+          echo "🔍 开始编译验证..."
+          chmod +x ./build.sh
+          if ./build.sh --clean; then
+            echo "✅ 编译验证通过！"
+            echo "build_status=success" >> $GITHUB_ENV
+          else
+            echo "❌ 编译验证失败！"
+            echo "build_status=failure" >> $GITHUB_ENV
+            exit 1
+          fi
 
-    - name: Run tests (if compilation successful)
-      run: |
-        echo "🧪 运行测试..."
-        cd build
-        if ctest --output-on-failure; then
-          echo "✅ 测试通过！"
-        else
-          echo "❌ 测试失败！"
-          exit 1
-        fi
-      if: env.build_status == 'success'
+      - name: Run tests (if compilation successful)
+        run: |
+          echo "🧪 运行测试..."
+          cd build
+          if ctest --output-on-failure; then
+            echo "✅ 测试通过！"
+          else
+            echo "❌ 测试失败！"
+            exit 1
+          fi
+        if: env.build_status == 'success'
 
-    - name: Create issue on build failure
-      if: failure() && github.event_name == 'push'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const commitSha = process.env.GITHUB_SHA || 'unknown';
-          const shortSha = commitSha !== 'unknown' ? commitSha.substring(0, 7) : 'unknown';
-          const branch = process.env.GITHUB_REF || 'unknown';
-          const author = process.env.GITHUB_ACTOR || 'unknown';
-          const runId = process.env.GITHUB_RUN_ID || 'unknown';
-          const repository = process.env.GITHUB_REPOSITORY || 'unknown';
+      - name: Create issue on build failure
+        if: failure() && github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commitSha = process.env.GITHUB_SHA || 'unknown';
+            const shortSha = commitSha !== 'unknown' ? \
+              commitSha.substring(0, 7) : 'unknown';
+            const branch = process.env.GITHUB_REF || 'unknown';
+            const author = process.env.GITHUB_ACTOR || 'unknown';
+            const runId = process.env.GITHUB_RUN_ID || 'unknown';
+            const repository = process.env.GITHUB_REPOSITORY || 'unknown';
 
-          const title = `🚨 Build Failed: ${shortSha}`;
-          const logsUrl = `https://github.com/${repository}/actions/runs/${runId}`;
-          const body = `
-          ## Build Validation Failed
+            const title = `🚨 Build Failed: ${shortSha}`;
+            const logsUrl = `https://github.com/${repository}/actions/runs/\
+              ${runId}`;
+            const body = `
+            ## Build Validation Failed
 
-          **Commit:** ${commitSha}
-          **Branch:** ${branch}
-          **Author:** ${author}
+            **Commit:** ${commitSha}
+            **Branch:** ${branch}
+            **Author:** ${author}
 
-          The code failed to compile. Please check the build logs and fix the compilation errors before pushing again.
+            The code failed to compile. Please check the build logs and fix \
+            the compilation errors before pushing again.
 
-          ### Actions Required:
-          - Fix compilation errors
-          - Run \`./build.sh --clean\` locally to verify
-          - Commit and push the fixes
+            ### Actions Required:
+            - Fix compilation errors
+            - Run \`./build.sh --clean\` locally to verify
+            - Commit and push the fixes
 
-          [View Build Logs](${github.server_url}/${github.repository}/actions/runs/${github.run_id})
-          `;
+            [View Build Logs](${github.server_url}/${github.repository}/\
+            actions/runs/${github.run_id})
+            `;
 
-          const [owner, repo] = repository.split('/');
+            const [owner, repo] = repository.split('/');
 
-          // Check if an issue already exists for this commit
-          const issues = await github.rest.issues.listForRepo({
-            owner: owner,
-            repo: repo,
-            labels: ['build-failure', 'automated'],
-            state: 'open'
-          });
-
-          const existingIssue = issues.data.find(issue =>
-            issue.title.includes(shortSha)
-          );
-
-          if (!existingIssue) {
-            await github.rest.issues.create({
+            // Check if an issue already exists for this commit
+            const issues = await github.rest.issues.listForRepo({
               owner: owner,
               repo: repo,
-              title: title,
-              body: body + '\n\n[View Build Logs](' + logsUrl + ')',
-              labels: ['build-failure', 'automated', 'high-priority']
+              labels: ['build-failure', 'automated'],
+              state: 'open'
             });
-          }
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title.includes(shortSha)
+            );
+
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: owner,
+                repo: repo,
+                title: title,
+                body: body + '\n\n[View Build Logs](' + logsUrl + ')',
+                labels: ['build-failure', 'automated', 'high-priority']
+              });
+            }
