@@ -291,16 +291,19 @@ jobs:
       - name: Find and upload package
         id: find-package
         run: |
-          cd build
+          cd build/packages
           # Find the generated package file
           PACKAGE_FILE=$(ls -1 *.deb *.rpm *.tar.gz *.zip *.tar.xz *.tar.bz2 2>/dev/null | head -1)
           if [ -z "$PACKAGE_FILE" ]; then
-            echo "Error: No package file found"
-            ls -la
+            echo "Error: No package file found in packages directory"
+            echo "Contents of build directory:"
+            ls -la ../
+            echo "Contents of build/packages directory:"
+            ls -la ./
             exit 1
           fi
           echo "Found package: $PACKAGE_FILE"
-          echo "package_file=$PACKAGE_FILE" >> $GITHUB_OUTPUT
+          echo "package_file=packages/$PACKAGE_FILE" >> $GITHUB_OUTPUT
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -325,7 +328,19 @@ jobs:
 
       - name: List downloaded artifacts
         run: |
+          echo "=== Downloaded artifacts structure ==="
           find artifacts -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.zip" -o -name "*.tar.xz" -o -name "*.tar.bz2" \) | head -20
+          echo ""
+          echo "=== Artifacts directory structure ==="
+          ls -la artifacts/
+          echo ""
+          echo "=== Checking for subdirectories ==="
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              echo "Contents of $dir:"
+              ls -la "$dir"
+            fi
+          done
 
       - name: Create Git tag
         run: |
@@ -333,12 +348,6 @@ jobs:
           git config --local user.name "GitHub Action"
           git tag ${{ needs.prepare-release.outputs.tag_name }}
           git push origin ${{ needs.prepare-release.outputs.tag_name }}
-
-      - name: Create file list for release
-        run: |
-          # Create a list of all package files for the release
-          find artifacts -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.zip" -o -name "*.tar.xz" -o -name "*.tar.bz2" \) -exec echo {} \; > release_files.txt
-          cat release_files.txt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
@@ -348,7 +357,13 @@ jobs:
           body: ${{ needs.prepare-release.outputs.release_notes }}
           draft: ${{ github.event.inputs.draft == 'true' }}
           prerelease: ${{ github.event.inputs.release_type != 'stable' }}
-          files: release_files.txt
+          files: |
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            artifacts/**/*.tar.xz
+            artifacts/**/*.tar.bz2
 
       - name: Update CHANGELOG.md after release
         if: github.event_name == 'push'
