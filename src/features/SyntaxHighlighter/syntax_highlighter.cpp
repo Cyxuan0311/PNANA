@@ -2474,7 +2474,6 @@ void SyntaxHighlighter::setBackend(SyntaxHighlightBackend backend) {
     if (backend_ == SyntaxHighlightBackend::TREE_SITTER) {
         backend_ = SyntaxHighlightBackend::NATIVE;
     }
-    tree_sitter_highlighter_.reset();
 #endif
 }
 
