@@ -1,6 +1,10 @@
 ---
 name: Release
 
+permissions:
+  contents: write  # Required to create tags and releases
+  packages: write  # Required for package uploads
+
 on:
   workflow_dispatch:
     inputs:
@@ -346,6 +350,8 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          # Configure git to use GITHUB_TOKEN for authentication
+          git config --local url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
           git tag ${{ needs.prepare-release.outputs.tag_name }}
           git push origin ${{ needs.prepare-release.outputs.tag_name }}
 
