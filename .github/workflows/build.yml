@@ -118,8 +118,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.build_type == 'Release'
         with:
-          name: pnana-${{ matrix.os }}-${{ matrix.compiler }}-\
-            ${{ matrix.build_type }}
+          name: pnana-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
           path: |
             build/pnana
             build/compile_commands.json
