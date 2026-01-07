@@ -459,7 +459,7 @@ include(ConfigureTreeSitterLinking)
 
 # 设置版本信息
 set_target_properties(pnana PROPERTIES
-    SOVERSION 0.0.3
+    SOVERSION 0.0.4
 )
 
 # 可选：添加配置文件安装
@@ -590,7 +590,7 @@ endif()
 
 # 创建安装脚本
 configure_file(
-    ${CMAKE_SOURCE_DIR}/build/install_plugins.sh
+    ${CMAKE_BINARY_DIR}/install_plugins.sh
     ${CMAKE_BINARY_DIR}/install_plugins_final.sh
     @ONLY
 )
