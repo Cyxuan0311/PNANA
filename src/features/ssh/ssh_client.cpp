@@ -10,6 +10,7 @@
 extern "C" {
 SSHResult_C* ConnectAndReadFile(SSHConfig_C* config) {
     // 备用实现：使用系统命令
+    (void)config; // 抑制未使用参数警告
     SSHResult_C* result = static_cast<SSHResult_C*>(malloc(sizeof(SSHResult_C)));
     result->success = 0;
     result->content = nullptr;
@@ -20,6 +21,8 @@ SSHResult_C* ConnectAndReadFile(SSHConfig_C* config) {
 
 SSHResult_C* ConnectAndWriteFile(SSHConfig_C* config, const char* content) {
     // 备用实现：使用系统命令
+    (void)config;  // 抑制未使用参数警告
+    (void)content; // 抑制未使用参数警告
     SSHResult_C* result = static_cast<SSHResult_C*>(malloc(sizeof(SSHResult_C)));
     result->success = 0;
     result->content = nullptr;
@@ -30,6 +33,9 @@ SSHResult_C* ConnectAndWriteFile(SSHConfig_C* config, const char* content) {
 
 SSHResult_C* UploadFile(SSHConfig_C* config, const char* localPath, const char* remotePath) {
     // 备用实现：使用系统命令
+    (void)config;     // 抑制未使用参数警告
+    (void)localPath;  // 抑制未使用参数警告
+    (void)remotePath; // 抑制未使用参数警告
     SSHResult_C* result = static_cast<SSHResult_C*>(malloc(sizeof(SSHResult_C)));
     result->success = 0;
     result->content = nullptr;
@@ -40,6 +46,9 @@ SSHResult_C* UploadFile(SSHConfig_C* config, const char* localPath, const char* 
 
 SSHResult_C* DownloadFile(SSHConfig_C* config, const char* remotePath, const char* localPath) {
     // 备用实现：使用系统命令
+    (void)config;     // 抑制未使用参数警告
+    (void)remotePath; // 抑制未使用参数警告
+    (void)localPath;  // 抑制未使用参数警告
     SSHResult_C* result = static_cast<SSHResult_C*>(malloc(sizeof(SSHResult_C)));
     result->success = 0;
     result->content = nullptr;
