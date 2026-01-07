@@ -19,26 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 集成lsp系统，允许用户进行代码提示、代码诊断、代码格式化
-- 增加光标样式配置修改功能
-- 初步完成插件系统，允许用户使用过程中进行插件的启用与关闭
-- 集成ffmpeg完成图片转ASCII码并进行预览
+- Integrated LSP system, allowing users to perform code hints, diagnostics, and formatting
+- Added cursor style configuration modification functionality
+- Preliminary completion of plugin system, allowing users to enable/disable plugins during use
+- Integrated FFmpeg to convert images to ASCII art and preview them
 
 ### Improved
-- 增加更多语言的语法高亮（tree-sitter/内置的语法高亮器）
-- 提供更多的内置主题进行切换
-- 优化在线在线终端的主题样式与功能，解析命令效果优化
-- 优化UI效果，提高界面UI与icon的统一度
-- 优化文件编辑、浏览效果
-- 优化go编写的ssh模块（未测试）
+- Added syntax highlighting for more languages (tree-sitter/built-in syntax highlighter)
+- Provided more built-in themes for switching
+- Optimized the theme style and functionality of the inline terminal, improved command parsing effects
+- Optimized UI effects, improved interface UI and icon consistency
+- Optimized file editing and browsing effects
+- Optimized the SSH module written in Go (untested)
 
 ### Fixed
 
-- 改进构建配置，允许用户手动进行feature功能的配置，减少必要依赖
-- 修复配置系统，允许用户进行更新配置
-- 完善编译构建相关文档，提高用户入手速度
+- Improved build configuration, allowing users to manually configure feature functions and reduce necessary dependencies
+- Fixed configuration system, allowing users to update configurations
+- Improved compilation and build related documentation to increase user onboarding speed
 
-详细上手文档参考 [QUICKSTART](QUICKSTART.md)
+For detailed getting started documentation, refer to [QUICKSTART](QUICKSTART.md)
 
 
 ## [1.0.0] - 2023-XX-XX
