@@ -1,5 +1,6 @@
 #include "ui/file_picker.h"
 #include "ui/icons.h"
+#include "utils/logger.h"
 #include <algorithm>
 #include <cctype>
 #include <ftxui/dom/elements.hpp>

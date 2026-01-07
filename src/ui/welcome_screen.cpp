@@ -35,7 +35,7 @@ Element WelcomeScreen::render() {
     welcome_content.push_back(text(""));
     welcome_content.push_back(text("Modern Terminal Text Editor") | color(colors.foreground) |
                               center);
-    welcome_content.push_back(text("Version 0.0.3") | color(colors.comment) | dim | center);
+    welcome_content.push_back(text("Version 0.0.4") | color(colors.comment) | dim | center);
 
     welcome_content.push_back(text(""));
     welcome_content.push_back(text(""));
