@@ -289,6 +289,7 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_async_manager.cpp
         src/features/lsp/lsp_completion_cache.cpp
         src/features/lsp/lsp_formatter.cpp
+        src/features/lsp/snippet_manager.cpp
     )
 endif()
 
@@ -396,6 +397,7 @@ if(BUILD_LSP_SUPPORT)
         include/pnana/features/lsp/lsp_stdio_connector.h
         include/pnana/features/lsp/lsp_client.h
         include/pnana/features/lsp/lsp_formatter.h
+        include/pnana/features/lsp/snippet_manager.h
     )
 endif()
 
