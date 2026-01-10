@@ -22,7 +22,7 @@ class CompletionPopup {
 
     // 显示补全列表
     void show(const std::vector<features::CompletionItem>& items, int cursor_row, int cursor_col,
-              int screen_width, int screen_height);
+              int screen_width, int screen_height, const std::string& query = "");
 
     // 隐藏补全列表
     void hide();
@@ -75,6 +75,7 @@ class CompletionPopup {
   private:
     bool visible_;
     std::vector<features::CompletionItem> items_;
+    std::string current_query_; // 当前的查询前缀，用于匹配高亮
     size_t selected_index_;
     size_t max_items_;
     int cursor_row_;
@@ -104,9 +105,13 @@ class CompletionPopup {
     // 获取补全项类型颜色
     ftxui::Color getKindColor(const std::string& kind) const;
 
-    // 渲染单个补全项
+    // 渲染单个补全项（带匹配高亮）
     ftxui::Element renderItem(const features::CompletionItem& item, bool is_selected,
-                              const ui::Theme& theme) const;
+                              const ui::Theme& theme, const std::string& query = "") const;
+
+    // 渲染带高亮的标签文本
+    ftxui::Element renderHighlightedLabel(const std::string& label, const std::string& query,
+                                          bool is_selected, const ui::ThemeColors& colors) const;
 };
 
 } // namespace ui

@@ -19,15 +19,17 @@ CompletionPopup::CompletionPopup()
       last_items_size_(0) {}
 
 void CompletionPopup::show(const std::vector<features::CompletionItem>& items, int cursor_row,
-                           int cursor_col, int screen_width, int screen_height) {
+                           int cursor_col, int screen_width, int screen_height,
+                           const std::string& query) {
     auto show_start = std::chrono::steady_clock::now();
-    LOG("[COMPLETION] [Popup] show() called with " + std::to_string(items.size()) + " items");
+    LOG("[COMPLETION] [Popup] show() called with " + std::to_string(items.size()) +
+        " items, query='" + query + "'");
 
     // 参考 VSCode：优化响应速度，减少不必要的更新
     bool was_visible = visible_;
 
     // 快速比较：检查内容是否真正变化
-    bool items_changed = (items_.size() != items.size());
+    bool items_changed = (items_.size() != items.size()) || (current_query_ != query);
     if (!items_changed && items_.size() > 0 && items.size() > 0) {
         // 比较前几个 item 的 label，如果相同则认为内容未变化
         bool content_same = true;
@@ -52,6 +54,7 @@ void CompletionPopup::show(const std::vector<features::CompletionItem>& items, i
         ", was_visible=" + std::to_string(was_visible));
 
     items_ = items;
+    current_query_ = query;
     cursor_row_ = cursor_row;
     cursor_col_ = cursor_col;
     screen_width_ = screen_width;
@@ -324,6 +327,109 @@ std::string CompletionPopup::getKindIcon(const std::string& kind) const {
     }
 }
 
+Element CompletionPopup::renderHighlightedLabel(const std::string& label, const std::string& query,
+                                                bool is_selected,
+                                                const ui::ThemeColors& colors) const {
+    if (query.empty()) {
+        // 没有查询，直接返回普通文本
+        return text(label) |
+               (is_selected ? color(colors.foreground) | bold : color(colors.foreground));
+    }
+
+    Elements parts;
+
+    // 实现模糊匹配和高亮（支持驼峰匹配）
+    auto fuzzyMatch = [&](const std::string& text,
+                          const std::string& pattern) -> std::vector<std::pair<size_t, size_t>> {
+        std::vector<std::pair<size_t, size_t>> matches;
+
+        if (pattern.empty())
+            return matches;
+
+        // 转换为小写进行匹配
+        std::string lower_text = text;
+        std::string lower_pattern = pattern;
+        std::transform(lower_text.begin(), lower_text.end(), lower_text.begin(), ::tolower);
+        std::transform(lower_pattern.begin(), lower_pattern.end(), lower_pattern.begin(),
+                       ::tolower);
+
+        // 1. 首先尝试精确匹配
+        size_t pos = lower_text.find(lower_pattern);
+        if (pos != std::string::npos) {
+            matches.emplace_back(pos, pattern.length());
+            return matches;
+        }
+
+        // 2. 尝试驼峰匹配（CamelCase）
+        if (pattern.length() >= 2) {
+            size_t pattern_idx = 0;
+            size_t text_idx = 0;
+            size_t match_start = std::string::npos;
+
+            while (text_idx < lower_text.length() && pattern_idx < lower_pattern.length()) {
+                char text_char = lower_text[text_idx];
+                char pattern_char = lower_pattern[pattern_idx];
+
+                if (text_char == pattern_char) {
+                    if (match_start == std::string::npos) {
+                        match_start = text_idx;
+                    }
+                    pattern_idx++;
+                } else if (match_start != std::string::npos) {
+                    // 如果前面有匹配但当前不匹配，重置
+                    match_start = std::string::npos;
+                    pattern_idx = 0;
+                    continue; // 不增加text_idx，重新检查当前字符
+                }
+
+                text_idx++;
+
+                if (pattern_idx == lower_pattern.length()) {
+                    matches.emplace_back(match_start, text_idx - match_start);
+                    break;
+                }
+            }
+        }
+
+        // 3. 如果没有找到匹配，返回空
+        return matches;
+    };
+
+    auto matches = fuzzyMatch(label, query);
+
+    if (matches.empty()) {
+        // 没有找到匹配，返回普通文本
+        return text(label) |
+               (is_selected ? color(colors.foreground) | bold : color(colors.foreground));
+    }
+
+    // 构建高亮文本
+    size_t current_pos = 0;
+    for (const auto& [match_start, match_length] : matches) {
+        // 添加匹配前的文本
+        if (match_start > current_pos) {
+            std::string before = label.substr(current_pos, match_start - current_pos);
+            parts.push_back(text(before) | (is_selected ? color(colors.foreground) | bold
+                                                        : color(colors.foreground)));
+        }
+
+        // 添加高亮的匹配文本
+        std::string match_text = label.substr(match_start, match_length);
+        parts.push_back(text(match_text) | color(colors.function) | bold); // 使用函数颜色高亮匹配
+
+        current_pos = match_start + match_length;
+    }
+
+    // 添加剩余的文本
+    if (current_pos < label.length()) {
+        std::string after = label.substr(current_pos);
+        parts.push_back(text(after) |
+                        (is_selected ? color(colors.foreground) | bold : color(colors.foreground)));
+    }
+
+    return hbox(std::move(parts));
+}
+
 Color CompletionPopup::getKindColor(const std::string& kind) const {
     if (kind.empty())
         return Color::Default;
@@ -356,7 +462,7 @@ Color CompletionPopup::getKindColor(const std::string& kind) const {
 }
 
 Element CompletionPopup::renderItem(const features::CompletionItem& item, bool is_selected,
-                                    const ui::Theme& theme) const {
+                                    const ui::Theme& theme, const std::string& query) const {
     const auto& colors = theme.getColors();
 
     Elements item_elements;
@@ -364,24 +470,26 @@ Element CompletionPopup::renderItem(const features::CompletionItem& item, bool i
     // 图标（参考neovim，使用更简洁的样式）
     std::string icon = getKindIcon(item.kind);
     Color icon_color = getKindColor(item.kind);
+
+    // 代码片段使用特殊的图标
+    if (item.isSnippet) {
+        icon = ""; // 代码片段图标
+        icon_color = Color::Cyan;
+    }
+
     item_elements.push_back(text(icon.empty() ? " " : icon) | color(icon_color) |
                             size(WIDTH, EQUAL, 2));
     item_elements.push_back(text(" ")); // 图标和文本之间的间距
 
-    // 标签（主要文本）
+    // 标签（主要文本）- 增强版本：支持匹配高亮
     std::string label = item.label;
     size_t max_label_width = popup_width_ - 25; // 预留空间给图标、detail等
     if (label.length() > max_label_width) {
         label = label.substr(0, max_label_width - 3) + "...";
     }
 
-    Element label_elem = text(label);
-    if (is_selected) {
-        // 选中项：使用主题的当前行背景色，参考neovim
-        label_elem = label_elem | color(colors.foreground) | bold;
-    } else {
-        label_elem = label_elem | color(colors.foreground);
-    }
+    // 高亮匹配的字符（参考VSCode）
+    Element label_elem = renderHighlightedLabel(label, query, is_selected, colors);
     item_elements.push_back(label_elem);
 
     // 详细信息（detail）- 只在选中时显示，参考neovim
@@ -427,11 +535,11 @@ Element CompletionPopup::render(const ui::Theme& theme) const {
     // 参考neovim：不显示标题栏，直接显示补全项，更简洁
     // 只在底部显示选中项信息（可选）
 
-    // 显示补全项
+    // 显示补全项（带匹配高亮）
     for (size_t i = display_start; i < display_end && i < items_.size(); ++i) {
         const auto& item = items_[i];
         bool is_selected = (i == selected_index_);
-        lines.push_back(renderItem(item, is_selected, theme));
+        lines.push_back(renderItem(item, is_selected, theme, current_query_));
     }
 
     // 限制最大高度
