@@ -23,6 +23,16 @@ struct CompletionItem {
     std::string detail;
     std::string insertText;
     std::string documentation;
+
+    // 代码片段支持
+    bool isSnippet = false;
+    std::vector<SnippetPlaceholder> snippet_placeholders;
+    std::string snippet_body; // 代码片段的完整内容
+
+    // 辅助方法：检查是否是代码片段
+    bool hasSnippet() const {
+        return isSnippet && !snippet_body.empty();
+    }
 };
 
 // 诊断信息

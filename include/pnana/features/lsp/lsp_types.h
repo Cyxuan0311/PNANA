@@ -1,6 +1,10 @@
 #ifndef PNANA_FEATURES_LSP_LSP_TYPES_H
 #define PNANA_FEATURES_LSP_LSP_TYPES_H
 
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace pnana {
 namespace features {
 
@@ -23,6 +27,27 @@ struct LspRange {
 
 // LSP 诊断严重程度枚举
 enum DiagnosticSeverity { ERROR = 1, WARNING = 2, INFORMATION = 3, HINT = 4 };
+
+// 代码片段占位符
+struct SnippetPlaceholder {
+    int index;
+    std::string default_value;
+    std::pair<size_t, size_t> position; // 在代码片段中的位置
+
+    SnippetPlaceholder(int idx = 0, const std::string& def_val = "")
+        : index(idx), default_value(def_val), position({0, 0}) {}
+};
+
+// 代码片段
+struct Snippet {
+    std::string prefix;
+    std::string body;
+    std::string description;
+    std::vector<SnippetPlaceholder> placeholders;
+
+    Snippet(const std::string& p = "", const std::string& b = "", const std::string& d = "")
+        : prefix(p), body(b), description(d) {}
+};
 
 } // namespace features
 } // namespace pnana

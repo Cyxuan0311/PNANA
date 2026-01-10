@@ -23,7 +23,10 @@ class LspCompletionCache {
         std::string uri;
         int line;
         int character;
-        std::string prefix; // 当前输入的前缀
+        std::string prefix;            // 当前输入的前缀
+        std::string context_prefix;    // 更长的上下文前缀（最近的标识符等）
+        std::string semantic_context;  // 语义上下文（函数内、类内等）
+        std::string trigger_character; // 触发字符（., :, ::, ->等）
 
         bool operator<(const CacheKey& other) const {
             if (uri != other.uri)
@@ -32,7 +35,13 @@ class LspCompletionCache {
                 return line < other.line;
             if (character != other.character)
                 return character < other.character;
-            return prefix < other.prefix;
+            if (prefix != other.prefix)
+                return prefix < other.prefix;
+            if (context_prefix != other.context_prefix)
+                return context_prefix < other.context_prefix;
+            if (semantic_context != other.semantic_context)
+                return semantic_context < other.semantic_context;
+            return trigger_character < other.trigger_character;
         }
     };
 

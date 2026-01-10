@@ -56,7 +56,7 @@ class LspAsyncManager {
 
     void workerThread();
 
-    std::thread worker_thread_;
+    std::vector<std::thread> worker_threads_;
     std::queue<RequestTask> request_queue_;
     std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
