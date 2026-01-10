@@ -1,6 +1,7 @@
 #ifndef PNANA_VGIT_GIT_MANAGER_H
 #define PNANA_VGIT_GIT_MANAGER_H
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include <string>
@@ -66,6 +67,7 @@ class GitManager {
     // Status operations
     std::vector<GitFile> getStatus();
     bool refreshStatus();
+    bool refreshStatusForced(); // Force refresh, ignore cache
 
     // Staging operations
     bool stageFile(const std::string& path);
@@ -103,6 +105,10 @@ class GitManager {
     std::string repo_root_;
     std::vector<GitFile> current_status_;
     std::string last_error_;
+
+    // Status caching for performance optimization
+    std::chrono::steady_clock::time_point last_status_refresh_;
+    std::chrono::milliseconds status_cache_timeout_{2000}; // 2 seconds cache
 
     // Helper functions
     std::string executeGitCommand(const std::string& command) const;

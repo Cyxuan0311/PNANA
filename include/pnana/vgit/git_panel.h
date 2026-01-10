@@ -72,6 +72,12 @@ class GitPanel {
     // Selection state
     std::vector<size_t> selected_files_; // indices of selected files
 
+    // Performance optimization
+    bool branch_data_stale_ = true;                           // 是否需要刷新分支数据
+    bool needs_redraw_ = false;                               // 是否需要重绘UI
+    std::chrono::steady_clock::time_point last_refresh_time_; // 最后刷新时间
+    std::chrono::milliseconds refresh_cooldown_{500};         // 刷新冷却时间(ms)
+
     // Private methods
     void switchMode(GitPanelMode mode);
     void toggleFileSelection(size_t index);
@@ -79,11 +85,14 @@ class GitPanel {
     void selectAll();
     void performStageSelected();
     void performUnstageSelected();
+    void performStageAll();
+    void performUnstageAll();
     void performCommit();
-    void performPush();
-    void performPull();
+    bool performPush();
+    bool performPull();
     void performCreateBranch();
     void performSwitchBranch();
+    void refreshStatusOnly();
 
     // UI rendering
     ftxui::Element renderHeader();
@@ -92,7 +101,8 @@ class GitPanel {
     ftxui::Element renderCommitPanel();
     ftxui::Element renderBranchPanel();
     ftxui::Element renderRemotePanel();
-    ftxui::Element renderFileItem(const GitFile& file, size_t index, bool is_selected);
+    ftxui::Element renderFileItem(const GitFile& file, size_t index, bool is_selected,
+                                  bool is_highlighted);
     ftxui::Element renderBranchItem(const GitBranch& branch, size_t index, bool is_selected);
     ftxui::Element renderFooter();
     ftxui::Element renderError();
@@ -114,8 +124,10 @@ class GitPanel {
     std::string getStatusIcon(GitFileStatus status) const;
     std::string getStatusText(GitFileStatus status) const;
     std::string getModeTitle(GitPanelMode mode) const;
+    ftxui::Color getStatusColor(GitFileStatus status) const;
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;
+    bool isNavigationKey(ftxui::Event event) const;
 };
 
 } // namespace vgit
