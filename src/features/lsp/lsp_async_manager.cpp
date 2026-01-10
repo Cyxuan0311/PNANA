@@ -9,10 +9,17 @@ namespace pnana {
 namespace features {
 
 LspAsyncManager::LspAsyncManager() : running_(true) {
-    worker_thread_ = std::thread(&LspAsyncManager::workerThread, this);
+    // 创建多个worker线程以支持并发请求处理
+    unsigned int num_threads = std::max(2u, std::thread::hardware_concurrency() / 2);
+    LOG("[ASYNC] Starting " + std::to_string(num_threads) +
+        " worker threads for concurrent LSP requests");
+
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        worker_threads_.emplace_back(&LspAsyncManager::workerThread, this);
+    }
+
     const char* env = std::getenv("PNANA_PERF_JSON");
     json_perf_enabled_ = (env && std::string(env) == "1");
-    // 移除性能日志以提高性能
 }
 
 LspAsyncManager::~LspAsyncManager() {
@@ -43,8 +50,8 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
         request_queue_.push(task);
         // 移除所有调试日志以提高性能
     }
-    queue_cv_.notify_one();
-    (void)0;
+    // 通知所有等待的线程，提高并发响应速度
+    queue_cv_.notify_all();
 }
 
 void LspAsyncManager::workerThread() {
@@ -117,9 +124,14 @@ void LspAsyncManager::stop() {
     if (running_) {
         running_ = false;
         queue_cv_.notify_all();
-        if (worker_thread_.joinable()) {
-            worker_thread_.join();
+
+        // 等待所有worker线程结束
+        for (auto& thread : worker_threads_) {
+            if (thread.joinable()) {
+                thread.join();
+            }
         }
+        worker_threads_.clear();
     }
 }
 
