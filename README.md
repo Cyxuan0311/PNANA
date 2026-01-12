@@ -140,7 +140,7 @@ pnana --readonly file.txt
 - **[主题文档](docs/THEMES.md)** - 所有主题的介绍和预览
 - **[开发路线图](docs/ROADMAP.md)** - 版本计划和功能路线图
 - **[产品对比](docs/COMPARISON.md)** - 与同类产品的详细对比
-- **[快速入门](docs/QUICKSTART.md)** - 5分钟快速上手指南
+- **[快速入门](QUICKSTART.md)** - 5分钟快速上手指南
 
 
 ## 💡 为什么选择pnana？

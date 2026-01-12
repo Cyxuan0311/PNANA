@@ -140,7 +140,7 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 - **[Theme Documentation](docs/THEMES.md)** - Introduction and preview of all themes
 - **[Development Roadmap](docs/ROADMAP.md)** - Version plans and feature roadmap
 - **[Product Comparison](docs/COMPARISON.md)** - Detailed comparison with similar products
-- **[Quick Start Guide](docs/QUICKSTART.md)** - 5-minute quick start guide
+- **[Quick Start Guide](QUICKSTART.md)** - 5-minute quick start guide
 
 
 ## 💡 Why Choose pnana?
