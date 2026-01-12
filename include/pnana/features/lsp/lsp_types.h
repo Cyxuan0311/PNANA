@@ -38,6 +38,35 @@ struct SnippetPlaceholder {
         : index(idx), default_value(def_val), position({0, 0}) {}
 };
 
+// LSP 折叠范围类型
+enum class FoldingRangeKind {
+    Comment,
+    Imports,
+    Region,
+    Unknown // For cases where kind is not specified or recognized
+};
+
+// LSP 折叠范围
+struct FoldingRange {
+    int startLine;
+    int startCharacter;
+    int endLine;
+    int endCharacter;
+    FoldingRangeKind kind; // "comment", "imports", "region"
+
+    FoldingRange(int sl = 0, int sc = 0, int el = 0, int ec = 0,
+                 FoldingRangeKind k = FoldingRangeKind::Unknown)
+        : startLine(sl), startCharacter(sc), endLine(el), endCharacter(ec), kind(k) {}
+
+    bool containsLine(int line) const {
+        return line >= startLine && line <= endLine;
+    }
+
+    bool isValid() const {
+        return startLine >= 0 && endLine >= startLine;
+    }
+};
+
 // 代码片段
 struct Snippet {
     std::string prefix;

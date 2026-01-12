@@ -97,6 +97,9 @@ class LspClient {
     // 代码格式化
     std::string formatDocument(const std::string& uri, const std::string& original_content);
 
+    // 代码折叠范围
+    std::vector<FoldingRange> foldingRange(const std::string& uri);
+
     // 重命名符号
     std::map<std::string, std::vector<LspRange>> rename(const std::string& uri,
                                                         const LspPosition& position,
@@ -141,6 +144,7 @@ class LspClient {
     Diagnostic jsonToDiagnostic(const jsonrpccxx::json& json);
     Location jsonToLocation(const jsonrpccxx::json& json);
     HoverInfo jsonToHoverInfo(const jsonrpccxx::json& json);
+    FoldingRange jsonToFoldingRange(const jsonrpccxx::json& json);
 
     // 处理服务器通知
     void handleNotification(const std::string& notification);
