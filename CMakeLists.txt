@@ -380,7 +380,7 @@ set(HEADERS
     include/pnana/features/terminal.h
     include/pnana/features/split_view.h
     include/pnana/features/markdown_parser.h
-    include/pnana/features/markdown_renderer.h
+    include/pnana/features/md_render/markdown_renderer.h
     include/pnana/features/encoding_converter.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
