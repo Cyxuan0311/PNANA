@@ -9,12 +9,15 @@
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
+#include "features/md_render/markdown_renderer.h"
 #include <algorithm>
 #include <cctype>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/screen.hpp>
 #include <iostream>
+#include <sstream>
 
 using namespace ftxui;
 
@@ -177,21 +180,31 @@ void Editor::loadConfig(const std::string& config_path) {
     if (theme_name.empty()) {
         theme_name = "monokai"; // 默认主题
     }
-    theme_.setTheme(theme_name);
 
-    // 加载自定义主题（如果有）
-    for (const auto& [name, theme_config] : config.custom_themes) {
-        theme_.loadThemeFromConfig(
-            theme_config.background, theme_config.foreground, theme_config.current_line,
-            theme_config.selection, theme_config.line_number, theme_config.line_number_current,
-            theme_config.statusbar_bg, theme_config.statusbar_fg, theme_config.menubar_bg,
-            theme_config.menubar_fg, theme_config.helpbar_bg, theme_config.helpbar_fg,
-            theme_config.helpbar_key, theme_config.keyword, theme_config.string,
-            theme_config.comment, theme_config.number, theme_config.function, theme_config.type,
-            theme_config.operator_color, theme_config.error, theme_config.warning,
-            theme_config.info, theme_config.success);
-        theme_.loadCustomTheme(name, theme_.getColors());
+    // 检查主题是否可用（预设主题或已加载插件提供的主题）
+    std::vector<std::string> check_available_themes = ::pnana::ui::Theme::getAvailableThemes();
+    std::vector<std::string> check_custom_themes = theme_.getCustomThemeNames();
+    check_available_themes.insert(check_available_themes.end(), check_custom_themes.begin(),
+                                  check_custom_themes.end());
+
+    bool theme_available = false;
+    for (const auto& available_theme : check_available_themes) {
+        if (available_theme == theme_name) {
+            theme_available = true;
+            break;
+        }
     }
+
+    // 如果主题不可用（比如插件被禁用了），重置为默认主题
+    if (!theme_available) {
+        theme_name = "monokai";
+        // 更新配置
+        config_manager_.getConfig().current_theme = theme_name;
+        config_manager_.getConfig().editor.theme = theme_name;
+        config_manager_.saveConfig();
+    }
+
+    theme_.setTheme(theme_name);
 
     // 更新可用主题列表
     std::vector<std::string> available_themes;
@@ -201,6 +214,13 @@ void Editor::loadConfig(const std::string& config_path) {
         // 使用 Theme 类提供的所有可用主题
         available_themes = ::pnana::ui::Theme::getAvailableThemes();
     }
+
+    // 注意：自定义主题由插件系统管理，不在这里自动添加
+    // 插件加载时会通过 Lua API 更新主题菜单
+
+    // 清除所有自定义主题，确保只有当前加载的插件的主题会被显示
+    theme_.clearCustomThemes();
+
     theme_menu_.setAvailableThemes(available_themes);
 
     // 加载光标配置
@@ -379,11 +399,31 @@ void Editor::selectPreviousTheme() {
 void Editor::applySelectedTheme() {
     const auto& themes = theme_menu_.getAvailableThemes();
     size_t selected_index = theme_menu_.getSelectedIndex();
+
     if (selected_index < themes.size()) {
         std::string theme_name = themes[selected_index];
 
-        // 使用 setTheme 方法，它会自动保存配置
-        setTheme(theme_name);
+        // 检查主题是否真的可用（预设主题或当前加载插件提供的主题）
+        std::vector<std::string> available_themes = ::pnana::ui::Theme::getAvailableThemes();
+        std::vector<std::string> custom_themes = theme_.getCustomThemeNames();
+
+        available_themes.insert(available_themes.end(), custom_themes.begin(), custom_themes.end());
+
+        bool theme_available = false;
+        for (const auto& available_theme : available_themes) {
+            if (available_theme == theme_name) {
+                theme_available = true;
+                break;
+            }
+        }
+
+        if (theme_available) {
+            // 使用 setTheme 方法，它会自动保存配置
+            setTheme(theme_name);
+        } else {
+            // 主题不可用，显示错误消息
+            setStatusMessage("Theme '" + theme_name + "' is not available (plugin not loaded)");
+        }
     }
 }
 
@@ -412,6 +452,77 @@ void Editor::toggleHelp() {
     } else {
         setStatusMessage("Help closed");
     }
+}
+
+void Editor::toggleMarkdownPreview() {
+    // Toggle lightweight preview flag and request UI update
+    markdown_preview_enabled_ = !markdown_preview_enabled_;
+    if (markdown_preview_enabled_) {
+        LOG("[DEBUG] Markdown preview enabled (lightweight)");
+        setStatusMessage("Markdown preview enabled - Press Alt+W again to close");
+    } else {
+        LOG("[DEBUG] Markdown preview disabled");
+        setStatusMessage("Markdown preview closed");
+    }
+    force_ui_update_ = true;
+    last_render_source_ = "toggleMarkdownPreview";
+}
+
+bool Editor::isMarkdownPreviewActive() const {
+    return markdown_preview_enabled_;
+}
+
+ftxui::Element Editor::renderMarkdownPreview() {
+    // Render preview using MarkdownRenderer directly (lightweight)
+    pnana::features::MarkdownRenderConfig cfg;
+    int half_width = std::max(10, getScreenWidth() / 2 - 4);
+    cfg.max_width = half_width;
+    cfg.use_color = true;
+    cfg.theme = theme_.getCurrentThemeName();
+    pnana::features::MarkdownRenderer renderer(cfg);
+    std::string content = getCurrentDocumentContent();
+    if (content.empty())
+        return ftxui::text("");
+
+    auto elem = renderer.render(content);
+
+    // Diagnostic/fallback: render to an off-screen buffer and check if visible characters exist.
+    try {
+        int height = std::max(10, getScreenHeight() - 6);
+        ftxui::Screen screen(half_width, height);
+        ftxui::Render(screen, elem);
+        std::string out = screen.ToString();
+        // check for any non-space visible characters
+        bool has_visible = false;
+        for (char c : out) {
+            if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
+                has_visible = true;
+                break;
+            }
+        }
+        if (!has_visible) {
+            // Fallback: render plain text (no colors) to ensure content is visible
+            Elements lines;
+            std::istringstream iss(content);
+            std::string line;
+            while (std::getline(iss, line)) {
+                lines.push_back(ftxui::text(line));
+            }
+            return vbox(std::move(lines));
+        }
+    } catch (...) {
+        // ignore and return elem
+    }
+
+    return elem;
+}
+
+std::string Editor::getCurrentDocumentContent() const {
+    const Document* doc = getCurrentDocument();
+    if (!doc) {
+        return "";
+    }
+    return doc->getContent();
 }
 
 // Git 面板

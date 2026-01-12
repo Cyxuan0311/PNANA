@@ -86,19 +86,36 @@ Element Editor::renderUI() {
         return last_rendered_element_; // 返回上次渲染结果
     }
 
-    // 增量渲染优化：抑制快速的光标移动渲染
+    // Markdown预览延迟更新检查
     auto current_time = std::chrono::steady_clock::now();
+    if (markdown_preview_needs_update_ &&
+        current_time - last_markdown_preview_update_time_ >= markdown_preview_update_delay_) {
+        // 延迟时间已到，触发预览更新
+        force_ui_update_ = true;
+        markdown_preview_needs_update_ = false;
+        last_markdown_preview_update_time_ = current_time;
+        LOG("[DEBUG MD PREVIEW] Triggering delayed markdown preview update");
+    }
+
+    // 增量渲染优化：抑制快速的光标移动渲染
     auto time_since_last_render = current_time - last_render_time_;
 
-    // 如果距离上次渲染不足16ms，抑制本次渲染（除了撤销操作等重要更新）
-    if (time_since_last_render >= MIN_RENDER_INTERVAL ||
+    // 如果强制更新或距离上次渲染足够久，允许渲染
+    if (force_ui_update_ || time_since_last_render >= MIN_RENDER_INTERVAL ||
         (last_render_source_.find("resumeRendering") != std::string::npos ||
          last_render_source_.find("Event::Custom") != std::string::npos)) {
+        LOG("[DEBUG UI] Force UI update triggered - force_ui_update_=" +
+            std::to_string(force_ui_update_) + ", last_render_source='" + last_render_source_ +
+            "'");
         // 允许渲染，更新时间戳
         last_render_time_ = current_time;
         last_render_source_ = "";
         pending_cursor_update_ = false;
+        force_ui_update_ = false; // 重置强制更新标志
     } else {
+        LOG("[DEBUG UI] Skipping render - force_ui_update_=" + std::to_string(force_ui_update_) +
+            ", time_since_last_render=" + std::to_string(time_since_last_render.count()) +
+            ", last_render_source='" + last_render_source_ + "'");
         // 标记有待处理的更新，稍后会通过定时器或事件触发
         pending_cursor_update_ = true;
         // 返回上次渲染结果，避免闪烁
@@ -220,10 +237,8 @@ Element Editor::overlayDialogs(Element main_ui) {
         int popup_x = completion_popup_.getPopupX();
         int popup_y = completion_popup_.getPopupY();
 
-        // 计算相对于编辑器内容区域的Y位置
-        // 编辑器内容区域从第2行开始（标签栏+分隔符）
-        int editor_start_y = 2;
-        int actual_popup_y = popup_y + editor_start_y;
+        // 补全弹窗已经计算了绝对屏幕坐标，无需额外偏移
+        int actual_popup_y = popup_y;
 
         LOG("[UI] Completion popup position: x=" + std::to_string(popup_x) + ", y=" +
             std::to_string(popup_y) + " (actual_y=" + std::to_string(actual_popup_y) + ")");
@@ -249,7 +264,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     }
 
     // 如果诊断弹窗打开，叠加显示（要求弹窗对象也显示，以避免残留遮罩）
-    if (show_diagnostics_popup_ && diagnostics_popup_.isVisible()) {
+    // 注意：如果补全弹窗正在显示，诊断弹窗会被隐藏，避免重叠
+    if (show_diagnostics_popup_ && diagnostics_popup_.isVisible() &&
+        !completion_popup_.isVisible()) {
         Elements diagnostics_elements = {main_ui | dim, renderDiagnosticsPopup() | center};
         return dbox(diagnostics_elements);
     }
@@ -455,18 +472,21 @@ Element Editor::renderEditor() {
     // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
     // 6行
     int screen_height = screen_.dimy() - 6;
-    size_t total_lines = doc->lineCount();
 
-    // 只在文件行数少于屏幕高度时，确保从0开始显示（这样最后一行也能显示）
-    // 如果文件行数大于屏幕高度，保持当前的视图偏移，让用户自己滚动
-    if (total_lines > 0 && total_lines <= static_cast<size_t>(screen_height)) {
-        // 文件行数少于屏幕高度，从0开始显示所有行（包括最后一行）
+    // 获取可见行（考虑折叠状态）
+    std::vector<size_t> visible_lines = doc->getVisibleLines();
+    size_t total_visible_lines = visible_lines.size();
+
+    // 只在可见行数少于屏幕高度时，确保从0开始显示（这样最后一行也能显示）
+    // 如果可见行数大于屏幕高度，保持当前的视图偏移，让用户自己滚动
+    if (total_visible_lines > 0 && total_visible_lines <= static_cast<size_t>(screen_height)) {
+        // 可见行数少于屏幕高度，从0开始显示所有行（包括最后一行）
         view_offset_row_ = 0;
     }
-    // 如果文件行数大于屏幕高度，不强制调整视图偏移，保持用户当前的滚动位置
+    // 如果可见行数大于屏幕高度，不强制调整视图偏移，保持用户当前的滚动位置
 
     // 计算实际显示的行数范围
-    size_t max_lines = std::min(view_offset_row_ + screen_height, total_lines);
+    size_t max_lines = std::min(view_offset_row_ + screen_height, total_visible_lines);
 
     // 渲染可见行
     // 限制渲染的行数，避免大文件卡住
@@ -475,20 +495,23 @@ Element Editor::renderEditor() {
 
     try {
         for (size_t i = view_offset_row_; i < view_offset_row_ + render_count; ++i) {
+            size_t actual_line_index = visible_lines[i];
             try {
                 // 性能优化：对于超长行，跳过语法高亮
-                std::string line_content = doc->getLine(i);
+                std::string line_content = doc->getLine(actual_line_index);
                 if (line_content.length() > 5000) {
                     // 超长行，使用简单渲染
                     Elements simple_line;
                     if (show_line_numbers_) {
-                        simple_line.push_back(renderLineNumber(i, i == cursor_row_));
+                        simple_line.push_back(
+                            renderLineNumber(actual_line_index, actual_line_index == cursor_row_));
                     }
                     simple_line.push_back(text(line_content.substr(0, 5000) + "...") |
                                           color(theme_.getColors().foreground));
                     lines.push_back(hbox(simple_line));
                 } else {
-                    lines.push_back(renderLine(i, i == cursor_row_));
+                    lines.push_back(
+                        renderLine(actual_line_index, actual_line_index == cursor_row_));
                 }
             } catch (const std::exception& e) {
                 // 如果渲染某一行失败，使用空行替代
@@ -666,19 +689,21 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
 
     Elements lines;
 
-    // 计算该区域应该显示的行数
-    size_t total_lines = doc->lineCount();
+    // 获取可见行（考虑折叠状态）
+    std::vector<size_t> visible_lines = doc->getVisibleLines();
+    size_t total_visible_lines = visible_lines.size();
     int region_height = region.height;
 
     // 如果区域是激活的，使用当前的视图偏移
     // 否则，每个区域可以有自己的视图偏移（简化实现：所有区域共享视图偏移）
     size_t start_line = view_offset_row_;
-    size_t max_lines = std::min(start_line + region_height, total_lines);
+    size_t max_lines = std::min(start_line + region_height, total_visible_lines);
 
     // 渲染可见行
     for (size_t i = start_line; i < max_lines && i < start_line + region_height; ++i) {
-        bool is_current = (region.is_active && i == cursor_row_);
-        lines.push_back(renderLine(i, is_current));
+        size_t actual_line_index = visible_lines[i];
+        bool is_current = (region.is_active && actual_line_index == cursor_row_);
+        lines.push_back(renderLine(actual_line_index, is_current));
     }
 
     // 填充空行
@@ -831,14 +856,56 @@ Element Editor::renderCursorElement(const std::string& cursor_char, size_t curso
 Element Editor::renderLine(size_t line_num, bool is_current) {
     Elements line_elements;
 
+    // 行内容
+    Document* doc = getCurrentDocument();
+
+    // 折叠指示器
+#ifdef BUILD_LSP_SUPPORT
+    if (lsp_enabled_ && folding_manager_ && doc) {
+        std::string fold_indicator = " ";
+        bool can_fold = false;
+
+        // 检查这一行是否可以折叠
+        const auto& foldable_lines = folding_manager_->getFoldableLines();
+        bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
+                                     static_cast<int>(line_num)) != foldable_lines.end();
+
+        if (is_foldable) {
+            can_fold = true;
+            // 直接检查FoldingManager的状态，这是权威来源
+            bool is_folded = folding_manager_->isFolded(static_cast<int>(line_num));
+
+            if (is_folded) {
+                // Show compact fold indicator only; range shown in line number column.
+                fold_indicator = "▶";
+            } else {
+                fold_indicator = "▼"; // 展开状态
+            }
+
+            // 临时调试：每行都打印状态（仅用于调试）
+            static size_t last_line = static_cast<size_t>(-1);
+            if (line_num != last_line && line_num < 20) { // 只打印前20行
+                last_line = line_num;
+                LOG("[DEBUG] UI Line " + std::to_string(line_num) + " is_folded=" +
+                    (is_folded ? "true" : "false") + ", fold_indicator='" + fold_indicator + "'");
+            }
+        }
+
+        if (can_fold) {
+            line_elements.push_back(text(fold_indicator) | color(theme_.getColors().keyword));
+        } else {
+            line_elements.push_back(text(" "));
+        }
+    } else {
+        line_elements.push_back(text(" "));
+    }
+#endif
+
     // 行号
     if (show_line_numbers_) {
         line_elements.push_back(renderLineNumber(line_num, is_current));
         line_elements.push_back(text(" "));
     }
-
-    // 行内容
-    Document* doc = getCurrentDocument();
     if (!doc) {
         return hbox({text("~") | color(theme_.getColors().comment)});
     }
@@ -1228,15 +1295,88 @@ Element Editor::renderLineNumber(size_t line_num, bool is_current) {
     std::string line_str;
 
     if (relative_line_numbers_ && !is_current) {
-        size_t diff =
-            (line_num > cursor_row_) ? (line_num - cursor_row_) : (cursor_row_ - line_num);
-        line_str = std::to_string(diff);
+        // 在相对行号模式下，需要计算相对于当前光标的可见行差
+        if (auto doc = getCurrentDocument()) {
+            size_t current_visible_line = doc->actualLineToDisplayLine(cursor_row_);
+            size_t this_visible_line = doc->actualLineToDisplayLine(line_num);
+            size_t diff = (this_visible_line > current_visible_line)
+                              ? (this_visible_line - current_visible_line)
+                              : (current_visible_line - this_visible_line);
+            line_str = std::to_string(diff);
+        } else {
+            size_t diff =
+                (line_num > cursor_row_) ? (line_num - cursor_row_) : (cursor_row_ - line_num);
+            line_str = std::to_string(diff);
+        }
     } else {
-        line_str = std::to_string(line_num + 1);
+        // 在正常行号模式下，通常显示可见行号（从1开始）
+        // 但如果这行是折叠起始或处于折叠范围内，显示文件的实际行号（更接近 Neovim 行为）
+        if (auto doc = getCurrentDocument()) {
+            bool show_actual_for_fold = false;
+#ifdef BUILD_LSP_SUPPORT
+            if (lsp_enabled_ && folding_manager_) {
+                // If this line is a fold start or inside a folded range, show actual file line
+                // number
+                if (folding_manager_->isFolded(static_cast<int>(line_num)) ||
+                    folding_manager_->isLineInFoldedRange(static_cast<int>(line_num))) {
+                    show_actual_for_fold = true;
+                }
+            }
+#endif
+            if (show_actual_for_fold) {
+                // Show VSCode-like folded-range in gutter: "start-end" for folded start line.
+                bool printed = false;
+                if (lsp_enabled_ && folding_manager_) {
+                    auto folded_ranges = folding_manager_->getFoldedRanges();
+                    for (const auto& fr : folded_ranges) {
+                        if (fr.startLine == static_cast<int>(line_num)) {
+                            // Display as "start-end" (1-based)
+                            std::string s = std::to_string(fr.startLine + 1);
+                            std::string e = std::to_string(fr.endLine + 1);
+                            std::string full = s + "-" + e;
+                            const size_t LINE_NUM_WIDTH = 6;
+                            if (full.length() <= LINE_NUM_WIDTH) {
+                                line_str = full;
+                            } else {
+                                // Truncate using ".." in the middle, keep prefix of start and
+                                // suffix of end
+                                size_t allowed = LINE_NUM_WIDTH;
+                                // leave 2 chars for ".."
+                                size_t n1 = std::max<size_t>(1, (allowed - 2) / 2);
+                                size_t n2 = (allowed - 2) - n1;
+                                if (n2 == 0) {
+                                    n2 = 1;
+                                    if (n1 + n2 + 2 > allowed && n1 > 1)
+                                        n1--;
+                                }
+                                if (n1 > s.length())
+                                    n1 = s.length();
+                                if (n2 > e.length())
+                                    n2 = e.length();
+                                std::string part1 = s.substr(0, n1);
+                                std::string part2 = e.substr(e.length() - n2);
+                                line_str = part1 + ".." + part2;
+                            }
+                            printed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!printed) {
+                    line_str = std::to_string(line_num + 1); // fallback to actual file line number
+                }
+            } else {
+                size_t visible_line_num = doc->actualLineToDisplayLine(line_num) + 1;
+                line_str = std::to_string(visible_line_num);
+            }
+        } else {
+            line_str = std::to_string(line_num + 1);
+        }
     }
 
-    // 右对齐
-    while (line_str.length() < 4) {
+    // 右对齐：使用固定列宽以便折叠行和普通行对齐（6字符）
+    const size_t LINE_NUM_WIDTH = 6;
+    while (line_str.length() < LINE_NUM_WIDTH) {
         line_str = " " + line_str;
     }
 

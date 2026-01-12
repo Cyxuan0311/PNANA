@@ -37,6 +37,15 @@ void Editor::insertChar(char ch) {
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
     LOG("[EDIT] Document insertChar took " + std::to_string(duration.count()) + " us");
 
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        // 使用延迟更新机制，避免每次输入都立即重新渲染
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_insertChar";
+        // 不立即设置 force_ui_update_，而是等待延迟更新
+    }
+
 #ifdef BUILD_LSP_SUPPORT
     // 智能LSP文档更新策略
     // 只有在以下情况下才更新LSP文档：
@@ -114,12 +123,29 @@ void Editor::insertNewline() {
     completion_popup_.hide();
 #endif
 
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_newline";
+    }
+
     // 调整视图偏移，确保新插入的行可见
     adjustViewOffset();
 }
 
 void Editor::deleteChar() {
-    getCurrentDocument()->deleteChar(cursor_row_, cursor_col_);
+    Document* doc = getCurrentDocument();
+    if (doc) {
+        doc->deleteChar(cursor_row_, cursor_col_);
+
+        // 更新markdown预览（延迟更新以提升性能）
+        if (isMarkdownPreviewActive()) {
+            markdown_preview_needs_update_ = true;
+            last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+            last_render_source_ = "edit_deleteSelection";
+        }
+    }
 }
 
 void Editor::backspace() {
@@ -193,6 +219,13 @@ void Editor::backspace() {
         completion_popup_.hide();
 #endif
 
+        // 更新markdown预览（延迟更新以提升性能）
+        if (isMarkdownPreviewActive()) {
+            markdown_preview_needs_update_ = true;
+            last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+            last_render_source_ = "edit_backspace";
+        }
+
         return;
     }
 
@@ -215,6 +248,13 @@ void Editor::backspace() {
     // 删除时隐藏补全弹窗
     completion_popup_.hide();
 #endif
+
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_deleteChar";
+    }
 }
 
 void Editor::deleteLine() {
@@ -225,6 +265,13 @@ void Editor::deleteLine() {
     doc->deleteLine(cursor_row_);
     adjustCursor();
     setStatusMessage("Line deleted");
+
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_deleteLine";
+    }
 }
 
 void Editor::deleteWord() {
@@ -243,13 +290,33 @@ void Editor::deleteWord() {
 
     cursor_col_ = start;
     getCurrentDocument()->setModified(true);
+
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_deleteWord";
+    }
 }
 
 void Editor::duplicateLine() {
-    std::string line = getCurrentDocument()->getLine(cursor_row_);
-    getCurrentDocument()->insertLine(cursor_row_ + 1);
-    getCurrentDocument()->getLines()[cursor_row_ + 1] = line;
-    getCurrentDocument()->setModified(true);
+    Document* doc = getCurrentDocument();
+    if (!doc)
+        return;
+
+    std::string line = doc->getLine(cursor_row_);
+
+    // 插入新行并设置内容
+    doc->insertLine(cursor_row_ + 1);
+    doc->getLines()[cursor_row_ + 1] = line;
+
+    // 由于我们修改了刚插入的行内容，需要手动记录这个修改
+    // 撤销时应该删除这一行（因为insertLine已经记录了行插入的撤销）
+    // 这里的内容修改应该作为额外的撤销点，但为了简化，我们信任insertLine的撤销
+
+    doc->setModified(true);
+    cursor_row_++; // 移动光标到新行
+    cursor_col_ = 0;
     setStatusMessage("Line duplicated");
 }
 
@@ -622,31 +689,41 @@ void Editor::paste() {
 // 撤销/重做
 void Editor::undo() {
     Document* doc = getCurrentDocument();
-    if (!doc)
+    if (!doc) {
+        setStatusMessage("No document to undo");
         return;
+    }
+
+    // 保存撤销前的光标位置，用于可能的视图调整
+    size_t original_cursor_row = cursor_row_;
+    size_t original_cursor_col = cursor_col_;
 
     size_t change_row = 0, change_col = 0;
-    if (doc->undo(&change_row, &change_col)) {
-        // VSCode 风格：精确恢复光标位置到操作开始的位置
+    DocumentChange::Type change_type;
+
+    if (doc->undo(&change_row, &change_col, &change_type)) {
+        // VSCode 风格的光标定位：精确恢复到操作开始的位置
         cursor_row_ = change_row;
         cursor_col_ = change_col;
 
-        // 确保光标位置有效（防止越界）
+        // 确保光标位置在有效范围内
         adjustCursor();
 
-        // Neovim/VSCode 优化：撤销操作时使用极度保守的视图调整策略
-        // 1. 如果光标已在可见范围内，绝对不调整视图（避免闪烁）
-        // 2. 只在光标完全不可见时才调整，且调整幅度最小化
-        // 3. 不使用scrolloff机制，因为撤销操作应该保持视觉连续性
+        // VSCode 式的视图调整：保守策略，避免不必要的滚动
+        // 只有当光标完全超出可见区域时才调整视图
         adjustViewOffsetForUndoConservative(cursor_row_, cursor_col_);
 
-        // 清除选择（VSCode 行为：撤销后清除选择）
+        // 撤销操作后清除选择状态（VSCode 行为）
         selection_active_ = false;
 
-        // 优化：撤销成功时不显示状态消息，避免不必要的UI更新
-        // 只有在撤销失败时才显示消息
+        LOG("[UNDO] Editor undo completed: moved cursor from (" +
+            std::to_string(original_cursor_row) + "," + std::to_string(original_cursor_col) +
+            ") to (" + std::to_string(cursor_row_) + "," + std::to_string(cursor_col_) + ")");
+
+        // 不显示成功消息，避免UI干扰（VSCode 行为）
     } else {
         setStatusMessage("Nothing to undo");
+        LOG("[UNDO] Editor undo failed: no operations in undo stack");
     }
 }
 

@@ -70,8 +70,27 @@ void Editor::moveCursorUp() {
         endSelection();
     }
 
-    if (cursor_row_ > 0) {
-        cursor_row_--;
+    auto doc = getCurrentDocument();
+    if (!doc)
+        return;
+
+    // 获取可见行列表
+    std::vector<size_t> visible_lines = doc->getVisibleLines();
+    if (visible_lines.empty())
+        return;
+
+    // 找到当前光标在可见行中的位置
+    size_t current_visible_index = 0;
+    for (size_t i = 0; i < visible_lines.size(); ++i) {
+        if (visible_lines[i] == cursor_row_) {
+            current_visible_index = i;
+            break;
+        }
+    }
+
+    // 如果不是第一行，移动到上一可见行
+    if (current_visible_index > 0) {
+        cursor_row_ = visible_lines[current_visible_index - 1];
         adjustCursor();
         // 立即调整视图偏移，使光标移动更流畅
         adjustViewOffset();
@@ -87,8 +106,27 @@ void Editor::moveCursorDown() {
         endSelection();
     }
 
-    if (cursor_row_ < getCurrentDocument()->lineCount() - 1) {
-        cursor_row_++;
+    auto doc = getCurrentDocument();
+    if (!doc)
+        return;
+
+    // 获取可见行列表
+    std::vector<size_t> visible_lines = doc->getVisibleLines();
+    if (visible_lines.empty())
+        return;
+
+    // 找到当前光标在可见行中的位置
+    size_t current_visible_index = 0;
+    for (size_t i = 0; i < visible_lines.size(); ++i) {
+        if (visible_lines[i] == cursor_row_) {
+            current_visible_index = i;
+            break;
+        }
+    }
+
+    // 如果不是最后一行，移动到下一可见行
+    if (current_visible_index < visible_lines.size() - 1) {
+        cursor_row_ = visible_lines[current_visible_index + 1];
         adjustCursor();
         // 立即调整视图偏移，使光标移动更流畅
         adjustViewOffset();

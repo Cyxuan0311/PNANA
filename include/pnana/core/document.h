@@ -1,9 +1,11 @@
 #ifndef PNANA_CORE_DOCUMENT_H
 #define PNANA_CORE_DOCUMENT_H
 
+#include "features/lsp/lsp_types.h"
 #include <chrono>
 #include <deque>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -12,7 +14,7 @@ namespace core {
 
 // 文档修改记录（用于撤销/重做）
 struct DocumentChange {
-    enum class Type { INSERT, DELETE, REPLACE, NEWLINE };
+    enum class Type { INSERT, DELETE, REPLACE, NEWLINE, COMPLETION };
 
     Type type;
     size_t row;
@@ -31,6 +33,12 @@ struct DocumentChange {
                    const std::string& after)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(after),
           timestamp(std::chrono::steady_clock::now()) {}
+
+    // COMPLETION 类型的构造函数（添加布尔参数以避免重载冲突）
+    DocumentChange(Type t, size_t r, size_t c, const std::string& replaced_text,
+                   const std::string& completion_text, bool /*is_completion*/)
+        : type(t), row(r), col(c), old_content(replaced_text), new_content(completion_text),
+          after_cursor(""), timestamp(std::chrono::steady_clock::now()) {}
 
     // 带时间戳的构造函数（用于合并操作）
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c,
@@ -62,6 +70,9 @@ class Document {
     std::vector<std::string>& getLines() {
         return lines_;
     }
+
+    // 获取完整的文档内容（所有行合并）
+    std::string getContent() const;
 
     // 编辑操作
     void insertChar(size_t row, size_t col, char ch);
@@ -133,6 +144,30 @@ class Document {
         return is_binary_;
     }
 
+    // 折叠范围管理
+    void setFoldingRanges(const std::vector<pnana::features::FoldingRange>& ranges);
+    const std::vector<pnana::features::FoldingRange>& getFoldingRanges() const {
+        return folding_ranges_;
+    }
+    void clearFoldingRanges();
+
+    // 折叠状态管理
+    void setFolded(int start_line, bool folded);
+    bool isFolded(int line) const;
+    bool isLineInFoldedRange(int line) const;
+    void toggleFold(int start_line);
+    void unfoldAll();
+    void foldAll();
+
+    // 获取可见行（排除折叠的行）
+    std::vector<size_t> getVisibleLines(size_t start_line = 0, size_t end_line = SIZE_MAX) const;
+    size_t getVisibleLineCount() const;
+
+    // 将显示行号转换为实际行号
+    size_t displayLineToActualLine(size_t display_line) const;
+    // 将实际行号转换为显示行号
+    size_t actualLineToDisplayLine(size_t actual_line) const;
+
   private:
     std::vector<std::string> lines_;
     std::vector<std::string> original_lines_; // 保存原始内容（用于判断是否修改）
@@ -155,6 +190,12 @@ class Document {
 
     // 二进制文件标志
     bool is_binary_;
+
+    // 折叠范围
+    std::vector<pnana::features::FoldingRange> folding_ranges_;
+
+    // 已折叠的行范围（存储起始行号）
+    std::set<int> folded_lines_;
 
     // 辅助方法
     void detectLineEnding(const std::string& content);

@@ -41,10 +41,12 @@
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/command_palette.h"
 #include "features/split_view.h"
+// #include "features/markdown_preview.h"  // removed during preview refactor; backup stored as .bak
 #include "features/terminal.h"
-#include "vgit/git_panel.h"
+#include "ui/git_panel.h"
 #ifdef BUILD_LSP_SUPPORT
 #include "features/lsp/document_change_tracker.h"
+#include "features/lsp/folding_manager.h"
 #include "features/lsp/lsp_async_manager.h"
 #include "features/lsp/lsp_completion_cache.h"
 #include "features/lsp/lsp_formatter.h"
@@ -106,6 +108,8 @@ class Editor {
 #ifdef BUILD_LSP_SUPPORT
     // 友元类：允许SnippetManager访问私有方法
     friend class features::SnippetManager;
+    // 友元类：允许MarkdownPreview访问私有方法
+    // (MarkdownPreview module removed during refactor)
 #endif
 
   public:
@@ -233,8 +237,23 @@ class Editor {
         return theme_;
     }
 
+    // 获取主题菜单
+    pnana::ui::ThemeMenu& getThemeMenu() {
+        return theme_menu_;
+    }
+
+    // 配置管理器
+    core::ConfigManager& getConfigManager() {
+        return config_manager_;
+    }
+
     // 配置
     void loadConfig(const std::string& config_path = "");
+
+    // 状态栏美化
+    void setStatusbarBeautify(const pnana::ui::StatusbarBeautifyConfig& config) {
+        statusbar_.setBeautifyConfig(config);
+    }
 
     // 访问器（用于输入路由器和UI路由器等）
     RegionManager& getRegionManager() {
@@ -356,6 +375,7 @@ class Editor {
     features::CommandPalette command_palette_;
     features::Terminal terminal_;
     features::SplitViewManager split_view_manager_;
+    // markdown_preview_ removed
 
     // 分屏区域状态存储
     struct RegionState {
@@ -381,6 +401,9 @@ class Editor {
 
     // LSP 格式化器
     std::unique_ptr<features::LspFormatter> lsp_formatter_;
+
+    // 代码折叠管理器
+    std::unique_ptr<features::FoldingManager> folding_manager_;
 
     // 文档更新防抖（阶段1优化）
     std::chrono::steady_clock::time_point last_document_update_time_;
@@ -474,6 +497,8 @@ class Editor {
 
     // UI更新控制
     bool force_ui_update_;
+    // 简单的 Markdown 预览开关（重构后的轻量开关）
+    bool markdown_preview_enabled_ = false;
 
     // 渲染调试信息
     size_t render_call_count_ = 0;
@@ -495,6 +520,11 @@ class Editor {
     bool pending_cursor_update_ = false;
     static constexpr auto MIN_RENDER_INTERVAL = std::chrono::milliseconds(16); // ~60fps
     static constexpr auto CURSOR_UPDATE_DELAY = std::chrono::milliseconds(50); // 延迟更新时间
+
+    // Markdown预览延迟更新优化
+    std::chrono::steady_clock::time_point last_markdown_preview_update_time_;
+    std::chrono::milliseconds markdown_preview_update_delay_{300}; // 300ms延迟更新
+    bool markdown_preview_needs_update_ = false;
 
     // 强制触发待处理的光标更新
     void triggerPendingCursorUpdate();
@@ -578,6 +608,14 @@ class Editor {
     // 帮助系统
     void toggleHelp();
 
+    // Markdown预览
+    void toggleMarkdownPreview();
+    bool isMarkdownPreviewActive() const;
+    ftxui::Element renderMarkdownPreview();
+
+    // 获取当前文档内容（用于预览）
+    std::string getCurrentDocumentContent() const;
+
     // Git 面板
     void toggleGitPanel();
 
@@ -638,6 +676,12 @@ class Editor {
     std::string getSemanticContext(const std::string& line_content, size_t cursor_pos);
     std::string getTriggerCharacter(const std::string& line_content, size_t cursor_pos);
 
+    // 代码折叠方法
+    void toggleFold();
+    void foldAll();
+    void unfoldAll();
+    void toggleFoldAtCursor();
+
     // 诊断相关方法
     void showDiagnosticsPopup();
     void hideDiagnosticsPopup();
@@ -650,6 +694,15 @@ class Editor {
     // 获取当前文档（便捷方法）
     Document* getCurrentDocument();
     const Document* getCurrentDocument() const;
+
+    // Lua API专用方法
+  public:
+    Document* getCurrentDocumentForLua() {
+        return getCurrentDocument();
+    }
+    void setStatusMessageForLua(const std::string& message) {
+        setStatusMessage(message);
+    }
 
     // 渲染批处理控制（方案1）
     void pauseRendering();
