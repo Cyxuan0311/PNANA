@@ -211,6 +211,7 @@ set(SOURCES
     src/ui/helpbar.cpp
     src/ui/tabbar.cpp
     src/ui/welcome_screen.cpp
+    src/ui/split_welcome_screen.cpp
     src/ui/new_file_prompt.cpp
     src/ui/theme_menu.cpp
     src/ui/create_folder_dialog.cpp
