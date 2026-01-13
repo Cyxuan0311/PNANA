@@ -43,18 +43,12 @@ void Editor::handleInput(Event event) {
     region_manager_.setTerminalEnabled(terminal_.isVisible());
     region_manager_.setHelpWindowEnabled(show_help_);
 
-    // 使用 InputRouter 处理输入（如果已初始化）
-    // 支持终端、文件浏览器和Git面板区域
+    // 使用 InputRouter 处理全局输入（如果已初始化）
+    // 包括全局快捷键、分屏操作等
     if (input_router_) {
-        // 如果当前在终端、文件浏览器或Git面板区域，使用 InputRouter
-        EditorRegion current_region = region_manager_.getCurrentRegion();
-        if (current_region == EditorRegion::TERMINAL ||
-            current_region == EditorRegion::FILE_BROWSER ||
-            current_region == EditorRegion::GIT_PANEL) {
-            if (input_router_->route(event, this)) {
-                LOG("InputRouter handled event for region: " + region_manager_.getRegionName());
-                return;
-            }
+        if (input_router_->route(event, this)) {
+            LOG("InputRouter handled global event");
+            return;
         }
     }
 
@@ -62,6 +56,18 @@ void Editor::handleInput(Event event) {
     if (terminal_.isVisible() && !input_router_) {
         handleTerminalInput(event);
         return;
+    }
+
+    // 如果 InputRouter 已初始化但没有处理事件，继续检查区域特定逻辑
+    // 这是为了向后兼容终端、文件浏览器等区域的特殊处理
+    if (input_router_) {
+        EditorRegion current_region = region_manager_.getCurrentRegion();
+        if (current_region == EditorRegion::TERMINAL ||
+            current_region == EditorRegion::FILE_BROWSER ||
+            current_region == EditorRegion::GIT_PANEL) {
+            // 这些区域可能有额外的特殊处理逻辑
+            // 暂时保持为空，未来可以扩展
+        }
     }
 
     // 首先检查全局快捷键（在任何模式下都有效，包括对话框打开时）
@@ -479,6 +485,11 @@ void Editor::handleInput(Event event) {
     // 移除全局的adjustViewOffset调用，避免与特定操作中的调用重复
     // 各个操作（如moveCursorUp等）已经负责调用adjustViewOffset
 
+    // 如果有分屏，保存当前活动区域的状态
+    if (split_view_manager_.hasSplits()) {
+        saveCurrentRegionState();
+    }
+
     // 注意：退出逻辑现在在 quit() 方法中直接处理
     // 这里保留检查是为了兼容性，但通常不会到达这里
     if (should_quit_) {
@@ -559,9 +570,11 @@ void Editor::handleNormalMode(Event event) {
                 new_index < static_cast<int>(document_manager_.getDocumentCount())) {
                 document_manager_.switchToDocument(new_index);
 
-                // 如果在分屏模式下，更新激活区域的文档索引
+                // 如果在分屏模式下，显式更新当前激活区域的文档索引（避免在 Tab 区域混淆 active
+                // state）
                 if (split_view_manager_.hasSplits()) {
-                    split_view_manager_.setCurrentDocumentIndex(new_index);
+                    size_t active_region_idx = split_view_manager_.getActiveRegionIndex();
+                    split_view_manager_.setDocumentIndexForRegion(active_region_idx, new_index);
                 }
 
                 cursor_row_ = 0;
@@ -601,50 +614,63 @@ void Editor::handleNormalMode(Event event) {
                         return;
                     }
                 }
-                // 不在顶部时，尝试分屏导航
-                size_t old_active_index = 0;
-                const auto* old_active = split_view_manager_.getActiveRegion();
-                if (old_active) {
-                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
-                        if (&split_view_manager_.getRegions()[i] == old_active) {
-                            old_active_index = i;
-                            break;
+                // 不在顶部时，尝试分屏导航（仅在 Alt+ArrowUp 的情况下）
+                pnana::input::EventParser parser;
+                std::string key_str = parser.eventToKey(event);
+                bool alt_nav = (key_str.rfind("alt_arrow", 0) == 0 ||
+                                key_str.rfind("alt_shift_arrow", 0) == 0);
+
+                if (alt_nav) {
+                    size_t old_active_index = 0;
+                    const auto* old_active = split_view_manager_.getActiveRegion();
+                    if (old_active) {
+                        for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                            if (&split_view_manager_.getRegions()[i] == old_active) {
+                                old_active_index = i;
+                                break;
+                            }
                         }
                     }
-                }
 
-                split_view_manager_.focusUpRegion();
+                    split_view_manager_.focusUpRegion();
 
-                const auto* new_active = split_view_manager_.getActiveRegion();
-                size_t new_active_index = 0;
-                if (new_active) {
-                    for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
-                        if (&split_view_manager_.getRegions()[i] == new_active) {
-                            new_active_index = i;
-                            break;
+                    const auto* new_active = split_view_manager_.getActiveRegion();
+                    size_t new_active_index = 0;
+                    if (new_active) {
+                        for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                            if (&split_view_manager_.getRegions()[i] == new_active) {
+                                new_active_index = i;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (new_active_index != old_active_index) {
-                    // 分屏导航成功，保存当前状态，更新文档，恢复新区域状态
-                    saveCurrentRegionState();
+                    if (new_active_index != old_active_index) {
+                        // 分屏导航成功，保存当前状态，更新文档，恢复新区域状态
+                        saveCurrentRegionState();
 
-                    const auto* active_region = split_view_manager_.getActiveRegion();
-                    if (active_region) {
-                        document_manager_.switchToDocument(active_region->document_index);
-                        // 恢复新区域的状态
-                        restoreRegionState(new_active_index);
-                        syntax_highlighter_.setFileType(getFileType());
+                        const auto* active_region = split_view_manager_.getActiveRegion();
+                        if (active_region) {
+                            document_manager_.switchToDocument(
+                                active_region->current_document_index);
+                            // 恢复新区域的状态
+                            restoreRegionState(new_active_index);
+                            syntax_highlighter_.setFileType(getFileType());
+                        }
+                        setStatusMessage("Split view: Region " +
+                                         std::to_string(new_active_index + 1) + "/" +
+                                         std::to_string(split_view_manager_.getRegionCount()) +
+                                         " | Use Alt+↑ to navigate between regions");
+                        return;
                     }
-                    setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
-                                     "/" + std::to_string(split_view_manager_.getRegionCount()) +
-                                     " | Use ↑↓←→ to navigate between regions");
+                    // 分屏导航失败，在当前区域内移动光标
+                    moveCursorUp();
+                    return;
+                } else {
+                    // 非 Alt+Arrow 的普通上键：在当前区域内移动光标
+                    moveCursorUp();
                     return;
                 }
-                // 分屏导航失败，在当前区域内移动光标
-                moveCursorUp();
-                return;
             }
         } else {
             // 非分屏模式下的传统导航
@@ -690,8 +716,17 @@ void Editor::handleNormalMode(Event event) {
                     }
                 }
 
-                split_view_manager_.focusDownRegion();
+                pnana::input::EventParser parser;
+                std::string key_str = parser.eventToKey(event);
+                bool alt_nav = (key_str.rfind("alt_arrow", 0) == 0 ||
+                                key_str.rfind("alt_shift_arrow", 0) == 0);
 
+                if (alt_nav) {
+                    split_view_manager_.focusDownRegion();
+                } else {
+                    // 普通下键：不做分屏切换，转为普通光标/区域行为
+                    // 将在后续逻辑中处理（fall through）
+                }
                 const auto* new_active = split_view_manager_.getActiveRegion();
                 size_t new_active_index = 0;
                 if (new_active) {
@@ -709,14 +744,14 @@ void Editor::handleNormalMode(Event event) {
 
                     const auto* active_region = split_view_manager_.getActiveRegion();
                     if (active_region) {
-                        document_manager_.switchToDocument(active_region->document_index);
+                        document_manager_.switchToDocument(active_region->current_document_index);
                         // 恢复新区域的状态
                         restoreRegionState(new_active_index);
                         syntax_highlighter_.setFileType(getFileType());
                     }
                     setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
                                      "/" + std::to_string(split_view_manager_.getRegionCount()) +
-                                     " | Use ↑↓←→ to navigate between regions");
+                                     " | Use Alt+↓ to navigate between regions");
                     return;
                 }
 
@@ -800,8 +835,16 @@ void Editor::handleNormalMode(Event event) {
                     }
                 }
 
-                split_view_manager_.focusLeftRegion();
+                pnana::input::EventParser parser;
+                std::string key_str = parser.eventToKey(event);
+                bool alt_nav = (key_str.rfind("alt_arrow", 0) == 0 ||
+                                key_str.rfind("alt_shift_arrow", 0) == 0);
 
+                if (alt_nav) {
+                    split_view_manager_.focusLeftRegion();
+                } else {
+                    // 非 Alt+Left：保持原地移动光标/区域切换逻辑下面处理
+                }
                 const auto* new_active = split_view_manager_.getActiveRegion();
                 size_t new_active_index = 0;
                 if (new_active) {
@@ -819,14 +862,14 @@ void Editor::handleNormalMode(Event event) {
 
                     const auto* active_region = split_view_manager_.getActiveRegion();
                     if (active_region) {
-                        document_manager_.switchToDocument(active_region->document_index);
+                        document_manager_.switchToDocument(active_region->current_document_index);
                         // 恢复新区域的状态
                         restoreRegionState(new_active_index);
                         syntax_highlighter_.setFileType(getFileType());
                     }
                     setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
                                      "/" + std::to_string(split_view_manager_.getRegionCount()) +
-                                     " | Use ↑↓←→ to navigate between regions");
+                                     " | Use Alt+← to navigate between regions");
                     return;
                 }
 
@@ -899,8 +942,16 @@ void Editor::handleNormalMode(Event event) {
                     }
                 }
 
-                split_view_manager_.focusRightRegion();
+                pnana::input::EventParser parser;
+                std::string key_str = parser.eventToKey(event);
+                bool alt_nav = (key_str.rfind("alt_arrow", 0) == 0 ||
+                                key_str.rfind("alt_shift_arrow", 0) == 0);
 
+                if (alt_nav) {
+                    split_view_manager_.focusRightRegion();
+                } else {
+                    // 非 Alt+Right：保持原地移动光标/区域切换逻辑下面处理
+                }
                 const auto* new_active = split_view_manager_.getActiveRegion();
                 size_t new_active_index = 0;
                 if (new_active) {
@@ -918,14 +969,14 @@ void Editor::handleNormalMode(Event event) {
 
                     const auto* active_region = split_view_manager_.getActiveRegion();
                     if (active_region) {
-                        document_manager_.switchToDocument(active_region->document_index);
+                        document_manager_.switchToDocument(active_region->current_document_index);
                         // 恢复新区域的状态
                         restoreRegionState(new_active_index);
                         syntax_highlighter_.setFileType(getFileType());
                     }
                     setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
                                      "/" + std::to_string(split_view_manager_.getRegionCount()) +
-                                     " | Use ↑↓←→ to navigate between regions");
+                                     " | Use Alt+→ to navigate between regions");
                     return;
                 }
                 // 分屏导航失败，在当前区域内移动光标

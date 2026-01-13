@@ -322,24 +322,40 @@ Element Editor::renderTabbar() {
                bgcolor(theme_.getColors().menubar_bg);
     }
 
-    // 如果有分屏，修改标签显示以反映当前激活区域的文档
+    // 如果有分屏，修改标签显示以反映当前激活区域的文档，实现完全隔离
     if (split_view_manager_.hasSplits()) {
         const auto* active_region = split_view_manager_.getActiveRegion();
-        if (active_region && active_region->document_index < tabs.size()) {
-            // 创建修改后的标签列表，将激活区域的文档标记为当前文档
-            std::vector<DocumentManager::TabInfo> modified_tabs = tabs;
-
-            // 先将所有标签标记为非当前
-            for (auto& tab : modified_tabs) {
-                tab.is_current = false;
+        if (active_region) {
+            // 如果激活区域显示欢迎页面，显示特殊的欢迎标签
+            if (active_region->current_document_index == SIZE_MAX) {
+                return hbox({text(" "),
+                             text(pnana::ui::icons::SPLIT) | color(theme_.getColors().keyword),
+                             text(" Split View - Open a file ") |
+                                 color(theme_.getColors().foreground) | bold,
+                             text(" ")}) |
+                       bgcolor(theme_.getColors().menubar_bg);
             }
 
-            // 将激活区域的文档标记为当前
-            if (active_region->document_index < modified_tabs.size()) {
-                modified_tabs[active_region->document_index].is_current = true;
+            // 创建过滤后的标签列表，只显示当前激活分屏区域管理的文档
+            std::vector<DocumentManager::TabInfo> filtered_tabs;
+
+            // 获取当前激活区域的文档索引列表
+            const auto& region_doc_indices = active_region->document_indices;
+
+            // 根据文档索引列表创建标签
+            for (size_t doc_index : region_doc_indices) {
+                if (doc_index < tabs.size()) {
+                    DocumentManager::TabInfo tab_info = tabs[doc_index];
+                    // 如果这是当前激活区域正在编辑的文档，标记为当前
+                    tab_info.is_current = (doc_index == active_region->current_document_index);
+                    filtered_tabs.push_back(tab_info);
+                }
             }
 
-            return tabbar_.render(modified_tabs);
+            // 如果有过滤后的标签，使用它们；否则显示所有标签
+            if (!filtered_tabs.empty()) {
+                return tabbar_.render(filtered_tabs);
+            }
         }
     }
 
@@ -503,15 +519,15 @@ Element Editor::renderEditor() {
                     // 超长行，使用简单渲染
                     Elements simple_line;
                     if (show_line_numbers_) {
-                        simple_line.push_back(
-                            renderLineNumber(actual_line_index, actual_line_index == cursor_row_));
+                        simple_line.push_back(renderLineNumber(doc, actual_line_index,
+                                                               actual_line_index == cursor_row_));
                     }
                     simple_line.push_back(text(line_content.substr(0, 5000) + "...") |
                                           color(theme_.getColors().foreground));
                     lines.push_back(hbox(simple_line));
                 } else {
                     lines.push_back(
-                        renderLine(actual_line_index, actual_line_index == cursor_row_));
+                        renderLine(doc, actual_line_index, actual_line_index == cursor_row_));
                 }
             } catch (const std::exception& e) {
                 // 如果渲染某一行失败，使用空行替代
@@ -585,13 +601,15 @@ Element Editor::renderSplitEditor() {
         } else {
             // 区域有效，正常渲染该区域
             Document* doc = nullptr;
-            if (region.document_index < document_manager_.getDocumentCount()) {
-                doc = document_manager_.getDocument(region.document_index);
+            if (region.current_document_index != SIZE_MAX &&
+                region.current_document_index < document_manager_.getDocumentCount()) {
+                doc = document_manager_.getDocument(region.current_document_index);
             }
-            if (region.is_active && doc) {
-                document_manager_.switchToDocument(region.document_index);
+            // 激活区域且有文档时才更新全局文档管理器
+            if (region.is_active && region.current_document_index != SIZE_MAX && doc) {
+                document_manager_.switchToDocument(region.current_document_index);
             }
-            return renderEditorRegion(region, doc) | size(WIDTH, EQUAL, region.width) |
+            return renderEditorRegion(region, doc, 0) | size(WIDTH, EQUAL, region.width) |
                    size(HEIGHT, EQUAL, region.height);
         }
     }
@@ -626,19 +644,29 @@ Element Editor::renderSplitEditor() {
         for (size_t i = 0; i < row_regions.size(); ++i) {
             const auto* region = row_regions[i];
 
-            // 获取该区域关联的文档
-            Document* doc = nullptr;
-            if (region->document_index < document_manager_.getDocumentCount()) {
-                doc = document_manager_.getDocument(region->document_index);
+            // 找到该区域在 regions 向量中的索引
+            size_t region_index = 0;
+            for (size_t j = 0; j < regions.size(); ++j) {
+                if (&regions[j] == region) {
+                    region_index = j;
+                    break;
+                }
             }
 
-            // 如果区域是激活的，更新当前文档
-            if (region->is_active && doc) {
-                document_manager_.switchToDocument(region->document_index);
+            // 获取该区域关联的文档
+            Document* doc = nullptr;
+            if (region->current_document_index != SIZE_MAX &&
+                region->current_document_index < document_manager_.getDocumentCount()) {
+                doc = document_manager_.getDocument(region->current_document_index);
+            }
+
+            // 如果区域是激活的且有文档，更新当前文档（只有激活区域才影响全局状态）
+            if (region->is_active && region->current_document_index != SIZE_MAX && doc) {
+                document_manager_.switchToDocument(region->current_document_index);
             }
 
             // 渲染该区域的编辑器内容
-            Element region_content = renderEditorRegion(*region, doc);
+            Element region_content = renderEditorRegion(*region, doc, region_index);
             region_content = region_content | size(WIDTH, EQUAL, region->width) |
                              size(HEIGHT, EQUAL, region->height);
 
@@ -671,14 +699,21 @@ Element Editor::renderSplitEditor() {
     return vbox(row_elements);
 }
 
-Element Editor::renderEditorRegion(const features::ViewRegion& region, Document* doc) {
-    // 如果没有文档，显示空区域
+Element Editor::renderEditorRegion(const features::ViewRegion& region, Document* doc,
+                                   size_t region_index) {
+    // 如果没有文档，在分屏模式下显示分屏欢迎界面
     if (!doc) {
-        Elements empty_lines;
-        for (int i = 0; i < region.height; ++i) {
-            empty_lines.push_back(text("~") | color(theme_.getColors().comment));
+        if (split_view_manager_.hasSplits()) {
+            // 在分屏模式下，显示分屏欢迎界面
+            return split_welcome_screen_.render() | size(HEIGHT, EQUAL, region.height);
+        } else {
+            // 在单视图模式下，显示传统的空行
+            Elements empty_lines;
+            for (int i = 0; i < region.height; ++i) {
+                empty_lines.push_back(text("~") | color(theme_.getColors().comment));
+            }
+            return vbox(empty_lines);
         }
-        return vbox(empty_lines);
     }
 
     // 如果是二进制文件，显示二进制文件视图
@@ -694,16 +729,24 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     size_t total_visible_lines = visible_lines.size();
     int region_height = region.height;
 
-    // 如果区域是激活的，使用当前的视图偏移
-    // 否则，每个区域可以有自己的视图偏移（简化实现：所有区域共享视图偏移）
-    size_t start_line = view_offset_row_;
+    // 获取该区域的状态
+    size_t region_cursor_row = cursor_row_;
+    size_t region_view_offset_row = view_offset_row_;
+
+    if (region_index < region_states_.size()) {
+        region_cursor_row = region_states_[region_index].cursor_row;
+        region_view_offset_row = region_states_[region_index].view_offset_row;
+    }
+
+    // 使用区域特定的视图偏移
+    size_t start_line = region_view_offset_row;
     size_t max_lines = std::min(start_line + region_height, total_visible_lines);
 
     // 渲染可见行
     for (size_t i = start_line; i < max_lines && i < start_line + region_height; ++i) {
         size_t actual_line_index = visible_lines[i];
-        bool is_current = (region.is_active && actual_line_index == cursor_row_);
-        lines.push_back(renderLine(actual_line_index, is_current));
+        bool is_current = (region.is_active && actual_line_index == region_cursor_row);
+        lines.push_back(renderLine(doc, actual_line_index, is_current));
     }
 
     // 填充空行
@@ -853,11 +896,11 @@ Element Editor::renderCursorElement(const std::string& cursor_char, size_t curso
     return cursor_elem;
 }
 
-Element Editor::renderLine(size_t line_num, bool is_current) {
+Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
     Elements line_elements;
 
     // 行内容
-    Document* doc = getCurrentDocument();
+    // Document* doc is passed in
 
     // 折叠指示器
 #ifdef BUILD_LSP_SUPPORT
@@ -903,7 +946,7 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
 
     // 行号
     if (show_line_numbers_) {
-        line_elements.push_back(renderLineNumber(line_num, is_current));
+        line_elements.push_back(renderLineNumber(doc, line_num, is_current));
         line_elements.push_back(text(" "));
     }
     if (!doc) {
@@ -1291,12 +1334,12 @@ Element Editor::renderLine(size_t line_num, bool is_current) {
     return line_elem;
 }
 
-Element Editor::renderLineNumber(size_t line_num, bool is_current) {
+Element Editor::renderLineNumber(Document* doc, size_t line_num, bool is_current) {
     std::string line_str;
 
     if (relative_line_numbers_ && !is_current) {
         // 在相对行号模式下，需要计算相对于当前光标的可见行差
-        if (auto doc = getCurrentDocument()) {
+        if (doc) {
             size_t current_visible_line = doc->actualLineToDisplayLine(cursor_row_);
             size_t this_visible_line = doc->actualLineToDisplayLine(line_num);
             size_t diff = (this_visible_line > current_visible_line)
@@ -1311,7 +1354,7 @@ Element Editor::renderLineNumber(size_t line_num, bool is_current) {
     } else {
         // 在正常行号模式下，通常显示可见行号（从1开始）
         // 但如果这行是折叠起始或处于折叠范围内，显示文件的实际行号（更接近 Neovim 行为）
-        if (auto doc = getCurrentDocument()) {
+        if (doc) {
             bool show_actual_for_fold = false;
 #ifdef BUILD_LSP_SUPPORT
             if (lsp_enabled_ && folding_manager_) {

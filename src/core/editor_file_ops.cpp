@@ -114,6 +114,33 @@ bool Editor::openFile(const std::string& filepath) {
             setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + filepath);
         }
 
+        // 如果在分屏模式下，将新文档设置为当前激活区域的文档
+        if (split_view_manager_.hasSplits()) {
+            size_t new_doc_index = document_manager_.getCurrentIndex();
+            size_t active_region_index = split_view_manager_.getActiveRegionIndex();
+            const auto* active_region = split_view_manager_.getActiveRegion();
+
+            if (active_region && active_region->current_document_index == SIZE_MAX) {
+                // 如果当前区域显示欢迎页面，直接设置新文档为该区域的当前文档
+                split_view_manager_.setDocumentIndexForRegion(active_region_index, new_doc_index);
+
+                // 确保该区域有正确的状态
+                if (region_states_.size() <= active_region_index) {
+                    region_states_.resize(active_region_index + 1);
+                }
+                // 初始化新区域的状态
+                region_states_[active_region_index].cursor_row = 0;
+                region_states_[active_region_index].cursor_col = 0;
+                region_states_[active_region_index].view_offset_row = 0;
+                region_states_[active_region_index].view_offset_col = 0;
+            } else {
+                // 否则添加到文档列表中
+                split_view_manager_.addDocumentIndexToRegion(active_region_index, new_doc_index);
+                // 更新当前激活区域显示这个新文档
+                split_view_manager_.setDocumentIndexForRegion(active_region_index, new_doc_index);
+            }
+        }
+
         LOG("=== openFile() SUCCESS ===");
         return true;
     } catch (const std::exception& e) {
@@ -254,6 +281,34 @@ void Editor::newFile() {
     cursor_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
+
+    // 如果在分屏模式下，将新文档设置为当前激活区域的文档
+    if (split_view_manager_.hasSplits()) {
+        size_t new_doc_index = document_manager_.getCurrentIndex();
+        size_t active_region_index = split_view_manager_.getActiveRegionIndex();
+        const auto* active_region = split_view_manager_.getActiveRegion();
+
+        if (active_region && active_region->current_document_index == SIZE_MAX) {
+            // 如果当前区域显示欢迎页面，直接设置新文档为该区域的当前文档
+            split_view_manager_.setDocumentIndexForRegion(active_region_index, new_doc_index);
+
+            // 确保该区域有正确的状态
+            if (region_states_.size() <= active_region_index) {
+                region_states_.resize(active_region_index + 1);
+            }
+            // 初始化新区域的状态：新打开的文件从开头开始
+            region_states_[active_region_index].cursor_row = 0;
+            region_states_[active_region_index].cursor_col = 0;
+            region_states_[active_region_index].view_offset_row = 0;
+            region_states_[active_region_index].view_offset_col = 0;
+        } else {
+            // 否则添加到文档列表中
+            split_view_manager_.addDocumentIndexToRegion(active_region_index, new_doc_index);
+            // 更新当前激活区域显示这个新文档
+            split_view_manager_.setDocumentIndexForRegion(active_region_index, new_doc_index);
+        }
+    }
+
     setStatusMessage(std::string(pnana::ui::icons::NEW) + " New file created");
 }
 
@@ -316,7 +371,35 @@ void Editor::closeCurrentTab() {
 }
 
 void Editor::switchToNextTab() {
-    document_manager_.switchToNextDocument();
+    // 在分屏模式下，只在当前激活区域的文档列表中切换
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            const auto& region_docs = active_region->document_indices;
+            if (!region_docs.empty()) {
+                // 找到当前文档在区域文档列表中的位置
+                auto it = std::find(region_docs.begin(), region_docs.end(),
+                                    active_region->current_document_index);
+                size_t current_pos =
+                    (it != region_docs.end()) ? std::distance(region_docs.begin(), it) : 0;
+
+                // 计算下一个文档的位置
+                size_t next_pos = (current_pos + 1) % region_docs.size();
+                size_t next_doc_index = region_docs[next_pos];
+
+                // 更新当前区域的文档索引（这会改变该区域显示的文档）
+                split_view_manager_.setDocumentIndexForRegion(
+                    split_view_manager_.getActiveRegionIndex(), next_doc_index);
+
+                // 更新全局文档管理器到新文档（因为这是激活区域）
+                document_manager_.switchToDocument(next_doc_index);
+            }
+        }
+    } else {
+        // 单视图模式下的传统行为
+        document_manager_.switchToNextDocument();
+    }
+
     cursor_row_ = 0;
     cursor_col_ = 0;
     view_offset_row_ = 0;
@@ -325,10 +408,41 @@ void Editor::switchToNextTab() {
     if (doc) {
         setStatusMessage(std::string(pnana::ui::icons::FILE) + " " + doc->getFileName());
     }
+
+    // 强制UI更新，确保标签栏立即刷新
+    force_ui_update_ = true;
 }
 
 void Editor::switchToPreviousTab() {
-    document_manager_.switchToPreviousDocument();
+    // 在分屏模式下，只在当前激活区域的文档列表中切换
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            const auto& region_docs = active_region->document_indices;
+            if (!region_docs.empty()) {
+                // 找到当前文档在区域文档列表中的位置
+                auto it = std::find(region_docs.begin(), region_docs.end(),
+                                    active_region->current_document_index);
+                size_t current_pos =
+                    (it != region_docs.end()) ? std::distance(region_docs.begin(), it) : 0;
+
+                // 计算上一个文档的位置
+                size_t prev_pos = (current_pos == 0) ? (region_docs.size() - 1) : (current_pos - 1);
+                size_t prev_doc_index = region_docs[prev_pos];
+
+                // 更新当前区域的文档索引（这会改变该区域显示的文档）
+                split_view_manager_.setDocumentIndexForRegion(
+                    split_view_manager_.getActiveRegionIndex(), prev_doc_index);
+
+                // 更新全局文档管理器到新文档（因为这是激活区域）
+                document_manager_.switchToDocument(prev_doc_index);
+            }
+        }
+    } else {
+        // 单视图模式下的传统行为
+        document_manager_.switchToPreviousDocument();
+    }
+
     cursor_row_ = 0;
     cursor_col_ = 0;
     view_offset_row_ = 0;
@@ -337,6 +451,9 @@ void Editor::switchToPreviousTab() {
     if (doc) {
         setStatusMessage(std::string(pnana::ui::icons::FILE) + " " + doc->getFileName());
     }
+
+    // 强制UI更新，确保标签栏立即刷新
+    force_ui_update_ = true;
 }
 
 void Editor::switchToTab(size_t index) {
