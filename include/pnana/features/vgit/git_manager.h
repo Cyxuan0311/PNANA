@@ -61,6 +61,7 @@ class GitManager {
 
     // Repository operations
     bool isGitRepository() const;
+    void invalidateRepoStatusCache(); // Force refresh of repository status cache
     bool initRepository();
     std::string getRepositoryRoot() const;
 
@@ -109,6 +110,14 @@ class GitManager {
     // Status caching for performance optimization
     std::chrono::steady_clock::time_point last_status_refresh_;
     std::chrono::milliseconds status_cache_timeout_{2000}; // 2 seconds cache
+
+    // Repository status caching to avoid frequent git commands
+    mutable bool repo_status_cached_ = false;
+    mutable bool is_git_repo_cached_ = false;
+    mutable std::string repo_root_cached_;
+    mutable std::chrono::steady_clock::time_point last_repo_check_;
+    mutable std::chrono::milliseconds repo_cache_timeout_{
+        30000}; // 30 seconds for repo status (longer cache since repo status changes rarely)
 
     // Helper functions
     std::string executeGitCommand(const std::string& command) const;
