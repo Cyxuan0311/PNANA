@@ -29,10 +29,10 @@ Editor::Editor()
     : document_manager_(), key_binding_manager_(), action_executor_(this), theme_(),
       statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
       file_picker_(theme_), search_dialog_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
-      ssh_transfer_dialog_(theme_), welcome_screen_(theme_), new_file_prompt_(theme_),
-      theme_menu_(theme_), create_folder_dialog_(theme_), save_as_dialog_(theme_),
-      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
-      format_dialog_(theme_),
+      ssh_transfer_dialog_(theme_), welcome_screen_(theme_), split_welcome_screen_(theme_),
+      new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
+      save_as_dialog_(theme_), cursor_config_dialog_(theme_), binary_file_view_(theme_),
+      encoding_dialog_(theme_), format_dialog_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -1245,15 +1245,16 @@ void Editor::showSplitDialog() {
             std::string doc_name = "[No Document]";
             bool is_modified = false;
 
-            if (region.document_index < tabs.size()) {
-                doc_name = tabs[region.document_index].filename;
+            if (region.current_document_index < tabs.size()) {
+                doc_name = tabs[region.current_document_index].filename;
                 if (doc_name.empty()) {
                     doc_name = "[Untitled]";
                 }
-                is_modified = tabs[region.document_index].is_modified;
+                is_modified = tabs[region.current_document_index].is_modified;
             }
 
-            splits.emplace_back(i, region.document_index, doc_name, region.is_active, is_modified);
+            splits.emplace_back(i, region.current_document_index, doc_name, region.is_active,
+                                is_modified);
         }
 
         split_dialog_.showClose(
@@ -1288,8 +1289,8 @@ void Editor::closeSplitRegion(size_t region_index) {
     auto tabs = document_manager_.getAllTabs();
 
     // 检查该区域关联的文档是否已修改
-    if (region.document_index < tabs.size()) {
-        if (tabs[region.document_index].is_modified) {
+    if (region.current_document_index < tabs.size()) {
+        if (tabs[region.current_document_index].is_modified) {
             setStatusMessage("Cannot close: document has unsaved changes. Save first (Ctrl+S)");
             return;
         }
@@ -1301,8 +1302,8 @@ void Editor::closeSplitRegion(size_t region_index) {
         for (size_t i = 0; i < regions.size(); ++i) {
             if (i != region_index) {
                 // 切换到该区域的文档
-                if (regions[i].document_index < tabs.size()) {
-                    document_manager_.switchToDocument(regions[i].document_index);
+                if (regions[i].current_document_index < tabs.size()) {
+                    document_manager_.switchToDocument(regions[i].current_document_index);
                 }
                 break;
             }
@@ -1328,7 +1329,7 @@ Document* Editor::getDocumentForActiveRegion() {
 
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        return document_manager_.getDocument(active_region->document_index);
+        return document_manager_.getDocument(active_region->current_document_index);
     }
     return nullptr;
 }
@@ -1340,7 +1341,7 @@ const Document* Editor::getDocumentForActiveRegion() const {
 
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        return document_manager_.getDocument(active_region->document_index);
+        return document_manager_.getDocument(active_region->current_document_index);
     }
     return nullptr;
 }
@@ -1352,7 +1353,7 @@ size_t Editor::getDocumentIndexForActiveRegion() const {
 
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        return active_region->document_index;
+        return active_region->current_document_index;
     }
     return 0;
 }
@@ -1367,7 +1368,7 @@ void Editor::setDocumentForActiveRegion(size_t document_index) {
 
     // 如果这是当前激活的区域，也切换全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region && active_region->document_index == document_index) {
+    if (active_region && active_region->current_document_index == document_index) {
         document_manager_.switchToDocument(document_index);
     }
 }
@@ -1407,6 +1408,11 @@ void Editor::saveCurrentRegionState() {
     // 确保 region_states_ 有足够的容量
     if (region_states_.size() <= region_index) {
         region_states_.resize(region_index + 1);
+        // 初始化新区域的状态为默认值
+        region_states_[region_index].cursor_row = 0;
+        region_states_[region_index].cursor_col = 0;
+        region_states_[region_index].view_offset_row = 0;
+        region_states_[region_index].view_offset_col = 0;
     }
 
     // 保存当前状态
@@ -1447,6 +1453,19 @@ bool Editor::resizeActiveSplitRegion(int delta) {
         return false;
     }
 
+    // 临时修复：如果发现区域坐标异常，尝试重新计算分屏线位置
+    if (active_region->x < 0 || active_region->y < 0 || active_region->width <= 0 ||
+        active_region->height <= 0) {
+        // 重新计算分屏线位置
+        split_view_manager_.updateRegionSizes(screen_.dimx(), screen_.dimy());
+        // 重新获取区域信息
+        const auto* fixed_region = split_view_manager_.getActiveRegion();
+        if (fixed_region && fixed_region->x >= 0 && fixed_region->y >= 0) {
+            // 递归调用自己
+            return resizeActiveSplitRegion(delta);
+        }
+    }
+
     // 找到与激活区域相邻的分屏线
     const auto& split_lines = split_view_manager_.getSplitLines();
 
@@ -1454,17 +1473,27 @@ bool Editor::resizeActiveSplitRegion(int delta) {
         const auto& line = split_lines[i];
         bool should_adjust = false;
 
+        // 验证分屏线位置的一致性 - 这个逻辑有问题，移除它
+        // split line可能在任何region边界上，不一定在active region的边界上
+
         // 检查分屏线是否与激活区域相邻
         if (line.is_vertical) {
-            // 竖直分屏线：检查是否在激活区域的左右边界
-            if (std::abs(active_region->x + active_region->width - line.position) <= 1 ||
-                std::abs(active_region->x - line.position) <= 1) {
+            // 竖直分屏线：检查是否正好在激活区域的边界上
+            int right_boundary = active_region->x + active_region->width;
+            int left_boundary = active_region->x;
+
+            // 分屏线应该正好在激活区域的边界上（精确匹配）
+            if (line.position == left_boundary || line.position == right_boundary) {
                 should_adjust = true;
             }
         } else {
-            // 横向分屏线：检查是否在激活区域的上下边界
-            if (std::abs(active_region->y + active_region->height - line.position) <= 1 ||
-                std::abs(active_region->y - line.position) <= 1) {
+            // 横向分屏线：检查是否在激活区域的上下边界附近
+            int bottom_boundary = active_region->y + active_region->height;
+            int top_boundary = active_region->y;
+
+            // 检查分屏线是否在激活区域的任何一个边界附近（2像素容差）
+            if (std::abs(line.position - top_boundary) <= 2 ||
+                std::abs(line.position - bottom_boundary) <= 2) {
                 should_adjust = true;
             }
         }
@@ -1522,18 +1551,36 @@ void Editor::splitView(features::SplitDirection direction) {
         setStatusMessage("Split horizontally");
     }
 
-    // 更新新创建区域的文档索引（新区域显示相同的文档）
-    auto& regions =
-        const_cast<std::vector<features::ViewRegion>&>(split_view_manager_.getRegions());
-    for (auto& region : regions) {
-        // 新创建的区域（document_index 可能无效）设置为当前文档
-        if (region.document_index >= tabs.size() || !split_view_manager_.hasSplits()) {
-            region.document_index = current_doc_index;
-        }
-    }
+    // 新分屏已经通过SplitViewManager正确设置了文档索引和文档列表
+    // 这里不需要额外处理，新区域会继承当前区域的文档列表
 
     // 更新区域尺寸
     split_view_manager_.updateRegionSizes(screen_width, screen_height);
+
+    // 为新区域初始化状态
+    const auto& regions = split_view_manager_.getRegions();
+    size_t old_size = region_states_.size();
+    if (old_size < regions.size()) {
+        region_states_.resize(regions.size());
+        // 只初始化新区域的状态，保持现有区域的状态不变
+        for (size_t i = old_size; i < regions.size(); ++i) {
+            // 对于新创建的区域，如果它显示欢迎页面（SIZE_MAX），使用默认状态
+            // 如果它显示现有文档，从当前全局状态复制
+            if (regions[i].current_document_index == SIZE_MAX) {
+                // 欢迎页面：从文件开头开始
+                region_states_[i].cursor_row = 0;
+                region_states_[i].cursor_col = 0;
+                region_states_[i].view_offset_row = 0;
+                region_states_[i].view_offset_col = 0;
+            } else {
+                // 显示现有文档：从当前全局状态复制
+                region_states_[i].cursor_row = cursor_row_;
+                region_states_[i].cursor_col = cursor_col_;
+                region_states_[i].view_offset_row = view_offset_row_;
+                region_states_[i].view_offset_col = view_offset_col_;
+            }
+        }
+    }
 }
 
 void Editor::focusLeftRegion() {
@@ -1548,8 +1595,8 @@ void Editor::focusLeftRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region) {
-        document_manager_.switchToDocument(active_region->document_index);
+    if (active_region && active_region->current_document_index != SIZE_MAX) {
+        document_manager_.switchToDocument(active_region->current_document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1563,6 +1610,9 @@ void Editor::focusLeftRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus left region");
+
+    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
+    force_ui_update_ = true;
 }
 
 void Editor::focusRightRegion() {
@@ -1577,8 +1627,8 @@ void Editor::focusRightRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region) {
-        document_manager_.switchToDocument(active_region->document_index);
+    if (active_region && active_region->current_document_index != SIZE_MAX) {
+        document_manager_.switchToDocument(active_region->current_document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1592,6 +1642,9 @@ void Editor::focusRightRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus right region");
+
+    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
+    force_ui_update_ = true;
 }
 
 void Editor::focusUpRegion() {
@@ -1606,8 +1659,8 @@ void Editor::focusUpRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region) {
-        document_manager_.switchToDocument(active_region->document_index);
+    if (active_region && active_region->current_document_index != SIZE_MAX) {
+        document_manager_.switchToDocument(active_region->current_document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1621,6 +1674,9 @@ void Editor::focusUpRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus up region");
+
+    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
+    force_ui_update_ = true;
 }
 
 void Editor::focusDownRegion() {
@@ -1635,8 +1691,8 @@ void Editor::focusDownRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region) {
-        document_manager_.switchToDocument(active_region->document_index);
+    if (active_region && active_region->current_document_index != SIZE_MAX) {
+        document_manager_.switchToDocument(active_region->current_document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1650,6 +1706,9 @@ void Editor::focusDownRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus down region");
+
+    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
+    force_ui_update_ = true;
 }
 
 #ifdef BUILD_LUA_SUPPORT

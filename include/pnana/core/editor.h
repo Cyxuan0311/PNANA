@@ -23,6 +23,7 @@
 #include "ui/save_as_dialog.h"
 #include "ui/search_dialog.h"
 #include "ui/split_dialog.h"
+#include "ui/split_welcome_screen.h"
 #include "ui/ssh_dialog.h"
 #include "ui/ssh_transfer_dialog.h"
 #include "ui/statusbar.h"
@@ -348,6 +349,7 @@ class Editor {
     pnana::ui::SSHDialog ssh_dialog_;
     pnana::ui::SSHTransferDialog ssh_transfer_dialog_;
     pnana::ui::WelcomeScreen welcome_screen_;
+    pnana::ui::SplitWelcomeScreen split_welcome_screen_;
     pnana::ui::NewFilePrompt new_file_prompt_;
     pnana::ui::ThemeMenu theme_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
@@ -546,10 +548,10 @@ class Editor {
     ftxui::Element renderTabbar();
     ftxui::Element renderEditor();
     ftxui::Element renderSplitEditor(); // 分屏编辑器渲染
-    ftxui::Element renderEditorRegion(const features::ViewRegion& region,
-                                      Document* doc); // 渲染单个区域
-    ftxui::Element renderLine(size_t line_num, bool is_current);
-    ftxui::Element renderLineNumber(size_t line_num, bool is_current);
+    ftxui::Element renderEditorRegion(const features::ViewRegion& region, Document* doc,
+                                      size_t region_index); // 渲染单个区域
+    ftxui::Element renderLine(Document* doc, size_t line_num, bool is_current);
+    ftxui::Element renderLineNumber(Document* doc, size_t line_num, bool is_current);
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();
     ftxui::Element renderInputBox();
