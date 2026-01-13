@@ -84,8 +84,19 @@ class GitPanel {
     size_t cached_unstaged_count_ = 0;
     bool stats_cache_valid_ = false;
 
+    // Cached repository display info to avoid frequent git calls during rendering
+    std::string cached_repo_path_display_;
+    std::chrono::steady_clock::time_point last_repo_display_update_;
+    std::chrono::milliseconds repo_display_cache_timeout_{10000}; // 10 seconds for repo display
+
+    // Cached current branch info to avoid frequent git calls during rendering
+    std::string cached_current_branch_;
+    std::chrono::steady_clock::time_point last_branch_update_;
+    std::chrono::milliseconds branch_cache_timeout_{15000}; // 15 seconds for branch info
+
     // Private methods
     void switchMode(GitPanelMode mode);
+    GitPanelMode getNextMode(GitPanelMode current);
     void toggleFileSelection(size_t index);
     void clearSelection();
     void selectAll();
@@ -135,6 +146,9 @@ class GitPanel {
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;
     bool isNavigationKey(ftxui::Event event) const;
+    std::string getCachedRepoPathDisplay();
+    std::string getCachedCurrentBranch();
+    void ensureValidIndices();
 };
 
 } // namespace vgit
