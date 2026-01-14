@@ -375,6 +375,7 @@ set(HEADERS
     include/pnana/features/search.h
     include/pnana/features/file_browser.h
     include/pnana/features/SyntaxHighlighter/syntax_highlighter.h
+    include/pnana/features/SyntaxHighlighter/makefile_syntax_constants.h
     include/pnana/features/command_palette.h
     include/pnana/features/vgit/git_manager.h
     include/pnana/ui/git_panel.h
