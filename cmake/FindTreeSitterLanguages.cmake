@@ -83,7 +83,6 @@ find_tree_sitter_language(SCALA "tree-sitter-scala;libtree-sitter-scala" "Scala"
 find_tree_sitter_language(R "tree-sitter-r;libtree-sitter-r" "R")
 find_tree_sitter_language(PERL "tree-sitter-perl;libtree-sitter-perl" "Perl")
 find_tree_sitter_language(DOCKERFILE "tree-sitter-dockerfile;libtree-sitter-dockerfile" "Dockerfile")
-find_tree_sitter_language(MAKEFILE "tree-sitter-makefile;libtree-sitter-makefile" "Makefile")
 find_tree_sitter_language(VIM "tree-sitter-vim;libtree-sitter-vim" "Vim")
 find_tree_sitter_language(POWERSHELL "tree-sitter-powershell;libtree-sitter-powershell" "PowerShell")
 
@@ -91,6 +90,12 @@ find_tree_sitter_language(POWERSHELL "tree-sitter-powershell;libtree-sitter-powe
 find_tree_sitter_language(MESON "tree-sitter-meson;libtree-sitter-meson" "Meson")
 find_tree_sitter_language(TOML "tree-sitter-toml;libtree-sitter-toml" "TOML")
 find_tree_sitter_language(NIM "tree-sitter-nim;libtree-sitter-nim" "Nim")
+
+# 函数式编程和编译器相关语言支持
+find_tree_sitter_language(LISP "tree-sitter-commonlisp;libtree-sitter-commonlisp" "Lisp")
+find_tree_sitter_language(SML "tree-sitter-sml;libtree-sitter-sml" "SML")
+find_tree_sitter_language(LLVM "tree-sitter-llvm;libtree-sitter-llvm" "LLVM IR")
+find_tree_sitter_language(ASM "tree-sitter-asm;libtree-sitter-asm" "Assembly")
 
 # 标记为高级变量
 mark_as_advanced(
@@ -122,11 +127,14 @@ mark_as_advanced(
     TreeSitter_R_LIBRARY
     TreeSitter_PERL_LIBRARY
     TreeSitter_DOCKERFILE_LIBRARY
-    TreeSitter_MAKEFILE_LIBRARY
     TreeSitter_VIM_LIBRARY
     TreeSitter_POWERSHELL_LIBRARY
     TreeSitter_MESON_LIBRARY
     TreeSitter_TOML_LIBRARY
     TreeSitter_NIM_LIBRARY
+    TreeSitter_LISP_LIBRARY
+    TreeSitter_SML_LIBRARY
+    TreeSitter_LLVM_LIBRARY
+    TreeSitter_ASM_LIBRARY
 )
 
