@@ -177,7 +177,6 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     /* size_t files_pos = cleaned.find("\"files\":{"); */
     /* size_t search_pos = cleaned.find("\"search\":{"); */
     size_t themes_pos = cleaned.find("\"themes\":{");
-    size_t plugins_pos = cleaned.find("\"plugins\":{");
 
     // 解析 editor 配置
     if (editor_pos != std::string::npos) {
@@ -259,38 +258,6 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         // 这里可以扩展解析 custom 主题
     }
 
-    // 解析 plugins 配置
-    if (plugins_pos != std::string::npos) {
-        // 提取 enabled_plugins 数组
-        size_t enabled_pos = cleaned.find("\"enabled_plugins\":", plugins_pos);
-        if (enabled_pos != std::string::npos && enabled_pos < plugins_pos + 300) {
-            enabled_pos += 18; // 跳过 "enabled_plugins":
-            size_t array_start = cleaned.find("[", enabled_pos);
-            if (array_start != std::string::npos) {
-                size_t array_end = cleaned.find("]", array_start);
-                if (array_end != std::string::npos) {
-                    std::string array_content =
-                        cleaned.substr(array_start + 1, array_end - array_start - 1);
-                    // 简单的数组解析
-                    size_t pos = 0;
-                    while ((pos = array_content.find("\"", pos)) != std::string::npos) {
-                        pos++; // 跳过引号
-                        size_t end_pos = array_content.find("\"", pos);
-                        if (end_pos != std::string::npos) {
-                            std::string plugin_name = array_content.substr(pos, end_pos - pos);
-                            if (!plugin_name.empty()) {
-                                config_.plugins.enabled_plugins.push_back(plugin_name);
-                            }
-                            pos = end_pos + 1;
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     return true;
 }
 
@@ -346,16 +313,6 @@ std::string ConfigManager::generateJSON() const {
         oss << "\n";
     }
     oss << "    ]\n";
-    oss << "  },\n";
-    oss << "  \"plugins\": {\n";
-    oss << "    \"enabled_plugins\": [\n";
-    for (size_t i = 0; i < config_.plugins.enabled_plugins.size(); ++i) {
-        oss << "      \"" << config_.plugins.enabled_plugins[i] << "\"";
-        if (i < config_.plugins.enabled_plugins.size() - 1)
-            oss << ",";
-        oss << "\n";
-    }
-    oss << "    ]\n";
     oss << "  }\n";
     oss << "}\n";
     return oss.str();
@@ -383,11 +340,6 @@ bool ConfigManager::parseSearchConfig(const std::map<std::string, std::string>& 
 
 bool ConfigManager::parseThemeConfig(const std::map<std::string, std::string>& /* data */) {
     // 实现主题配置解析
-    return true;
-}
-
-bool ConfigManager::parsePluginConfig(const std::map<std::string, std::string>& /* data */) {
-    // 插件配置解析（目前通过 parseJSON 直接处理）
     return true;
 }
 

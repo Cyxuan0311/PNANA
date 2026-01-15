@@ -15,9 +15,6 @@ find_package(ftxui REQUIRED)
 # 添加自定义 CMake 模块路径
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# 检查原子操作支持（针对 RISC-V、ARM 等架构）
-include(CheckAtomic)
-
 # 图片预览支持（手动启用，使用FFmpeg）
 option(BUILD_IMAGE_PREVIEW "Enable image preview support with FFmpeg" OFF)
 
@@ -211,7 +208,6 @@ set(SOURCES
     src/ui/helpbar.cpp
     src/ui/tabbar.cpp
     src/ui/welcome_screen.cpp
-    src/ui/split_welcome_screen.cpp
     src/ui/new_file_prompt.cpp
     src/ui/theme_menu.cpp
     src/ui/create_folder_dialog.cpp
@@ -238,9 +234,6 @@ set(SOURCES
     src/utils/text_analyzer.cpp
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
-    src/utils/file_type_icon_mapper.cpp
-    # Markdown 解析库
-    third-party/md4c/md4c.c
     # 功能模块
     src/features/search.cpp
     src/features/file_browser.cpp
@@ -255,8 +248,6 @@ set(SOURCES
     src/features/terminal/terminal_utils.cpp
     src/features/terminal/terminal_completion.cpp
     src/features/split_view.cpp
-    src/features/md_render/markdown_parser.cpp
-    src/features/md_render/markdown_renderer.cpp
     src/features/encoding_converter.cpp
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
@@ -296,7 +287,6 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/document_change_tracker.cpp
         src/features/lsp/document_change_tracker.cpp
         src/features/lsp/lsp_async_manager.cpp
-        src/features/lsp/folding_manager.cpp
         src/features/lsp/lsp_completion_cache.cpp
         src/features/lsp/lsp_formatter.cpp
         src/features/lsp/snippet_manager.cpp
@@ -375,14 +365,11 @@ set(HEADERS
     include/pnana/features/search.h
     include/pnana/features/file_browser.h
     include/pnana/features/SyntaxHighlighter/syntax_highlighter.h
-    include/pnana/features/SyntaxHighlighter/makefile_syntax_constants.h
     include/pnana/features/command_palette.h
-    include/pnana/features/vgit/git_manager.h
-    include/pnana/ui/git_panel.h
+    include/pnana/vgit/git_manager.h
+    include/pnana/vgit/git_panel.h
     include/pnana/features/terminal.h
     include/pnana/features/split_view.h
-    include/pnana/features/markdown_parser.h
-    include/pnana/features/md_render/markdown_renderer.h
     include/pnana/features/encoding_converter.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
@@ -420,7 +407,6 @@ add_executable(pnana ${SOURCES})
 # 设置包含目录
 target_include_directories(pnana PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/pnana
-    ${CMAKE_CURRENT_SOURCE_DIR}/third-party
 )
 
 # jsonrpccxx 是现代的 C++ 库，完全兼容 C++17，无需特殊处理
@@ -471,9 +457,6 @@ target_link_libraries(pnana
     PRIVATE ftxui::component
 )
 
-# 检查并配置原子操作支持
-check_and_configure_atomic(pnana)
-
 # 只在找到 FFmpeg 时链接
 if(BUILD_IMAGE_PREVIEW_SUPPORT)
     target_link_libraries(pnana PRIVATE ${LIBAV_LIBRARIES})
@@ -501,15 +484,6 @@ if(BUILD_LUA_SUPPORT)
     target_include_directories(pnana PRIVATE ${LUA_INCLUDE_DIRS})
     target_link_libraries(pnana PRIVATE ${LUA_LIBRARIES})
     target_compile_definitions(pnana PRIVATE BUILD_LUA_SUPPORT)
-
-    # 添加Lua API组件源文件
-    target_sources(pnana PRIVATE
-        src/plugins/editor_api.cpp
-        src/plugins/file_api.cpp
-        src/plugins/theme_api.cpp
-        src/plugins/system_api.cpp
-    )
-
     message(STATUS "Plugin system configured with Lua")
 endif()
 
@@ -523,43 +497,61 @@ set_target_properties(pnana PROPERTIES
     SOVERSION 0.0.4
 )
 
-# 生成用户配置和插件安装脚本
-configure_file(
-    "${CMAKE_SOURCE_DIR}/cmake/install_user_config.sh.in"
-    "${CMAKE_BINARY_DIR}/install_user_config.sh"
-    @ONLY
-)
-
-# 设置脚本可执行权限
-file(CHMOD "${CMAKE_BINARY_DIR}/install_user_config.sh"
-     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
-                 GROUP_READ GROUP_EXECUTE
-                 WORLD_READ WORLD_EXECUTE
-)
-
-# 安装后运行脚本
-install(CODE "
-    message(STATUS \"Running user config and plugin installation script...\")
-    execute_process(
-        COMMAND bash \"${CMAKE_BINARY_DIR}/install_user_config.sh\"
-        RESULT_VARIABLE INSTALL_RESULT
-    )
-    if(INSTALL_RESULT)
-        message(WARNING \"User config/plugin installation script returned error: \${INSTALL_RESULT}\")
-    else()
-        message(STATUS \"User configuration and plugins installed successfully\")
-    endif()
-")
+# 可选：添加配置文件安装
+install(FILES config/default_config.json
+        DESTINATION share/pnana
+        OPTIONAL)
 
 # 安装打包安装脚本
 install(PROGRAMS ${CMAKE_BINARY_DIR}/package_install.sh
-        DESTINATION share/pnana
+        DESTINATION .
         RENAME install.sh
         COMPONENT pnana)
 
-# 插件现在通过统一的安装脚本处理
+# 安装插件到系统目录（作为模板）
+if(EXISTS "${CMAKE_SOURCE_DIR}/plugins")
+    install(DIRECTORY plugins/
+            DESTINATION share/pnana/plugins
+            PATTERN ".git" EXCLUDE
+            PATTERN ".gitignore" EXCLUDE
+            PATTERN "*.md" EXCLUDE
+            PATTERN "CMakeLists.txt" EXCLUDE
+    )
+    message(STATUS "Plugins will be installed to: share/pnana/plugins")
+endif()
 
-# 插件现在直接安装到用户目录，不需要安装后脚本
+# 创建安装后脚本，将插件复制到用户主目录
+if(UNIX AND EXISTS "${CMAKE_SOURCE_DIR}/plugins")
+    # 使用 install(CODE ...) 执行 CMake 代码来运行 shell 脚本
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/cmake/install_plugins.sh.in"
+        "${CMAKE_BINARY_DIR}/install_plugins.sh"
+        @ONLY
+    )
+    
+    # 设置脚本可执行权限
+    file(CHMOD "${CMAKE_BINARY_DIR}/install_plugins.sh"
+         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE
+    )
+    
+    # 使用 install(CODE ...) 执行 shell 脚本
+    install(CODE "
+        message(STATUS \"Running plugin installation script...\")
+        execute_process(
+            COMMAND bash \"${CMAKE_BINARY_DIR}/install_plugins.sh\"
+            RESULT_VARIABLE INSTALL_RESULT
+        )
+        if(INSTALL_RESULT)
+            message(WARNING \"Plugin installation script returned error: \${INSTALL_RESULT}\")
+        else()
+            message(STATUS \"Plugins installed to user directory successfully\")
+        endif()
+    ")
+    message(STATUS "Plugin installation script configured")
+    message(STATUS "  Plugins will be copied to: ~/.config/pnana/plugins")
+endif()
 
 # ============================================================================
 # 构建时文件复制和脚本生成配置
@@ -630,24 +622,40 @@ install(TARGETS pnana
     COMPONENT pnana
 )
 
-# 安装默认配置文件到用户目录
+# 安装默认配置文件到系统共享目录
 install(FILES
     ${CMAKE_SOURCE_DIR}/config/default_config.json
-    DESTINATION .config/pnana/
+    DESTINATION share/pnana/
     COMPONENT config
-    RENAME config.json
 )
 
-# 插件现在直接安装到用户目录
+# 安装插件文件到系统共享目录（作为模板）
+if(EXISTS "${CMAKE_SOURCE_DIR}/plugins")
+    install(DIRECTORY
+        ${CMAKE_SOURCE_DIR}/plugins/
+        DESTINATION share/pnana/plugins/
+        COMPONENT plugins
+        FILES_MATCHING PATTERN "*"
+        PATTERN ".git" EXCLUDE
+        PATTERN ".gitignore" EXCLUDE
+        PATTERN "CMakeLists.txt" EXCLUDE
+        PATTERN "*.md" EXCLUDE
+    )
+endif()
 
-# 不再需要安装脚本
+# 创建安装脚本
+configure_file(
+    ${CMAKE_BINARY_DIR}/install_plugins.sh
+    ${CMAKE_BINARY_DIR}/install_plugins_final.sh
+    @ONLY
+)
 
 # 添加自定义安装目标
 add_custom_target(install-user
-    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component pnana --prefix $ENV{HOME}/.local
+    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component pnana --prefix /usr/local
     COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component config --prefix $ENV{HOME}/.config/pnana
     COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component plugins --prefix $ENV{HOME}/.config/pnana
-    COMMENT "Installing pnana to user directories (~/.local and ~/.config/pnana)"
+    COMMENT "Installing pnana to system and user directories"
 )
 
 # Linux 包创建目标

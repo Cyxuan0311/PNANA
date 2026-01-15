@@ -54,28 +54,8 @@ Element UIRouter::renderMainContent(Editor* editor) {
 
     Element editor_content;
 
-    // 如果markdown预览激活，使用分屏布局
-    if (editor->isMarkdownPreviewActive()) {
-        Element code_area = editor->renderEditor();
-        bool is_code_active = (current_region == EditorRegion::CODE_AREA);
-        code_area = border_manager_.applyBorder(code_area, EditorRegion::CODE_AREA, is_code_active,
-                                                editor->getTheme());
-
-        Element preview_area = editor->renderMarkdownPreview();
-        bool is_preview_active =
-            (current_region == EditorRegion::CODE_AREA); // 预览区域也属于代码区域
-        preview_area = border_manager_.applyBorder(preview_area, EditorRegion::CODE_AREA,
-                                                   is_preview_active, editor->getTheme());
-
-        // 强制左右均分宽度（包括边框），确保代码区与预览区等宽
-        int screen_width = editor->getScreenWidth();
-        int half_width = std::max(10, (screen_width - 1) / 2); // 留出 1 列给分隔符
-
-        editor_content = hbox({code_area | size(WIDTH, EQUAL, half_width), separator(),
-                               preview_area | size(WIDTH, EQUAL, half_width)});
-    }
     // 如果文件浏览器打开，使用左右分栏布局
-    else if (editor->isFileBrowserVisible()) {
+    if (editor->isFileBrowserVisible()) {
         Element file_browser = editor->renderFileBrowser();
         bool is_browser_active = (current_region == EditorRegion::FILE_BROWSER);
         file_browser = border_manager_.applyBorder(file_browser, EditorRegion::FILE_BROWSER,

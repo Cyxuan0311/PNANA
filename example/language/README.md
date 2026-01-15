@@ -27,18 +27,11 @@
 ### 函数式语言
 - **Clojure** (`hello.clj`) - JVM上的Lisp方言
 - **Elixir** (`hello.ex`) - Erlang VM上的现代函数式语言
-- **Common Lisp** (`hello.lisp`) - Lisp家族的标准实现
-- **Standard ML** (`hello.sml`) - ML家族的函数式编程语言
 
 ### 配置和标记语言
 - **YAML** (`config.yaml`) - 人类可读的数据序列化格式
 - **JSON** (`package.json`) - JavaScript对象表示法
 - **Markdown** (`README.md`) - 轻量级标记语言
-
-### 编译器和系统语言
-- **LLVM IR** (`hello.ll`) - LLVM编译器的中间表示语言
-- **RISC-V Assembly** (`hello.s`) - RISC-V指令集架构汇编语言
-- **MIPS Assembly** (`hello.mips.s`) - MIPS指令集架构汇编语言
 
 ### 其他
 - **SQL** (`schema.sql`) - 数据库查询语言
@@ -59,36 +52,6 @@
 - 文件操作
 - 并发/并行编程
 - 语言特定的高级特性
-
-### 新增语言特性展示
-
-#### Lisp (Common Lisp)
-- 括号匹配和S表达式
-- 宏定义和函数式编程
-- 面向对象编程（CLOS）
-- 多重值返回
-- 动态类型系统
-
-#### Standard ML
-- 强静态类型系统
-- 模式匹配
-- 高阶函数和柯里化
-- 模块系统和签名
-- 引用透明性
-
-#### LLVM IR
-- SSA (静态单赋值)形式
-- 类型系统和指令集
-- 控制流图表示
-- 元数据和属性
-- 目标无关的中间表示
-
-#### Assembly (RISC-V/MIPS)
-- 指令集架构特性
-- 寄存器操作
-- 内存访问模式
-- 系统调用
-- 汇编器指令和伪指令
 
 ## 测试语法高亮
 

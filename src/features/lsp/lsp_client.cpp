@@ -60,7 +60,6 @@ bool LspClient::initialize(const std::string& root_path) {
         // 简化客户端能力 - 只包含最基本的
         jsonrpccxx::json capabilities;
         capabilities["textDocument"]["formatting"] = jsonrpccxx::json::object();
-        capabilities["textDocument"]["foldingRange"] = jsonrpccxx::json::object();
 
         params["capabilities"] = capabilities;
 
@@ -523,40 +522,6 @@ std::string LspClient::formatDocument(const std::string& uri, const std::string&
     return "";
 }
 
-std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
-    std::vector<FoldingRange> ranges;
-    if (!isConnected()) {
-        return ranges;
-    }
-
-    try {
-        jsonrpccxx::json params;
-        params["textDocument"]["uri"] = uri;
-
-        int request_id = 1;
-        jsonrpccxx::named_parameter named_params;
-        for (auto& [key, value] : params.items()) {
-            named_params[key] = value;
-        }
-
-        jsonrpccxx::json result = rpc_client_->CallMethodNamed<jsonrpccxx::json>(
-            request_id, "textDocument/foldingRange", named_params);
-
-        if (result.is_array()) {
-            for (const auto& item : result) {
-                FoldingRange range = jsonToFoldingRange(item);
-                if (range.isValid()) {
-                    ranges.push_back(range);
-                }
-            }
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "foldingRange failed: " << e.what() << std::endl;
-    }
-
-    return ranges;
-}
-
 std::map<std::string, std::vector<LspRange>> LspClient::rename(const std::string& uri,
                                                                const LspPosition& position,
                                                                const std::string& new_name) {
@@ -749,39 +714,6 @@ HoverInfo LspClient::jsonToHoverInfo(const jsonrpccxx::json& json) {
     }
 
     return info;
-}
-
-FoldingRange LspClient::jsonToFoldingRange(const jsonrpccxx::json& json) {
-    FoldingRange range;
-
-    if (json.contains("startLine")) {
-        range.startLine = json["startLine"];
-    }
-
-    if (json.contains("startCharacter")) {
-        range.startCharacter = json["startCharacter"];
-    }
-
-    if (json.contains("endLine")) {
-        range.endLine = json["endLine"];
-    }
-
-    if (json.contains("endCharacter")) {
-        range.endCharacter = json["endCharacter"];
-    }
-
-    if (json.contains("kind")) {
-        std::string kind_str = json["kind"];
-        if (kind_str == "comment") {
-            range.kind = FoldingRangeKind::Comment;
-        } else if (kind_str == "imports") {
-            range.kind = FoldingRangeKind::Imports;
-        } else {
-            range.kind = FoldingRangeKind::Region;
-        }
-    }
-
-    return range;
 }
 
 void LspClient::handleNotification(const std::string& notification) {

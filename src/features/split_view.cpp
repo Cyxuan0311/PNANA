@@ -1,5 +1,4 @@
 #include "features/split_view.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -8,7 +7,7 @@ namespace pnana {
 namespace features {
 
 SplitViewManager::SplitViewManager() : active_region_index_(0) {
-    // 初始化时创建一个默认区域，占据全屏（稍后会在split时调整）
+    // 初始化时创建一个默认区域
     regions_.emplace_back(0, 0, 0, 0, 0);
     regions_[0].is_active = true;
 }
@@ -35,11 +34,11 @@ void SplitViewManager::splitVertical(int screen_width, int screen_height) {
     int new_width = active->width / 2;
     int remaining_width = active->width - new_width;
 
-    // 调整当前区域（左侧区域）
+    // 调整当前区域
     active->width = new_width;
 
-    // 创建新区域（在右侧）- 显示欢迎页面
-    size_t new_doc_index = SIZE_MAX; // 使用SIZE_MAX表示这是欢迎页面
+    // 创建新区域（在右侧）
+    size_t new_doc_index = active->document_index; // 新区域显示相同的文档
     ViewRegion new_region(active->x + new_width, active->y, remaining_width, active->height,
                           new_doc_index);
     new_region.is_active = true;
@@ -48,9 +47,8 @@ void SplitViewManager::splitVertical(int screen_width, int screen_height) {
     regions_.push_back(new_region);
     active_region_index_ = regions_.size() - 1;
 
-    // 创建分屏线 - 应该在左边region的右边界
-    int split_line_pos = regions_[0].x + regions_[0].width; // 左边region的右边界
-    SplitLine split_line(true, split_line_pos, regions_[0].y, regions_[0].y + regions_[0].height);
+    // 创建分屏线
+    SplitLine split_line(true, active->x + new_width, active->y, active->y + active->height);
     split_lines_.push_back(split_line);
 }
 
@@ -79,8 +77,8 @@ void SplitViewManager::splitHorizontal(int screen_width, int screen_height) {
     // 调整当前区域
     active->height = new_height;
 
-    // 创建新区域（在下侧）- 显示欢迎页面
-    size_t new_doc_index = SIZE_MAX; // 使用SIZE_MAX表示这是欢迎页面
+    // 创建新区域（在下侧）
+    size_t new_doc_index = active->document_index; // 新区域显示相同的文档
     ViewRegion new_region(active->x, active->y + new_height, active->width, remaining_height,
                           new_doc_index);
     new_region.is_active = true;
@@ -443,51 +441,21 @@ void SplitViewManager::reset() {
 void SplitViewManager::setCurrentDocumentIndex(size_t index) {
     ViewRegion* active = getActiveRegion();
     if (active) {
-        active->current_document_index = index;
-    } else {
+        active->document_index = index;
     }
 }
 
 void SplitViewManager::setDocumentIndexForRegion(size_t region_index, size_t document_index) {
     if (region_index < regions_.size()) {
-        regions_[region_index].current_document_index = document_index;
-    } else {
+        regions_[region_index].document_index = document_index;
     }
 }
 
 size_t SplitViewManager::getDocumentIndexForRegion(size_t region_index) const {
     if (region_index < regions_.size()) {
-        return regions_[region_index].current_document_index;
+        return regions_[region_index].document_index;
     }
     return 0; // 默认返回第一个文档
-}
-
-const std::vector<size_t>& SplitViewManager::getDocumentIndicesForRegion(
-    size_t region_index) const {
-    if (region_index < regions_.size()) {
-        return regions_[region_index].document_indices;
-    }
-    static const std::vector<size_t> empty_vector;
-    return empty_vector;
-}
-
-void SplitViewManager::addDocumentIndexToRegion(size_t region_index, size_t document_index) {
-    if (region_index < regions_.size()) {
-        auto& indices = regions_[region_index].document_indices;
-        // 检查是否已存在
-        if (std::find(indices.begin(), indices.end(), document_index) == indices.end()) {
-            indices.push_back(document_index);
-        }
-    } else {
-    }
-}
-
-void SplitViewManager::removeDocumentIndexFromRegion(size_t region_index, size_t document_index) {
-    if (region_index < regions_.size()) {
-        auto& indices = regions_[region_index].document_indices;
-        indices.erase(std::remove(indices.begin(), indices.end(), document_index), indices.end());
-    } else {
-    }
 }
 
 void SplitViewManager::updateRegionSizes(int screen_width, int screen_height) {

@@ -85,12 +85,6 @@ class Theme {
     // 从配置加载自定义主题
     bool loadCustomTheme(const std::string& name, const ThemeColors& colors);
 
-    // 移除自定义主题
-    bool removeCustomTheme(const std::string& name);
-
-    // 清除所有自定义主题
-    void clearCustomThemes();
-
     // 从颜色配置结构加载主题
     bool loadThemeFromConfig(const std::vector<int>& background, const std::vector<int>& foreground,
                              const std::vector<int>& current_line,
@@ -116,9 +110,6 @@ class Theme {
 
     // 获取所有可用的主题名称
     static std::vector<std::string> getAvailableThemes();
-
-    // 获取自定义主题名称
-    std::vector<std::string> getCustomThemeNames() const;
 
   private:
     ThemeColors colors_;

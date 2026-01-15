@@ -1,7 +1,7 @@
 -- 示例插件：展示 pnana 插件系统的基本功能
 plugin_name = "example-plugin"
 plugin_version = "1.0.0"
-plugin_description = "pnana plugin system example"
+plugin_description = "pnana 插件系统示例"
 plugin_author = "pnana"
 
 -- 插件加载时显示消息（已禁用，避免干扰用户）

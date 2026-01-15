@@ -3,11 +3,7 @@
 
 #ifdef BUILD_LUA_SUPPORT
 
-#include "plugins/editor_api.h"
-#include "plugins/file_api.h"
 #include "plugins/lua_engine.h"
-#include "plugins/system_api.h"
-#include "plugins/theme_api.h"
 #include <functional>
 #include <map>
 #include <string>
@@ -23,15 +19,7 @@ class Editor;
 namespace pnana {
 namespace plugins {
 
-/**
- * @brief Lua API 主控制器类
- *
- * 使用组合模式将不同的API功能分离到专门的类中：
- * - EditorAPI: 编辑器操作（文档、光标等）
- * - FileAPI: 文件操作（打开、保存、读写等）
- * - ThemeAPI: 主题和外观管理
- * - SystemAPI: 系统工具和事件处理
- */
+// Lua API 绑定类
 class LuaAPI {
   public:
     explicit LuaAPI(core::Editor* editor);
@@ -45,7 +33,6 @@ class LuaAPI {
 
     // 注册事件监听器
     void registerEventListener(const std::string& event, const std::string& callback);
-    void registerEventListenerFunction(const std::string& event);
 
     // 注册命令
     void registerCommand(const std::string& name, const std::string& callback);
@@ -63,17 +50,8 @@ class LuaAPI {
     core::Editor* editor_;
     LuaEngine* engine_;
 
-    // 组合的API组件
-    std::unique_ptr<EditorAPI> editor_api_;
-    std::unique_ptr<FileAPI> file_api_;
-    std::unique_ptr<ThemeAPI> theme_api_;
-    std::unique_ptr<SystemAPI> system_api_;
-
     // 事件监听器映射: event -> [callbacks]
     std::map<std::string, std::vector<std::string>> event_listeners_;
-
-    // 函数引用事件监听器: event -> [function_refs]
-    std::map<std::string, std::vector<int>> event_function_listeners_;
 
     // 命令映射: name -> callback
     std::map<std::string, std::string> commands_;
@@ -89,6 +67,27 @@ class LuaAPI {
     static int lua_api_command(lua_State* L);
     static int lua_api_keymap(lua_State* L);
     static int lua_api_autocmd(lua_State* L);
+
+    // vim.api 命名空间函数
+    static int lua_api_get_current_line(lua_State* L);
+    static int lua_api_get_line_count(lua_State* L);
+    static int lua_api_get_cursor_pos(lua_State* L);
+    static int lua_api_set_cursor_pos(lua_State* L);
+    static int lua_api_get_line(lua_State* L);
+    static int lua_api_set_line(lua_State* L);
+    static int lua_api_insert_text(lua_State* L);
+    static int lua_api_delete_line(lua_State* L);
+    static int lua_api_get_filepath(lua_State* L);
+    static int lua_api_open_file(lua_State* L);
+    static int lua_api_save_file(lua_State* L);
+    static int lua_api_set_status_message(lua_State* L);
+    static int lua_api_get_theme(lua_State* L);
+    static int lua_api_set_theme(lua_State* L);
+
+    // vim.fn 命名空间函数（工具函数）
+    static int lua_fn_system(lua_State* L);
+    static int lua_fn_readfile(lua_State* L);
+    static int lua_fn_writefile(lua_State* L);
 
     // 辅助函数：从 Lua 栈获取编辑器实例
     static core::Editor* getEditorFromLua(lua_State* L);

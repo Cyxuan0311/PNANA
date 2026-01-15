@@ -48,9 +48,6 @@ void KeyBindingManager::initializeEditOperationBindings() {
     bindKey("ctrl_backspace", KeyAction::DELETE_WORD);
     bindKey("alt_arrow_up", KeyAction::MOVE_LINE_UP);
     bindKey("alt_arrow_down", KeyAction::MOVE_LINE_DOWN);
-    bindKey("ctrl_u", KeyAction::TOGGLE_FOLD);
-    bindKey("ctrl_shift_u", KeyAction::FOLD_ALL);
-    bindKey("ctrl_alt_u", KeyAction::UNFOLD_ALL);
     bindKey("tab", KeyAction::INDENT_LINE);
     bindKey("shift_tab", KeyAction::UNINDENT_LINE);
     bindKey("ctrl_slash", KeyAction::TOGGLE_COMMENT);
@@ -80,7 +77,6 @@ void KeyBindingManager::initializeViewOperationBindings() {
     bindKey("ctrl_shift_l", KeyAction::TOGGLE_LINE_NUMBERS);
     bindKey("f3", KeyAction::COMMAND_PALETTE);
     bindKey("f4", KeyAction::SSH_CONNECT);
-    bindKey("alt_w", KeyAction::TOGGLE_MARKDOWN_PREVIEW);
 #ifdef BUILD_LUA_SUPPORT
     bindKey("alt_p", KeyAction::OPEN_PLUGIN_MANAGER);
 #endif
@@ -102,9 +98,6 @@ void KeyBindingManager::initializeTabOperationBindings() {
 
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
     std::string key = parser_.eventToKey(event);
-
-    // Debug all key events
-    LOG("[DEBUG KEY] Event input: '" + event.input() + "', parsed key: '" + key + "'");
 
     // Debug Alt+E detection
     (void)key;

@@ -18,22 +18,15 @@ enum class SplitDirection {
 
 // 视图区域
 struct ViewRegion {
-    int x;                                // 起始列
-    int y;                                // 起始行
-    int width;                            // 宽度
-    int height;                           // 高度
-    bool is_active;                       // 是否激活
-    size_t current_document_index;        // 该区域当前显示的文档索引
-    std::vector<size_t> document_indices; // 该区域管理的文档索引列表
-
-    // 默认构造函数，确保所有成员都被初始化
-    ViewRegion()
-        : x(0), y(0), width(0), height(0), is_active(false), current_document_index(0),
-          document_indices() {}
+    int x;                 // 起始列
+    int y;                 // 起始行
+    int width;             // 宽度
+    int height;            // 高度
+    bool is_active;        // 是否激活
+    size_t document_index; // 关联的文档索引
 
     ViewRegion(int x_, int y_, int w, int h, size_t doc_idx)
-        : x(x_), y(y_), width(w), height(h), is_active(false), current_document_index(doc_idx),
-          document_indices({doc_idx}) {}
+        : x(x_), y(y_), width(w), height(h), is_active(false), document_index(doc_idx) {}
 };
 
 // 分屏线
@@ -108,23 +101,9 @@ class SplitViewManager {
     // 获取指定区域的文档索引
     size_t getDocumentIndexForRegion(size_t region_index) const;
 
-    // 获取指定区域的文档索引列表
-    const std::vector<size_t>& getDocumentIndicesForRegion(size_t region_index) const;
-
-    // 为指定区域添加文档索引
-    void addDocumentIndexToRegion(size_t region_index, size_t document_index);
-
-    // 从指定区域移除文档索引
-    void removeDocumentIndexFromRegion(size_t region_index, size_t document_index);
-
     // 获取区域数量
     size_t getRegionCount() const {
         return regions_.size();
-    }
-
-    // 获取当前激活区域的索引
-    size_t getActiveRegionIndex() const {
-        return active_region_index_;
     }
 
     // 更新区域尺寸

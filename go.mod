@@ -1,9 +1,7 @@
 module pnana-ssh
 
-go 1.24.0
+go 1.18
 
-toolchain go1.24.11
+require golang.org/x/crypto v0.17.0
 
-require golang.org/x/crypto v0.47.0
-
-require golang.org/x/sys v0.40.0 // indirect
+require golang.org/x/sys v0.15.0 // indirect

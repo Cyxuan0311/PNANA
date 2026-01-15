@@ -1,8 +1,8 @@
 #ifndef PNANA_VGIT_GIT_PANEL_H
 #define PNANA_VGIT_GIT_PANEL_H
 
-#include "features/vgit/git_manager.h"
 #include "ui/theme.h"
+#include "vgit/git_manager.h"
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
 #include <memory>
@@ -75,28 +75,11 @@ class GitPanel {
     // Performance optimization
     bool branch_data_stale_ = true;                           // 是否需要刷新分支数据
     bool needs_redraw_ = false;                               // 是否需要重绘UI
-    bool component_needs_rebuild_ = true;                     // 是否需要重新构建组件
     std::chrono::steady_clock::time_point last_refresh_time_; // 最后刷新时间
     std::chrono::milliseconds refresh_cooldown_{500};         // 刷新冷却时间(ms)
 
-    // Cached statistics for performance
-    size_t cached_staged_count_ = 0;
-    size_t cached_unstaged_count_ = 0;
-    bool stats_cache_valid_ = false;
-
-    // Cached repository display info to avoid frequent git calls during rendering
-    std::string cached_repo_path_display_;
-    std::chrono::steady_clock::time_point last_repo_display_update_;
-    std::chrono::milliseconds repo_display_cache_timeout_{10000}; // 10 seconds for repo display
-
-    // Cached current branch info to avoid frequent git calls during rendering
-    std::string cached_current_branch_;
-    std::chrono::steady_clock::time_point last_branch_update_;
-    std::chrono::milliseconds branch_cache_timeout_{15000}; // 15 seconds for branch info
-
     // Private methods
     void switchMode(GitPanelMode mode);
-    GitPanelMode getNextMode(GitPanelMode current);
     void toggleFileSelection(size_t index);
     void clearSelection();
     void selectAll();
@@ -110,7 +93,6 @@ class GitPanel {
     void performCreateBranch();
     void performSwitchBranch();
     void refreshStatusOnly();
-    void updateCachedStats(); // Update cached statistics for performance
 
     // UI rendering
     ftxui::Element renderHeader();
@@ -146,9 +128,6 @@ class GitPanel {
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;
     bool isNavigationKey(ftxui::Event event) const;
-    std::string getCachedRepoPathDisplay();
-    std::string getCachedCurrentBranch();
-    void ensureValidIndices();
 };
 
 } // namespace vgit

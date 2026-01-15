@@ -49,9 +49,6 @@ class PluginManager {
     // 重新加载插件
     bool reloadPlugin(const std::string& plugin_name);
 
-    // 更新主题菜单以反映当前可用主题
-    void updateThemeMenu();
-
     // 获取已加载的插件列表
     std::vector<PluginInfo> getLoadedPlugins() const;
 

@@ -1063,22 +1063,7 @@ void Theme::setTheme(const std::string& name) {
 
 bool Theme::loadCustomTheme(const std::string& name, const ThemeColors& colors) {
     custom_themes_[name] = colors;
-    // 注意：自定义主题的持久化现在通过插件系统处理
-    // 当插件加载时会重新添加这些主题
     return true;
-}
-
-bool Theme::removeCustomTheme(const std::string& name) {
-    auto it = custom_themes_.find(name);
-    if (it != custom_themes_.end()) {
-        custom_themes_.erase(it);
-        return true;
-    }
-    return false;
-}
-
-void Theme::clearCustomThemes() {
-    custom_themes_.clear();
 }
 
 bool Theme::loadThemeFromConfig(
@@ -1163,14 +1148,6 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "oceanic-next", "kanagawa",    "tomorrow-night", "tomorrow-night-blue", "cobalt",
             "zenburn",      "base16-dark", "papercolor",     "rose-pine",           "everforest",
             "jellybeans",   "desert",      "slate"};
-}
-
-std::vector<std::string> Theme::getCustomThemeNames() const {
-    std::vector<std::string> names;
-    for (const auto& [name, _] : custom_themes_) {
-        names.push_back(name);
-    }
-    return names;
 }
 
 } // namespace ui
