@@ -55,6 +55,9 @@ Editor::Editor()
       needs_render_(false), last_call_time_(std::chrono::steady_clock::now()),
       last_render_time_(std::chrono::steady_clock::now()), pending_cursor_update_(false),
       screen_(ScreenInteractive::Fullscreen()) {
+    // 初始化 last_rendered_element_ 为有效的 ftxui 元素，避免空元素导致的崩溃
+    last_rendered_element_ = ftxui::text("Initializing...");
+
     // 加载配置文件（使用默认路径）
     loadConfig();
 
