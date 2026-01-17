@@ -274,9 +274,33 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
     if (ext_lower == "vb" || ext_lower == "vbs")
         return "vb";
 
-    // Assembly
-    if (ext_lower == "asm" || ext_lower == "s" || ext_lower == "S")
-        return "assembly";
+    // Assembly - 智能检测不同架构和语法
+    if (ext_lower == "asm" || ext_lower == "s" || ext_lower == "S") {
+        // 基于文件名进行架构检测
+        if (filename_lower.find("riscv") != std::string::npos ||
+            filename_lower.find("risc-v") != std::string::npos) {
+            return "riscv";
+        }
+        if (filename_lower.find("mips") != std::string::npos) {
+            return "mips";
+        }
+        if (filename_lower.find("arm") != std::string::npos ||
+            filename_lower.find("aarch64") != std::string::npos) {
+            return "arm";
+        }
+        if (filename_lower.find("x86") != std::string::npos ||
+            filename_lower.find("x64") != std::string::npos ||
+            filename_lower.find("amd64") != std::string::npos) {
+            return "x86";
+        }
+        // 默认返回通用汇编类型
+        return "asm";
+    }
+
+    // 特定架构的汇编文件
+    if (ext_lower == "spv" || filename_lower.find("spir-v") != std::string::npos) {
+        return "spirv";
+    }
 
     // WebAssembly
     if (ext_lower == "wat" || ext_lower == "wasm")
