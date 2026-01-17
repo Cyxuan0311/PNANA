@@ -1067,7 +1067,8 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
     } else if (current_file_type_ == "llvm" || current_file_type_ == "ll") {
         return tokenizeLLVMIR(line);
     } else if (current_file_type_ == "asm" || current_file_type_ == "s" ||
-               current_file_type_ == "riscv" || current_file_type_ == "mips") {
+               current_file_type_ == "riscv" || current_file_type_ == "mips" ||
+               current_file_type_ == "arm" || current_file_type_ == "x86") {
         return tokenizeAssembly(line);
     } else if (current_file_type_ == "groovy") {
         return tokenizeGroovy(line);
