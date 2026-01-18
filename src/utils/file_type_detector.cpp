@@ -1,5 +1,7 @@
 #include "utils/file_type_detector.h"
+#include "utils/assembly_analyzer.h"
 #include <algorithm>
+#include <filesystem>
 
 namespace pnana {
 namespace utils {
@@ -274,27 +276,54 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
     if (ext_lower == "vb" || ext_lower == "vbs")
         return "vb";
 
-    // Assembly - 智能检测不同架构和语法
+    // Assembly - 基于内容智能检测不同架构和语法
     if (ext_lower == "asm" || ext_lower == "s" || ext_lower == "S") {
-        // 基于文件名进行架构检测
+        // 首先尝试基于文件名进行初步检测
+        std::string preliminary_type = "asm";
         if (filename_lower.find("riscv") != std::string::npos ||
             filename_lower.find("risc-v") != std::string::npos) {
-            return "riscv";
+            preliminary_type = "riscv";
+        } else if (filename_lower.find("mips") != std::string::npos) {
+            preliminary_type = "mips";
+        } else if (filename_lower.find("arm") != std::string::npos ||
+                   filename_lower.find("aarch64") != std::string::npos) {
+            preliminary_type = "arm";
+        } else if (filename_lower.find("x86") != std::string::npos ||
+                   filename_lower.find("x64") != std::string::npos ||
+                   filename_lower.find("amd64") != std::string::npos) {
+            preliminary_type = "x86";
         }
-        if (filename_lower.find("mips") != std::string::npos) {
-            return "mips";
+
+        // 尝试读取文件内容进行精确检测
+        try {
+            std::filesystem::path filepath = std::filesystem::path(filename);
+            if (std::filesystem::exists(filepath) && std::filesystem::is_regular_file(filepath)) {
+                auto analysis_result = AssemblyAnalyzer::analyzeFile(filename, 50); // 分析前50行
+
+                // 如果内容分析置信度足够高，使用分析结果
+                if (analysis_result.confidence >= 0.6f) {
+                    switch (analysis_result.arch) {
+                        case AssemblyAnalyzer::Architecture::X86:
+                            return "x86";
+                        case AssemblyAnalyzer::Architecture::ARM:
+                            return "arm";
+                        case AssemblyAnalyzer::Architecture::RISCV:
+                            return "riscv";
+                        case AssemblyAnalyzer::Architecture::MIPS:
+                            return "mips";
+                        case AssemblyAnalyzer::Architecture::GENERIC:
+                            return "asm";
+                        default:
+                            break;
+                    }
+                }
+            }
+        } catch (const std::exception&) {
+            // 如果分析失败，使用基于文件名的检测结果
         }
-        if (filename_lower.find("arm") != std::string::npos ||
-            filename_lower.find("aarch64") != std::string::npos) {
-            return "arm";
-        }
-        if (filename_lower.find("x86") != std::string::npos ||
-            filename_lower.find("x64") != std::string::npos ||
-            filename_lower.find("amd64") != std::string::npos) {
-            return "x86";
-        }
-        // 默认返回通用汇编类型
-        return "asm";
+
+        // 返回基于文件名的检测结果或默认类型
+        return preliminary_type;
     }
 
     // 特定架构的汇编文件
