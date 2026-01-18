@@ -565,8 +565,6 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         return icons::CLOJURE;
     if (ext == "erl" || ext == "hrl")
         return icons::ERLANG;
-    if (ext == "sml" || ext == "sig" || ext == "fun")
-        return icons::SML;
     if (ext == "ml" || ext == "mli")
         return icons::OCAML;
     if (ext == "fs" || ext == "fsi" || ext == "fsx")
@@ -650,8 +648,6 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         return icons::PYTHON; // Jupyter notebook
 
     // Lisp 家族
-    if (ext == "lisp")
-        return icons::COMMON_LISP;
     if (ext == "scm" || ext == "ss")
         return icons::SCHEME;
     if (ext == "lsp" || ext == "cl")
@@ -709,15 +705,8 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
     if (ext == "vhd" || ext == "vhdl")
         return icons::VHDL;
 
-    // 编译器相关语言
-    if (ext == "ll" || ext == "llvm")
-        return icons::LLVM;
-
     // 汇编和底层
     if (ext == "asm" || ext == "s" || ext == "S")
-        return icons::ASSEMBLY;
-    // RISC-V 和 MIPS 汇编文件
-    if (ext == "riscv" || ext == "mips")
         return icons::ASSEMBLY;
     if (ext == "wat")
         return icons::WEBASSEMBLY;

@@ -9,15 +9,12 @@
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
-#include "features/md_render/markdown_renderer.h"
 #include <algorithm>
 #include <cctype>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
-#include <ftxui/screen/screen.hpp>
 #include <iostream>
-#include <sstream>
 
 using namespace ftxui;
 
@@ -29,10 +26,10 @@ Editor::Editor()
     : document_manager_(), key_binding_manager_(), action_executor_(this), theme_(),
       statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
       file_picker_(theme_), search_dialog_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
-      ssh_transfer_dialog_(theme_), welcome_screen_(theme_), split_welcome_screen_(theme_),
-      new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
-      save_as_dialog_(theme_), cursor_config_dialog_(theme_), binary_file_view_(theme_),
-      encoding_dialog_(theme_), format_dialog_(theme_),
+      ssh_transfer_dialog_(theme_), welcome_screen_(theme_), new_file_prompt_(theme_),
+      theme_menu_(theme_), create_folder_dialog_(theme_), save_as_dialog_(theme_),
+      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
+      format_dialog_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -187,31 +184,21 @@ void Editor::loadConfig(const std::string& config_path) {
     if (theme_name.empty()) {
         theme_name = "monokai"; // 默认主题
     }
-
-    // 检查主题是否可用（预设主题或已加载插件提供的主题）
-    std::vector<std::string> check_available_themes = ::pnana::ui::Theme::getAvailableThemes();
-    std::vector<std::string> check_custom_themes = theme_.getCustomThemeNames();
-    check_available_themes.insert(check_available_themes.end(), check_custom_themes.begin(),
-                                  check_custom_themes.end());
-
-    bool theme_available = false;
-    for (const auto& available_theme : check_available_themes) {
-        if (available_theme == theme_name) {
-            theme_available = true;
-            break;
-        }
-    }
-
-    // 如果主题不可用（比如插件被禁用了），重置为默认主题
-    if (!theme_available) {
-        theme_name = "monokai";
-        // 更新配置
-        config_manager_.getConfig().current_theme = theme_name;
-        config_manager_.getConfig().editor.theme = theme_name;
-        config_manager_.saveConfig();
-    }
-
     theme_.setTheme(theme_name);
+
+    // 加载自定义主题（如果有）
+    for (const auto& [name, theme_config] : config.custom_themes) {
+        theme_.loadThemeFromConfig(
+            theme_config.background, theme_config.foreground, theme_config.current_line,
+            theme_config.selection, theme_config.line_number, theme_config.line_number_current,
+            theme_config.statusbar_bg, theme_config.statusbar_fg, theme_config.menubar_bg,
+            theme_config.menubar_fg, theme_config.helpbar_bg, theme_config.helpbar_fg,
+            theme_config.helpbar_key, theme_config.keyword, theme_config.string,
+            theme_config.comment, theme_config.number, theme_config.function, theme_config.type,
+            theme_config.operator_color, theme_config.error, theme_config.warning,
+            theme_config.info, theme_config.success);
+        theme_.loadCustomTheme(name, theme_.getColors());
+    }
 
     // 更新可用主题列表
     std::vector<std::string> available_themes;
@@ -221,13 +208,6 @@ void Editor::loadConfig(const std::string& config_path) {
         // 使用 Theme 类提供的所有可用主题
         available_themes = ::pnana::ui::Theme::getAvailableThemes();
     }
-
-    // 注意：自定义主题由插件系统管理，不在这里自动添加
-    // 插件加载时会通过 Lua API 更新主题菜单
-
-    // 清除所有自定义主题，确保只有当前加载的插件的主题会被显示
-    theme_.clearCustomThemes();
-
     theme_menu_.setAvailableThemes(available_themes);
 
     // 加载光标配置
@@ -406,31 +386,11 @@ void Editor::selectPreviousTheme() {
 void Editor::applySelectedTheme() {
     const auto& themes = theme_menu_.getAvailableThemes();
     size_t selected_index = theme_menu_.getSelectedIndex();
-
     if (selected_index < themes.size()) {
         std::string theme_name = themes[selected_index];
 
-        // 检查主题是否真的可用（预设主题或当前加载插件提供的主题）
-        std::vector<std::string> available_themes = ::pnana::ui::Theme::getAvailableThemes();
-        std::vector<std::string> custom_themes = theme_.getCustomThemeNames();
-
-        available_themes.insert(available_themes.end(), custom_themes.begin(), custom_themes.end());
-
-        bool theme_available = false;
-        for (const auto& available_theme : available_themes) {
-            if (available_theme == theme_name) {
-                theme_available = true;
-                break;
-            }
-        }
-
-        if (theme_available) {
-            // 使用 setTheme 方法，它会自动保存配置
-            setTheme(theme_name);
-        } else {
-            // 主题不可用，显示错误消息
-            setStatusMessage("Theme '" + theme_name + "' is not available (plugin not loaded)");
-        }
+        // 使用 setTheme 方法，它会自动保存配置
+        setTheme(theme_name);
     }
 }
 
@@ -459,77 +419,6 @@ void Editor::toggleHelp() {
     } else {
         setStatusMessage("Help closed");
     }
-}
-
-void Editor::toggleMarkdownPreview() {
-    // Toggle lightweight preview flag and request UI update
-    markdown_preview_enabled_ = !markdown_preview_enabled_;
-    if (markdown_preview_enabled_) {
-        LOG("[DEBUG] Markdown preview enabled (lightweight)");
-        setStatusMessage("Markdown preview enabled - Press Alt+W again to close");
-    } else {
-        LOG("[DEBUG] Markdown preview disabled");
-        setStatusMessage("Markdown preview closed");
-    }
-    force_ui_update_ = true;
-    last_render_source_ = "toggleMarkdownPreview";
-}
-
-bool Editor::isMarkdownPreviewActive() const {
-    return markdown_preview_enabled_;
-}
-
-ftxui::Element Editor::renderMarkdownPreview() {
-    // Render preview using MarkdownRenderer directly (lightweight)
-    pnana::features::MarkdownRenderConfig cfg;
-    int half_width = std::max(10, getScreenWidth() / 2 - 4);
-    cfg.max_width = half_width;
-    cfg.use_color = true;
-    cfg.theme = theme_.getCurrentThemeName();
-    pnana::features::MarkdownRenderer renderer(cfg);
-    std::string content = getCurrentDocumentContent();
-    if (content.empty())
-        return ftxui::text("");
-
-    auto elem = renderer.render(content);
-
-    // Diagnostic/fallback: render to an off-screen buffer and check if visible characters exist.
-    try {
-        int height = std::max(10, getScreenHeight() - 6);
-        ftxui::Screen screen(half_width, height);
-        ftxui::Render(screen, elem);
-        std::string out = screen.ToString();
-        // check for any non-space visible characters
-        bool has_visible = false;
-        for (char c : out) {
-            if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
-                has_visible = true;
-                break;
-            }
-        }
-        if (!has_visible) {
-            // Fallback: render plain text (no colors) to ensure content is visible
-            Elements lines;
-            std::istringstream iss(content);
-            std::string line;
-            while (std::getline(iss, line)) {
-                lines.push_back(ftxui::text(line));
-            }
-            return vbox(std::move(lines));
-        }
-    } catch (...) {
-        // ignore and return elem
-    }
-
-    return elem;
-}
-
-std::string Editor::getCurrentDocumentContent() const {
-    const Document* doc = getCurrentDocument();
-    if (!doc) {
-        return "";
-    }
-    return doc->getContent();
 }
 
 // Git 面板
@@ -1252,16 +1141,15 @@ void Editor::showSplitDialog() {
             std::string doc_name = "[No Document]";
             bool is_modified = false;
 
-            if (region.current_document_index < tabs.size()) {
-                doc_name = tabs[region.current_document_index].filename;
+            if (region.document_index < tabs.size()) {
+                doc_name = tabs[region.document_index].filename;
                 if (doc_name.empty()) {
                     doc_name = "[Untitled]";
                 }
-                is_modified = tabs[region.current_document_index].is_modified;
+                is_modified = tabs[region.document_index].is_modified;
             }
 
-            splits.emplace_back(i, region.current_document_index, doc_name, region.is_active,
-                                is_modified);
+            splits.emplace_back(i, region.document_index, doc_name, region.is_active, is_modified);
         }
 
         split_dialog_.showClose(
@@ -1296,8 +1184,8 @@ void Editor::closeSplitRegion(size_t region_index) {
     auto tabs = document_manager_.getAllTabs();
 
     // 检查该区域关联的文档是否已修改
-    if (region.current_document_index < tabs.size()) {
-        if (tabs[region.current_document_index].is_modified) {
+    if (region.document_index < tabs.size()) {
+        if (tabs[region.document_index].is_modified) {
             setStatusMessage("Cannot close: document has unsaved changes. Save first (Ctrl+S)");
             return;
         }
@@ -1309,8 +1197,8 @@ void Editor::closeSplitRegion(size_t region_index) {
         for (size_t i = 0; i < regions.size(); ++i) {
             if (i != region_index) {
                 // 切换到该区域的文档
-                if (regions[i].current_document_index < tabs.size()) {
-                    document_manager_.switchToDocument(regions[i].current_document_index);
+                if (regions[i].document_index < tabs.size()) {
+                    document_manager_.switchToDocument(regions[i].document_index);
                 }
                 break;
             }
@@ -1336,7 +1224,7 @@ Document* Editor::getDocumentForActiveRegion() {
 
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        return document_manager_.getDocument(active_region->current_document_index);
+        return document_manager_.getDocument(active_region->document_index);
     }
     return nullptr;
 }
@@ -1348,7 +1236,7 @@ const Document* Editor::getDocumentForActiveRegion() const {
 
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        return document_manager_.getDocument(active_region->current_document_index);
+        return document_manager_.getDocument(active_region->document_index);
     }
     return nullptr;
 }
@@ -1360,7 +1248,7 @@ size_t Editor::getDocumentIndexForActiveRegion() const {
 
     const auto* active_region = split_view_manager_.getActiveRegion();
     if (active_region) {
-        return active_region->current_document_index;
+        return active_region->document_index;
     }
     return 0;
 }
@@ -1375,7 +1263,7 @@ void Editor::setDocumentForActiveRegion(size_t document_index) {
 
     // 如果这是当前激活的区域，也切换全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region && active_region->current_document_index == document_index) {
+    if (active_region && active_region->document_index == document_index) {
         document_manager_.switchToDocument(document_index);
     }
 }
@@ -1415,11 +1303,6 @@ void Editor::saveCurrentRegionState() {
     // 确保 region_states_ 有足够的容量
     if (region_states_.size() <= region_index) {
         region_states_.resize(region_index + 1);
-        // 初始化新区域的状态为默认值
-        region_states_[region_index].cursor_row = 0;
-        region_states_[region_index].cursor_col = 0;
-        region_states_[region_index].view_offset_row = 0;
-        region_states_[region_index].view_offset_col = 0;
     }
 
     // 保存当前状态
@@ -1460,19 +1343,6 @@ bool Editor::resizeActiveSplitRegion(int delta) {
         return false;
     }
 
-    // 临时修复：如果发现区域坐标异常，尝试重新计算分屏线位置
-    if (active_region->x < 0 || active_region->y < 0 || active_region->width <= 0 ||
-        active_region->height <= 0) {
-        // 重新计算分屏线位置
-        split_view_manager_.updateRegionSizes(screen_.dimx(), screen_.dimy());
-        // 重新获取区域信息
-        const auto* fixed_region = split_view_manager_.getActiveRegion();
-        if (fixed_region && fixed_region->x >= 0 && fixed_region->y >= 0) {
-            // 递归调用自己
-            return resizeActiveSplitRegion(delta);
-        }
-    }
-
     // 找到与激活区域相邻的分屏线
     const auto& split_lines = split_view_manager_.getSplitLines();
 
@@ -1480,27 +1350,17 @@ bool Editor::resizeActiveSplitRegion(int delta) {
         const auto& line = split_lines[i];
         bool should_adjust = false;
 
-        // 验证分屏线位置的一致性 - 这个逻辑有问题，移除它
-        // split line可能在任何region边界上，不一定在active region的边界上
-
         // 检查分屏线是否与激活区域相邻
         if (line.is_vertical) {
-            // 竖直分屏线：检查是否正好在激活区域的边界上
-            int right_boundary = active_region->x + active_region->width;
-            int left_boundary = active_region->x;
-
-            // 分屏线应该正好在激活区域的边界上（精确匹配）
-            if (line.position == left_boundary || line.position == right_boundary) {
+            // 竖直分屏线：检查是否在激活区域的左右边界
+            if (std::abs(active_region->x + active_region->width - line.position) <= 1 ||
+                std::abs(active_region->x - line.position) <= 1) {
                 should_adjust = true;
             }
         } else {
-            // 横向分屏线：检查是否在激活区域的上下边界附近
-            int bottom_boundary = active_region->y + active_region->height;
-            int top_boundary = active_region->y;
-
-            // 检查分屏线是否在激活区域的任何一个边界附近（2像素容差）
-            if (std::abs(line.position - top_boundary) <= 2 ||
-                std::abs(line.position - bottom_boundary) <= 2) {
+            // 横向分屏线：检查是否在激活区域的上下边界
+            if (std::abs(active_region->y + active_region->height - line.position) <= 1 ||
+                std::abs(active_region->y - line.position) <= 1) {
                 should_adjust = true;
             }
         }
@@ -1558,36 +1418,18 @@ void Editor::splitView(features::SplitDirection direction) {
         setStatusMessage("Split horizontally");
     }
 
-    // 新分屏已经通过SplitViewManager正确设置了文档索引和文档列表
-    // 这里不需要额外处理，新区域会继承当前区域的文档列表
+    // 更新新创建区域的文档索引（新区域显示相同的文档）
+    auto& regions =
+        const_cast<std::vector<features::ViewRegion>&>(split_view_manager_.getRegions());
+    for (auto& region : regions) {
+        // 新创建的区域（document_index 可能无效）设置为当前文档
+        if (region.document_index >= tabs.size() || !split_view_manager_.hasSplits()) {
+            region.document_index = current_doc_index;
+        }
+    }
 
     // 更新区域尺寸
     split_view_manager_.updateRegionSizes(screen_width, screen_height);
-
-    // 为新区域初始化状态
-    const auto& regions = split_view_manager_.getRegions();
-    size_t old_size = region_states_.size();
-    if (old_size < regions.size()) {
-        region_states_.resize(regions.size());
-        // 只初始化新区域的状态，保持现有区域的状态不变
-        for (size_t i = old_size; i < regions.size(); ++i) {
-            // 对于新创建的区域，如果它显示欢迎页面（SIZE_MAX），使用默认状态
-            // 如果它显示现有文档，从当前全局状态复制
-            if (regions[i].current_document_index == SIZE_MAX) {
-                // 欢迎页面：从文件开头开始
-                region_states_[i].cursor_row = 0;
-                region_states_[i].cursor_col = 0;
-                region_states_[i].view_offset_row = 0;
-                region_states_[i].view_offset_col = 0;
-            } else {
-                // 显示现有文档：从当前全局状态复制
-                region_states_[i].cursor_row = cursor_row_;
-                region_states_[i].cursor_col = cursor_col_;
-                region_states_[i].view_offset_row = view_offset_row_;
-                region_states_[i].view_offset_col = view_offset_col_;
-            }
-        }
-    }
 }
 
 void Editor::focusLeftRegion() {
@@ -1602,8 +1444,8 @@ void Editor::focusLeftRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region && active_region->current_document_index != SIZE_MAX) {
-        document_manager_.switchToDocument(active_region->current_document_index);
+    if (active_region) {
+        document_manager_.switchToDocument(active_region->document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1617,9 +1459,6 @@ void Editor::focusLeftRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus left region");
-
-    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
-    force_ui_update_ = true;
 }
 
 void Editor::focusRightRegion() {
@@ -1634,8 +1473,8 @@ void Editor::focusRightRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region && active_region->current_document_index != SIZE_MAX) {
-        document_manager_.switchToDocument(active_region->current_document_index);
+    if (active_region) {
+        document_manager_.switchToDocument(active_region->document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1649,9 +1488,6 @@ void Editor::focusRightRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus right region");
-
-    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
-    force_ui_update_ = true;
 }
 
 void Editor::focusUpRegion() {
@@ -1666,8 +1502,8 @@ void Editor::focusUpRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region && active_region->current_document_index != SIZE_MAX) {
-        document_manager_.switchToDocument(active_region->current_document_index);
+    if (active_region) {
+        document_manager_.switchToDocument(active_region->document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1681,9 +1517,6 @@ void Editor::focusUpRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus up region");
-
-    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
-    force_ui_update_ = true;
 }
 
 void Editor::focusDownRegion() {
@@ -1698,8 +1531,8 @@ void Editor::focusDownRegion() {
 
     // 切换到激活区域的文档 - 更新全局文档管理器
     const auto* active_region = split_view_manager_.getActiveRegion();
-    if (active_region && active_region->current_document_index != SIZE_MAX) {
-        document_manager_.switchToDocument(active_region->current_document_index);
+    if (active_region) {
+        document_manager_.switchToDocument(active_region->document_index);
 
         // 找到新激活区域的索引并恢复状态
         size_t region_index = 0;
@@ -1713,9 +1546,6 @@ void Editor::focusDownRegion() {
         syntax_highlighter_.setFileType(getFileType());
     }
     setStatusMessage("Focus down region");
-
-    // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
-    force_ui_update_ = true;
 }
 
 #ifdef BUILD_LUA_SUPPORT

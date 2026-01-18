@@ -88,18 +88,12 @@ struct ThemeColorConfig {
     std::vector<int> success = {166, 226, 46};
 };
 
-// 插件配置结构
-struct PluginConfig {
-    std::vector<std::string> enabled_plugins; // 已启用的插件列表
-};
-
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
     DisplayConfig display;
     FileConfig files;
     SearchConfig search;
-    PluginConfig plugins;
 
     // 主题配置
     std::string current_theme = "monokai";
@@ -153,7 +147,6 @@ class ConfigManager {
     bool parseFileConfig(const std::map<std::string, std::string>& data);
     bool parseSearchConfig(const std::map<std::string, std::string>& data);
     bool parseThemeConfig(const std::map<std::string, std::string>& data);
-    bool parsePluginConfig(const std::map<std::string, std::string>& data);
 
     // JSON 生成辅助方法
     std::string generateJSON() const;

@@ -1,11 +1,10 @@
-#include "features/vgit/git_manager.h"
+#include "vgit/git_manager.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -19,58 +18,12 @@ namespace vgit {
 GitManager::GitManager(const std::string& repo_path) : repo_path_(repo_path) {
     // Find repository root
     repo_root_ = getRepositoryRoot();
-    // Initialize cache timestamps
-    last_repo_check_ =
-        std::chrono::steady_clock::now() - repo_cache_timeout_; // Force initial check
-    last_status_refresh_ =
-        std::chrono::steady_clock::now() - status_cache_timeout_; // Force initial refresh
-}
-
-void GitManager::invalidateRepoStatusCache() {
-    repo_status_cached_ = false;
-    repo_root_cached_.clear();
-    last_repo_check_ = std::chrono::steady_clock::now() - repo_cache_timeout_;
-    pnana::utils::Logger::getInstance().log(
-        "GitManager::invalidateRepoStatusCache - Repository status cache invalidated");
 }
 
 bool GitManager::isGitRepository() const {
-    auto now = std::chrono::steady_clock::now();
-    auto time_since_last_check =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now - last_repo_check_);
-
-    // Use cached result if within timeout
-    if (repo_status_cached_ && time_since_last_check < repo_cache_timeout_) {
-        pnana::utils::Logger::getInstance().log(
-            "GitManager::isGitRepository - Using cached repo status (age: " +
-            std::to_string(time_since_last_check.count()) + "ms)");
-        return is_git_repo_cached_;
-    }
-
-    // Cache miss - execute git command
-    pnana::utils::Logger::getInstance().log(
-        "GitManager::isGitRepository - Cache miss, executing git command");
-    auto check_start = std::chrono::high_resolution_clock::now();
-
     std::string cmd = "git -C \"" + repo_path_ + "\" rev-parse --git-dir 2>/dev/null";
     std::string result = executeGitCommand(cmd);
-    bool is_git_repo = !result.empty() && result.find("fatal") == std::string::npos;
-
-    auto check_end = std::chrono::high_resolution_clock::now();
-    auto check_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(check_end - check_start);
-
-    // Update cache
-    repo_status_cached_ = true;
-    is_git_repo_cached_ = is_git_repo;
-    last_repo_check_ = now;
-
-    pnana::utils::Logger::getInstance().log("GitManager::isGitRepository - Cache updated (took " +
-                                            std::to_string(check_duration.count()) +
-                                            "ms, result: " + (is_git_repo ? "true" : "false") +
-                                            ")");
-
-    return is_git_repo;
+    return !result.empty() && result.find("fatal") == std::string::npos;
 }
 
 bool GitManager::initRepository() {
@@ -81,19 +34,11 @@ bool GitManager::initRepository() {
         return false;
     }
     repo_root_ = repo_path_;
-    // Repository state has changed, invalidate cache
-    invalidateRepoStatusCache();
     return true;
 }
 
 std::string GitManager::getRepositoryRoot() const {
-    // Use cached repo root if available and repo status is valid
-    if (repo_status_cached_ && is_git_repo_cached_ && !repo_root_cached_.empty()) {
-        return repo_root_cached_;
-    }
-
     if (!isGitRepository()) {
-        repo_root_cached_ = "";
         return "";
     }
 
@@ -104,10 +49,8 @@ std::string GitManager::getRepositoryRoot() const {
         if (!result.empty() && result.back() == '\n') {
             result.pop_back();
         }
-        repo_root_cached_ = result;
         return result;
     }
-    repo_root_cached_ = "";
     return "";
 }
 
@@ -125,19 +68,14 @@ bool GitManager::refreshStatus() {
     pnana::utils::Logger::getInstance().log("GitManager::refreshStatus - START");
 
     // Check cache validity
-    auto cache_check_start = std::chrono::high_resolution_clock::now();
     auto now = std::chrono::steady_clock::now();
     auto time_since_last_refresh =
         std::chrono::duration_cast<std::chrono::milliseconds>(now - last_status_refresh_);
-    auto cache_check_end = std::chrono::high_resolution_clock::now();
-    auto cache_check_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(cache_check_end - cache_check_start);
 
     if (time_since_last_refresh < status_cache_timeout_ && !current_status_.empty()) {
         pnana::utils::Logger::getInstance().log(
             "GitManager::refreshStatus - Using cached status (age: " +
-            std::to_string(time_since_last_refresh.count()) +
-            "ms, cache check: " + std::to_string(cache_check_duration.count()) + "ms)");
+            std::to_string(time_since_last_refresh.count()) + "ms)");
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -160,19 +98,11 @@ bool GitManager::refreshStatus() {
     clearError();
 
     // Get porcelain status output - using v2 for better performance
-    auto git_cmd_start = std::chrono::high_resolution_clock::now();
     std::string cmd = "git -C \"" + repo_root_ + "\" status --porcelain=v2";
     pnana::utils::Logger::getInstance().log(
         "GitManager::refreshStatus - Executing git status command (porcelain v2)");
     auto lines = executeGitCommandLines(cmd);
-    auto git_cmd_end = std::chrono::high_resolution_clock::now();
-    auto git_cmd_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(git_cmd_end - git_cmd_start);
-    pnana::utils::Logger::getInstance().log("Git status command took " +
-                                            std::to_string(git_cmd_duration.count()) + "ms (" +
-                                            std::to_string(lines.size()) + " lines returned)");
 
-    auto parse_start = std::chrono::high_resolution_clock::now();
     current_status_.clear();
 
     for (const auto& line : lines) {
@@ -180,13 +110,6 @@ bool GitManager::refreshStatus() {
             parseStatusLine(line, current_status_);
         }
     }
-    auto parse_end = std::chrono::high_resolution_clock::now();
-    auto parse_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(parse_end - parse_start);
-    pnana::utils::Logger::getInstance().log("Status line parsing took " +
-                                            std::to_string(parse_duration.count()) + "ms (" +
-                                            std::to_string(lines.size()) + " lines, " +
-                                            std::to_string(current_status_.size()) + " files)");
 
     // Update cache timestamp
     last_status_refresh_ = std::chrono::steady_clock::now();
@@ -258,17 +181,10 @@ bool GitManager::stageFile(const std::string& path) {
         return false;
     }
 
-    auto cmd_prep_start = std::chrono::high_resolution_clock::now();
     std::string escaped_path = escapePath(path);
     std::string cmd = "git -C \"" + repo_root_ + "\" add \"" + escaped_path + "\"";
-    auto cmd_prep_end = std::chrono::high_resolution_clock::now();
-    auto cmd_prep_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(cmd_prep_end - cmd_prep_start);
-    pnana::utils::Logger::getInstance().log("Command preparation took " +
-                                            std::to_string(cmd_prep_duration.count()) + "ms");
 
     // 对于单个文件操作，使用更快的同步执行
-    auto exec_start = std::chrono::high_resolution_clock::now();
     FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
         last_error_ = "Failed to execute git add command";
@@ -283,13 +199,6 @@ bool GitManager::stageFile(const std::string& path) {
 
     // 简单等待命令完成，不读取输出（add命令通常没有输出）
     int status = pclose(pipe);
-    auto exec_end = std::chrono::high_resolution_clock::now();
-    auto exec_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
-    pnana::utils::Logger::getInstance().log("Git add command execution took " +
-                                            std::to_string(exec_duration.count()) +
-                                            "ms (exit code: " + std::to_string(status) + ")");
-
     if (status != 0) {
         last_error_ = "Failed to stage file (exit code: " + std::to_string(status) + ")";
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -323,17 +232,10 @@ bool GitManager::unstageFile(const std::string& path) {
         return false;
     }
 
-    auto cmd_prep_start = std::chrono::high_resolution_clock::now();
     std::string escaped_path = escapePath(path);
     std::string cmd = "git -C \"" + repo_root_ + "\" reset HEAD \"" + escaped_path + "\"";
-    auto cmd_prep_end = std::chrono::high_resolution_clock::now();
-    auto cmd_prep_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(cmd_prep_end - cmd_prep_start);
-    pnana::utils::Logger::getInstance().log("Command preparation took " +
-                                            std::to_string(cmd_prep_duration.count()) + "ms");
 
     // 使用更快的同步执行
-    auto exec_start = std::chrono::high_resolution_clock::now();
     FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
         last_error_ = "Failed to execute git reset command";
@@ -348,13 +250,6 @@ bool GitManager::unstageFile(const std::string& path) {
 
     // 简单等待命令完成
     int status = pclose(pipe);
-    auto exec_end = std::chrono::high_resolution_clock::now();
-    auto exec_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
-    pnana::utils::Logger::getInstance().log("Git reset command execution took " +
-                                            std::to_string(exec_duration.count()) +
-                                            "ms (exit code: " + std::to_string(status) + ")");
-
     if (status != 0) {
         last_error_ = "Failed to unstage file (exit code: " + std::to_string(status) + ")";
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -715,30 +610,16 @@ std::vector<std::string> GitManager::getRemotes() {
 // Private helper methods
 
 std::string GitManager::executeGitCommand(const std::string& command) const {
-    auto cmd_start = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log(
-        "GitManager::executeGitCommand - START: " +
-        command.substr(0, std::min(size_t(100), command.size())) +
-        (command.size() > 100 ? "..." : ""));
-
     std::array<char, 128> buffer;
     std::string result;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
 
     if (!pipe) {
-        auto cmd_end = std::chrono::high_resolution_clock::now();
-        auto cmd_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(cmd_end - cmd_start);
-        pnana::utils::Logger::getInstance().log(
-            "GitManager::executeGitCommand - END (pipe failed) - " +
-            std::to_string(cmd_duration.count()) + "ms");
         return "Failed to execute command";
     }
 
-    size_t read_calls = 0;
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         result += buffer.data();
-        read_calls++;
     }
 
     // Remove trailing newline
@@ -746,43 +627,21 @@ std::string GitManager::executeGitCommand(const std::string& command) const {
         result.pop_back();
     }
 
-    auto cmd_end = std::chrono::high_resolution_clock::now();
-    auto cmd_duration = std::chrono::duration_cast<std::chrono::milliseconds>(cmd_end - cmd_start);
-    pnana::utils::Logger::getInstance().log(
-        "GitManager::executeGitCommand - END - " + std::to_string(cmd_duration.count()) + "ms (" +
-        std::to_string(read_calls) + " reads, " + std::to_string(result.size()) + " bytes)");
-
     return result;
 }
 
 std::vector<std::string> GitManager::executeGitCommandLines(const std::string& command) const {
-    auto cmd_start = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log(
-        "GitManager::executeGitCommandLines - START: " +
-        command.substr(0, std::min(size_t(100), command.size())) +
-        (command.size() > 100 ? "..." : ""));
-
     std::array<char, 128> buffer;
     std::vector<std::string> lines;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
 
     if (!pipe) {
-        auto cmd_end = std::chrono::high_resolution_clock::now();
-        auto cmd_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(cmd_end - cmd_start);
-        pnana::utils::Logger::getInstance().log(
-            "GitManager::executeGitCommandLines - END (pipe failed) - " +
-            std::to_string(cmd_duration.count()) + "ms");
         return lines;
     }
 
-    size_t read_calls = 0;
-    size_t total_bytes = 0;
     std::string current_line;
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         current_line += buffer.data();
-        read_calls++;
-        total_bytes += strlen(buffer.data());
 
         // Check if we have a complete line
         if (!current_line.empty() && current_line.back() == '\n') {
@@ -799,13 +658,6 @@ std::vector<std::string> GitManager::executeGitCommandLines(const std::string& c
     if (!current_line.empty()) {
         lines.push_back(current_line);
     }
-
-    auto cmd_end = std::chrono::high_resolution_clock::now();
-    auto cmd_duration = std::chrono::duration_cast<std::chrono::milliseconds>(cmd_end - cmd_start);
-    pnana::utils::Logger::getInstance().log(
-        "GitManager::executeGitCommandLines - END - " + std::to_string(cmd_duration.count()) +
-        "ms (" + std::to_string(read_calls) + " reads, " + std::to_string(total_bytes) +
-        " bytes, " + std::to_string(lines.size()) + " lines)");
 
     return lines;
 }

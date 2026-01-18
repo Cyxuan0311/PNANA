@@ -42,11 +42,6 @@ enum class KeyAction {
     TRIGGER_COMPLETION, // 触发代码补全
     SHOW_DIAGNOSTICS,   // 显示诊断信息
 
-    // 代码折叠
-    TOGGLE_FOLD, // 切换折叠
-    FOLD_ALL,    // 折叠全部
-    UNFOLD_ALL,  // 展开全部
-
     // 搜索和导航
     SEARCH,
     REPLACE,
@@ -66,9 +61,8 @@ enum class KeyAction {
     TOGGLE_FILE_BROWSER,
     TOGGLE_HELP,
     TOGGLE_LINE_NUMBERS,
-    SPLIT_VIEW,              // 分屏视图
-    TOGGLE_MARKDOWN_PREVIEW, // 切换Markdown预览
-    OPEN_PLUGIN_MANAGER,     // 打开插件管理器
+    SPLIT_VIEW,          // 分屏视图
+    OPEN_PLUGIN_MANAGER, // 打开插件管理器
 
     // 标签页操作
     NEXT_TAB,

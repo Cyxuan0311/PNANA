@@ -48,19 +48,6 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::TRIGGER_COMPLETION:
         case KeyAction::SHOW_DIAGNOSTICS:
             return executeEditOperation(action);
-        case KeyAction::TOGGLE_FOLD:
-        case KeyAction::FOLD_ALL:
-        case KeyAction::UNFOLD_ALL:
-            // 折叠动作只在代码区中有效
-            LOG("[DEBUG] ActionExecutor: Processing fold action, current region: " +
-                std::to_string(static_cast<int>(editor_->getRegionManager().getCurrentRegion())));
-            if (editor_->getRegionManager().getCurrentRegion() == core::EditorRegion::CODE_AREA) {
-                LOG("[DEBUG] ActionExecutor: In CODE_AREA, executing fold action");
-                return executeEditOperation(action);
-            } else {
-                LOG("[DEBUG] ActionExecutor: Not in CODE_AREA, ignoring fold action");
-            }
-            return false;
 #endif
 
         case KeyAction::SEARCH:
@@ -81,7 +68,6 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::COMMAND_PALETTE:
         case KeyAction::SPLIT_VIEW:
         case KeyAction::SSH_CONNECT:
-        case KeyAction::TOGGLE_MARKDOWN_PREVIEW:
 #ifdef BUILD_LUA_SUPPORT
         case KeyAction::OPEN_PLUGIN_MANAGER:
 #endif
@@ -215,17 +201,6 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
             editor_->showDiagnosticsPopup();
             return true;
 #endif
-        case KeyAction::TOGGLE_FOLD:
-            LOG("[DEBUG] ActionExecutor: Executing TOGGLE_FOLD");
-            editor_->toggleFold();
-            LOG("[DEBUG] ActionExecutor: TOGGLE_FOLD completed");
-            return true;
-        case KeyAction::FOLD_ALL:
-            editor_->foldAll();
-            return true;
-        case KeyAction::UNFOLD_ALL:
-            editor_->unfoldAll();
-            return true;
         default:
             return false;
     }
@@ -303,10 +278,6 @@ bool ActionExecutor::executeViewOperation(KeyAction action) {
             return true;
         case KeyAction::SSH_CONNECT:
             editor_->showSSHDialog();
-            return true;
-        case KeyAction::TOGGLE_MARKDOWN_PREVIEW:
-            LOG("[DEBUG] ActionExecutor: TOGGLE_MARKDOWN_PREVIEW triggered");
-            editor_->toggleMarkdownPreview();
             return true;
 #ifdef BUILD_LUA_SUPPORT
         case KeyAction::OPEN_PLUGIN_MANAGER:

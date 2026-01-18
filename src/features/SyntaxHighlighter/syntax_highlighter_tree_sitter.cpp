@@ -138,6 +138,11 @@ TSLanguage* tree_sitter_perl();
 TSLanguage* tree_sitter_dockerfile();
 #endif
 
+// Makefile
+#ifdef BUILD_TREE_SITTER_MAKEFILE
+TSLanguage* tree_sitter_make();
+#endif
+
 // Vim
 #ifdef BUILD_TREE_SITTER_VIM
 TSLanguage* tree_sitter_vim();
@@ -161,27 +166,6 @@ TSLanguage* tree_sitter_toml();
 // Nim
 #ifdef BUILD_TREE_SITTER_NIM
 TSLanguage* tree_sitter_nim();
-#endif
-
-// 函数式编程和编译器相关语言
-// Lisp
-#ifdef BUILD_TREE_SITTER_LISP
-TSLanguage* tree_sitter_commonlisp();
-#endif
-
-// SML
-#ifdef BUILD_TREE_SITTER_SML
-TSLanguage* tree_sitter_sml();
-#endif
-
-// LLVM IR
-#ifdef BUILD_TREE_SITTER_LLVM
-TSLanguage* tree_sitter_llvm();
-#endif
-
-// Assembly (for RISC-V/MIPS)
-#ifdef BUILD_TREE_SITTER_ASM
-TSLanguage* tree_sitter_asm();
 #endif
 }
 
@@ -506,6 +490,17 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
     }
 #endif
 
+// Makefile
+#ifdef BUILD_TREE_SITTER_MAKEFILE
+    TSLanguage* makefile_lang = tree_sitter_make();
+    if (makefile_lang) {
+        language_map_["makefile"] = makefile_lang;
+        language_map_["Makefile"] = makefile_lang;
+        language_map_["make"] = makefile_lang;
+        language_map_["mk"] = makefile_lang;
+    }
+#endif
+
 // Vim
 #ifdef BUILD_TREE_SITTER_VIM
     TSLanguage* vim_lang = tree_sitter_vim();
@@ -556,53 +551,6 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["nim"] = nim_lang;
         language_map_["nims"] = nim_lang;   // Nim script files
         language_map_["nimble"] = nim_lang; // Nimble package files
-    }
-#endif
-
-// 函数式编程和编译器相关语言
-// Lisp
-#ifdef BUILD_TREE_SITTER_LISP
-    TSLanguage* lisp_lang = tree_sitter_commonlisp();
-    if (lisp_lang) {
-        language_map_["lisp"] = lisp_lang;
-        language_map_["lsp"] = lisp_lang;
-        language_map_["cl"] = lisp_lang;
-        language_map_["commonlisp"] = lisp_lang;
-        language_map_["scheme"] = lisp_lang;
-        language_map_["scm"] = lisp_lang;
-    }
-#endif
-
-// SML
-#ifdef BUILD_TREE_SITTER_SML
-    TSLanguage* sml_lang = tree_sitter_sml();
-    if (sml_lang) {
-        language_map_["sml"] = sml_lang;
-        language_map_["ml"] = sml_lang;
-        language_map_["sig"] = sml_lang;
-        language_map_["fun"] = sml_lang;
-    }
-#endif
-
-// LLVM IR
-#ifdef BUILD_TREE_SITTER_LLVM
-    TSLanguage* llvm_lang = tree_sitter_llvm();
-    if (llvm_lang) {
-        language_map_["ll"] = llvm_lang;
-        language_map_["llvm"] = llvm_lang;
-        language_map_["llvm-ir"] = llvm_lang;
-    }
-#endif
-
-// Assembly (for RISC-V/MIPS)
-#ifdef BUILD_TREE_SITTER_ASM
-    TSLanguage* asm_lang = tree_sitter_asm();
-    if (asm_lang) {
-        language_map_["asm"] = asm_lang;
-        language_map_["s"] = asm_lang;
-        language_map_["S"] = asm_lang;
-        language_map_["riscv"] = asm_lang;
-        language_map_["mips"] = asm_lang;
     }
 #endif
 }

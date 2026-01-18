@@ -2,8 +2,6 @@
 #define PNANA_UI_STATUSBAR_H
 
 #include "ui/theme.h"
-#include "utils/file_type_icon_mapper.h"
-#include "utils/logger.h"
 #include <ftxui/dom/elements.hpp>
 #include <string>
 #include <tuple>
@@ -11,58 +9,10 @@
 namespace pnana {
 namespace ui {
 
-// 状态栏美化配置
-struct StatusbarBeautifyConfig {
-    // 是否启用美化
-    bool enabled = false;
-
-    // 背景颜色 RGB
-    std::vector<int> bg_color = {45, 45, 45}; // 默认状态栏背景色
-
-    // 前景颜色 RGB
-    std::vector<int> fg_color = {248, 248, 242}; // 默认状态栏前景色
-
-    // 特殊效果
-    bool show_gradient = false;
-    bool show_shadows = false;
-    bool rounded_corners = false;
-
-    // 图标样式
-    std::string icon_style = "default"; // default, filled, outlined
-
-    // 图标增强配置（保留兼容性，实际由 Lua 控制）
-    std::map<std::string, std::string> file_icons;
-    std::map<std::string, std::string> region_icons;
-    std::map<std::string, std::string> status_icons;
-    std::map<std::string, std::vector<int>> element_colors;
-};
-
 // 状态栏组件
 class Statusbar {
   public:
     explicit Statusbar(Theme& theme);
-
-    // 设置美化配置
-    void setBeautifyConfig(const StatusbarBeautifyConfig& config) {
-        beautify_config_ = config;
-        // 调试信息
-        if (config.enabled) {
-            pnana::utils::Logger::getInstance().log("Statusbar beautify config set: ENABLED");
-        } else {
-            pnana::utils::Logger::getInstance().log("Statusbar beautify config set: DISABLED");
-        }
-
-        // 更新图标映射器
-        icon_mapper_.clearCustomIcons();
-        for (const auto& [file_type, icon] : config.file_icons) {
-            icon_mapper_.setCustomIcon(file_type, icon);
-        }
-    }
-
-    // 获取美化配置
-    const StatusbarBeautifyConfig& getBeautifyConfig() const {
-        return beautify_config_;
-    }
 
     // 渲染状态栏
     ftxui::Element render(const std::string& filename, bool is_modified, bool is_readonly,
@@ -79,8 +29,6 @@ class Statusbar {
 
   private:
     Theme& theme_;
-    StatusbarBeautifyConfig beautify_config_;
-    utils::FileTypeIconMapper icon_mapper_;
 
     // 获取文件类型图标
     std::string getFileTypeIcon(const std::string& file_type);

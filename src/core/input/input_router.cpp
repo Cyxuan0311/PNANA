@@ -39,22 +39,17 @@ bool InputRouter::route(ftxui::Event event, Editor* editor) {
         return true;
     }
 
-    // 2. 检查分屏大小调整（优先级较高）
-    if (handleSplitResize(event, editor)) {
-        return true;
-    }
-
-    // 3. 检查对话框优先级
+    // 2. 检查对话框优先级
     if (handleDialogs(event, editor)) {
         return true;
     }
 
-    // 4. 检查分屏导航（在分屏模式下优先级较高）
+    // 3. 检查分屏导航（在分屏模式下优先级较高）
     if (handleSplitNavigation(event, editor)) {
         return true;
     }
 
-    // 5. 根据区域分发
+    // 4. 根据区域分发
     return routeByRegion(event, editor);
 }
 
@@ -64,22 +59,11 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
 
     // global shortcut action: action
 
-    // 全局快捷键：文件操作、视图操作等
+    // 全局快捷键：Alt+A (另存为)、Alt+F (创建文件夹)、Alt+M (文件选择器)、Alt+E (诊断)
     if (action == pnana::input::KeyAction::SAVE_AS ||
         action == pnana::input::KeyAction::CREATE_FOLDER ||
         action == pnana::input::KeyAction::FILE_PICKER ||
-        action == pnana::input::KeyAction::SHOW_DIAGNOSTICS ||
-        action == pnana::input::KeyAction::OPEN_FILE ||
-        action == pnana::input::KeyAction::NEW_FILE ||
-        action == pnana::input::KeyAction::COMMAND_PALETTE ||
-        action == pnana::input::KeyAction::TOGGLE_FILE_BROWSER ||
-        action == pnana::input::KeyAction::TOGGLE_HELP ||
-        action == pnana::input::KeyAction::TOGGLE_LINE_NUMBERS ||
-        action == pnana::input::KeyAction::SPLIT_VIEW ||
-        action == pnana::input::KeyAction::TOGGLE_MARKDOWN_PREVIEW ||
-        action == pnana::input::KeyAction::OPEN_PLUGIN_MANAGER ||
-        action == pnana::input::KeyAction::SSH_CONNECT ||
-        action == pnana::input::KeyAction::TOGGLE_THEME_MENU) {
+        action == pnana::input::KeyAction::SHOW_DIAGNOSTICS) {
         LOG("[INPUT] Executing global shortcut action: " +
             std::to_string(static_cast<int>(action)));
         return editor->getActionExecutor().execute(action);
@@ -97,44 +81,27 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
     return false;
 }
 
-// 处理分屏大小调整（可以在任何时候调用）
-bool InputRouter::handleSplitResize(ftxui::Event event, Editor* editor) {
-    pnana::input::EventParser parser;
-    std::string key_str = parser.eventToKey(event);
-
-    if (key_str == "alt_=" || key_str == "alt_+" || key_str == "alt_shift_=") {
-        // Alt + : 增加当前分屏的大小
-        if (editor->getSplitViewManager().hasSplits()) {
-            if (editor->resizeActiveSplitRegion(1)) {
-                editor->setStatusMessage("Split: Increased active region size | Alt+=/- to resize");
-                return true;
-            }
-        } else {
-            editor->setStatusMessage(
-                "No splits to resize | Create splits first with Ctrl+\\ or Ctrl+-");
-            return true; // 返回true以防止按键被继续处理
-        }
-    } else if (key_str == "alt_-") {
-        // Alt - : 减少当前分屏的大小
-        if (editor->getSplitViewManager().hasSplits()) {
-            if (editor->resizeActiveSplitRegion(-1)) {
-                editor->setStatusMessage("Split: Decreased active region size | Alt+=/- to resize");
-                return true;
-            }
-        } else {
-            editor->setStatusMessage(
-                "No splits to resize | Create splits first with Ctrl+\\ or Ctrl+-");
-            return true; // 返回true以防止按键被继续处理
-        }
-    }
-
-    return false;
-}
-
 bool InputRouter::handleSplitNavigation(ftxui::Event event, Editor* editor) {
     // 分屏导航：只有在分屏模式下才处理方向键导航
     if (!editor->getSplitViewManager().hasSplits()) {
         return false;
+    }
+
+    // 处理分屏大小调整：Alt + = 和 Alt + -
+    pnana::input::EventParser parser;
+    std::string key_str = parser.eventToKey(event);
+    if (key_str == "alt_=" || key_str == "alt_+") {
+        // Alt + : 增加当前分屏的大小
+        if (editor->resizeActiveSplitRegion(1)) {
+            editor->setStatusMessage("Split: Increased active region size | Alt+=/- to resize");
+            return true;
+        }
+    } else if (key_str == "alt_-") {
+        // Alt - : 减少当前分屏的大小
+        if (editor->resizeActiveSplitRegion(-1)) {
+            editor->setStatusMessage("Split: Decreased active region size | Alt+=/- to resize");
+            return true;
+        }
     }
 
     // 记录导航前的激活区域索引
@@ -150,19 +117,17 @@ bool InputRouter::handleSplitNavigation(ftxui::Event event, Editor* editor) {
     }
 
     bool navigation_attempted = false;
-    // Require Alt+Arrow for split navigation to avoid interfering with normal arrow behavior
-    pnana::input::EventParser parser;
-    std::string key_str = parser.eventToKey(event);
-    if (key_str == "alt_arrow_left" || key_str == "alt_shift_arrow_left") {
+
+    if (event == ftxui::Event::ArrowLeft) {
         editor->getSplitViewManager().focusLeftRegion();
         navigation_attempted = true;
-    } else if (key_str == "alt_arrow_right" || key_str == "alt_shift_arrow_right") {
+    } else if (event == ftxui::Event::ArrowRight) {
         editor->getSplitViewManager().focusRightRegion();
         navigation_attempted = true;
-    } else if (key_str == "alt_arrow_up" || key_str == "alt_shift_arrow_up") {
+    } else if (event == ftxui::Event::ArrowUp) {
         editor->getSplitViewManager().focusUpRegion();
         navigation_attempted = true;
-    } else if (key_str == "alt_arrow_down" || key_str == "alt_shift_arrow_down") {
+    } else if (event == ftxui::Event::ArrowDown) {
         editor->getSplitViewManager().focusDownRegion();
         navigation_attempted = true;
     }
@@ -185,7 +150,7 @@ bool InputRouter::handleSplitNavigation(ftxui::Event event, Editor* editor) {
             editor->setStatusMessage(
                 "Split view: Region " + std::to_string(new_active_index + 1) + "/" +
                 std::to_string(editor->getSplitViewManager().getRegionCount()) +
-                " | Use Alt+←↑→↓ to navigate between regions, Alt+=/- to resize");
+                " | Use ↑↓←→ to navigate between regions, Alt+=/- to resize");
             return true;
         } else {
             // 分屏导航失败（没有找到目标区域），回退到传统区域导航

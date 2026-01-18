@@ -48,26 +48,6 @@ bool PluginManager::initialize() {
     std::string plugin_dir = findPluginDirectory();
     if (!plugin_dir.empty()) {
         loadPlugins(plugin_dir);
-
-        // 从配置中加载已启用的插件
-        if (editor_) {
-            auto& config = editor_->getConfigManager().getConfig();
-            std::string saved_theme = config.current_theme; // 保存当前主题
-
-            for (const auto& plugin_name : config.plugins.enabled_plugins) {
-                if (plugin_paths_.find(plugin_name) != plugin_paths_.end()) {
-                    enablePlugin(plugin_name);
-                }
-            }
-
-            // 重新应用保存的主题（因为插件加载后可能有新的主题可用）
-            if (!saved_theme.empty() && saved_theme != "monokai") {
-                editor_->setTheme(saved_theme);
-            }
-
-            // 更新主题菜单以反映当前真正可用的主题
-            updateThemeMenu();
-        }
     }
 
     return true;
@@ -274,7 +254,7 @@ bool PluginManager::executePluginInit(const std::string& plugin_path) {
                 std::string file_path = entry.path().string();
                 file_count++;
                 if (!lua_engine_->executeFile(file_path)) {
-                    // 静默处理单个文件失败
+                    LOG_WARNING("Failed to load plugin file: " + file_path);
                 }
             }
         }
@@ -308,46 +288,6 @@ bool PluginManager::reloadPlugin(const std::string& plugin_name) {
 
     // 再加载
     return loadPlugin(it->second);
-}
-
-void PluginManager::updateThemeMenu() {
-    if (!editor_) {
-        return;
-    }
-
-    // 获取当前真正可用的主题
-    std::vector<std::string> available_themes;
-    auto& config = editor_->getConfigManager().getConfig();
-    if (!config.available_themes.empty()) {
-        available_themes = config.available_themes;
-    } else {
-        // 使用 Theme 类提供的所有可用主题
-        available_themes = ::pnana::ui::Theme::getAvailableThemes();
-    }
-
-    // 只有当前加载的插件提供的主题才应该被添加到可用主题列表中
-    // 首先清除所有自定义主题，然后重新添加当前加载插件的主题
-    editor_->getTheme().clearCustomThemes();
-
-    // 获取当前启用的插件列表
-    std::vector<std::string> enabled_plugins = config.plugins.enabled_plugins;
-
-    // 重新加载已启用插件的主题
-    for (const auto& plugin_name : enabled_plugins) {
-        if (plugin_paths_.find(plugin_name) != plugin_paths_.end()) {
-            // 先卸载插件（如果已加载）
-            unloadPlugin(plugin_name);
-            // 然后重新加载插件
-            loadPlugin(plugin_paths_[plugin_name]);
-        }
-    }
-
-    // 现在获取重新加载后的自定义主题
-    std::vector<std::string> custom_themes = editor_->getTheme().getCustomThemeNames();
-    available_themes.insert(available_themes.end(), custom_themes.begin(), custom_themes.end());
-
-    // 更新主题菜单
-    editor_->getThemeMenu().setAvailableThemes(available_themes);
 }
 
 std::vector<PluginInfo> PluginManager::getLoadedPlugins() const {
@@ -389,57 +329,16 @@ bool PluginManager::enablePlugin(const std::string& plugin_name) {
     }
 
     // 加载插件
-    bool success = loadPlugin(it->second);
-    if (success && editor_) {
-        // 保存到配置
-        auto& config_manager = editor_->getConfigManager();
-        auto& config = config_manager.getConfig();
-        // 检查是否已经在启用列表中
-        auto& enabled_plugins = config.plugins.enabled_plugins;
-        if (std::find(enabled_plugins.begin(), enabled_plugins.end(), plugin_name) ==
-            enabled_plugins.end()) {
-            enabled_plugins.push_back(plugin_name);
-            // 保存配置
-            config_manager.saveConfig();
-        }
-
-        // 更新主题菜单
-        updateThemeMenu();
-    }
-    return success;
+    return loadPlugin(it->second);
 }
 
 bool PluginManager::disablePlugin(const std::string& plugin_name) {
-    bool success = unloadPlugin(plugin_name);
-    if (success && editor_) {
-        // 从配置中移除
-        auto& config_manager = editor_->getConfigManager();
-        auto& config = config_manager.getConfig();
-        auto& enabled_plugins = config.plugins.enabled_plugins;
-        auto it = std::find(enabled_plugins.begin(), enabled_plugins.end(), plugin_name);
-        if (it != enabled_plugins.end()) {
-            enabled_plugins.erase(it);
-            // 保存配置
-            config_manager.saveConfig();
-        }
-
-        // 更新主题菜单
-        updateThemeMenu();
-    }
-    return success;
+    return unloadPlugin(plugin_name);
 }
 
 void PluginManager::triggerEvent(const std::string& event, const std::vector<std::string>& args) {
-    LOG("PluginManager::triggerEvent: triggering event '" + event + "' with " +
-        std::to_string(args.size()) + " args");
-    for (size_t i = 0; i < args.size(); ++i) {
-        LOG("PluginManager::triggerEvent: arg[" + std::to_string(i) + "] = '" + args[i] + "'");
-    }
-
     if (lua_api_) {
         lua_api_->triggerEvent(event, args);
-    } else {
-        LOG("PluginManager::triggerEvent: lua_api_ is null");
     }
 }
 

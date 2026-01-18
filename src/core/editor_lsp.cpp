@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
-#include <climits>
 #include <cstring>
 #include <filesystem>
 #include <ftxui/component/event.hpp>
@@ -139,9 +138,6 @@ void Editor::initializeLsp() {
 
     // 初始化代码片段管理器
     snippet_manager_ = std::make_unique<features::SnippetManager>();
-
-    // 初始化折叠管理器（暂时为空的shared_ptr，后续在文件打开时设置）
-    folding_manager_ = std::make_unique<features::FoldingManager>(nullptr);
 
     lsp_enabled_ = true;
     setStatusMessage("LSP manager initialized");
@@ -512,54 +508,6 @@ void Editor::updateLspDocument() {
             try {
                 client->didOpen(uri, language_id, content);
                 LOG("[LSP_UPDATE] didOpen sent successfully");
-
-                // 初始化折叠管理器
-                folding_manager_ = std::make_unique<features::FoldingManager>(
-                    std::shared_ptr<features::LspClient>(client, [](features::LspClient*) {}));
-
-                // 设置折叠状态变化回调
-                folding_manager_->setFoldingStateChangedCallback([this]() {
-                    force_ui_update_ = true;
-                    // 强制触发UI重新渲染，通过修改渲染时间戳
-                    last_render_time_ =
-                        std::chrono::steady_clock::now() - std::chrono::milliseconds(100);
-                    // 增加渲染调用计数以触发更新
-                    render_call_count_++;
-                });
-
-                // 设置文档同步回调
-                folding_manager_->setDocumentSyncCallback(
-                    [this](const auto& ranges, const auto& folded) {
-                        if (auto doc = getCurrentDocument()) {
-                            // Update folding ranges
-                            doc->setFoldingRanges(ranges);
-
-                            // Reset folded state and then apply new folded set so that
-                            // previously folded lines that are no longer folded get cleared.
-                            doc->unfoldAll();
-
-                            for (int line : folded) {
-                                doc->setFolded(line, true);
-                            }
-
-                            // 同步后强制UI更新
-                            force_ui_update_ = true;
-                        }
-                    });
-
-                // 异步初始化折叠范围，不阻塞文件打开
-                std::thread([this, uri, client]() {
-                    try {
-                        folding_manager_->initializeFoldingRanges(uri);
-
-                        // 初始化完成后强制UI更新
-                        force_ui_update_ = true;
-                    } catch (const std::exception& e) {
-                        LOG("[LSP_UPDATE] Async folding initialization failed: " +
-                            std::string(e.what()));
-                    }
-                }).detach();
-
             } catch (const std::exception& e) {
                 LOG_ERROR("[LSP_UPDATE] didOpen failed: " + std::string(e.what()));
             }
@@ -574,34 +522,6 @@ void Editor::updateLspDocument() {
                 client->didChange(uri, content, version);
                 LOG("[LSP_UPDATE] didChange sent successfully (version: " +
                     std::to_string(version) + ")");
-                // Schedule folding ranges refresh for this document (debounced by request manager).
-                if (lsp_request_manager_) {
-                    std::string fold_key = std::string("fold:") + uri;
-                    lsp_request_manager_->postOrReplace(
-                        fold_key, features::LspRequestManager::Priority::LOW, [this, uri]() {
-                            try {
-                                if (folding_manager_) {
-                                    folding_manager_->initializeFoldingRanges(uri);
-                                }
-                            } catch (const std::exception& e) {
-                                LOG_WARNING(std::string("Failed to refresh folding ranges: ") +
-                                            e.what());
-                            }
-                        });
-                } else {
-                    // Fallback: spawn background thread to refresh folding ranges (no debouncing)
-                    try {
-                        std::thread([this, uri]() {
-                            try {
-                                if (folding_manager_) {
-                                    folding_manager_->initializeFoldingRanges(uri);
-                                }
-                            } catch (...) {
-                            }
-                        }).detach();
-                    } catch (...) {
-                    }
-                }
             } catch (const std::exception& e) {
                 LOG_ERROR("[LSP_UPDATE] didChange failed: " + std::string(e.what()));
             }
@@ -1271,180 +1191,6 @@ void Editor::jumpToDiagnostic(const pnana::features::Diagnostic& diagnostic) {
 
 Element Editor::renderDiagnosticsPopup() {
     return diagnostics_popup_.render();
-}
-
-// 代码折叠方法实现（Neovim-like 行为）
-void Editor::toggleFold() {
-    // (Debounce removed) Allow each toggle request to be handled. Key-repeat should
-    // be handled at input layer; excessive suppression here caused fold to not trigger.
-
-    if (!folding_manager_) {
-        setStatusMessage("Folding manager not initialized");
-        return;
-    }
-
-    if (!folding_manager_->isInitialized()) {
-        setStatusMessage("Folding ranges not ready yet, please wait...");
-        return;
-    }
-
-    Document* doc = getCurrentDocument();
-    if (!doc) {
-        setStatusMessage("No document open");
-        return;
-    }
-
-    bool was_modified = doc->isModified();
-    int cursor_line = static_cast<int>(cursor_row_);
-
-    const auto& ranges = folding_manager_->getFoldingRanges();
-
-    // 1) If cursor is inside a folding range, toggle that range.
-    for (const auto& range : ranges) {
-        if (range.containsLine(cursor_line)) {
-            int start = range.startLine;
-
-            (void)folding_manager_->isFolded(start);
-            folding_manager_->toggleFold(start);
-            bool now_folded = folding_manager_->isFolded(start);
-
-            // Neovim behavior:
-            // - If we just folded, move cursor to the fold start.
-            // - If we unfolded, keep the cursor on the same logical line but ensure it's visible.
-            if (now_folded) {
-                cursor_row_ = static_cast<size_t>(start);
-                adjustCursor();
-                adjustViewOffset();
-            } else {
-                adjustCursor();
-                adjustViewOffset();
-            }
-
-            setStatusMessage(now_folded ? "Folded" : "Unfolded");
-            doc->setModified(was_modified);
-            force_ui_update_ = true;
-            last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
-            return;
-        }
-    }
-
-    // 2) If cursor is exactly on a fold start, toggle it.
-    for (const auto& range : ranges) {
-        if (range.startLine == cursor_line) {
-            int start = range.startLine;
-            (void)folding_manager_->isFolded(start);
-            folding_manager_->toggleFold(start);
-            bool now_folded = folding_manager_->isFolded(start);
-
-            if (now_folded) {
-                // Move cursor to start to keep it visible
-                cursor_row_ = static_cast<size_t>(start);
-                adjustCursor();
-                adjustViewOffset();
-            } else {
-                adjustCursor();
-                adjustViewOffset();
-            }
-
-            setStatusMessage(now_folded ? "Folded" : "Unfolded");
-            doc->setModified(was_modified);
-            force_ui_update_ = true;
-            last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
-            return;
-        }
-    }
-
-    // 3) Fallback: find nearest foldable start line above the cursor and toggle it.
-    int nearest_start = -1;
-    int best_dist = INT_MAX;
-    for (const auto& range : ranges) {
-        if (range.startLine <= cursor_line) {
-            int dist = cursor_line - range.startLine;
-            if (dist < best_dist) {
-                best_dist = dist;
-                nearest_start = range.startLine;
-            }
-        }
-    }
-    if (nearest_start >= 0) {
-        (void)folding_manager_->isFolded(nearest_start);
-        folding_manager_->toggleFold(nearest_start);
-        bool now_folded = folding_manager_->isFolded(nearest_start);
-
-        if (now_folded) {
-            cursor_row_ = static_cast<size_t>(nearest_start);
-            adjustCursor();
-            adjustViewOffset();
-        } else {
-            adjustCursor();
-            adjustViewOffset();
-        }
-
-        setStatusMessage(now_folded ? "Folded" : "Unfolded");
-        doc->setModified(was_modified);
-        force_ui_update_ = true;
-        last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
-        return;
-    }
-
-    // Nothing to fold/unfold
-    setStatusMessage("No foldable region at cursor");
-}
-
-void Editor::toggleFoldAtCursor() {
-    if (!folding_manager_)
-        return;
-
-    auto doc = getCurrentDocument();
-    if (!doc)
-        return;
-
-    int cursor_line = static_cast<int>(cursor_row_);
-    folding_manager_->foldAtLine(cursor_line);
-}
-
-void Editor::foldAll() {
-    if (!folding_manager_)
-        return;
-
-    auto doc = getCurrentDocument();
-    if (!doc)
-        return;
-
-    // 保存当前的修改状态
-    bool was_modified = doc->isModified();
-
-    folding_manager_->foldAll();
-    setStatusMessage("Folded all regions");
-
-    // 恢复修改状态（折叠不应该改变文件的修改状态）
-    doc->setModified(was_modified);
-
-    // 强制UI更新
-    force_ui_update_ = true;
-    last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
-}
-
-void Editor::unfoldAll() {
-    if (!folding_manager_)
-        return;
-
-    auto doc = getCurrentDocument();
-    if (!doc)
-        return;
-
-    // 保存当前的修改状态
-    bool was_modified = doc->isModified();
-
-    folding_manager_->unfoldAll();
-    setStatusMessage("Unfolded all regions");
-
-    // 恢复修改状态（折叠不应该改变文件的修改状态）
-    doc->setModified(was_modified);
-
-    // 强制UI更新
-    force_ui_update_ = true;
-    last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
 }
 
 } // namespace core

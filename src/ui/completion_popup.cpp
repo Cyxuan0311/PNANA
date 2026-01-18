@@ -82,15 +82,14 @@ void CompletionPopup::show(const std::vector<features::CompletionItem>& items, i
 }
 
 void CompletionPopup::updateCursorPosition(int row, int col, int screen_width, int screen_height) {
-    // 增强的阈值机制，进一步减少不必要的弹窗位置更新
+    // 参考 Neovim：使用阈值机制，减少频繁的位置更新
     int row_diff = std::abs(row - cursor_row_);
     int col_diff = std::abs(col - cursor_col_);
     bool screen_changed = (screen_width_ != screen_width || screen_height_ != screen_height);
 
-    // 增大阈值以大幅减少抖动：
-    // 行变化 >= 3，列变化 >= 8
-    // 这样可以确保只有在光标发生明显移动时才更新弹窗位置
-    bool needs_update = screen_changed || row_diff >= 3 || col_diff >= 8;
+    // 只在位置变化超过阈值或屏幕尺寸变化时才更新
+    // 阈值：行变化 >= 2，列变化 >= 5（增大阈值以减少抖动）
+    bool needs_update = screen_changed || row_diff >= 2 || col_diff >= 5;
 
     cursor_row_ = row;
     cursor_col_ = col;
@@ -192,9 +191,9 @@ void CompletionPopup::calculatePopupPosition() {
         size_changed = true;
     }
 
-    // ========== 位置计算：强制下方显示策略 ==========
-    // 优先显示在光标下方，提高代码提示的可见性
-    // 即使空间不足，也要尽量显示在下方
+    // ========== 位置计算：锚点策略（参考 Neovim） ==========
+    // Neovim 使用"锚点"机制：位置相对于光标，但只在光标移动超过阈值时更新
+    // 这样可以避免光标微动时导致的抖动
 
     // 计算目标位置（相对于光标）
     int target_x = cursor_col_;
@@ -205,27 +204,16 @@ void CompletionPopup::calculatePopupPosition() {
         }
     }
 
-    // 计算目标 Y 位置：强制优先显示在下方
+    // 计算目标 Y 位置
+    int available_height = screen_height_ - 6;
     int cursor_screen_y = cursor_row_;
     int target_y;
-
-    // 优先尝试显示在光标下方
-    if (cursor_screen_y + popup_height_ + 2 < screen_height_ - 4) {
-        // 下方有足够空间，显示在下方
+    if (cursor_screen_y + popup_height_ + 1 < available_height) {
         target_y = cursor_screen_y + 1;
-    } else if (cursor_screen_y >= popup_height_ + 2) {
-        // 下方空间不足，但上方有空间，显示在上方（作为最后手段）
+    } else if (cursor_screen_y > popup_height_ + 1) {
         target_y = cursor_screen_y - popup_height_ - 1;
     } else {
-        // 上下都没有足够空间，优先显示在下方，即使会超出屏幕边界
-        // 这样可以保证提示内容的最大可见性
         target_y = cursor_screen_y + 1;
-        // 如果完全超出屏幕，稍微向上调整以显示更多内容
-        if (target_y + popup_height_ > screen_height_ - 2) {
-            target_y = screen_height_ - popup_height_ - 2;
-            if (target_y < 0)
-                target_y = 0;
-        }
     }
 
     // ========== 位置更新策略：平滑更新 ==========
@@ -243,64 +231,25 @@ void CompletionPopup::calculatePopupPosition() {
         return;
     }
 
-    // 策略3：增强的阈值机制，大幅减少抖动
-    // 使用更大的阈值来确保弹窗位置的稳定性
+    // 策略3：使用阈值机制，减少频繁更新
+    // X 方向：只在变化超过 5 个字符时更新（增大阈值以减少抖动）
     int x_diff = std::abs(target_x - popup_x_);
-    int y_diff = std::abs(target_y - popup_y_);
-
-    // X 方向：只在变化超过 8 个字符时更新（进一步增大阈值）
-    if (x_diff > 8) {
+    if (x_diff > 5) {
         popup_x_ = target_x;
     }
 
-    // Y 方向：只在变化超过 5 行时更新（进一步增大阈值）
-    if (y_diff > 5) {
+    // Y 方向：只在变化超过 3 行时更新（增大阈值以减少抖动）
+    int y_diff = std::abs(target_y - popup_y_);
+    if (y_diff > 3) {
         popup_y_ = target_y;
     }
 
-    // 策略4：智能边界检查，避免弹窗超出屏幕但保持稳定性
-    bool needs_boundary_adjustment = false;
-
-    // 检查水平边界
-    if (popup_x_ + popup_width_ > screen_width_ - 2) {
-        // 只有当当前位置明显超出边界时才调整
-        if (popup_x_ + popup_width_ > screen_width_ + 5) {
-            popup_x_ = target_x;
-            needs_boundary_adjustment = true;
-        }
-    } else if (popup_x_ < 0) {
-        if (popup_x_ < -5) {
-            popup_x_ = target_x;
-            needs_boundary_adjustment = true;
-        }
+    // 策略4：如果光标移动导致 popup 超出屏幕，强制更新
+    if (popup_x_ + popup_width_ > screen_width_ - 2 || popup_x_ < 0) {
+        popup_x_ = target_x;
     }
-
-    // 检查垂直边界（更宽松的检查，因为我们优先保证下方显示）
-    if (popup_y_ + popup_height_ > screen_height_ - 2) {
-        // 只有当严重超出边界时才调整，保持下方优先策略
-        if (popup_y_ + popup_height_ > screen_height_ + 10) {
-            popup_y_ = target_y;
-            needs_boundary_adjustment = true;
-        }
-    } else if (popup_y_ < 0) {
-        if (popup_y_ < -3) {
-            popup_y_ = target_y;
-            needs_boundary_adjustment = true;
-        }
-    }
-
-    // 如果进行了边界调整，确保位置在合理范围内
-    if (needs_boundary_adjustment) {
-        if (popup_x_ + popup_width_ > screen_width_ - 2) {
-            popup_x_ = screen_width_ - popup_width_ - 2;
-            if (popup_x_ < 0)
-                popup_x_ = 0;
-        }
-        if (popup_y_ + popup_height_ > screen_height_ - 2) {
-            popup_y_ = screen_height_ - popup_height_ - 2;
-            if (popup_y_ < 0)
-                popup_y_ = 0;
-        }
+    if (popup_y_ + popup_height_ > screen_height_ - 2 || popup_y_ < 0) {
+        popup_y_ = target_y;
     }
 }
 

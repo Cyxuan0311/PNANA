@@ -1,6 +1,5 @@
 #include "ui/statusbar.h"
 #include "ui/icons.h"
-#include "utils/logger.h"
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -189,29 +188,392 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     total_oss << total_lines << "L";
     right_elements.push_back(text(total_oss.str()) | color(colors.comment) | dim);
 
-    // 应用美化配置 - 增强视觉效果
-    if (beautify_config_.enabled && beautify_config_.bg_color.size() >= 3 &&
-        beautify_config_.fg_color.size() >= 3) {
-        // 应用美化背景和颜色效果
-        auto content = hbox(
-            {hbox(left_elements) | flex_grow, hbox(center_elements) | flex, hbox(right_elements)});
-
-        // 应用美化背景和边框效果
-        return content |
-               bgcolor(ftxui::Color::RGB(beautify_config_.bg_color[0], beautify_config_.bg_color[1],
-                                         beautify_config_.bg_color[2])) |
-               color(ftxui::Color::RGB(beautify_config_.fg_color[0], beautify_config_.fg_color[1],
-                                       beautify_config_.fg_color[2]));
-    } else {
-        // 默认样式
-        return hbox({hbox(left_elements) | flex_grow, hbox(center_elements) | flex,
-                     hbox(right_elements)}) |
-               bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg);
-    }
+    // 组合所有元素（Neovim 风格布局）
+    return hbox({hbox(left_elements) | flex_grow, hbox(center_elements) | flex,
+                 hbox(right_elements)}) |
+           bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg);
 }
 
 std::string Statusbar::getFileTypeIcon(const std::string& file_type) {
-    return icon_mapper_.getIcon(file_type);
+    namespace icons = pnana::ui::icons;
+    if (file_type == "cpp" || file_type == "c")
+        return icons::CPP;
+    if (file_type == "python")
+        return icons::PYTHON;
+    if (file_type == "javascript" || file_type == "typescript")
+        return icons::JAVASCRIPT;
+    if (file_type == "java")
+        return icons::JAVA;
+    if (file_type == "go")
+        return icons::GO;
+    if (file_type == "rust")
+        return icons::RUST;
+    if (file_type == "markdown")
+        return icons::MARKDOWN;
+    if (file_type == "json")
+        return icons::JSON;
+    if (file_type == "html")
+        return icons::HTML;
+    if (file_type == "css")
+        return icons::CSS;
+    if (file_type == "shell")
+        return icons::SHELL;
+    if (file_type == "lua")
+        return icons::LUA;
+    if (file_type == "ruby")
+        return icons::RUBY;
+    if (file_type == "php")
+        return icons::PHP;
+    if (file_type == "xml")
+        return icons::XML;
+    if (file_type == "yaml" || file_type == "yml")
+        return icons::YAML;
+    if (file_type == "sql")
+        return icons::SQL;
+    if (file_type == "swift")
+        return icons::SWIFT;
+    if (file_type == "kotlin")
+        return icons::KOTLIN;
+    if (file_type == "scala")
+        return icons::SCALA;
+    if (file_type == "r")
+        return icons::R;
+    if (file_type == "perl")
+        return icons::PERL;
+    if (file_type == "haskell")
+        return icons::HASKELL;
+    if (file_type == "tcl")
+        return icons::TCL;
+    if (file_type == "fortran")
+        return icons::FORTRAN;
+    if (file_type == "vim")
+        return icons::VIM;
+    if (file_type == "powershell")
+        return icons::POWERSHELL;
+    if (file_type == "dockerfile")
+        return icons::DOCKER;
+    if (file_type == "makefile")
+        return icons::MAKEFILE;
+    if (file_type == "cmake")
+        return icons::CMAKE;
+
+    // 新增语言图标映射
+    if (file_type == "elixir")
+        return icons::ELIXIR;
+    if (file_type == "clojure")
+        return icons::CLOJURE;
+    if (file_type == "erlang")
+        return icons::ERLANG;
+    if (file_type == "julia")
+        return icons::JULIA;
+    if (file_type == "dart")
+        return icons::DART;
+    if (file_type == "nim")
+        return icons::NIM;
+    if (file_type == "crystal")
+        return icons::CRYSTAL;
+    if (file_type == "zig")
+        return icons::ZIG;
+    if (file_type == "ocaml")
+        return icons::OCAML;
+    if (file_type == "coq")
+        return icons::COQ;
+    if (file_type == "agda")
+        return icons::AGDA;
+    if (file_type == "idris")
+        return icons::IDRIS;
+    if (file_type == "purescript")
+        return icons::PURESCRIPT;
+    if (file_type == "reason")
+        return icons::REASON;
+    if (file_type == "sml")
+        return icons::SML;
+    if (file_type == "groovy")
+        return icons::GROOVY;
+    if (file_type == "coffeescript")
+        return icons::COFFEESCRIPT;
+    if (file_type == "pug")
+        return icons::PUG;
+    if (file_type == "stylus")
+        return icons::STYLUS;
+    if (file_type == "sass")
+        return icons::SASS;
+    if (file_type == "less")
+        return icons::LESS;
+    if (file_type == "postcss")
+        return icons::POSTCSS;
+    if (file_type == "graphql")
+        return icons::GRAPHQL;
+    if (file_type == "vue")
+        return icons::VUE;
+    if (file_type == "svelte")
+        return icons::SVELTE;
+    if (file_type == "fsharp")
+        return icons::F_SHARP;
+    if (file_type == "csharp")
+        return icons::CSHARP;
+    if (file_type == "vb")
+        return icons::VB;
+    if (file_type == "assembly")
+        return icons::ASSEMBLY;
+    if (file_type == "webassembly")
+        return icons::WEBASSEMBLY;
+    if (file_type == "verilog")
+        return icons::VERILOG;
+    if (file_type == "vhdl")
+        return icons::VHDL;
+    if (file_type == "matlab")
+        return icons::MATLAB;
+    if (file_type == "octave")
+        return icons::OCTAVE;
+    if (file_type == "racket")
+        return icons::RACKET;
+    if (file_type == "scheme")
+        return icons::SCHEME;
+    if (file_type == "commonlisp")
+        return icons::COMMON_LISP;
+    if (file_type == "emacslisp")
+        return icons::EMACS_LISP;
+    if (file_type == "prolog")
+        return icons::PROLOG;
+    if (file_type == "mercury")
+        return icons::MERCURY;
+    if (file_type == "alloy")
+        return icons::ALLOY;
+    if (file_type == "dafny")
+        return icons::DAFNY;
+    if (file_type == "lean")
+        return icons::LEAN;
+    if (file_type == "ballerina")
+        return icons::BALLERINA;
+    if (file_type == "cadence")
+        return icons::CADENCE;
+    if (file_type == "clarity")
+        return icons::CLARITY;
+    if (file_type == "solidity")
+        return icons::SOLIDITY;
+    if (file_type == "vyper")
+        return icons::VYPER;
+    if (file_type == "carbon")
+        return icons::CARBON;
+    if (file_type == "vala")
+        return icons::VALA;
+    if (file_type == "genie")
+        return icons::GENIE;
+    if (file_type == "dlang")
+        return icons::D;
+    if (file_type == "pony")
+        return icons::PONY;
+    if (file_type == "vlang")
+        return icons::V_LANG;
+    if (file_type == "odin")
+        return icons::ODIN;
+    if (file_type == "jai")
+        return icons::JAI;
+    if (file_type == "nelua")
+        return icons::NELUA;
+    if (file_type == "wren")
+        return icons::WREN;
+    if (file_type == "moonscript")
+        return icons::MOONSCRIPT;
+    if (file_type == "fantom")
+        return icons::FANTOM;
+    if (file_type == "smalltalk")
+        return icons::SMALLTALK;
+    if (file_type == "apl")
+        return icons::APL;
+    if (file_type == "jlang")
+        return icons::J;
+    if (file_type == "klang")
+        return icons::K;
+    if (file_type == "qlang")
+        return icons::Q;
+
+    // 更多脚本语言和特殊语言映射
+    if (file_type == "bash")
+        return icons::BASH;
+    if (file_type == "zsh")
+        return icons::ZSH;
+    if (file_type == "fish")
+        return icons::FISH;
+    if (file_type == "applescript")
+        return icons::APPLESCRIPT;
+    if (file_type == "visualbasic")
+        return icons::VISUAL_BASIC;
+    if (file_type == "delphi")
+        return icons::DELPHI;
+    if (file_type == "pascal")
+        return icons::PASCAL;
+    if (file_type == "ada")
+        return icons::ADA;
+    if (file_type == "cobol")
+        return icons::COBOL;
+    if (file_type == "forth")
+        return icons::FORTH;
+    if (file_type == "lisp")
+        return icons::LISP;
+    if (file_type == "batch")
+        return icons::BATCH;
+    if (file_type == "cmd")
+        return icons::WINDOWS_CMD;
+    if (file_type == "clojure")
+        return icons::CLOJURE;
+    if (file_type == "erlang")
+        return icons::ERLANG;
+    if (file_type == "julia")
+        return icons::JULIA;
+    if (file_type == "dart")
+        return icons::DART;
+    if (file_type == "nim")
+        return icons::NIM;
+    if (file_type == "crystal")
+        return icons::CRYSTAL;
+    if (file_type == "zig")
+        return icons::ZIG;
+    if (file_type == "ocaml")
+        return icons::OCAML;
+    if (file_type == "coq")
+        return icons::COQ;
+    if (file_type == "agda")
+        return icons::AGDA;
+    if (file_type == "idris")
+        return icons::IDRIS;
+    if (file_type == "purescript")
+        return icons::PURESCRIPT;
+    if (file_type == "reason")
+        return icons::REASON;
+    if (file_type == "sml")
+        return icons::SML;
+    if (file_type == "groovy")
+        return icons::GROOVY;
+    if (file_type == "coffeescript")
+        return icons::COFFEESCRIPT;
+    if (file_type == "pug")
+        return icons::PUG;
+    if (file_type == "stylus")
+        return icons::STYLUS;
+    if (file_type == "sass")
+        return icons::SASS;
+    if (file_type == "less")
+        return icons::LESS;
+    if (file_type == "postcss")
+        return icons::POSTCSS;
+    if (file_type == "graphql")
+        return icons::GRAPHQL;
+    if (file_type == "vue")
+        return icons::VUE;
+    if (file_type == "svelte")
+        return icons::SVELTE;
+    if (file_type == "fsharp")
+        return icons::F_SHARP;
+    if (file_type == "csharp")
+        return icons::CSHARP;
+    if (file_type == "vb")
+        return icons::VB;
+    if (file_type == "assembly")
+        return icons::ASSEMBLY;
+    if (file_type == "webassembly")
+        return icons::WEBASSEMBLY;
+    if (file_type == "verilog")
+        return icons::VERILOG;
+    if (file_type == "vhdl")
+        return icons::VHDL;
+    if (file_type == "matlab")
+        return icons::MATLAB;
+    if (file_type == "octave")
+        return icons::OCTAVE;
+    if (file_type == "racket")
+        return icons::RACKET;
+    if (file_type == "scheme")
+        return icons::SCHEME;
+    if (file_type == "commonlisp")
+        return icons::COMMON_LISP;
+    if (file_type == "emacslisp")
+        return icons::EMACS_LISP;
+    if (file_type == "prolog")
+        return icons::PROLOG;
+    if (file_type == "mercury")
+        return icons::MERCURY;
+    if (file_type == "alloy")
+        return icons::ALLOY;
+    if (file_type == "dafny")
+        return icons::DAFNY;
+    if (file_type == "lean")
+        return icons::LEAN;
+    if (file_type == "ballerina")
+        return icons::BALLERINA;
+    if (file_type == "cadence")
+        return icons::CADENCE;
+    if (file_type == "clarity")
+        return icons::CLARITY;
+    if (file_type == "solidity")
+        return icons::SOLIDITY;
+    if (file_type == "vyper")
+        return icons::VYPER;
+    if (file_type == "carbon")
+        return icons::CARBON;
+    if (file_type == "vala")
+        return icons::VALA;
+    if (file_type == "genie")
+        return icons::GENIE;
+    if (file_type == "dlang")
+        return icons::D;
+    if (file_type == "pony")
+        return icons::PONY;
+    if (file_type == "vlang")
+        return icons::V_LANG;
+    if (file_type == "odin")
+        return icons::ODIN;
+    if (file_type == "jai")
+        return icons::JAI;
+    if (file_type == "nelua")
+        return icons::NELUA;
+    if (file_type == "wren")
+        return icons::WREN;
+    if (file_type == "moonscript")
+        return icons::MOONSCRIPT;
+    if (file_type == "fantom")
+        return icons::FANTOM;
+    if (file_type == "smalltalk")
+        return icons::SMALLTALK;
+    if (file_type == "apl")
+        return icons::APL;
+    if (file_type == "jlang")
+        return icons::J;
+    if (file_type == "klang")
+        return icons::K;
+    if (file_type == "qlang")
+        return icons::Q;
+
+    // 更多脚本语言和特殊语言映射
+    if (file_type == "bash")
+        return icons::BASH;
+    if (file_type == "zsh")
+        return icons::ZSH;
+    if (file_type == "fish")
+        return icons::FISH;
+    if (file_type == "applescript")
+        return icons::APPLESCRIPT;
+    if (file_type == "visualbasic")
+        return icons::VISUAL_BASIC;
+    if (file_type == "delphi")
+        return icons::DELPHI;
+    if (file_type == "pascal")
+        return icons::PASCAL;
+    if (file_type == "ada")
+        return icons::ADA;
+    if (file_type == "cobol")
+        return icons::COBOL;
+    if (file_type == "forth")
+        return icons::FORTH;
+    if (file_type == "lisp")
+        return icons::LISP;
+    if (file_type == "batch")
+        return icons::BATCH;
+    if (file_type == "cmd")
+        return icons::WINDOWS_CMD;
+
+    return icons::FILE; // 使用命名空间别名避免冲突
 }
 
 std::string Statusbar::formatPosition(size_t line, size_t col) {

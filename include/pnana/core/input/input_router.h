@@ -32,9 +32,6 @@ class InputRouter {
     // 检查对话框优先级（按优先级顺序）
     bool handleDialogs(ftxui::Event event, Editor* editor);
 
-    // 检查分屏大小调整（优先级较高）
-    bool handleSplitResize(ftxui::Event event, Editor* editor);
-
     // 检查分屏导航（在分屏模式下优先级较高）
     bool handleSplitNavigation(ftxui::Event event, Editor* editor);
 

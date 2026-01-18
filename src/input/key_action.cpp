@@ -123,9 +123,6 @@ static void initializeActionInfos() {
     action_infos_.emplace_back(KeyAction::TOGGLE_LINE_NUMBERS, ActionGroup::VIEW_OPS,
                                "toggle_line_numbers", "Toggle line numbers",
                                std::vector<std::string>{"ctrl_shift_l"});
-    action_infos_.emplace_back(KeyAction::TOGGLE_MARKDOWN_PREVIEW, ActionGroup::VIEW_OPS,
-                               "toggle_markdown_preview", "Toggle markdown preview",
-                               std::vector<std::string>{"alt_w"});
 
     // 标签页操作
     action_infos_.emplace_back(KeyAction::NEXT_TAB, ActionGroup::TAB_OPS, "next_tab", "Next tab",
