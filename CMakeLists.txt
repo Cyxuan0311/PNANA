@@ -197,9 +197,10 @@ set(SOURCES
     src/core/editor_cursor.cpp
     src/core/editor_edit.cpp
     src/core/editor_ui.cpp
+    src/core/overlay_manager.cpp
     src/core/editor_input.cpp
     src/core/region_manager.cpp
-    src/core/config_manager.cpp
+    config/config_manager.cpp
     # 新的输入处理模块
     src/input/event_parser.cpp
     src/input/key_action.cpp
@@ -236,6 +237,7 @@ set(SOURCES
     # 工具模块
     src/utils/logger.cpp
     src/utils/text_analyzer.cpp
+    src/utils/text_utils.cpp
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
     src/utils/file_type_icon_mapper.cpp
@@ -255,10 +257,11 @@ set(SOURCES
     src/features/terminal/terminal_shell.cpp
     src/features/terminal/terminal_utils.cpp
     src/features/terminal/terminal_completion.cpp
-    src/features/split_view.cpp
+    src/features/split_view/split_view.cpp
     src/features/md_render/markdown_parser.cpp
     src/features/md_render/markdown_renderer.cpp
     src/features/encoding_converter.cpp
+    src/features/cursor/cursor_renderer.cpp
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
@@ -381,10 +384,11 @@ set(HEADERS
     include/pnana/features/vgit/git_manager.h
     include/pnana/ui/git_panel.h
     include/pnana/features/terminal.h
-    include/pnana/features/split_view.h
+    include/pnana/features/split_view/split_view.h
     include/pnana/features/markdown_parser.h
     include/pnana/features/md_render/markdown_renderer.h
     include/pnana/features/encoding_converter.h
+    include/pnana/features/cursor/cursor_renderer.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
     # 插件系统头文件
@@ -394,6 +398,7 @@ set(HEADERS
     # 工具模块头文件
     include/pnana/utils/logger.h
     include/pnana/utils/text_analyzer.h
+    include/pnana/utils/text_utils.h
     include/pnana/utils/clipboard.h
     include/pnana/utils/file_type_detector.h
     include/pnana/utils/assembly_analyzer.h
