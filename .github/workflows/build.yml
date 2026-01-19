@@ -99,7 +99,11 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -DCMAKE_PREFIX_PATH=/usr/local \
-            -DBUILD_TESTING=ON
+            -DBUILD_TESTING=ON \
+            -DBUILD_IMAGE_PREVIEW=ON \
+            -DBUILD_TREE_SITTER=ON \
+            -DBUILD_LUA=ON \
+            -DBUILD_GO=ON
 
       - name: Build
         run: |
