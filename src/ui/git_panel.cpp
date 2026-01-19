@@ -24,9 +24,13 @@ GitPanel::GitPanel(ui::Theme& theme, const std::string& repo_path)
 }
 
 Component GitPanel::getComponent() {
-    // 只在初次创建或模式切换时重新构建组件
-    if (!main_component_) {
+    // 只在初次创建、模式切换或需要重建时重新构建组件
+    if (!main_component_ || component_needs_rebuild_) {
         main_component_ = buildMainComponent();
+        component_needs_rebuild_ = false; // Reset the flag after rebuild
+        pnana::utils::Logger::getInstance().log(
+            "GitPanel::getComponent - Component rebuilt, needs_rebuild was: " +
+            std::string(component_needs_rebuild_ ? "true" : "false"));
     }
     return main_component_;
 }
@@ -107,6 +111,9 @@ bool GitPanel::onKeyPress(Event event) {
             break;
         case GitPanelMode::REMOTE:
             handled = handleRemoteModeKey(event);
+            break;
+        case GitPanelMode::DIFF:
+            handled = handleDiffModeKey(event);
             break;
     }
     auto handler_end = std::chrono::high_resolution_clock::now();
@@ -310,6 +317,8 @@ GitPanelMode GitPanel::getNextMode(GitPanelMode current) {
         case GitPanelMode::BRANCH:
             return GitPanelMode::REMOTE;
         case GitPanelMode::REMOTE:
+            return GitPanelMode::DIFF;
+        case GitPanelMode::DIFF:
             return GitPanelMode::STATUS;
         default:
             return GitPanelMode::STATUS;
@@ -646,7 +655,9 @@ Element GitPanel::renderTabs() {
         text(" │ ") | color(colors.comment),
         makeTab("Branch", GitPanelMode::BRANCH, current_mode_ == GitPanelMode::BRANCH),
         text(" │ ") | color(colors.comment),
-        makeTab("Remote", GitPanelMode::REMOTE, current_mode_ == GitPanelMode::REMOTE)};
+        makeTab("Remote", GitPanelMode::REMOTE, current_mode_ == GitPanelMode::REMOTE),
+        text(" │ ") | color(colors.comment),
+        makeTab("Diff", GitPanelMode::DIFF, current_mode_ == GitPanelMode::DIFF)};
     return hbox(std::move(elements)) | center;
 }
 
@@ -972,6 +983,89 @@ Element GitPanel::renderRemotePanel() {
     return vbox(std::move(elements));
 }
 
+Element GitPanel::renderDiffPanel() {
+    auto& colors = theme_.getColors();
+
+    // 如果数据正在加载，显示加载指示器
+    if (data_loading_) {
+        return vbox({text("Loading files for diff...") | color(colors.comment) | center,
+                     text("Please wait...") | color(colors.menubar_fg) | center}) |
+               center | size(HEIGHT, EQUAL, 10);
+    }
+
+    Elements diff_elements;
+
+    // Enhanced header
+    Elements header_elements = {text(pnana::ui::icons::GIT_DIFF) | color(colors.function),
+                                text(" Diff View") | color(colors.foreground) | bold};
+    diff_elements.push_back(hbox(std::move(header_elements)));
+    diff_elements.push_back(separator());
+
+    // File list with improved display
+    Elements file_header = {text(pnana::ui::icons::FILE) | color(colors.function),
+                            text(" Files with changes:") | color(colors.menubar_fg)};
+    diff_elements.push_back(hbox(std::move(file_header)));
+    diff_elements.push_back(separatorLight());
+
+    // File list
+    const size_t MAX_VISIBLE_FILES = 20; // Show more files in diff panel
+    size_t start = scroll_offset_;
+    size_t end = std::min(start + MAX_VISIBLE_FILES, files_.size());
+
+    for (size_t i = start; i < end; ++i) {
+        bool is_highlighted = (i == selected_index_);
+        diff_elements.push_back(renderDiffFileItem(files_[i], i, is_highlighted));
+    }
+
+    if (files_.empty()) {
+        Elements empty_elements = {text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success),
+                                   text(" No files with changes") | color(colors.success)};
+        diff_elements.push_back(hbox(std::move(empty_elements)) | center);
+    }
+
+    return vbox(std::move(diff_elements));
+}
+
+Element GitPanel::renderDiffFileItem(const GitFile& file, size_t /*index*/, bool is_highlighted) {
+    auto& colors = theme_.getColors();
+
+    std::string status_icon = getStatusIcon(file.status);
+    std::string status_text = getStatusText(file.status);
+    Color status_color = getStatusColor(file.status);
+
+    // File path/name - handle long paths
+    std::string display_name = file.path;
+    size_t last_slash = display_name.find_last_of("/\\");
+    if (last_slash != std::string::npos && last_slash > 0) {
+        std::string path_part = display_name.substr(0, last_slash);
+        std::string name_part = display_name.substr(last_slash + 1);
+
+        // Truncate path if too long
+        if (path_part.length() > 25) {
+            path_part = "..." + path_part.substr(path_part.length() - 22);
+        }
+
+        display_name = path_part + "/" + name_part;
+    }
+
+    Elements row_elements = {text(" "), // Leading space
+                             text(status_icon) | color(status_color) | bold,
+                             text(" "), // Space separator
+                             text(display_name) | color(colors.foreground),
+                             text(" "), // Space separator
+                             text("(" + status_text + ")") | color(colors.comment)};
+
+    auto item_text = hbox(std::move(row_elements));
+
+    if (is_highlighted) {
+        item_text = item_text | bgcolor(colors.selection) | color(colors.background) | bold;
+    } else {
+        item_text = item_text | bgcolor(colors.background);
+    }
+
+    return item_text;
+}
+
 Element GitPanel::renderFileItem(const GitFile& file, size_t /*index*/, bool is_selected,
                                  bool is_highlighted) {
     auto& colors = theme_.getColors();
@@ -1153,6 +1247,128 @@ Element GitPanel::renderBranchItem(const GitBranch& branch, size_t /*index*/, bo
     return item_text;
 }
 
+Element GitPanel::renderDiffViewer() {
+    if (!diff_viewer_visible_) {
+        return emptyElement();
+    }
+
+    auto& colors = theme_.getColors();
+
+    Elements viewer_elements;
+
+    // Header with file name and controls
+    Elements header_elements = {text(pnana::ui::icons::FILE) | color(colors.function),
+                                text(" ") | color(colors.foreground),
+                                text(current_diff_file_) | color(colors.foreground) | bold,
+                                text(" │ ") | color(colors.comment),
+                                text("ESC") | color(colors.keyword) | bold,
+                                text(":close ") | color(colors.comment),
+                                text("PgUp/PgDn") | color(colors.keyword) | bold,
+                                text(":scroll") | color(colors.comment)};
+    viewer_elements.push_back(hbox(std::move(header_elements)));
+    viewer_elements.push_back(separator());
+
+    // Diff content with enhanced neovim-like styling
+    const size_t VISIBLE_LINES = 25;
+    size_t start_line = diff_scroll_offset_;
+    size_t end_line = std::min(start_line + VISIBLE_LINES, diff_content_.size());
+
+    if (diff_content_.empty()) {
+        viewer_elements.push_back(text("No diff content available") | color(colors.comment) |
+                                  center);
+    } else {
+        // Calculate line number width
+        int line_num_width = std::to_string(std::max(diff_content_.size(), size_t(1))).length();
+
+        for (size_t i = start_line; i < end_line; ++i) {
+            const std::string& line_content = diff_content_[i];
+
+            // Determine line type and styling
+            bool is_addition = !line_content.empty() && line_content[0] == '+';
+            bool is_deletion = !line_content.empty() && line_content[0] == '-';
+            bool is_hunk_header = !line_content.empty() && line_content.substr(0, 2) == "@@";
+            bool is_file_header = !line_content.empty() && ((line_content.substr(0, 3) == "+++") ||
+                                                            (line_content.substr(0, 3) == "---"));
+
+            // Create line elements
+            Elements line_elements;
+
+            // Line number (only for non-file headers)
+            if (!is_file_header) {
+                std::string line_num = std::to_string(i + 1);
+                std::string padded_line_num =
+                    std::string(line_num_width - line_num.length(), ' ') + line_num;
+                Color line_num_color = is_hunk_header ? colors.keyword : colors.comment;
+                line_elements.push_back(text(padded_line_num) | color(line_num_color) | dim);
+                line_elements.push_back(text("│") | color(colors.comment) | dim);
+            } else {
+                line_elements.push_back(text(std::string(line_num_width, ' ')));
+                line_elements.push_back(text(" ") | color(colors.comment));
+            }
+
+            // Line content with appropriate styling
+            Element content_element;
+            if (is_addition) {
+                // Green for additions, like neovim
+                content_element = text(line_content) | color(colors.success);
+            } else if (is_deletion) {
+                // Red for deletions, like neovim
+                content_element = text(line_content) | color(colors.error);
+            } else if (is_hunk_header) {
+                // Blue for hunk headers
+                content_element = text(line_content) | color(colors.keyword) | bold;
+            } else if (is_file_header) {
+                // File headers with appropriate colors
+                Color header_color =
+                    (line_content.substr(0, 3) == "+++") ? colors.success : colors.error;
+                content_element = text(line_content) | color(header_color) | bold;
+            } else {
+                // Context lines - normal color
+                content_element = text(line_content) | color(colors.foreground);
+            }
+
+            line_elements.push_back(content_element);
+            viewer_elements.push_back(hbox(std::move(line_elements)));
+        }
+
+        // Add scroll indicator if needed
+        if (diff_content_.size() > VISIBLE_LINES) {
+            size_t total_pages = (diff_content_.size() + VISIBLE_LINES - 1) / VISIBLE_LINES;
+            size_t current_page = diff_scroll_offset_ / VISIBLE_LINES + 1;
+            std::string scroll_info =
+                "[" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
+            viewer_elements.push_back(separatorLight());
+            viewer_elements.push_back(text(scroll_info) | color(colors.comment) | center);
+        }
+    }
+
+    return window(text("Diff Viewer"), vbox(std::move(viewer_elements))) |
+           size(WIDTH, GREATER_THAN, 100) | size(HEIGHT, GREATER_THAN, 30) |
+           bgcolor(colors.background) | border;
+}
+
+Color GitPanel::getDiffLineColor(const std::string& line) {
+    auto& colors = theme_.getColors();
+
+    if (line.empty()) {
+        return colors.foreground;
+    }
+
+    if (line[0] == '+') {
+        return colors.success; // Green for additions
+    } else if (line[0] == '-') {
+        return colors.error; // Red for deletions
+    } else if (line[0] == '@') {
+        return colors.keyword; // Blue for hunk headers
+    } else if (line.substr(0, 3) == "+++") {
+        return colors.success;
+    } else if (line.substr(0, 3) == "---") {
+        return colors.error;
+    }
+
+    return colors.comment; // Gray for context lines
+}
+
 Element GitPanel::renderFooter() {
     auto& colors = theme_.getColors();
 
@@ -1172,6 +1388,17 @@ Element GitPanel::renderFooter() {
 
             footer_elements.push_back(hbox(line1));
             footer_elements.push_back(hbox(line2));
+            break;
+        }
+        case GitPanelMode::DIFF: {
+            Elements diff_help = {text("Navigation: ↑↓") | color(colors.comment),
+                                  text(" | ") | color(colors.comment),
+                                  text("View diff: Enter") | color(colors.success) | bold,
+                                  text(" | ") | color(colors.comment),
+                                  text("Switch tab: Tab") | color(colors.comment),
+                                  text(" | ") | color(colors.comment),
+                                  text("Back: ESC") | color(colors.comment)};
+            footer_elements.push_back(hbox(diff_help));
             break;
         }
         case GitPanelMode::COMMIT: {
@@ -1224,6 +1451,12 @@ Element GitPanel::renderFooter() {
         std::string scroll_info =
             " [" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
         footer_elements.push_back(text(scroll_info) | color(colors.menubar_fg));
+    } else if (current_mode_ == GitPanelMode::DIFF && files_.size() > 20) {
+        size_t total_pages = (files_.size() + 19) / 20; // Ceiling division
+        size_t current_page = scroll_offset_ / 20 + 1;
+        std::string scroll_info =
+            " [" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
+        footer_elements.push_back(text(scroll_info) | color(colors.menubar_fg));
     }
 
     return vbox(std::move(footer_elements)) | bgcolor(colors.menubar_bg);
@@ -1267,6 +1500,9 @@ Component GitPanel::buildMainComponent() {
                    case GitPanelMode::REMOTE:
                        content_elements.push_back(renderRemotePanel());
                        break;
+                   case GitPanelMode::DIFF:
+                       content_elements.push_back(renderDiffPanel());
+                       break;
                }
 
                if (!error_message_.empty()) {
@@ -1280,22 +1516,89 @@ Component GitPanel::buildMainComponent() {
                Element dialog_content = vbox(std::move(content_elements));
 
                // Use window style like other dialogs with proper sizing
-               return window(text("Git Panel"), dialog_content) | size(WIDTH, GREATER_THAN, 75) |
-                      size(HEIGHT, GREATER_THAN, 28) | bgcolor(colors.background) | border;
+               Element main_panel = window(text("Git Panel"), dialog_content) |
+                                    size(WIDTH, GREATER_THAN, 75) | size(HEIGHT, GREATER_THAN, 28) |
+                                    bgcolor(colors.background) | border;
+
+               // If diff viewer is visible, render it on top
+               if (diff_viewer_visible_) {
+                   return dbox({main_panel, renderDiffViewer()});
+               }
+
+               return main_panel;
            }) |
            CatchEvent([this](Event event) {
+               // Handle diff viewer events first if visible
+               if (diff_viewer_visible_) {
+                   pnana::utils::Logger::getInstance().log(
+                       "GitPanel::CatchEvent - Diff viewer visible, handling event");
+                   if (event == Event::Escape) {
+                       pnana::utils::Logger::getInstance().log(
+                           "GitPanel::CatchEvent - ESC pressed in diff viewer, hiding viewer");
+                       hideDiffViewer();
+                       component_needs_rebuild_ =
+                           true;    // Force component rebuild after hiding viewer
+                       return true; // Consume ESC event, don't let it bubble up
+                   }
+                   if (event == Event::PageUp) {
+                       pnana::utils::Logger::getInstance().log(
+                           "GitPanel::CatchEvent - PageUp in diff viewer");
+                       const size_t VISIBLE_LINES = 25; // Must match renderDiffViewer
+                       if (diff_scroll_offset_ > 0) {
+                           size_t old_offset = diff_scroll_offset_;
+                           diff_scroll_offset_ = (diff_scroll_offset_ > VISIBLE_LINES)
+                                                     ? diff_scroll_offset_ - VISIBLE_LINES
+                                                     : 0;
+                           pnana::utils::Logger::getInstance().log(
+                               "GitPanel::CatchEvent - Scrolled up from " +
+                               std::to_string(old_offset) + " to " +
+                               std::to_string(diff_scroll_offset_));
+                           component_needs_rebuild_ =
+                               true; // Force component rebuild after scrolling
+                       }
+                       return true;
+                   }
+                   if (event == Event::PageDown) {
+                       pnana::utils::Logger::getInstance().log(
+                           "GitPanel::CatchEvent - PageDown in diff viewer");
+                       const size_t VISIBLE_LINES = 25; // Must match renderDiffViewer
+                       size_t max_offset = diff_content_.size() > VISIBLE_LINES
+                                               ? diff_content_.size() - VISIBLE_LINES
+                                               : 0;
+                       if (diff_scroll_offset_ < max_offset) {
+                           size_t old_offset = diff_scroll_offset_;
+                           diff_scroll_offset_ += VISIBLE_LINES;
+                           if (diff_scroll_offset_ > max_offset) {
+                               diff_scroll_offset_ = max_offset;
+                           }
+                           pnana::utils::Logger::getInstance().log(
+                               "GitPanel::CatchEvent - Scrolled down from " +
+                               std::to_string(old_offset) + " to " +
+                               std::to_string(diff_scroll_offset_));
+                           component_needs_rebuild_ =
+                               true; // Force component rebuild after scrolling
+                       }
+                       return true;
+                   }
+                   pnana::utils::Logger::getInstance().log(
+                       "GitPanel::CatchEvent - Consuming event in diff viewer");
+                   return true; // Consume all events when diff viewer is open
+               }
+
                // Handle navigation events directly without rebuilding component
                if (event == Event::ArrowUp || event == Event::ArrowDown || event == Event::PageUp ||
                    event == Event::PageDown) {
                    switch (current_mode_) {
                        case GitPanelMode::STATUS:
                            return handleStatusModeKey(event);
-                       case GitPanelMode::COMMIT:
-                           return handleCommitModeKey(event);
                        case GitPanelMode::BRANCH:
                            return handleBranchModeKey(event);
+                       case GitPanelMode::COMMIT:
+                           return handleCommitModeKey(event);
                        case GitPanelMode::REMOTE:
                            return handleRemoteModeKey(event);
+                       case GitPanelMode::DIFF:
+                           return handleDiffModeKey(event);
                    }
                }
                return false;
@@ -1584,6 +1887,52 @@ bool GitPanel::handleRemoteModeKey(Event event) {
     return false;
 }
 
+bool GitPanel::handleDiffModeKey(Event event) {
+    // Tab navigation between modes
+    if (event == Event::Tab) {
+        switchMode(getNextMode(current_mode_));
+        return true;
+    }
+
+    const size_t MAX_VISIBLE_FILES = 20; // Must match renderDiffPanel
+
+    if (event == Event::ArrowUp) {
+        if (selected_index_ > 0) {
+            selected_index_--;
+            // Adjust scroll to keep selected item visible
+            if (selected_index_ < scroll_offset_) {
+                scroll_offset_ = selected_index_;
+            }
+        }
+        return true;
+    }
+    if (event == Event::ArrowDown) {
+        if (selected_index_ < files_.size() - 1) {
+            selected_index_++;
+            // Adjust scroll to keep selected item visible
+            if (selected_index_ >= scroll_offset_ + MAX_VISIBLE_FILES) {
+                scroll_offset_ = selected_index_ - MAX_VISIBLE_FILES + 1;
+            }
+        }
+        return true;
+    }
+
+    if (event == Event::Return) {
+        // Show diff viewer for selected file
+        if (selected_index_ < files_.size()) {
+            showDiffViewer(files_[selected_index_].path);
+        }
+        return true;
+    }
+
+    if (event == Event::Escape) {
+        switchMode(GitPanelMode::STATUS);
+        return true;
+    }
+
+    return false;
+}
+
 // Utility methods
 
 std::string GitPanel::getStatusIcon(GitFileStatus status) const {
@@ -1638,6 +1987,8 @@ std::string GitPanel::getModeTitle(GitPanelMode mode) const {
             return "Branch";
         case GitPanelMode::REMOTE:
             return "Remote";
+        case GitPanelMode::DIFF:
+            return "Diff";
         default:
             return "";
     }
@@ -1786,6 +2137,27 @@ void GitPanel::ensureValidIndices() {
                 files_.size() > MAX_VISIBLE_FILES ? files_.size() - MAX_VISIBLE_FILES : 0;
         }
     }
+}
+
+void GitPanel::showDiffViewer(const std::string& file_path) {
+    current_diff_file_ = file_path;
+    diff_content_ = git_manager_->getDiff(file_path);
+    diff_scroll_offset_ = 0;
+    diff_viewer_visible_ = true;
+    error_message_ = git_manager_->getLastError();
+    git_manager_->clearError();
+}
+
+void GitPanel::hideDiffViewer() {
+    diff_viewer_visible_ = false;
+    diff_content_.clear();
+    current_diff_file_.clear();
+    diff_scroll_offset_ = 0;
+}
+
+void GitPanel::handleDiffViewerEscape() {
+    hideDiffViewer();
+    component_needs_rebuild_ = true; // Force component rebuild after hiding viewer
 }
 
 } // namespace vgit

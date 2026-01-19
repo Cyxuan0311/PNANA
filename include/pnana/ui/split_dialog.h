@@ -1,7 +1,7 @@
 #ifndef PNANA_UI_SPLIT_DIALOG_H
 #define PNANA_UI_SPLIT_DIALOG_H
 
-#include "features/split_view.h"
+#include "features/split_view/split_view.h"
 #include "ui/theme.h"
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
