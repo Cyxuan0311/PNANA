@@ -712,6 +712,43 @@ std::vector<std::string> GitManager::getRemotes() {
     return lines;
 }
 
+std::vector<std::string> GitManager::getDiff(const std::string& path) {
+    if (!isGitRepository()) {
+        last_error_ = "Not a git repository";
+        return {};
+    }
+
+    clearError();
+
+    std::string escaped_path = escapePath(path);
+
+    // Try unstaged changes first
+    std::string cmd = "git -C \"" + repo_root_ + "\" diff \"" + escaped_path + "\"";
+    auto lines = executeGitCommandLines(cmd);
+
+    // If no unstaged diff, try staged changes
+    if (lines.empty()) {
+        std::string staged_cmd =
+            "git -C \"" + repo_root_ + "\" diff --cached \"" + escaped_path + "\"";
+        lines = executeGitCommandLines(staged_cmd);
+    }
+
+    // If still no output, set error message
+    if (lines.empty()) {
+        std::string status_cmd =
+            "git -C \"" + repo_root_ + "\" status --porcelain \"" + escaped_path + "\"";
+        auto status_lines = executeGitCommandLines(status_cmd);
+
+        if (!status_lines.empty()) {
+            last_error_ = "File has changes but no diff output. Status: " + status_lines[0];
+        } else {
+            last_error_ = "File not found in git status";
+        }
+    }
+
+    return lines;
+}
+
 // Private helper methods
 
 std::string GitManager::executeGitCommand(const std::string& command) const {
@@ -841,12 +878,32 @@ void GitManager::parseStatusLine(const std::string& line, std::vector<GitFile>& 
 
     char index_status = line[0];
     char worktree_status = line[1];
-    std::string path = line.substr(2);
+    std::string remaining = line.substr(2);
 
-    // Skip leading spaces in path
-    size_t path_start = path.find_first_not_of(" \t");
-    if (path_start != std::string::npos) {
-        path = path.substr(path_start);
+    // Skip leading spaces
+    size_t content_start = remaining.find_first_not_of(" \t");
+    if (content_start != std::string::npos) {
+        remaining = remaining.substr(content_start);
+    }
+
+    // Extract the actual file path - for porcelain format, the file path is the last token
+    // Format can be: "XY file_path" or "XY ...metadata... file_path"
+    std::string path;
+    std::string::size_type last_space = remaining.find_last_of(" \t");
+    if (last_space != std::string::npos) {
+        // Check if this looks like a file path (contains directory separators or common file
+        // extensions)
+        std::string potential_path = remaining.substr(last_space + 1);
+        if (potential_path.find('/') != std::string::npos ||
+            potential_path.find('\\') != std::string::npos ||
+            potential_path.find('.') != std::string::npos) {
+            path = potential_path;
+        } else {
+            // Fallback to the whole remaining string
+            path = remaining;
+        }
+    } else {
+        path = remaining;
     }
 
     // Handle renamed files (format: "R  old_name -> new_name")

@@ -70,6 +70,9 @@ class GitManager {
     bool refreshStatus();
     bool refreshStatusForced(); // Force refresh, ignore cache
 
+    // Diff operations
+    std::vector<std::string> getDiff(const std::string& path);
+
     // Staging operations
     bool stageFile(const std::string& path);
     bool unstageFile(const std::string& path);
