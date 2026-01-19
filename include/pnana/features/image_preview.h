@@ -1,6 +1,7 @@
 #ifndef PNANA_FEATURES_IMAGE_PREVIEW_H
 #define PNANA_FEATURES_IMAGE_PREVIEW_H
 
+#include <ftxui/dom/elements.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,6 +46,9 @@ class ImagePreview {
 
     // 清空预览
     void clear();
+
+    // 渲染预览（返回 FTXUI 元素）
+    ftxui::Element render() const;
 
     // 是否已加载图片
     bool isLoaded() const {
