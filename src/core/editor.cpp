@@ -26,7 +26,8 @@ namespace core {
 
 // 构造函数
 Editor::Editor()
-    : document_manager_(), key_binding_manager_(), action_executor_(this), theme_(),
+    : document_manager_(), key_binding_manager_(), action_executor_(this),
+      overlay_manager_(std::make_unique<pnana::core::OverlayManager>()), theme_(),
       statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
       file_picker_(theme_), search_dialog_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
       ssh_transfer_dialog_(theme_), welcome_screen_(theme_), split_welcome_screen_(theme_),

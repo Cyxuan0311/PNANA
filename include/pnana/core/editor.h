@@ -4,6 +4,7 @@
 #include "core/config_manager.h"
 #include "core/document.h"
 #include "core/document_manager.h"
+#include "core/overlay_manager.h"
 #include "core/region_manager.h"
 #include "input/action_executor.h"
 #include "input/key_binding_manager.h"
@@ -41,7 +42,7 @@
 #endif
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/command_palette.h"
-#include "features/split_view.h"
+#include "features/split_view/split_view.h"
 // #include "features/markdown_preview.h"  // removed during preview refactor; backup stored as .bak
 #include "features/terminal.h"
 #include "ui/git_panel.h"
@@ -334,6 +335,9 @@ class Editor {
     // 输入和UI路由器（解耦优化）
     std::unique_ptr<pnana::core::input::InputRouter> input_router_;
     std::unique_ptr<pnana::core::ui::UIRouter> ui_router_;
+
+    // 叠加窗口管理器（解耦优化）
+    std::unique_ptr<pnana::core::OverlayManager> overlay_manager_;
 
     // UI组件
     pnana::ui::Theme theme_;
