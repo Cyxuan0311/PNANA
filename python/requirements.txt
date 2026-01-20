@@ -1,0 +1,33 @@
+# Core ML/AI libraries
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Hugging Face ecosystem
+transformers>=4.30.0
+datasets>=2.10.0
+peft>=0.4.0
+accelerate>=0.20.0
+
+# Quantization and optimization
+bitsandbytes>=0.41.0
+
+# Tokenization
+sentencepiece>=0.1.99
+
+# Git operations
+gitpython>=3.1.0
+
+# Data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Progress tracking
+tqdm>=4.65.0
+
+# Configuration
+pyyaml>=6.0
+
+# Optional: for logging and monitoring
+wandb>=0.15.0
+tensorboard>=2.13.0
