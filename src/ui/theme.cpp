@@ -42,6 +42,13 @@ ThemeColors Theme::Monokai() {
     colors.info = Color::RGB(102, 217, 239);   // #66d9ef
     colors.success = Color::RGB(166, 226, 46); // #a6e22e
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(45, 45, 45);          // #2d2d2d
+    colors.dialog_fg = Color::RGB(248, 248, 242);       // #f8f8f2
+    colors.dialog_title_bg = Color::RGB(73, 72, 62);    // #49483e
+    colors.dialog_title_fg = Color::RGB(248, 248, 242); // #f8f8f2
+    colors.dialog_border = Color::RGB(117, 113, 94);    // #75715e
+
     return colors;
 }
 
@@ -76,6 +83,13 @@ ThemeColors Theme::Dracula() {
     colors.warning = Color::RGB(255, 184, 108); // #ffb86c
     colors.info = Color::RGB(139, 233, 253);    // #8be9fd
     colors.success = Color::RGB(80, 250, 123);  // #50fa7b
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(68, 71, 90);          // #44475a
+    colors.dialog_fg = Color::RGB(248, 248, 242);       // #f8f8f2
+    colors.dialog_title_bg = Color::RGB(40, 42, 54);    // #282a36
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_border = Color::RGB(98, 114, 164);    // #6272a4
 
     return colors;
 }
@@ -112,6 +126,13 @@ ThemeColors Theme::SolarizedDark() {
     colors.info = Color::RGB(38, 139, 210);   // #268bd2
     colors.success = Color::RGB(133, 153, 0); // #859900
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(7, 54, 66);           // #073642
+    colors.dialog_fg = Color::RGB(131, 148, 150);       // #839496
+    colors.dialog_title_bg = Color::RGB(0, 43, 54);     // #002b36
+    colors.dialog_title_fg = Color::RGB(147, 161, 161); // #93a1a1
+    colors.dialog_border = Color::RGB(88, 110, 117);    // #586e75
+
     return colors;
 }
 
@@ -146,6 +167,13 @@ ThemeColors Theme::SolarizedLight() {
     colors.warning = Color::RGB(203, 75, 22); // #cb4b16
     colors.info = Color::RGB(38, 139, 210);   // #268bd2
     colors.success = Color::RGB(133, 153, 0); // #859900
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(238, 232, 213);       // #eee8d5
+    colors.dialog_fg = Color::RGB(101, 123, 131);       // #657b83
+    colors.dialog_title_bg = Color::RGB(253, 246, 227); // #fdf6e3
+    colors.dialog_title_fg = Color::RGB(88, 110, 117);  // #586e75
+    colors.dialog_border = Color::RGB(147, 161, 161);   // #93a1a1
 
     return colors;
 }
@@ -182,6 +210,13 @@ ThemeColors Theme::OneDark() {
     colors.info = Color::RGB(97, 175, 239);     // #61afef
     colors.success = Color::RGB(152, 195, 121); // #98c379
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(44, 48, 57);          // #2c3039
+    colors.dialog_fg = Color::RGB(171, 178, 191);       // #abb2bf
+    colors.dialog_title_bg = Color::RGB(33, 37, 43);    // #21252b
+    colors.dialog_title_fg = Color::RGB(171, 178, 191); // #abb2bf
+    colors.dialog_border = Color::RGB(92, 99, 112);     // #5c6370
+
     return colors;
 }
 
@@ -216,6 +251,13 @@ ThemeColors Theme::Nord() {
     colors.warning = Color::RGB(235, 203, 139); // #ebcb8b
     colors.info = Color::RGB(136, 192, 208);    // #88c0d0
     colors.success = Color::RGB(163, 190, 140); // #a3be8c
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(59, 66, 82);          // #3b4252
+    colors.dialog_fg = Color::RGB(216, 222, 233);       // #d8dee9
+    colors.dialog_title_bg = Color::RGB(46, 52, 64);    // #2e3440
+    colors.dialog_title_fg = Color::RGB(216, 222, 233); // #d8dee9
+    colors.dialog_border = Color::RGB(76, 86, 106);     // #4c566a
 
     return colors;
 }
@@ -252,6 +294,13 @@ ThemeColors Theme::Gruvbox() {
     colors.info = Color::RGB(131, 165, 152);   // #83a598
     colors.success = Color::RGB(184, 187, 38); // #b8bb26
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(50, 48, 47);          // #32302f
+    colors.dialog_fg = Color::RGB(235, 219, 178);       // #ebdbb2
+    colors.dialog_title_bg = Color::RGB(40, 40, 40);    // #282828
+    colors.dialog_title_fg = Color::RGB(235, 219, 178); // #ebdbb2
+    colors.dialog_border = Color::RGB(124, 111, 100);   // #7c6f64
+
     return colors;
 }
 
@@ -286,6 +335,13 @@ ThemeColors Theme::TokyoNight() {
     colors.warning = Color::RGB(255, 184, 108); // #ffb86c
     colors.info = Color::RGB(125, 207, 255);    // #7dcfff
     colors.success = Color::RGB(158, 206, 106); // #9ece6a
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(36, 40, 59);          // #24283b
+    colors.dialog_fg = Color::RGB(192, 202, 245);       // #c0caf5
+    colors.dialog_title_bg = Color::RGB(26, 27, 38);    // #1a1b26
+    colors.dialog_title_fg = Color::RGB(192, 202, 245); // #c0caf5
+    colors.dialog_border = Color::RGB(99, 104, 135);    // #63688f
 
     return colors;
 }
@@ -322,6 +378,13 @@ ThemeColors Theme::Catppuccin() {
     colors.info = Color::RGB(137, 220, 235);    // #89dceb
     colors.success = Color::RGB(166, 227, 161); // #a6e3a1
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(49, 50, 68);          // #313244
+    colors.dialog_fg = Color::RGB(205, 214, 244);       // #cdd6f4
+    colors.dialog_title_bg = Color::RGB(30, 30, 46);    // #1e1e2e
+    colors.dialog_title_fg = Color::RGB(205, 214, 244); // #cdd6f4
+    colors.dialog_border = Color::RGB(108, 112, 134);   // #6c7086
+
     return colors;
 }
 
@@ -356,6 +419,13 @@ ThemeColors Theme::Material() {
     colors.warning = Color::RGB(255, 203, 107); // #ffcb6b
     colors.info = Color::RGB(130, 170, 255);    // #82aaff
     colors.success = Color::RGB(195, 232, 141); // #c3e88d
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(55, 71, 79);          // #37474f
+    colors.dialog_fg = Color::RGB(238, 255, 255);       // #eeffff
+    colors.dialog_title_bg = Color::RGB(38, 50, 56);    // #263238
+    colors.dialog_title_fg = Color::RGB(238, 255, 255); // #eeffff
+    colors.dialog_border = Color::RGB(84, 110, 122);    // #546e7a
 
     return colors;
 }
@@ -392,6 +462,13 @@ ThemeColors Theme::Ayu() {
     colors.info = Color::RGB(59, 130, 246);    // #3b82f6
     colors.success = Color::RGB(34, 197, 94);  // #22c55e
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(30, 41, 59);          // #1e293b
+    colors.dialog_fg = Color::RGB(203, 213, 225);       // #cbd5e1
+    colors.dialog_title_bg = Color::RGB(15, 23, 42);    // #0f172a
+    colors.dialog_title_fg = Color::RGB(203, 213, 225); // #cbd5e1
+    colors.dialog_border = Color::RGB(100, 116, 139);   // #64748b
+
     return colors;
 }
 
@@ -426,6 +503,13 @@ ThemeColors Theme::GitHub() {
     colors.warning = Color::RGB(219, 171, 9); // #dbab09
     colors.info = Color::RGB(0, 92, 197);     // #005cc5
     colors.success = Color::RGB(34, 134, 58); // #22863a
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(246, 248, 250);       // #f6f8fa
+    colors.dialog_fg = Color::RGB(36, 41, 46);          // #24292e
+    colors.dialog_title_bg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_title_fg = Color::RGB(36, 41, 46);    // #24292e
+    colors.dialog_border = Color::RGB(106, 115, 125);   // #6a737d
 
     return colors;
 }
@@ -462,6 +546,13 @@ ThemeColors Theme::VSCodeDark() {
     colors.info = Color::RGB(78, 148, 206);     // #4e94ce
     colors.success = Color::RGB(106, 153, 85);  // #6a9955
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(37, 37, 38);          // #252526
+    colors.dialog_fg = Color::RGB(212, 212, 212);       // #d4d4d4
+    colors.dialog_title_bg = Color::RGB(30, 30, 30);    // #1e1e1e
+    colors.dialog_title_fg = Color::RGB(212, 212, 212); // #d4d4d4
+    colors.dialog_border = Color::RGB(133, 133, 133);   // #858585
+
     return colors;
 }
 
@@ -496,6 +587,13 @@ ThemeColors Theme::NightOwl() {
     colors.warning = Color::RGB(255, 203, 107); // #ffcb6b
     colors.info = Color::RGB(130, 170, 255);    // #82aaff
     colors.success = Color::RGB(195, 232, 141); // #c3e88d
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(22, 40, 54);          // #162836
+    colors.dialog_fg = Color::RGB(214, 222, 235);       // #d6deeb
+    colors.dialog_title_bg = Color::RGB(1, 22, 39);     // #011627
+    colors.dialog_title_fg = Color::RGB(214, 222, 235); // #d6deeb
+    colors.dialog_border = Color::RGB(99, 119, 142);    // #63778e
 
     return colors;
 }
@@ -532,6 +630,13 @@ ThemeColors Theme::Palenight() {
     colors.info = Color::RGB(130, 170, 255);    // #82aaff
     colors.success = Color::RGB(195, 232, 141); // #c3e88d
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(35, 38, 52);          // #232634
+    colors.dialog_fg = Color::RGB(200, 200, 200);       // #c8c8c8
+    colors.dialog_title_bg = Color::RGB(41, 45, 62);    // #292d3e
+    colors.dialog_title_fg = Color::RGB(200, 200, 200); // #c8c8c8
+    colors.dialog_border = Color::RGB(95, 99, 122);     // #5f637a
+
     return colors;
 }
 
@@ -566,6 +671,13 @@ ThemeColors Theme::OceanicNext() {
     colors.warning = Color::RGB(250, 189, 47);  // #fabd2f
     colors.info = Color::RGB(97, 175, 239);     // #61afef
     colors.success = Color::RGB(152, 195, 121); // #98c379
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(25, 48, 65);          // #193041
+    colors.dialog_fg = Color::RGB(200, 213, 219);       // #c8d5db
+    colors.dialog_title_bg = Color::RGB(23, 43, 58);    // #1b2b34
+    colors.dialog_title_fg = Color::RGB(200, 213, 219); // #c8d5db
+    colors.dialog_border = Color::RGB(101, 130, 145);   // #658291
 
     return colors;
 }
@@ -602,6 +714,13 @@ ThemeColors Theme::Kanagawa() {
     colors.info = Color::RGB(126, 156, 216);    // #7e9cd8
     colors.success = Color::RGB(152, 187, 108); // #98bb6c
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(42, 42, 55);          // #2a2a37
+    colors.dialog_fg = Color::RGB(220, 215, 186);       // #dcd7ba
+    colors.dialog_title_bg = Color::RGB(31, 31, 40);    // #1f1f28
+    colors.dialog_title_fg = Color::RGB(220, 215, 186); // #dcd7ba
+    colors.dialog_border = Color::RGB(114, 113, 105);   // #727169
+
     return colors;
 }
 
@@ -636,6 +755,13 @@ ThemeColors Theme::TomorrowNight() {
     colors.warning = Color::RGB(240, 198, 116); // #f0c674
     colors.info = Color::RGB(102, 153, 204);    // #6699cc
     colors.success = Color::RGB(181, 189, 104); // #b5bd68
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(40, 42, 46);          // #282a2e
+    colors.dialog_fg = Color::RGB(197, 200, 198);       // #c5c8c6
+    colors.dialog_title_bg = Color::RGB(29, 31, 33);    // #1d1f21
+    colors.dialog_title_fg = Color::RGB(197, 200, 198); // #c5c8c6
+    colors.dialog_border = Color::RGB(150, 152, 150);   // #969896
 
     return colors;
 }
@@ -672,6 +798,13 @@ ThemeColors Theme::TomorrowNightBlue() {
     colors.info = Color::RGB(129, 216, 208);    // #81d8d0
     colors.success = Color::RGB(204, 255, 0);   // #ccff00
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(0, 46, 102);          // #002e66
+    colors.dialog_fg = Color::RGB(255, 255, 255);       // #ffffff
+    colors.dialog_title_bg = Color::RGB(0, 36, 81);     // #002451
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_border = Color::RGB(128, 151, 177);   // #8097b1
+
     return colors;
 }
 
@@ -706,6 +839,13 @@ ThemeColors Theme::Cobalt() {
     colors.warning = Color::RGB(255, 220, 117); // #ffdc75
     colors.info = Color::RGB(129, 216, 208);    // #81d8d0
     colors.success = Color::RGB(61, 153, 112);  // #3d9970
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(0, 41, 82);           // #002952
+    colors.dialog_fg = Color::RGB(255, 255, 255);       // #ffffff
+    colors.dialog_title_bg = Color::RGB(0, 31, 63);     // #001f3f
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_border = Color::RGB(128, 160, 192);   // #80a0c0
 
     return colors;
 }
@@ -742,6 +882,13 @@ ThemeColors Theme::Zenburn() {
     colors.info = Color::RGB(93, 176, 215);     // #5db0d7
     colors.success = Color::RGB(127, 159, 127); // #7f9f7f
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(73, 73, 73);          // #494949
+    colors.dialog_fg = Color::RGB(220, 220, 204);       // #dcdccc
+    colors.dialog_title_bg = Color::RGB(59, 59, 59);    // #3f3f3f
+    colors.dialog_title_fg = Color::RGB(220, 220, 204); // #dcdccc
+    colors.dialog_border = Color::RGB(112, 112, 112);   // #707070
+
     return colors;
 }
 
@@ -776,6 +923,13 @@ ThemeColors Theme::Base16Dark() {
     colors.warning = Color::RGB(203, 75, 22); // #cb4b16
     colors.info = Color::RGB(38, 139, 210);   // #268bd2
     colors.success = Color::RGB(133, 153, 0); // #859900
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(40, 40, 40);          // #282828
+    colors.dialog_fg = Color::RGB(208, 208, 208);       // #d0d0d0
+    colors.dialog_title_bg = Color::RGB(21, 21, 21);    // #151515
+    colors.dialog_title_fg = Color::RGB(208, 208, 208); // #d0d0d0
+    colors.dialog_border = Color::RGB(80, 80, 80);      // #505050
 
     return colors;
 }
@@ -812,6 +966,13 @@ ThemeColors Theme::PaperColor() {
     colors.info = Color::RGB(0, 0, 215);     // #0000d7
     colors.success = Color::RGB(0, 135, 0);  // #008700
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(40, 40, 40);          // #282828
+    colors.dialog_fg = Color::RGB(212, 212, 212);       // #d4d4d4
+    colors.dialog_title_bg = Color::RGB(28, 28, 28);    // #1c1c1c
+    colors.dialog_title_fg = Color::RGB(212, 212, 212); // #d4d4d4
+    colors.dialog_border = Color::RGB(136, 136, 136);   // #888888
+
     return colors;
 }
 
@@ -846,6 +1007,13 @@ ThemeColors Theme::RosePine() {
     colors.warning = Color::RGB(246, 193, 119); // #f6c177
     colors.info = Color::RGB(156, 207, 216);    // #9ccfd8
     colors.success = Color::RGB(156, 207, 216); // #9ccfd8
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(31, 29, 46);          // #1f1d2e
+    colors.dialog_fg = Color::RGB(224, 222, 244);       // #e0def4
+    colors.dialog_title_bg = Color::RGB(25, 23, 36);    // #191724
+    colors.dialog_title_fg = Color::RGB(224, 222, 244); // #e0def4
+    colors.dialog_border = Color::RGB(110, 106, 134);   // #6e6a86
 
     return colors;
 }
@@ -882,6 +1050,13 @@ ThemeColors Theme::Everforest() {
     colors.info = Color::RGB(143, 188, 187);    // #8fbcbb
     colors.success = Color::RGB(163, 190, 140); // #a3be8c
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(52, 59, 66);          // #343f46
+    colors.dialog_fg = Color::RGB(220, 215, 195);       // #d3c6aa
+    colors.dialog_title_bg = Color::RGB(40, 46, 52);    // #2d353b
+    colors.dialog_title_fg = Color::RGB(220, 215, 195); // #d3c6aa
+    colors.dialog_border = Color::RGB(124, 136, 148);   // #7c8898
+
     return colors;
 }
 
@@ -916,6 +1091,13 @@ ThemeColors Theme::Jellybeans() {
     colors.warning = Color::RGB(250, 189, 47);  // #fabd2f
     colors.info = Color::RGB(97, 175, 239);     // #61afef
     colors.success = Color::RGB(152, 195, 121); // #98c379
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(40, 40, 40);          // #282828
+    colors.dialog_fg = Color::RGB(224, 224, 224);       // #e0e0e0
+    colors.dialog_title_bg = Color::RGB(21, 21, 21);    // #151515
+    colors.dialog_title_fg = Color::RGB(224, 224, 224); // #e0e0e0
+    colors.dialog_border = Color::RGB(112, 112, 112);   // #707070
 
     return colors;
 }
@@ -952,6 +1134,13 @@ ThemeColors Theme::Desert() {
     colors.info = Color::RGB(102, 217, 239);   // #66d9ef
     colors.success = Color::RGB(166, 226, 46); // #a6e22e
 
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(68, 68, 68);          // #444444
+    colors.dialog_fg = Color::RGB(255, 255, 255);       // #ffffff
+    colors.dialog_title_bg = Color::RGB(51, 51, 51);    // #333333
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_border = Color::RGB(136, 136, 136);   // #888888
+
     return colors;
 }
 
@@ -986,6 +1175,13 @@ ThemeColors Theme::Slate() {
     colors.warning = Color::RGB(251, 188, 5);  // #fbbc05
     colors.info = Color::RGB(121, 192, 255);   // #79c0ff
     colors.success = Color::RGB(56, 211, 159); // #38d39f
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(45, 51, 59);          // #2d333b
+    colors.dialog_fg = Color::RGB(205, 217, 229);       // #cdd9e5
+    colors.dialog_title_bg = Color::RGB(34, 39, 46);    // #22272e
+    colors.dialog_title_fg = Color::RGB(205, 217, 229); // #cdd9e5
+    colors.dialog_border = Color::RGB(108, 117, 125);   // #6c757d
 
     return colors;
 }
@@ -1092,8 +1288,10 @@ bool Theme::loadThemeFromConfig(
     const std::vector<int>& string, const std::vector<int>& comment, const std::vector<int>& number,
     const std::vector<int>& function, const std::vector<int>& type,
     const std::vector<int>& operator_color, const std::vector<int>& error,
-    const std::vector<int>& warning, const std::vector<int>& info,
-    const std::vector<int>& success) {
+    const std::vector<int>& warning, const std::vector<int>& info, const std::vector<int>& success,
+    const std::vector<int>& dialog_bg, const std::vector<int>& dialog_fg,
+    const std::vector<int>& dialog_title_bg, const std::vector<int>& dialog_title_fg,
+    const std::vector<int>& dialog_border) {
     ThemeColors colors;
 
     if (background.size() >= 3)
@@ -1144,6 +1342,16 @@ bool Theme::loadThemeFromConfig(
         colors.info = rgbToColor(info);
     if (success.size() >= 3)
         colors.success = rgbToColor(success);
+    if (dialog_bg.size() >= 3)
+        colors.dialog_bg = rgbToColor(dialog_bg);
+    if (dialog_fg.size() >= 3)
+        colors.dialog_fg = rgbToColor(dialog_fg);
+    if (dialog_title_bg.size() >= 3)
+        colors.dialog_title_bg = rgbToColor(dialog_title_bg);
+    if (dialog_title_fg.size() >= 3)
+        colors.dialog_title_fg = rgbToColor(dialog_title_fg);
+    if (dialog_border.size() >= 3)
+        colors.dialog_border = rgbToColor(dialog_border);
 
     colors_ = colors;
     return true;

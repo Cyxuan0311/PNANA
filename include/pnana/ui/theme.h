@@ -44,6 +44,13 @@ struct ThemeColors {
     ftxui::Color warning;
     ftxui::Color info;
     ftxui::Color success;
+
+    // 弹窗
+    ftxui::Color dialog_bg;
+    ftxui::Color dialog_fg;
+    ftxui::Color dialog_title_bg;
+    ftxui::Color dialog_title_fg;
+    ftxui::Color dialog_border;
 };
 
 class Theme {
@@ -105,7 +112,11 @@ class Theme {
                              const std::vector<int>& number, const std::vector<int>& function,
                              const std::vector<int>& type, const std::vector<int>& operator_color,
                              const std::vector<int>& error, const std::vector<int>& warning,
-                             const std::vector<int>& info, const std::vector<int>& success);
+                             const std::vector<int>& info, const std::vector<int>& success,
+                             const std::vector<int>& dialog_bg, const std::vector<int>& dialog_fg,
+                             const std::vector<int>& dialog_title_bg,
+                             const std::vector<int>& dialog_title_fg,
+                             const std::vector<int>& dialog_border);
 
     const ThemeColors& getColors() const {
         return colors_;
