@@ -2,6 +2,7 @@ build/
 lib/
 logs/
 .cache/
+__pycache__/
 
 优化.md
 pnana.log
