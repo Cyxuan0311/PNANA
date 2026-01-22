@@ -1,8 +1,10 @@
 #ifndef PNANA_FEATURES_COMMAND_PALETTE_H
 #define PNANA_FEATURES_COMMAND_PALETTE_H
 
+#include "ui/command_palette_ui.h"
 #include <ftxui/dom/elements.hpp>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,7 +27,7 @@ struct Command {
 // 命令面板类
 class CommandPalette {
   public:
-    CommandPalette();
+    explicit CommandPalette(pnana::ui::Theme& theme);
 
     // 注册命令
     void registerCommand(const Command& command);
@@ -75,6 +77,9 @@ class CommandPalette {
     std::vector<Command> filtered_commands_;
     size_t selected_index_;
     size_t scroll_offset_; // 滚动偏移，用于显示窗口
+
+    // UI渲染器
+    std::unique_ptr<pnana::ui::CommandPaletteUI> ui_;
 
     // 过滤命令
     void filterCommands();

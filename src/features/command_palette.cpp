@@ -2,12 +2,14 @@
 #include <algorithm>
 #include <cctype>
 #include <ftxui/dom/elements.hpp>
+#include <memory>
 
 namespace pnana {
 namespace features {
 
-CommandPalette::CommandPalette()
-    : is_open_(false), input_(""), selected_index_(0), scroll_offset_(0) {}
+CommandPalette::CommandPalette(pnana::ui::Theme& theme)
+    : is_open_(false), input_(""), selected_index_(0), scroll_offset_(0),
+      ui_(std::make_unique<pnana::ui::CommandPaletteUI>(theme)) {}
 
 void CommandPalette::registerCommand(const Command& command) {
     commands_.push_back(command);
@@ -63,105 +65,8 @@ bool CommandPalette::handleKeyEvent(const std::string& key) {
 }
 
 ftxui::Element CommandPalette::render() {
-    if (!is_open_) {
-        return ftxui::text("");
-    }
-
-    using namespace ftxui;
-    Elements dialog_content;
-
-    // 标题
-    dialog_content.push_back(
-        hbox({text(" "), text("⚡") | color(Color::Yellow), text(" Command Palette "), text(" ")}) |
-        bold | bgcolor(Color::RGB(60, 60, 80)) | center);
-
-    dialog_content.push_back(separator());
-
-    // 输入框
-    dialog_content.push_back(text(""));
-    std::string input_display = input_.empty() ? "_" : input_ + "_";
-    dialog_content.push_back(hbox({text("  > "), text(input_display) | bold | color(Color::White) |
-                                                     bgcolor(Color::RGB(40, 40, 50))}));
-
-    dialog_content.push_back(text(""));
-    dialog_content.push_back(separator());
-
-    // 限制显示的命令数量（最多15个）
-    size_t max_display = std::min(filtered_commands_.size(), size_t(15));
-
-    // 命令列表
-    if (filtered_commands_.empty()) {
-        dialog_content.push_back(
-            hbox({text("  "), text("No commands found") | color(Color::GrayDark) | dim}));
-    } else {
-        for (size_t i = 0; i < max_display && (scroll_offset_ + i) < filtered_commands_.size();
-             ++i) {
-            const auto& cmd = filtered_commands_[scroll_offset_ + i];
-            bool is_selected = ((scroll_offset_ + i) == selected_index_);
-
-            Elements cmd_elements;
-            cmd_elements.push_back(text("  "));
-
-            // 选中标记
-            if (is_selected) {
-                cmd_elements.push_back(text("► ") | color(Color::GreenLight) | bold);
-            } else {
-                cmd_elements.push_back(text("  "));
-            }
-
-            // 命令名称
-            cmd_elements.push_back(text(cmd.name) | (is_selected ? color(Color::White) | bold
-                                                                 : color(Color::GrayLight)));
-
-            // 描述
-            if (!cmd.description.empty()) {
-                cmd_elements.push_back(filler());
-                cmd_elements.push_back(text(cmd.description) | color(Color::GrayDark) | dim);
-            }
-
-            Element cmd_line = hbox(cmd_elements);
-            if (is_selected) {
-                cmd_line = cmd_line | bgcolor(Color::RGB(50, 50, 70));
-            }
-
-            dialog_content.push_back(cmd_line);
-        }
-
-        // 如果还有更多命令，显示提示
-        size_t displayed_count = std::min(max_display, filtered_commands_.size() - scroll_offset_);
-        if (scroll_offset_ > 0 || (scroll_offset_ + displayed_count) < filtered_commands_.size()) {
-            dialog_content.push_back(text(""));
-            std::string more_text;
-            if (scroll_offset_ > 0 &&
-                (scroll_offset_ + displayed_count) < filtered_commands_.size()) {
-                more_text =
-                    "... " + std::to_string(scroll_offset_) + " above and " +
-                    std::to_string(filtered_commands_.size() - scroll_offset_ - displayed_count) +
-                    " below";
-            } else if (scroll_offset_ > 0) {
-                more_text = "... " + std::to_string(scroll_offset_) + " more above";
-            } else {
-                more_text = "... " + std::to_string(filtered_commands_.size() - displayed_count) +
-                            " more below";
-            }
-            dialog_content.push_back(
-                hbox({text("  "), text(more_text) | color(Color::GrayDark) | dim}));
-        }
-    }
-
-    dialog_content.push_back(text(""));
-    dialog_content.push_back(separator());
-
-    // 提示信息
-    dialog_content.push_back(
-        hbox({text("  "), text("↑↓") | color(Color::Cyan) | bold, text(": Navigate  "),
-              text("Enter") | color(Color::Cyan) | bold, text(": Execute  "),
-              text("Esc") | color(Color::Cyan) | bold, text(": Cancel")}) |
-        dim);
-
-    int height = std::min(22, int(15 + static_cast<int>(max_display)));
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 70) |
-           size(HEIGHT, EQUAL, height) | bgcolor(Color::RGB(30, 30, 40)) | border;
+    ui_->setData(is_open_, input_, filtered_commands_, selected_index_, scroll_offset_);
+    return ui_->render();
 }
 
 void CommandPalette::executeSelected() {
