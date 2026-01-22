@@ -6,6 +6,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -208,7 +215,8 @@ Element SSHDialog::render() {
     Element dialog_content = vbox(fields);
 
     return window(text("SSH Connection"), dialog_content) | size(WIDTH, GREATER_THAN, 70) |
-           size(HEIGHT, GREATER_THAN, 20) | bgcolor(colors.background) | border;
+           size(HEIGHT, GREATER_THAN, 20) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 void SSHDialog::reset() {

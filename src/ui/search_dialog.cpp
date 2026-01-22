@@ -4,6 +4,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -249,7 +256,8 @@ Element SearchDialog::render() {
     Element dialog_content = vbox(content);
 
     return window(text("Search"), dialog_content) | size(WIDTH, GREATER_THAN, 60) |
-           size(HEIGHT, GREATER_THAN, 15) | bgcolor(colors.background) | border;
+           size(HEIGHT, GREATER_THAN, 15) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 void SearchDialog::updateResults(size_t current_match, size_t total_matches) {

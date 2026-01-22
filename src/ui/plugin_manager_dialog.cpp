@@ -5,6 +5,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -108,7 +115,7 @@ Element PluginManagerDialog::render() {
         bgcolor(colors.menubar_bg) | dim);
 
     return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 25) |
-           bgcolor(colors.background) | border | center;
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
 }
 
 Element PluginManagerDialog::renderPluginList() {

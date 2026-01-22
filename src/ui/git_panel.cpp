@@ -3,6 +3,7 @@
 #include "utils/logger.h"
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <future>
@@ -12,11 +13,20 @@
 using namespace ftxui;
 using namespace pnana::ui::icons;
 
+namespace fs = std::filesystem;
+
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace vgit {
 
 GitPanel::GitPanel(ui::Theme& theme, const std::string& repo_path)
-    : theme_(theme), git_manager_(std::make_unique<GitManager>(repo_path)) {
+    : theme_(theme), git_manager_(std::make_unique<GitManager>(repo_path)), icon_mapper_() {
     // 延迟加载git数据，只在面板显示时才加载
     // Initialize cache timestamps
     last_repo_display_update_ = std::chrono::steady_clock::now() - repo_display_cache_timeout_;
@@ -111,6 +121,9 @@ bool GitPanel::onKeyPress(Event event) {
             break;
         case GitPanelMode::REMOTE:
             handled = handleRemoteModeKey(event);
+            break;
+        case GitPanelMode::CLONE:
+            handled = handleCloneModeKey(event);
             break;
         case GitPanelMode::DIFF:
             handled = handleDiffModeKey(event);
@@ -302,6 +315,11 @@ void GitPanel::switchMode(GitPanelMode mode) {
         commit_message_.clear();
     } else if (mode == GitPanelMode::BRANCH) {
         branch_name_.clear();
+    } else if (mode == GitPanelMode::CLONE) {
+        clone_url_.clear();
+        clone_path_ = git_manager_->getRepositoryRoot().empty() ? fs::current_path().string()
+                                                                : git_manager_->getRepositoryRoot();
+        clone_focus_on_url_ = true; // Default focus on URL
     }
 
     // Ensure indices are valid for the new mode
@@ -317,6 +335,8 @@ GitPanelMode GitPanel::getNextMode(GitPanelMode current) {
         case GitPanelMode::BRANCH:
             return GitPanelMode::REMOTE;
         case GitPanelMode::REMOTE:
+            return GitPanelMode::CLONE;
+        case GitPanelMode::CLONE:
             return GitPanelMode::DIFF;
         case GitPanelMode::DIFF:
             return GitPanelMode::STATUS;
@@ -656,6 +676,8 @@ Element GitPanel::renderTabs() {
         makeTab("Branch", GitPanelMode::BRANCH, current_mode_ == GitPanelMode::BRANCH),
         text(" │ ") | color(colors.comment),
         makeTab("Remote", GitPanelMode::REMOTE, current_mode_ == GitPanelMode::REMOTE),
+        text(" │ ") | color(colors.comment),
+        makeTab("Clone", GitPanelMode::CLONE, current_mode_ == GitPanelMode::CLONE),
         text(" │ ") | color(colors.comment),
         makeTab("Diff", GitPanelMode::DIFF, current_mode_ == GitPanelMode::DIFF)};
     return hbox(std::move(elements)) | center;
@@ -1072,8 +1094,10 @@ Element GitPanel::renderFileItem(const GitFile& file, size_t /*index*/, bool is_
 
     // Enhanced git file item styling inspired by file_browser_view and neovim git plugins
     Color item_color = colors.foreground;
-    std::string status_icon = getStatusIcon(file.status);
     std::string status_text = getStatusText(file.status);
+
+    // Get file type icon (use the mapper only; remove the old file icon to avoid duplication)
+    std::string file_type_icon = icon_mapper_.getIcon(getFileExtension(file.path));
 
     // Staged status indicator - more prominent than file browser
     std::string staged_indicator;
@@ -1145,16 +1169,18 @@ Element GitPanel::renderFileItem(const GitFile& file, size_t /*index*/, bool is_
     }
 
     // Build enhanced row elements with better visual hierarchy:
-    // [space][staged_indicator][space][status_icon][space][filename][space][metadata][space]
+    // [space][staged_indicator][space][file_type_icon][space][filename][space][metadata][space]
     Elements row_elements = {
         text(" "), // Leading space for visual breathing room
         text(staged_indicator) | color(staged_color) | bold, // Staged status (prominent)
         text(" "),                                           // Space separator
-        text(status_icon) | color(status_color) | bold, // Status icon with status-specific color
-        text(" "),                                      // Space separator
-        text(display_name) | color(item_color),         // File path/name
-        text(" "),                                      // Space separator
-        text(metadata) | color(colors.comment)          // Status metadata
+        // Use file type icon (new) and keep status text in metadata to avoid duplicate icons
+        text(file_type_icon) | color(colors.function), // File type icon
+        text(" "),                                     // Space separator
+        text(display_name) | color(item_color),        // File path/name
+        text(" "),                                     // Space separator
+        text(metadata) |
+            color(status_color) // Status metadata (use status_color to avoid unused variable)
     };
 
     // For renamed files, add extra visual indicator
@@ -1245,6 +1271,159 @@ Element GitPanel::renderBranchItem(const GitBranch& branch, size_t /*index*/, bo
     }
 
     return item_text;
+}
+
+Element GitPanel::renderClonePanel() {
+    auto& colors = theme_.getColors();
+
+    Elements elements;
+
+    // Enhanced header
+    Elements header_elements = {text(pnana::ui::icons::DOWNLOAD) | color(colors.success),
+                                text(" Clone Repository") | color(colors.foreground) | bold};
+    elements.push_back(hbox(std::move(header_elements)));
+    elements.push_back(separator());
+
+    // Repository URL input
+    Elements url_header = {text(pnana::ui::icons::LINK) | color(colors.keyword),
+                           text(" Repository URL (HTTPS/SSH):") | color(colors.menubar_fg)};
+    elements.push_back(hbox(std::move(url_header)));
+
+    // URL input with focus indication
+    auto url_input = text(clone_url_) | color(colors.foreground);
+    if (clone_focus_on_url_) {
+        url_input = url_input | border | bgcolor(colors.selection) | color(colors.background);
+    } else {
+        url_input = url_input | border | bgcolor(colors.background);
+    }
+    elements.push_back(url_input);
+    elements.push_back(separatorLight());
+
+    // Clone path input
+    Elements path_header = {text(pnana::ui::icons::FOLDER) | color(colors.function),
+                            text(" Clone to path:") | color(colors.menubar_fg)};
+    elements.push_back(hbox(std::move(path_header)));
+
+    // Path input with focus indication
+    auto path_input = text(clone_path_) | color(colors.foreground);
+    if (!clone_focus_on_url_) {
+        path_input = path_input | border | bgcolor(colors.selection) | color(colors.background);
+    } else {
+        path_input = path_input | border | bgcolor(colors.background);
+    }
+    elements.push_back(path_input);
+    elements.push_back(separatorLight());
+
+    // Instructions
+    Elements instructions = {
+        text(pnana::ui::icons::INFO_CIRCLE) | color(colors.info),
+        text(" Enter repository URL and destination path, then press Enter to clone") |
+            color(colors.comment)};
+    elements.push_back(hbox(std::move(instructions)));
+
+    elements.push_back(separatorLight());
+
+    // Examples
+    Elements examples_header = {text("Examples:") | color(colors.menubar_fg)};
+    elements.push_back(hbox(std::move(examples_header)));
+
+    Elements https_example = {text("HTTPS: ") | color(colors.comment),
+                              text("https://github.com/user/repo.git") | color(colors.string)};
+    elements.push_back(hbox(std::move(https_example)));
+
+    Elements ssh_example = {text("SSH:   ") | color(colors.comment),
+                            text("git@github.com:user/repo.git") | color(colors.string)};
+    elements.push_back(hbox(std::move(ssh_example)));
+
+    return vbox(std::move(elements));
+}
+
+bool GitPanel::handleCloneModeKey(Event event) {
+    // Tab navigation between modes
+    if (event == Event::Tab) {
+        switchMode(getNextMode(current_mode_));
+        return true;
+    }
+
+    // Up/Down arrow keys to switch between input fields
+    if (event == Event::ArrowUp || event == Event::ArrowDown) {
+        clone_focus_on_url_ = !clone_focus_on_url_;
+        return true;
+    }
+
+    if (event == Event::Return) {
+        performClone();
+        return true;
+    }
+    if (event == Event::Escape) {
+        switchMode(GitPanelMode::STATUS);
+        return true;
+    }
+
+    // Handle text input based on current focus
+    if (event.is_character()) {
+        if (clone_focus_on_url_) {
+            clone_url_ += event.character();
+        } else {
+            clone_path_ += event.character();
+        }
+        return true;
+    }
+    if (event == Event::Backspace) {
+        if (clone_focus_on_url_ && !clone_url_.empty()) {
+            clone_url_.pop_back();
+        } else if (!clone_focus_on_url_ && !clone_path_.empty()) {
+            clone_path_.pop_back();
+        }
+        return true;
+    }
+
+    return false;
+}
+
+void GitPanel::performClone() {
+    if (clone_url_.empty()) {
+        error_message_ = "Repository URL cannot be empty";
+        return;
+    }
+
+    if (clone_path_.empty()) {
+        error_message_ = "Clone path cannot be empty";
+        return;
+    }
+
+    // Start async clone operation
+    std::thread([this]() {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        pnana::utils::Logger::getInstance().log(
+            "GitPanel::performClone - Starting async clone operation");
+
+        GitManager temp_manager(clone_path_);
+        bool success = temp_manager.clone(clone_url_, clone_path_);
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+        if (success) {
+            error_message_.clear();
+            pnana::utils::Logger::getInstance().log(
+                "GitPanel::performClone - Clone completed successfully in " +
+                std::to_string(duration.count()) + "ms");
+
+            // Clear inputs on success
+            clone_url_.clear();
+            clone_path_ = git_manager_->getRepositoryRoot().empty()
+                              ? fs::current_path().string()
+                              : git_manager_->getRepositoryRoot();
+            clone_focus_on_url_ = true; // Reset focus to URL
+        } else {
+            error_message_ = temp_manager.getLastError();
+            pnana::utils::Logger::getInstance().log("GitPanel::performClone - Clone failed after " +
+                                                    std::to_string(duration.count()) +
+                                                    "ms: " + error_message_);
+        }
+    }).detach();
 }
 
 Element GitPanel::renderDiffViewer() {
@@ -1344,7 +1523,7 @@ Element GitPanel::renderDiffViewer() {
 
     return window(text("Diff Viewer"), vbox(std::move(viewer_elements))) |
            size(WIDTH, GREATER_THAN, 100) | size(HEIGHT, GREATER_THAN, 30) |
-           bgcolor(colors.background) | border;
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 Color GitPanel::getDiffLineColor(const std::string& line) {
@@ -1436,6 +1615,17 @@ Element GitPanel::renderFooter() {
             footer_elements.push_back(hbox(remote_help));
             break;
         }
+        case GitPanelMode::CLONE: {
+            Elements clone_help = {text("Clone: Enter") | color(colors.success) | bold,
+                                   text(" | ") | color(colors.comment),
+                                   text("Switch field: ↑↓") | color(colors.comment),
+                                   text(" | ") | color(colors.comment),
+                                   text("Switch mode: Tab") | color(colors.comment),
+                                   text(" | ") | color(colors.comment),
+                                   text("Back: ESC") | color(colors.comment)};
+            footer_elements.push_back(hbox(clone_help));
+            break;
+        }
     }
 
     // Add scroll indicator if needed
@@ -1500,6 +1690,9 @@ Component GitPanel::buildMainComponent() {
                    case GitPanelMode::REMOTE:
                        content_elements.push_back(renderRemotePanel());
                        break;
+                   case GitPanelMode::CLONE:
+                       content_elements.push_back(renderClonePanel());
+                       break;
                    case GitPanelMode::DIFF:
                        content_elements.push_back(renderDiffPanel());
                        break;
@@ -1518,7 +1711,8 @@ Component GitPanel::buildMainComponent() {
                // Use window style like other dialogs with proper sizing
                Element main_panel = window(text("Git Panel"), dialog_content) |
                                     size(WIDTH, GREATER_THAN, 75) | size(HEIGHT, GREATER_THAN, 28) |
-                                    bgcolor(colors.background) | border;
+                                    bgcolor(colors.background) |
+                                    borderWithColor(colors.dialog_border);
 
                // If diff viewer is visible, render it on top
                if (diff_viewer_visible_) {
@@ -1597,6 +1791,8 @@ Component GitPanel::buildMainComponent() {
                            return handleCommitModeKey(event);
                        case GitPanelMode::REMOTE:
                            return handleRemoteModeKey(event);
+                       case GitPanelMode::CLONE:
+                           return handleCloneModeKey(event);
                        case GitPanelMode::DIFF:
                            return handleDiffModeKey(event);
                    }
@@ -1987,6 +2183,8 @@ std::string GitPanel::getModeTitle(GitPanelMode mode) const {
             return "Branch";
         case GitPanelMode::REMOTE:
             return "Remote";
+        case GitPanelMode::CLONE:
+            return "Clone";
         case GitPanelMode::DIFF:
             return "Diff";
         default:
@@ -2105,6 +2303,20 @@ std::string GitPanel::getCachedCurrentBranch() {
                                             cached_current_branch_);
 
     return cached_current_branch_;
+}
+
+std::string GitPanel::getFileExtension(const std::string& filename) const {
+    try {
+        std::filesystem::path file_path(filename);
+        std::string extension = file_path.extension().string();
+        // 移除扩展名前的点
+        if (!extension.empty() && extension[0] == '.') {
+            return extension.substr(1);
+        }
+        return extension;
+    } catch (...) {
+        return "";
+    }
 }
 
 void GitPanel::ensureValidIndices() {

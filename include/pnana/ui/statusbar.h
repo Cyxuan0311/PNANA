@@ -4,9 +4,13 @@
 #include "ui/theme.h"
 #include "utils/file_type_icon_mapper.h"
 #include "utils/logger.h"
+#include <chrono>
 #include <ftxui/dom/elements.hpp>
+#include <future>
+#include <mutex>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 
 namespace pnana {
 namespace ui {
@@ -82,6 +86,17 @@ class Statusbar {
     StatusbarBeautifyConfig beautify_config_;
     utils::FileTypeIconMapper icon_mapper_;
 
+    // 版本信息缓存
+    struct VersionCacheEntry {
+        std::string version;
+        std::chrono::steady_clock::time_point timestamp;
+        bool is_fetching; // 是否正在获取中
+    };
+
+    std::unordered_map<std::string, VersionCacheEntry> version_cache_;
+    std::mutex cache_mutex_;
+    static constexpr auto CACHE_DURATION = std::chrono::minutes(5); // 缓存5分钟
+
     // 获取文件类型图标
     std::string getFileTypeIcon(const std::string& file_type);
 
@@ -101,6 +116,12 @@ class Statusbar {
     // Git相关方法
     static std::string getGitBranch();
     static int getGitUncommittedCount();
+
+    // 获取编程语言版本信息
+    std::string getVersionForFileType(const std::string& file_type);
+
+    // 实际执行版本获取的私有方法
+    std::string fetchVersionForFileType(const std::string& file_type);
 };
 
 } // namespace ui

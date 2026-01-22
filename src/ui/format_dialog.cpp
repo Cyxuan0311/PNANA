@@ -11,6 +11,13 @@ namespace ui {
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 FormatDialog::FormatDialog(Theme& theme)
     : theme_(theme), is_open_(false), selected_index_(0), scroll_offset_(0), max_visible_items_(10),
       search_query_(""), search_focused_(false) {}
@@ -232,6 +239,8 @@ Element FormatDialog::render() {
         return text("");
     }
 
+    auto& colors = theme_.getColors();
+
     using namespace ftxui;
     Elements dialog_content;
 
@@ -375,7 +384,8 @@ Element FormatDialog::render() {
     height = std::max(height, 15); // 最小高度
 
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 80) |
-           size(HEIGHT, EQUAL, height) | bgcolor(Color::RGB(30, 30, 40)) | border;
+           size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 void FormatDialog::setOnConfirm(std::function<void(const std::vector<std::string>&)> callback) {

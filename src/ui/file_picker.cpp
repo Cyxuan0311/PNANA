@@ -7,6 +7,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -237,7 +244,8 @@ Element FilePicker::render() {
         std::string item_name = getItemName(item_path);
         bool is_dir = isDirectory(item_path);
 
-        std::string icon = is_dir ? ui::icons::FOLDER : ui::icons::FILE;
+        std::string icon =
+            is_dir ? ui::icons::FOLDER : icon_mapper_.getIcon(getFileExtension(item_name));
         Color item_color = is_dir ? colors.function : colors.foreground;
 
         if (is_dir) {
@@ -275,8 +283,8 @@ Element FilePicker::render() {
                       filler()};
     content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
 
-    return vbox(content) | border | bgcolor(colors.background) | size(WIDTH, GREATER_THAN, 60) |
-           size(HEIGHT, GREATER_THAN, 20) | center;
+    return vbox(content) | borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
+           size(WIDTH, GREATER_THAN, 60) | size(HEIGHT, GREATER_THAN, 20) | center;
 }
 
 void FilePicker::reset() {
@@ -419,6 +427,20 @@ std::string FilePicker::getItemName(const std::string& path) const {
         return fs::path(path).filename().string();
     } catch (...) {
         return path;
+    }
+}
+
+std::string FilePicker::getFileExtension(const std::string& filename) const {
+    try {
+        fs::path file_path(filename);
+        std::string extension = file_path.extension().string();
+        // 移除扩展名前的点
+        if (!extension.empty() && extension[0] == '.') {
+            return extension.substr(1);
+        }
+        return extension;
+    } catch (...) {
+        return "";
     }
 }
 

@@ -3,6 +3,7 @@
 
 #include "features/vgit/git_manager.h"
 #include "ui/theme.h"
+#include "utils/file_type_icon_mapper.h"
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
 #include <memory>
@@ -13,7 +14,7 @@
 namespace pnana {
 namespace vgit {
 
-enum class GitPanelMode { STATUS, COMMIT, BRANCH, REMOTE, DIFF };
+enum class GitPanelMode { STATUS, COMMIT, BRANCH, REMOTE, CLONE, DIFF };
 
 class GitPanel {
   public:
@@ -57,6 +58,7 @@ class GitPanel {
 
     // Data management
     void refreshData();
+    void performClone();
 
     // Key handlers
     bool onKeyPress(ftxui::Event event);
@@ -69,6 +71,8 @@ class GitPanel {
     bool data_loading_ = false; // 标记数据是否正在加载
     std::mutex data_mutex_;     // 保护数据访问的互斥锁
 
+    utils::FileTypeIconMapper icon_mapper_; // 文件类型图标映射器
+
     // UI state
     GitPanelMode current_mode_ = GitPanelMode::STATUS;
     std::vector<GitFile> files_;
@@ -77,6 +81,9 @@ class GitPanel {
     size_t scroll_offset_ = 0;
     std::string commit_message_;
     std::string branch_name_;
+    std::string clone_url_;
+    std::string clone_path_;
+    bool clone_focus_on_url_ = true; // true for URL, false for path
     std::string error_message_;
 
     // Diff viewer state
@@ -146,6 +153,7 @@ class GitPanel {
     ftxui::Element renderCommitPanel();
     ftxui::Element renderBranchPanel();
     ftxui::Element renderRemotePanel();
+    ftxui::Element renderClonePanel();
     ftxui::Element renderDiffPanel();
     ftxui::Element renderDiffViewer();
     ftxui::Element renderDiffFileItem(const GitFile& file, size_t index, bool is_highlighted);
@@ -167,6 +175,7 @@ class GitPanel {
     bool handleCommitModeKey(ftxui::Event event);
     bool handleBranchModeKey(ftxui::Event event);
     bool handleRemoteModeKey(ftxui::Event event);
+    bool handleCloneModeKey(ftxui::Event event);
     bool handleDiffModeKey(ftxui::Event event);
 
     // Utility methods
@@ -180,6 +189,7 @@ class GitPanel {
     bool isNavigationKey(ftxui::Event event) const;
     std::string getCachedRepoPathDisplay();
     std::string getCachedCurrentBranch();
+    std::string getFileExtension(const std::string& filename) const;
     void ensureValidIndices();
 };
 

@@ -1,6 +1,15 @@
 #include "ui/split_dialog.h"
 #include "ui/icons.h"
 
+using namespace ftxui;
+
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -158,7 +167,7 @@ ftxui::Element SplitDialog::render() {
             dim);
 
         return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 60) | size(HEIGHT, EQUAL, 12) |
-               bgcolor(colors.background) | border | center;
+               bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
     } else {
         // 关闭分屏模式
         content.push_back(hbox({text(" "), text("✕") | color(Color::Red),
@@ -227,7 +236,8 @@ ftxui::Element SplitDialog::render() {
 
         int height = std::min(20, int(10 + splits_.size()));
         return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 70) |
-               size(HEIGHT, EQUAL, height) | bgcolor(colors.background) | border | center;
+               size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
+               borderWithColor(colors.dialog_border) | center;
     }
 }
 

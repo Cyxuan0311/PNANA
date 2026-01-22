@@ -9,6 +9,20 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
+// Custom borderRounded decorator with theme color
+static inline Decorator borderRoundedWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | borderRounded | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -600,7 +614,8 @@ Element CompletionPopup::render(const ui::Theme& theme) const {
     }
 
     // 构建弹窗（参考neovim：使用更简洁的边框样式）
-    Element popup = vbox(lines) | borderRounded | bgcolor(colors.background);
+    Element popup =
+        vbox(lines) | borderRoundedWithColor(colors.dialog_border) | bgcolor(colors.background);
 
     // 设置固定尺寸以避免抖动
     popup = popup | size(WIDTH, EQUAL, popup_width_) | size(HEIGHT, EQUAL, popup_height_);

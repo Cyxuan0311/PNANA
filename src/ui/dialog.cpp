@@ -5,6 +5,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -137,13 +144,14 @@ Element Dialog::render() {
                   text(at_cursor) | bgcolor(colors.foreground) | color(colors.background),
                   text(after_cursor) | color(colors.foreground),
                   text(" ") | color(colors.foreground)}) |
-            bgcolor(colors.background) | border);
+            bgcolor(colors.background) | borderWithColor(colors.dialog_border));
 
         // 提示
         content.push_back(hbox(
             {text(" "), text("Press Enter to confirm, Esc to cancel") | color(colors.comment)}));
 
-        return vbox(content) | bgcolor(colors.background) | border | center;
+        return vbox(content) | bgcolor(colors.background) | borderWithColor(colors.dialog_border) |
+               center;
 
     } else if (type_ == DialogType::CONFIRM) {
         // 确认对话框
@@ -166,7 +174,8 @@ Element Dialog::render() {
                                 text("[N] Cancel") | color(Color::Red), text("  "),
                                 text("(or Enter/Esc)") | color(colors.comment)}));
 
-        return vbox(content) | bgcolor(colors.background) | border | center;
+        return vbox(content) | bgcolor(colors.background) | borderWithColor(colors.dialog_border) |
+               center;
     }
 
     return text("");

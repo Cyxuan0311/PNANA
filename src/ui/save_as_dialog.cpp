@@ -4,6 +4,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -75,7 +82,8 @@ Element SaveAsDialog::render() {
     int dialog_height = is_untitled ? 13 : 12;
 
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 65) |
-           size(HEIGHT, EQUAL, dialog_height) | bgcolor(colors.background) | border;
+           size(HEIGHT, EQUAL, dialog_height) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 } // namespace ui
