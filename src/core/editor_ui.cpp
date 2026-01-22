@@ -194,8 +194,20 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderCursorConfigCallback([this]() {
         return cursor_config_dialog_.render();
     });
+    overlay_manager_->setRenderAIConfigCallback([this]() {
+        return ai_config_dialog_.render();
+    });
+    overlay_manager_->setRenderAIAssistantCallback([this]() {
+        return ai_assistant_panel_.render();
+    });
     overlay_manager_->setRenderCommandPaletteCallback([this]() {
         return renderCommandPalette();
+    });
+    overlay_manager_->setRenderRecentFilesCallback([this]() {
+        auto recent_files = recent_files_manager_.getRecentFiles();
+        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_files,
+                                    recent_files_popup_.getSelectedIndex());
+        return recent_files_popup_.render();
     });
     overlay_manager_->setRenderFormatCallback([this]() {
         return format_dialog_.render();
@@ -209,9 +221,6 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderSplitDialogCallback([this]() {
         return split_dialog_.render();
     });
-    overlay_manager_->setRenderSearchDialogCallback([this]() {
-        return search_dialog_.render();
-    });
     overlay_manager_->setRenderSSHTansferCallback([this]() {
         return ssh_transfer_dialog_.render();
     });
@@ -220,6 +229,30 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setRenderEncodingDialogCallback([this]() {
         return encoding_dialog_.render();
+    });
+    overlay_manager_->setRenderRecentFilesCallback([this]() {
+        auto recent_files = recent_files_manager_.getRecentFiles();
+        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_files,
+                                    recent_files_popup_.getSelectedIndex());
+        return recent_files_popup_.render();
+    });
+    overlay_manager_->setIsRecentFilesVisibleCallback([this]() {
+        return recent_files_popup_.isOpen();
+    });
+    overlay_manager_->setRenderTUIConfigCallback([this]() {
+        auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
+        tui_config_popup_.setData(tui_config_popup_.isOpen(), available_configs,
+                                  tui_config_popup_.getSelectedIndex());
+        return tui_config_popup_.render();
+    });
+    overlay_manager_->setIsTUIConfigVisibleCallback([this]() {
+        return tui_config_popup_.isOpen();
+    });
+    overlay_manager_->setRenderDialogCallback([this]() {
+        return dialog_.render();
+    });
+    overlay_manager_->setIsDialogVisibleCallback([this]() {
+        return dialog_.isVisible();
     });
 
 #ifdef BUILD_LUA_SUPPORT
@@ -253,6 +286,12 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setIsCursorConfigVisibleCallback([this]() {
         return cursor_config_dialog_.isVisible();
     });
+    overlay_manager_->setIsAIConfigVisibleCallback([this]() {
+        return ai_config_dialog_.isVisible();
+    });
+    overlay_manager_->setIsAIAssistantVisibleCallback([this]() {
+        return ai_assistant_panel_.isVisible();
+    });
     overlay_manager_->setIsCommandPaletteVisibleCallback([this]() {
         return command_palette_.isOpen();
     });
@@ -267,9 +306,6 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsSplitDialogVisibleCallback([this]() {
         return split_dialog_.isVisible();
-    });
-    overlay_manager_->setIsSearchDialogVisibleCallback([this]() {
-        return search_dialog_.isVisible();
     });
     overlay_manager_->setIsSSHTansferVisibleCallback([this]() {
         return ssh_transfer_dialog_.isVisible();
@@ -1297,11 +1333,141 @@ Element Editor::renderHelpbar() {
 }
 
 Element Editor::renderInputBox() {
-    if (mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) {
-        return text(status_message_ + input_buffer_) | bgcolor(theme_.getColors().menubar_bg) |
-               color(theme_.getColors().menubar_fg);
+    if (mode_ == EditorMode::SEARCH) {
+        return renderSearchInputBox();
+    } else if (mode_ == EditorMode::REPLACE) {
+        return renderReplaceInputBox();
     }
     return text("");
+}
+
+Element Editor::renderSearchInputBox() {
+    auto& colors = theme_.getColors();
+    Elements elements;
+
+    // 搜索提示
+    elements.push_back(text("Search: ") | color(colors.comment));
+
+    // 搜索输入区域
+    if (search_input_.empty()) {
+        elements.push_back(text("(type to search...)") | color(colors.comment) | dim);
+    } else {
+        // 渲染带光标的搜索输入
+        if (search_cursor_pos_ <= search_input_.length()) {
+            std::string before = search_input_.substr(0, search_cursor_pos_);
+            std::string cursor_char = search_cursor_pos_ < search_input_.length()
+                                          ? search_input_.substr(search_cursor_pos_, 1)
+                                          : " ";
+            std::string after = search_cursor_pos_ < search_input_.length()
+                                    ? search_input_.substr(search_cursor_pos_ + 1)
+                                    : "";
+
+            if (!before.empty()) {
+                elements.push_back(text(before) | color(colors.foreground));
+            }
+            elements.push_back(text(cursor_char) | bgcolor(colors.foreground) |
+                               color(colors.background) | bold);
+            if (!after.empty()) {
+                elements.push_back(text(after) | color(colors.foreground));
+            }
+        } else {
+            elements.push_back(text(search_input_) | color(colors.foreground));
+        }
+    }
+
+    // 显示搜索选项
+    Elements options;
+    const char* option_names[] = {"Case", "Word", "Regex", "Wrap"};
+
+    for (int i = 0; i < 4; ++i) {
+        Color option_color = (i == current_option_index_) ? colors.function : colors.comment;
+        std::string indicator = search_options_[i] ? "●" : "○";
+        options.push_back(text(std::string(" ") + indicator + option_names[i]) |
+                          color(option_color));
+    }
+
+    elements.push_back(hbox(std::move(options)));
+
+    // 匹配计数
+    if (total_search_matches_ > 0) {
+        std::string count_str = " [" + std::to_string(current_search_match_ + 1) + "/" +
+                                std::to_string(total_search_matches_) + "]";
+        elements.push_back(text(count_str) | color(colors.info));
+    }
+
+    // 快捷键提示
+    elements.push_back(
+        text("  [↑↓: options, Space: toggle, Tab: replace, Enter: next, Esc: cancel]") |
+        color(colors.comment) | dim);
+
+    return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
+}
+
+Element Editor::renderReplaceInputBox() {
+    auto& colors = theme_.getColors();
+    Elements elements;
+
+    // 替换提示
+    elements.push_back(text("Replace: ") | color(colors.comment));
+
+    // 搜索模式显示
+    if (!search_input_.empty()) {
+        elements.push_back(text(search_input_) | color(colors.foreground));
+        elements.push_back(text(" → ") | color(colors.comment));
+    }
+
+    // 替换输入区域
+    if (replace_input_.empty()) {
+        elements.push_back(text("(type replacement...)") | color(colors.comment) | dim);
+    } else {
+        // 渲染带光标的替换输入
+        if (replace_cursor_pos_ <= replace_input_.length()) {
+            std::string before = replace_input_.substr(0, replace_cursor_pos_);
+            std::string cursor_char = replace_cursor_pos_ < replace_input_.length()
+                                          ? replace_input_.substr(replace_cursor_pos_, 1)
+                                          : " ";
+            std::string after = replace_cursor_pos_ < replace_input_.length()
+                                    ? replace_input_.substr(replace_cursor_pos_ + 1)
+                                    : "";
+
+            if (!before.empty()) {
+                elements.push_back(text(before) | color(colors.foreground));
+            }
+            elements.push_back(text(cursor_char) | bgcolor(colors.foreground) |
+                               color(colors.background) | bold);
+            if (!after.empty()) {
+                elements.push_back(text(after) | color(colors.foreground));
+            }
+        } else {
+            elements.push_back(text(replace_input_) | color(colors.foreground));
+        }
+    }
+
+    // 显示搜索选项
+    Elements options;
+    const char* option_names[] = {"Case", "Word", "Regex", "Wrap"};
+
+    for (int i = 0; i < 4; ++i) {
+        Color option_color = (i == current_option_index_) ? colors.function : colors.comment;
+        std::string indicator = search_options_[i] ? "●" : "○";
+        options.push_back(text(std::string(" ") + indicator + option_names[i]) |
+                          color(option_color));
+    }
+
+    elements.push_back(hbox(std::move(options)));
+
+    // 匹配计数
+    if (total_search_matches_ > 0) {
+        std::string count_str = " [" + std::to_string(current_search_match_ + 1) + "/" +
+                                std::to_string(total_search_matches_) + "]";
+        elements.push_back(text(count_str) | color(colors.info));
+    }
+
+    // 快捷键提示
+    elements.push_back(text("  [↑↓: options, Space: toggle, Enter: replace, Esc: cancel]") |
+                       color(colors.comment) | dim);
+
+    return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
 }
 
 Element Editor::renderFileBrowser() {

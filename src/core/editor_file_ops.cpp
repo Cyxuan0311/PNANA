@@ -114,6 +114,9 @@ bool Editor::openFile(const std::string& filepath) {
             setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + filepath);
         }
 
+        // 添加到最近文件列表
+        recent_files_manager_.addFile(filepath);
+
         // 如果在分屏模式下，将新文档设置为当前激活区域的文档
         if (split_view_manager_.hasSplits()) {
             size_t new_doc_index = document_manager_.getCurrentIndex();

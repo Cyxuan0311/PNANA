@@ -351,15 +351,51 @@ void Document::deleteChar(size_t row, size_t col) {
     }
 }
 
-void Document::deleteRange(size_t start_row, size_t /*start_col*/, size_t end_row,
-                           size_t /*end_col*/) {
-    if (start_row >= lines_.size() || end_row >= lines_.size()) {
+void Document::deleteRange(size_t start_row, size_t start_col, size_t end_row, size_t end_col) {
+    // Treat end_col as exclusive.
+    if (start_row >= lines_.size() || end_row >= lines_.size() || start_row > end_row) {
         return;
     }
 
-    // 简化实现：后续可以优化
-    // 注意：这里没有调用 pushChange，因为这是一个简化的实现
-    // 如果需要完整的撤销支持，应该在这里记录删除的内容
+    // Clamp columns
+    std::string old_content;
+
+    if (start_row == end_row) {
+        const std::string& line = lines_[start_row];
+        size_t sc = std::min(start_col, line.length());
+        size_t ec = std::min(end_col, line.length());
+        if (sc >= ec) {
+            return; // nothing to delete
+        }
+        old_content = line.substr(sc, ec - sc);
+        lines_[start_row].erase(sc, ec - sc);
+        pushChange(DocumentChange(DocumentChange::Type::DELETE, start_row, sc, old_content, ""));
+        return;
+    }
+
+    // Multi-line deletion
+    // first line: keep prefix before start_col
+    size_t sc = std::min(start_col, lines_[start_row].length());
+    size_t ec = std::min(end_col, lines_[end_row].length());
+
+    // Build old_content = suffix of first line (from sc) + '\n' + middle lines + '\n' + prefix of
+    // last line (0..ec)
+    old_content = lines_[start_row].substr(sc);
+    old_content += '\n';
+    for (size_t r = start_row + 1; r < end_row; ++r) {
+        old_content += lines_[r];
+        old_content += '\n';
+    }
+    old_content += lines_[end_row].substr(0, ec);
+
+    // Construct new first line = prefix before sc + suffix after ec of last line
+    std::string new_first = lines_[start_row].substr(0, sc) + lines_[end_row].substr(ec);
+
+    // Erase range of lines and replace first line with new_first
+    lines_.erase(lines_.begin() + start_row, lines_.begin() + end_row + 1);
+    lines_.insert(lines_.begin() + start_row, new_first);
+
+    pushChange(DocumentChange(DocumentChange::Type::DELETE, start_row, sc, old_content, ""));
 }
 
 void Document::replaceLine(size_t row, const std::string& content) {

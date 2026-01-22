@@ -29,6 +29,12 @@ class OverlayManager {
     void setRenderCursorConfigCallback(std::function<ftxui::Element()> callback) {
         render_cursor_config_callback_ = callback;
     }
+    void setRenderAIConfigCallback(std::function<ftxui::Element()> callback) {
+        render_ai_config_callback_ = callback;
+    }
+    void setRenderAIAssistantCallback(std::function<ftxui::Element()> callback) {
+        render_ai_assistant_callback_ = callback;
+    }
     void setRenderPluginManagerCallback(std::function<ftxui::Element()> callback) {
         render_plugin_manager_callback_ = callback;
     }
@@ -53,9 +59,6 @@ class OverlayManager {
     void setRenderSplitDialogCallback(std::function<ftxui::Element()> callback) {
         render_split_dialog_callback_ = callback;
     }
-    void setRenderSearchDialogCallback(std::function<ftxui::Element()> callback) {
-        render_search_dialog_callback_ = callback;
-    }
     void setRenderSSHTansferCallback(std::function<ftxui::Element()> callback) {
         render_ssh_transfer_callback_ = callback;
     }
@@ -64,6 +67,15 @@ class OverlayManager {
     }
     void setRenderEncodingDialogCallback(std::function<ftxui::Element()> callback) {
         render_encoding_dialog_callback_ = callback;
+    }
+    void setRenderRecentFilesCallback(std::function<ftxui::Element()> callback) {
+        render_recent_files_callback_ = callback;
+    }
+    void setRenderTUIConfigCallback(std::function<ftxui::Element()> callback) {
+        render_tui_config_callback_ = callback;
+    }
+    void setRenderDialogCallback(std::function<ftxui::Element()> callback) {
+        render_dialog_callback_ = callback;
     }
 
     // 设置可见性检查回调
@@ -81,6 +93,12 @@ class OverlayManager {
     }
     void setIsCursorConfigVisibleCallback(std::function<bool()> callback) {
         is_cursor_config_visible_callback_ = callback;
+    }
+    void setIsAIConfigVisibleCallback(std::function<bool()> callback) {
+        is_ai_config_visible_callback_ = callback;
+    }
+    void setIsAIAssistantVisibleCallback(std::function<bool()> callback) {
+        is_ai_assistant_visible_callback_ = callback;
     }
     void setIsPluginManagerVisibleCallback(std::function<bool()> callback) {
         is_plugin_manager_visible_callback_ = callback;
@@ -106,9 +124,6 @@ class OverlayManager {
     void setIsSplitDialogVisibleCallback(std::function<bool()> callback) {
         is_split_dialog_visible_callback_ = callback;
     }
-    void setIsSearchDialogVisibleCallback(std::function<bool()> callback) {
-        is_search_dialog_visible_callback_ = callback;
-    }
     void setIsSSHTansferVisibleCallback(std::function<bool()> callback) {
         is_ssh_transfer_visible_callback_ = callback;
     }
@@ -117,6 +132,15 @@ class OverlayManager {
     }
     void setIsEncodingDialogVisibleCallback(std::function<bool()> callback) {
         is_encoding_dialog_visible_callback_ = callback;
+    }
+    void setIsRecentFilesVisibleCallback(std::function<bool()> callback) {
+        is_recent_files_visible_callback_ = callback;
+    }
+    void setIsTUIConfigVisibleCallback(std::function<bool()> callback) {
+        is_tui_config_visible_callback_ = callback;
+    }
+    void setIsDialogVisibleCallback(std::function<bool()> callback) {
+        is_dialog_visible_callback_ = callback;
     }
 
     // 主渲染方法
@@ -129,6 +153,8 @@ class OverlayManager {
     std::function<ftxui::Element()> render_create_folder_callback_;
     std::function<ftxui::Element()> render_save_as_callback_;
     std::function<ftxui::Element()> render_cursor_config_callback_;
+    std::function<ftxui::Element()> render_ai_config_callback_;
+    std::function<ftxui::Element()> render_ai_assistant_callback_;
     std::function<ftxui::Element()> render_plugin_manager_callback_;
     std::function<ftxui::Element()> render_command_palette_callback_;
     std::function<ftxui::Element()> render_format_callback_;
@@ -137,10 +163,12 @@ class OverlayManager {
     std::function<ftxui::Element()> render_diagnostics_popup_callback_;
     std::function<ftxui::Element()> render_file_picker_callback_;
     std::function<ftxui::Element()> render_split_dialog_callback_;
-    std::function<ftxui::Element()> render_search_dialog_callback_;
     std::function<ftxui::Element()> render_ssh_transfer_callback_;
     std::function<ftxui::Element()> render_ssh_dialog_callback_;
     std::function<ftxui::Element()> render_encoding_dialog_callback_;
+    std::function<ftxui::Element()> render_recent_files_callback_;
+    std::function<ftxui::Element()> render_tui_config_callback_;
+    std::function<ftxui::Element()> render_dialog_callback_;
 
     // 可见性检查回调函数
     std::function<bool()> is_help_visible_callback_;
@@ -148,6 +176,8 @@ class OverlayManager {
     std::function<bool()> is_create_folder_visible_callback_;
     std::function<bool()> is_save_as_visible_callback_;
     std::function<bool()> is_cursor_config_visible_callback_;
+    std::function<bool()> is_ai_config_visible_callback_;
+    std::function<bool()> is_ai_assistant_visible_callback_;
     std::function<bool()> is_plugin_manager_visible_callback_;
     std::function<bool()> is_command_palette_visible_callback_;
     std::function<bool()> is_format_visible_callback_;
@@ -156,10 +186,12 @@ class OverlayManager {
     std::function<bool()> is_diagnostics_popup_visible_callback_;
     std::function<bool()> is_file_picker_visible_callback_;
     std::function<bool()> is_split_dialog_visible_callback_;
-    std::function<bool()> is_search_dialog_visible_callback_;
     std::function<bool()> is_ssh_transfer_visible_callback_;
     std::function<bool()> is_ssh_dialog_visible_callback_;
     std::function<bool()> is_encoding_dialog_visible_callback_;
+    std::function<bool()> is_recent_files_visible_callback_;
+    std::function<bool()> is_tui_config_visible_callback_;
+    std::function<bool()> is_dialog_visible_callback_;
 };
 
 } // namespace core

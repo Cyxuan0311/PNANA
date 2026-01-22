@@ -11,6 +11,9 @@
 // 前向声明（避免循环依赖，但需要完整类型用于 unique_ptr）
 #include "core/input/input_router.h"
 #include "core/ui/ui_router.h"
+#include "features/ai_client/ai_client.h"
+#include "ui/ai_assistant_panel.h"
+#include "ui/ai_config_dialog.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
@@ -21,8 +24,8 @@
 #include "ui/help.h"
 #include "ui/helpbar.h"
 #include "ui/new_file_prompt.h"
+#include "ui/recent_files_popup.h"
 #include "ui/save_as_dialog.h"
-#include "ui/search_dialog.h"
 #include "ui/split_dialog.h"
 #include "ui/split_welcome_screen.h"
 #include "ui/ssh_dialog.h"
@@ -31,6 +34,7 @@
 #include "ui/tabbar.h"
 #include "ui/theme.h"
 #include "ui/theme_menu.h"
+#include "ui/tui_config_popup.h"
 #include "ui/welcome_screen.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "ui/plugin_manager_dialog.h"
@@ -42,7 +46,9 @@
 #endif
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/command_palette.h"
+#include "features/recent_files_manager.h"
 #include "features/split_view/split_view.h"
+#include "features/tui_config_manager.h"
 // #include "features/markdown_preview.h"  // removed during preview refactor; backup stored as .bak
 #include "features/terminal.h"
 #include "ui/git_panel.h"
@@ -294,6 +300,18 @@ class Editor {
     const features::Terminal& getTerminal() const {
         return terminal_;
     }
+    features::RecentFilesManager& getRecentFilesManager() {
+        return recent_files_manager_;
+    }
+    const features::RecentFilesManager& getRecentFilesManager() const {
+        return recent_files_manager_;
+    }
+    features::CommandPalette& getCommandPalette() {
+        return command_palette_;
+    }
+    const features::CommandPalette& getCommandPalette() const {
+        return command_palette_;
+    }
     EditorMode getMode() const {
         return mode_;
     }
@@ -348,7 +366,6 @@ class Editor {
     pnana::ui::Help help_;
     pnana::ui::Dialog dialog_;
     pnana::ui::FilePicker file_picker_;
-    pnana::ui::SearchDialog search_dialog_;
     pnana::ui::SplitDialog split_dialog_;
     pnana::ui::SSHDialog ssh_dialog_;
     pnana::ui::SSHTransferDialog ssh_transfer_dialog_;
@@ -362,6 +379,10 @@ class Editor {
     pnana::ui::BinaryFileView binary_file_view_;
     pnana::ui::EncodingDialog encoding_dialog_;
     pnana::ui::FormatDialog format_dialog_;
+    pnana::ui::RecentFilesPopup recent_files_popup_;
+    pnana::ui::TUIConfigPopup tui_config_popup_;
+    pnana::ui::AIAssistantPanel ai_assistant_panel_;
+    pnana::ui::AIConfigDialog ai_config_dialog_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
@@ -379,6 +400,8 @@ class Editor {
 #endif
     features::SyntaxHighlighter syntax_highlighter_;
     features::CommandPalette command_palette_;
+    features::RecentFilesManager recent_files_manager_;
+    features::TUIConfigManager tui_config_manager_;
     features::Terminal terminal_;
     features::SplitViewManager split_view_manager_;
     // markdown_preview_ removed
@@ -497,6 +520,16 @@ class Editor {
     // 输入缓冲区（用于搜索、跳转等）
     std::string input_buffer_;
 
+    // 搜索和替换输入缓冲区
+    std::string search_input_;
+    std::string replace_input_;
+    size_t search_cursor_pos_;
+    size_t replace_cursor_pos_;
+    size_t current_search_match_;
+    size_t total_search_matches_;
+    int current_option_index_; // 当前选中的搜索选项索引
+    bool search_options_[4]; // 搜索选项状态：0=case sensitive, 1=whole word, 2=regex, 3=wrap around
+
     // 状态消息
     std::string status_message_;
     bool should_quit_;
@@ -559,6 +592,8 @@ class Editor {
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();
     ftxui::Element renderInputBox();
+    ftxui::Element renderSearchInputBox();
+    ftxui::Element renderReplaceInputBox();
     ftxui::Element renderFileBrowser();
     ftxui::Element renderHelp();
     ftxui::Element renderCommandPalette(); // 命令面板
@@ -654,6 +689,16 @@ class Editor {
     void openCommandPalette();
     void handleCommandPaletteInput(ftxui::Event event);
     void initializeCommandPalette();
+    void openRecentFilesDialog();
+    void openTUIConfigDialog();
+
+    // AI助手
+    void toggleAIAssistant();
+    void initializeAIAssistant();
+    void handleAIMessage(const std::string& message);
+    void insertCodeAtCursor(const std::string& code);
+    void replaceSelectedCode(const std::string& code);
+    std::string getSelectedText() const;
 
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
@@ -728,6 +773,14 @@ class Editor {
 
     // 调试辅助
     std::string getCallStackInfo();
+
+    // AI增强上下文
+    void buildEnhancedContext(pnana::features::ai_client::AIRequest& request) const;
+    void addProjectStructureContext(pnana::features::ai_client::AIRequest& request) const;
+    void addRecentFilesContext(pnana::features::ai_client::AIRequest& request) const;
+    void addSessionStateContext(pnana::features::ai_client::AIRequest& request) const;
+    std::string joinStrings(const std::vector<std::string>& strings,
+                            const std::string& delimiter) const;
 
 #ifdef BUILD_LUA_SUPPORT
     // 插件系统

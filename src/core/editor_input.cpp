@@ -28,10 +28,6 @@ void Editor::handleInput(Event event) {
     }
 
     // 记录事件处理开始（仅对关键事件）
-    if (event == Event::Return || event == Event::Escape || event == Event::ArrowUp ||
-        event == Event::ArrowDown || event == Event::ArrowLeft || event == Event::ArrowRight) {
-        LOG("handleInput() called for event: " + event.input());
-    }
 
     // GOTO_LINE 模式：完全参考搜索模式的实现，不做任何特殊处理
     // 搜索模式在 handleInput() 中没有任何特殊处理，直接路由到 handleSearchMode()
@@ -104,21 +100,6 @@ void Editor::handleInput(Event event) {
         }
     }
 
-    // 如果命令面板打开，优先处理
-    if (command_palette_.isOpen()) {
-        handleCommandPaletteInput(event);
-        return;
-    }
-
-    // 如果搜索对话框打开，优先处理
-    if (search_dialog_.isVisible()) {
-        if (search_dialog_.handleInput(event)) {
-            return;
-        }
-        // 如果搜索对话框打开但没有处理输入，屏蔽其他输入
-        return;
-    }
-
     // 如果 SSH 传输对话框打开，优先处理
     if (ssh_transfer_dialog_.isVisible()) {
         if (ssh_transfer_dialog_.handleInput(event)) {
@@ -140,7 +121,7 @@ void Editor::handleInput(Event event) {
     // 但文件选择器可以在任何情况下打开
     bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ ||
                      split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
-                     search_dialog_.isVisible() || cursor_config_dialog_.isVisible()
+                     cursor_config_dialog_.isVisible()
 #ifdef BUILD_LUA_SUPPORT
                      || plugin_manager_dialog_.isVisible()
 #endif
@@ -303,6 +284,20 @@ void Editor::handleInput(Event event) {
             show_theme_menu_ = false;
         }
         return;
+    }
+
+    // 优先处理AI助手面板输入
+    if (ai_assistant_panel_.isVisible()) {
+        if (ai_assistant_panel_.handleInput(event)) {
+            return;
+        }
+    }
+
+    // 优先处理AI配置对话框输入
+    if (ai_config_dialog_.isVisible()) {
+        if (ai_config_dialog_.handleInput(event)) {
+            return;
+        }
     }
 
     // 优先处理光标配置对话框输入
@@ -1141,58 +1136,179 @@ void Editor::handleNormalMode(Event event) {
 }
 
 void Editor::handleSearchMode(Event event) {
+    // 定义搜索选项
+    const int NUM_OPTIONS = 4;
+    const char* option_names[] = {"Case sensitive", "Whole word", "Regex", "Wrap around"};
+
+    // 检查Ctrl+G键，用于跳转到下一个匹配项
+    if (event == Event::CtrlG) {
+        // Ctrl+G：跳转到下一个匹配项
+        if (search_highlight_active_ && search_engine_.hasMatches()) {
+            searchNext();
+            return;
+        }
+    }
+
     // 在搜索模式下，阻止所有字符输入到文档
     if (event == Event::Return) {
-        executeSearch(true); // 按 Enter 时移动光标
+        // 执行搜索并跳转到下一个匹配
+        if (!search_input_.empty()) {
+            features::SearchOptions options;
+            options.case_sensitive = search_options_[0];
+            options.whole_word = search_options_[1];
+            options.regex = search_options_[2];
+            options.wrap_around = search_options_[3];
+            performSearch(search_input_, options);
+            searchNext();
+        }
         mode_ = EditorMode::NORMAL;
     } else if (event == Event::Escape) {
         mode_ = EditorMode::NORMAL;
-        search_engine_.clearSearch();
+        clearSearchHighlight();
         setStatusMessage("Search cancelled");
-    } else if (event == Event::Backspace) {
-        if (!input_buffer_.empty()) {
-            input_buffer_.pop_back();
-            // 实时执行搜索（如果还有输入）
-            if (!input_buffer_.empty()) {
-                executeSearch(false); // 实时搜索时不移动光标
-            } else {
-                search_engine_.clearSearch();
-                setStatusMessage("Search: ");
-            }
-        } else {
-            setStatusMessage("Search: ");
+    } else if (event == Event::Tab) {
+        // Tab 切换到替换模式
+        mode_ = EditorMode::REPLACE;
+        replace_input_.clear();
+        replace_cursor_pos_ = 0;
+        setStatusMessage("Replace: (type replacement text, Enter to replace, Esc to cancel)");
+    } else if (event == Event::ArrowUp) {
+        // 向上选择选项
+        current_option_index_ = (current_option_index_ - 1 + NUM_OPTIONS) % NUM_OPTIONS;
+        setStatusMessage("Search: " + std::string(option_names[current_option_index_]) +
+                         " selected");
+    } else if (event == Event::ArrowDown) {
+        // 向下选择选项
+        current_option_index_ = (current_option_index_ + 1) % NUM_OPTIONS;
+        setStatusMessage("Search: " + std::string(option_names[current_option_index_]) +
+                         " selected");
+    } else if (event == Event::Character(" ")) {
+        // 空格键切换当前选中选项的状态
+        if (current_option_index_ >= 0 && current_option_index_ < NUM_OPTIONS) {
+            search_options_[current_option_index_] = !search_options_[current_option_index_];
+            std::string state = search_options_[current_option_index_] ? "ON" : "OFF";
+            setStatusMessage("Search: " + std::string(option_names[current_option_index_]) + " " +
+                             state);
         }
+    } else if (event == Event::Backspace) {
+        if (search_cursor_pos_ > 0) {
+            search_input_.erase(search_cursor_pos_ - 1, 1);
+            search_cursor_pos_--;
+            // 实时执行搜索（如果还有输入）
+            if (!search_input_.empty()) {
+                performSearch(search_input_, features::SearchOptions{});
+            } else {
+                clearSearchHighlight();
+            }
+        }
+    } else if (event == Event::ArrowLeft) {
+        if (search_cursor_pos_ > 0) {
+            search_cursor_pos_--;
+        }
+    } else if (event == Event::ArrowRight) {
+        if (search_cursor_pos_ < search_input_.length()) {
+            search_cursor_pos_++;
+        }
+    } else if (event == Event::Home) {
+        search_cursor_pos_ = 0;
+    } else if (event == Event::End) {
+        search_cursor_pos_ = search_input_.length();
     } else if (event.is_character()) {
         // 只接受可打印字符
         std::string ch = event.character();
         if (ch.length() == 1) {
             char c = ch[0];
             if (c >= 32 && c < 127) {
-                input_buffer_ += ch;
-                // 实时执行搜索（不移动光标，只高亮）
-                executeSearch(false);
+                if (search_cursor_pos_ <= search_input_.length()) {
+                    search_input_.insert(search_cursor_pos_, 1, c);
+                    search_cursor_pos_++;
+                    // 实时执行搜索（不移动光标，只高亮）
+                    performSearch(search_input_, features::SearchOptions{});
+                }
             }
         }
     }
-    // 其他事件（如方向键等）在搜索模式下被忽略，不会传递到文档编辑
+    // 其他事件在搜索模式下被忽略
+    force_ui_update_ = true;
 }
 
 void Editor::handleReplaceMode(Event event) {
+    // 定义搜索选项
+    const int NUM_OPTIONS = 4;
+    const char* option_names[] = {"Case sensitive", "Whole word", "Regex", "Wrap around"};
+
     if (event == Event::Return) {
-        executeReplace();
+        // 执行替换（替换所有匹配项）
+        if (!search_input_.empty()) {
+            features::SearchOptions options;
+            options.case_sensitive = search_options_[0];
+            options.whole_word = search_options_[1];
+            options.regex = search_options_[2];
+            options.wrap_around = search_options_[3];
+            performReplaceAll(replace_input_);
+        }
         mode_ = EditorMode::NORMAL;
+        clearSearchHighlight();
     } else if (event == Event::Escape) {
         mode_ = EditorMode::NORMAL;
+        clearSearchHighlight();
         setStatusMessage("Replace cancelled");
-    } else if (event == Event::Backspace) {
-        if (!input_buffer_.empty()) {
-            input_buffer_.pop_back();
-            setStatusMessage("Replace: " + input_buffer_);
+    } else if (event == Event::Tab) {
+        // Tab 在搜索输入和替换输入之间切换
+        // 这里简化处理，Tab 用于在两个字段间切换，但当前实现中只处理替换输入
+        if (search_cursor_pos_ <= search_input_.length()) {
+            // 已经在搜索输入中，Tab 切换到替换输入
+            replace_cursor_pos_ = replace_input_.length();
         }
+    } else if (event == Event::ArrowUp) {
+        // 向上选择选项
+        current_option_index_ = (current_option_index_ - 1 + NUM_OPTIONS) % NUM_OPTIONS;
+        setStatusMessage("Replace: " + std::string(option_names[current_option_index_]) +
+                         " selected");
+    } else if (event == Event::ArrowDown) {
+        // 向下选择选项
+        current_option_index_ = (current_option_index_ + 1) % NUM_OPTIONS;
+        setStatusMessage("Replace: " + std::string(option_names[current_option_index_]) +
+                         " selected");
+    } else if (event == Event::Character(" ")) {
+        // 空格键切换当前选中选项的状态
+        if (current_option_index_ >= 0 && current_option_index_ < NUM_OPTIONS) {
+            search_options_[current_option_index_] = !search_options_[current_option_index_];
+            std::string state = search_options_[current_option_index_] ? "ON" : "OFF";
+            setStatusMessage("Replace: " + std::string(option_names[current_option_index_]) + " " +
+                             state);
+        }
+    } else if (event == Event::Backspace) {
+        if (replace_cursor_pos_ > 0) {
+            replace_input_.erase(replace_cursor_pos_ - 1, 1);
+            replace_cursor_pos_--;
+        }
+    } else if (event == Event::ArrowLeft) {
+        if (replace_cursor_pos_ > 0) {
+            replace_cursor_pos_--;
+        }
+    } else if (event == Event::ArrowRight) {
+        if (replace_cursor_pos_ < replace_input_.length()) {
+            replace_cursor_pos_++;
+        }
+    } else if (event == Event::Home) {
+        replace_cursor_pos_ = 0;
+    } else if (event == Event::End) {
+        replace_cursor_pos_ = replace_input_.length();
     } else if (event.is_character()) {
-        input_buffer_ += event.character();
-        setStatusMessage("Replace: " + input_buffer_);
+        // 只接受可打印字符
+        std::string ch = event.character();
+        if (ch.length() == 1) {
+            char c = ch[0];
+            if (c >= 32 && c < 127) {
+                if (replace_cursor_pos_ <= replace_input_.length()) {
+                    replace_input_.insert(replace_cursor_pos_, 1, c);
+                    replace_cursor_pos_++;
+                }
+            }
+        }
     }
+    force_ui_update_ = true;
 }
 
 void Editor::handleFileBrowserInput(Event event) {
@@ -1482,19 +1598,16 @@ void Editor::startSearch() {
         return;
     }
 
-    search_dialog_.show(
-        [this](const std::string& pattern, const features::SearchOptions& options) {
-            performSearch(pattern, options);
-        },
-        [this](const std::string& replacement) {
-            performReplace(replacement);
-        },
-        [this](const std::string& replacement) {
-            performReplaceAll(replacement);
-        },
-        [this]() {
-            setStatusMessage("Search cancelled");
-        });
+    // 进入搜索模式
+    mode_ = EditorMode::SEARCH;
+    search_input_.clear();
+    search_cursor_pos_ = 0;
+    current_search_match_ = 0;
+    total_search_matches_ = 0;
+    current_option_index_ = 0; // 重置选项索引
+    clearSearchHighlight();
+    setStatusMessage("Search: (type to search, ↑↓ select options, Space toggle, Esc to cancel)");
+    force_ui_update_ = true;
 }
 
 void Editor::performSearch(const std::string& pattern, const features::SearchOptions& options) {
@@ -1511,22 +1624,25 @@ void Editor::performSearch(const std::string& pattern, const features::SearchOpt
 
     if (search_engine_.hasMatches()) {
         search_highlight_active_ = true;
-        search_dialog_.updateResults(search_engine_.getCurrentMatchIndex(),
-                                     search_engine_.getTotalMatches());
+        current_search_match_ = search_engine_.getCurrentMatchIndex();
+        total_search_matches_ = search_engine_.getTotalMatches();
 
-        // 跳转到第一个匹配
-        const auto* match = search_engine_.getCurrentMatch();
-        if (match) {
-            cursor_row_ = match->line;
-            cursor_col_ = match->column;
-            adjustViewOffset();
+        // 更新状态消息
+        std::string status = "Search: " + pattern + " [" +
+                             std::to_string(current_search_match_ + 1) + "/" +
+                             std::to_string(total_search_matches_) + "]";
+
+        if (mode_ == EditorMode::SEARCH) {
+            setStatusMessage(status);
         }
-
-        setStatusMessage("Found " + std::to_string(search_engine_.getTotalMatches()) +
-                         " matches for: " + pattern);
     } else {
         search_highlight_active_ = false;
-        setStatusMessage("No matches found for: " + pattern);
+        current_search_match_ = 0;
+        total_search_matches_ = 0;
+
+        if (mode_ == EditorMode::SEARCH) {
+            setStatusMessage("Search: " + pattern + " [no matches]");
+        }
     }
 }
 
@@ -1557,7 +1673,7 @@ void Editor::performReplace(const std::string& replacement) {
         return;
     }
 
-    // 删除匹配的文本
+    // 删除匹配的文本 (end column is exclusive)
     doc->deleteRange(match->line, match->column, match->line, match->column + match->length);
 
     // 插入替换文本
@@ -1572,13 +1688,23 @@ void Editor::performReplace(const std::string& replacement) {
 
     // 更新搜索结果显示
     if (search_engine_.hasMatches()) {
-        search_dialog_.updateResults(search_engine_.getCurrentMatchIndex(),
-                                     search_engine_.getTotalMatches());
-        setStatusMessage("Replaced 1 occurrence. " +
-                         std::to_string(search_engine_.getTotalMatches()) + " matches remaining");
+        current_search_match_ = search_engine_.getCurrentMatchIndex();
+        total_search_matches_ = search_engine_.getTotalMatches();
+
+        // 跳转到下一个匹配
+        const auto* next_match = search_engine_.getCurrentMatch();
+        if (next_match) {
+            cursor_row_ = next_match->line;
+            cursor_col_ = next_match->column;
+            adjustViewOffset();
+        }
+
+        setStatusMessage("Replaced 1 occurrence. " + std::to_string(total_search_matches_) +
+                         " matches remaining");
     } else {
         search_highlight_active_ = false;
-        search_dialog_.updateResults(0, 0);
+        current_search_match_ = 0;
+        total_search_matches_ = 0;
         setStatusMessage("Replaced 1 occurrence. No more matches");
     }
 }
@@ -1590,13 +1716,12 @@ void Editor::performReplaceAll(const std::string& replacement) {
     }
 
     Document* doc = getCurrentDocument();
-    const auto& matches = search_engine_.getAllMatches();
+    const auto matches = search_engine_.getAllMatches();
     size_t replaced_count = 0;
 
     // 从后往前替换，避免位置偏移
     for (auto it = matches.rbegin(); it != matches.rend(); ++it) {
         const auto& match = *it;
-
         if (match.line >= doc->lineCount()) {
             continue;
         }
@@ -1606,7 +1731,7 @@ void Editor::performReplaceAll(const std::string& replacement) {
             continue;
         }
 
-        // 删除匹配的文本
+        // 删除匹配的文本 (end column is exclusive)
         doc->deleteRange(match.line, match.column, match.line, match.column + match.length);
 
         // 插入替换文本
@@ -1621,7 +1746,8 @@ void Editor::performReplaceAll(const std::string& replacement) {
         // 清除搜索状态
         search_highlight_active_ = false;
         search_engine_.clearSearch();
-        search_dialog_.updateResults(0, 0);
+        current_search_match_ = 0;
+        total_search_matches_ = 0;
 
         setStatusMessage("Replaced " + std::to_string(replaced_count) + " occurrences");
     } else {
@@ -1630,7 +1756,24 @@ void Editor::performReplaceAll(const std::string& replacement) {
 }
 
 void Editor::startReplace() {
-    startSearch(); // 替换实际上使用相同的对话框
+    if (!getCurrentDocument()) {
+        setStatusMessage("No document to search in");
+        return;
+    }
+
+    // 进入替换模式
+    mode_ = EditorMode::REPLACE;
+    search_input_.clear();
+    replace_input_.clear();
+    search_cursor_pos_ = 0;
+    replace_cursor_pos_ = 0;
+    current_search_match_ = 0;
+    total_search_matches_ = 0;
+    current_option_index_ = 0; // 重置选项索引
+    clearSearchHighlight();
+    setStatusMessage("Replace: (type search pattern, Tab to replace, ↑↓ select options, Space "
+                     "toggle, Esc to cancel)");
+    force_ui_update_ = true;
 }
 
 void Editor::searchNext() {
@@ -1641,10 +1784,15 @@ void Editor::searchNext() {
             cursor_col_ = match->column;
             adjustViewOffset();
 
-            std::ostringstream oss;
-            oss << "Match " << (search_engine_.getCurrentMatchIndex() + 1) << " of "
-                << search_engine_.getTotalMatches();
-            setStatusMessage(oss.str());
+            current_search_match_ = search_engine_.getCurrentMatchIndex();
+            total_search_matches_ = search_engine_.getTotalMatches();
+
+            // 只在非搜索模式下显示状态消息
+            if (mode_ != EditorMode::SEARCH && mode_ != EditorMode::REPLACE) {
+                std::ostringstream oss;
+                oss << "Match " << (current_search_match_ + 1) << " of " << total_search_matches_;
+                setStatusMessage(oss.str());
+            }
         }
     }
 }
@@ -1657,10 +1805,15 @@ void Editor::searchPrevious() {
             cursor_col_ = match->column;
             adjustViewOffset();
 
-            std::ostringstream oss;
-            oss << "Match " << (search_engine_.getCurrentMatchIndex() + 1) << " of "
-                << search_engine_.getTotalMatches();
-            setStatusMessage(oss.str());
+            current_search_match_ = search_engine_.getCurrentMatchIndex();
+            total_search_matches_ = search_engine_.getTotalMatches();
+
+            // 只在非搜索模式下显示状态消息
+            if (mode_ != EditorMode::SEARCH && mode_ != EditorMode::REPLACE) {
+                std::ostringstream oss;
+                oss << "Match " << (current_search_match_ + 1) << " of " << total_search_matches_;
+                setStatusMessage(oss.str());
+            }
         }
     }
 }

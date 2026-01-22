@@ -39,6 +39,20 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
+    // AI配置对话框
+    if (is_ai_config_visible_callback_ && is_ai_config_visible_callback_() &&
+        render_ai_config_callback_) {
+        Elements dialog_elements = {main_ui, render_ai_config_callback_() | center};
+        return dbox(dialog_elements);
+    }
+
+    // AI助手面板
+    if (is_ai_assistant_visible_callback_ && is_ai_assistant_visible_callback_() &&
+        render_ai_assistant_callback_) {
+        Elements dialog_elements = {main_ui, render_ai_assistant_callback_() | center};
+        return dbox(dialog_elements);
+    }
+
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理对话框
     if (is_plugin_manager_visible_callback_ && is_plugin_manager_visible_callback_() &&
@@ -99,13 +113,6 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(split_elements);
     }
 
-    // 如果搜索对话框打开，叠加显示
-    if (is_search_dialog_visible_callback_ && is_search_dialog_visible_callback_() &&
-        render_search_dialog_callback_) {
-        Elements search_elements = {main_ui | dim, render_search_dialog_callback_() | center};
-        return dbox(search_elements);
-    }
-
     // 如果 SSH 传输对话框打开，叠加显示
     if (is_ssh_transfer_visible_callback_ && is_ssh_transfer_visible_callback_() &&
         render_ssh_transfer_callback_) {
@@ -125,6 +132,26 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         render_encoding_dialog_callback_) {
         Elements encoding_elements = {main_ui | dim, render_encoding_dialog_callback_() | center};
         return dbox(encoding_elements);
+    }
+
+    // 如果最近文件弹窗打开，叠加显示
+    if (is_recent_files_visible_callback_ && is_recent_files_visible_callback_() &&
+        render_recent_files_callback_) {
+        Elements recent_files_elements = {main_ui | dim, render_recent_files_callback_() | center};
+        return dbox(recent_files_elements);
+    }
+
+    // 如果TUI配置弹窗打开，叠加显示
+    if (is_tui_config_visible_callback_ && is_tui_config_visible_callback_() &&
+        render_tui_config_callback_) {
+        Elements tui_config_elements = {main_ui | dim, render_tui_config_callback_() | center};
+        return dbox(tui_config_elements);
+    }
+
+    // 如果通用对话框打开，叠加显示
+    if (is_dialog_visible_callback_ && is_dialog_visible_callback_() && render_dialog_callback_) {
+        Elements dialog_elements = {main_ui | dim, render_dialog_callback_() | center};
+        return dbox(dialog_elements);
     }
 
     // 没有对话框打开，返回主UI
