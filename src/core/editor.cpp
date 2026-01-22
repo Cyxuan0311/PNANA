@@ -9,7 +9,9 @@
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
+#ifdef BUILD_AI_CLIENT_SUPPORT
 #include "features/ai_client/ai_client.h"
+#endif
 #include "features/md_render/markdown_renderer.h"
 #include <algorithm>
 #include <cctype>
@@ -765,6 +767,7 @@ void Editor::openTUIConfigDialog() {
     }
 }
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
 void Editor::handleAIMessage(const std::string& message) {
     using namespace pnana::features::ai_client;
 
@@ -843,7 +846,7 @@ Available tools:
         return result;
     });
 }
-
+#endif // BUILD_AI_CLIENT_SUPPORT
 void Editor::insertCodeAtCursor(const std::string& code) {
     Document* doc = getCurrentDocument();
     if (!doc)
@@ -924,6 +927,7 @@ std::string Editor::getSelectedText() const {
 }
 
 // 构建增强的上下文信息
+#ifdef BUILD_AI_CLIENT_SUPPORT
 void Editor::buildEnhancedContext(pnana::features::ai_client::AIRequest& request) const {
     // 添加项目基本信息
     request.context.push_back("Project root directory: " +
@@ -985,7 +989,9 @@ void Editor::buildEnhancedContext(pnana::features::ai_client::AIRequest& request
     // 添加当前会话状态
     addSessionStateContext(request);
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
 // 添加项目结构上下文
 void Editor::addProjectStructureContext(pnana::features::ai_client::AIRequest& request) const {
     try {
@@ -1028,7 +1034,9 @@ void Editor::addProjectStructureContext(pnana::features::ai_client::AIRequest& r
         // 忽略文件系统错误
     }
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
 // 添加最近文件上下文
 void Editor::addRecentFilesContext(pnana::features::ai_client::AIRequest& request) const {
     auto recent_files = recent_files_manager_.getRecentFiles();
@@ -1040,7 +1048,9 @@ void Editor::addRecentFilesContext(pnana::features::ai_client::AIRequest& reques
         request.context.push_back("Recently opened files: " + joinStrings(recent_names, ", "));
     }
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
 // 添加会话状态上下文
 void Editor::addSessionStateContext(pnana::features::ai_client::AIRequest& request) const {
     // 添加标签页信息
@@ -1085,6 +1095,7 @@ void Editor::addSessionStateContext(pnana::features::ai_client::AIRequest& reque
         request.context.push_back("Editor layout: single view");
     }
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
 // 辅助方法：连接字符串
 std::string Editor::joinStrings(const std::vector<std::string>& strings,
