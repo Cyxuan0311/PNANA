@@ -285,7 +285,6 @@ set(SOURCES
     src/features/encoding_converter.cpp
     src/features/cursor/cursor_renderer.cpp
     src/features/ai_config/ai_config.cpp
-    src/features/ai_client/ai_client.cpp
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
@@ -416,7 +415,6 @@ set(HEADERS
     include/pnana/features/md_render/markdown_renderer.h
     include/pnana/features/encoding_converter.h
     include/pnana/features/cursor/cursor_renderer.h
-    include/pnana/features/ai_client/ai_client.h
     include/pnana/features/ai_config/ai_config.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
@@ -518,8 +516,14 @@ if(BUILD_IMAGE_PREVIEW_SUPPORT)
     target_compile_definitions(pnana PRIVATE BUILD_IMAGE_PREVIEW_SUPPORT)
 endif()
 
-# 链接 libcurl (如果找到，用于 AI 客户端)
+# AI客户端模块（如果启用）
 if(BUILD_AI_CLIENT_SUPPORT)
+    list(APPEND SOURCES
+        src/features/ai_client/ai_client.cpp
+    )
+    list(APPEND HEADERS
+        include/pnana/features/ai_client/ai_client.h
+    )
     target_link_libraries(pnana PRIVATE CURL::libcurl)
     target_compile_definitions(pnana PRIVATE BUILD_AI_CLIENT_SUPPORT)
     message(STATUS "AI client support configured with libcurl")
