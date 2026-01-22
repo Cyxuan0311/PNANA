@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
+
 namespace pnana {
 namespace features {
 namespace ai_client {
@@ -204,5 +206,7 @@ class AIClientManager {
 } // namespace ai_client
 } // namespace features
 } // namespace pnana
+
+#endif // BUILD_AI_CLIENT_SUPPORT
 
 #endif // PNANA_FEATURES_AI_CLIENT_AI_CLIENT_H

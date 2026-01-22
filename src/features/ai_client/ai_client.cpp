@@ -1,4 +1,6 @@
 #include "features/ai_client/ai_client.h"
+
+#ifdef BUILD_AI_CLIENT_SUPPORT
 #include <chrono>
 #include <curl/curl.h>
 #include <iostream>
@@ -438,3 +440,5 @@ std::string ClaudeClient::makeHttpRequest(const std::string& url, const std::str
 } // namespace ai_client
 } // namespace features
 } // namespace pnana
+
+#endif // BUILD_AI_CLIENT_SUPPORT
