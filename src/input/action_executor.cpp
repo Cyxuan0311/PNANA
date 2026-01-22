@@ -79,6 +79,7 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::TOGGLE_HELP:
         case KeyAction::TOGGLE_LINE_NUMBERS:
         case KeyAction::COMMAND_PALETTE:
+        case KeyAction::AI_ASSISTANT:
         case KeyAction::SPLIT_VIEW:
         case KeyAction::SSH_CONNECT:
         case KeyAction::TOGGLE_MARKDOWN_PREVIEW:
@@ -297,6 +298,9 @@ bool ActionExecutor::executeViewOperation(KeyAction action) {
             return true;
         case KeyAction::COMMAND_PALETTE:
             editor_->openCommandPalette();
+            return true;
+        case KeyAction::AI_ASSISTANT:
+            editor_->toggleAIAssistant();
             return true;
         case KeyAction::SPLIT_VIEW:
             editor_->showSplitDialog();
