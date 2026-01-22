@@ -96,6 +96,9 @@ class GitManager {
     bool fetch(const std::string& remote = "origin");
     std::vector<std::string> getRemotes();
 
+    // Clone operations
+    bool clone(const std::string& url, const std::string& path);
+
     // Utility functions
     std::string getLastError() const {
         return last_error_;

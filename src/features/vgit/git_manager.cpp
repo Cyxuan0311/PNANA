@@ -86,6 +86,90 @@ bool GitManager::initRepository() {
     return true;
 }
 
+bool GitManager::clone(const std::string& url, const std::string& path) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    pnana::utils::Logger::getInstance().log("GitManager::clone - Starting clone operation");
+    pnana::utils::Logger::getInstance().log("URL: " + url);
+    pnana::utils::Logger::getInstance().log("Path: " + path);
+
+    if (url.empty()) {
+        last_error_ = "Repository URL cannot be empty";
+        return false;
+    }
+
+    if (path.empty()) {
+        last_error_ = "Clone path cannot be empty";
+        return false;
+    }
+
+    // Check if target directory already exists and is not empty
+    if (fs::exists(path) && !fs::is_empty(path)) {
+        last_error_ = "Target directory is not empty: " + path;
+        return false;
+    }
+
+    clearError();
+
+    // Construct git clone command
+    std::string escaped_url = escapePath(url);
+    std::string escaped_path = escapePath(path);
+    std::string cmd = "git clone \"" + escaped_url + "\" \"" + escaped_path + "\"";
+
+    pnana::utils::Logger::getInstance().log("Executing: " + cmd);
+
+    // Execute clone command
+    auto exec_start = std::chrono::high_resolution_clock::now();
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        last_error_ = "Failed to execute git clone command";
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        pnana::utils::Logger::getInstance().log("GitManager::clone - END (failed to execute) - " +
+                                                std::to_string(duration.count()) + "ms");
+        return false;
+    }
+
+    // Read any error output
+    std::array<char, 256> buffer;
+    std::string error_output;
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        error_output += buffer.data();
+    }
+
+    int status = pclose(pipe);
+    auto exec_end = std::chrono::high_resolution_clock::now();
+    auto exec_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
+
+    pnana::utils::Logger::getInstance().log("Git clone command execution took " +
+                                            std::to_string(exec_duration.count()) +
+                                            "ms (exit code: " + std::to_string(status) + ")");
+
+    if (status != 0) {
+        if (!error_output.empty()) {
+            last_error_ = "Clone failed: " + error_output;
+        } else {
+            last_error_ = "Clone failed with exit code: " + std::to_string(status);
+        }
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        pnana::utils::Logger::getInstance().log("GitManager::clone - END (failed) - " +
+                                                std::to_string(duration.count()) + "ms");
+        return false;
+    }
+
+    // Clone successful
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    pnana::utils::Logger::getInstance().log("GitManager::clone - END (success) - " +
+                                            std::to_string(duration.count()) + "ms");
+
+    return true;
+}
+
 std::string GitManager::getRepositoryRoot() const {
     // Use cached repo root if available and repo status is valid
     if (repo_status_cached_ && is_git_repo_cached_ && !repo_root_cached_.empty()) {
