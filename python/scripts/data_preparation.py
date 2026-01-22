@@ -22,6 +22,11 @@ try:
     import git
     from datasets import load_dataset, Dataset
     from tqdm import tqdm
+    # Configure Hugging Face Hub to use domestic mirror for better connectivity
+    import os
+    if not os.environ.get('HF_ENDPOINT'):
+        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        # logger.info("Using Hugging Face mirror: https://hf-mirror.com")
 except ImportError as e:
     print(f"Missing required dependencies. Please install them: {e}")
     exit(1)
@@ -182,7 +187,7 @@ class HuggingFaceDatasetLoader:
     """Load existing datasets from Hugging Face."""
 
     @staticmethod
-    def load_git_commit_dataset(dataset_name: str = "codeparrot/git-commit-diffs") -> List[Dict[str, str]]:
+    def load_git_commit_dataset(dataset_name: str = "Tavernari/git-commit-message-dt") -> List[Dict[str, str]]:
         """
         Load git commit diff dataset from Hugging Face.
 
@@ -268,7 +273,7 @@ def main():
     parser.add_argument("--branch", type=str, default="main", help="Branch to extract from")
     parser.add_argument("--max-commits", type=int, default=5000, help="Maximum commits to extract")
     parser.add_argument("--use-huggingface-dataset", action="store_true", help="Use Hugging Face dataset instead of local repo")
-    parser.add_argument("--hf-dataset-name", type=str, default="codeparrot/git-commit-diffs", help="Hugging Face dataset name")
+    parser.add_argument("--hf-dataset-name", type=str, default="Tavernari/git-commit-message-dt", help="Hugging Face dataset name")
     parser.add_argument("--output", type=str, required=True, help="Output JSONL file path")
     parser.add_argument("--format", type=str, choices=["instruction", "simple"], default="instruction", help="Output format")
 
