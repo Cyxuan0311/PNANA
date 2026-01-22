@@ -1,5 +1,7 @@
 #include "ui/ai_assistant_panel.h"
+#ifdef BUILD_AI_CLIENT_SUPPORT
 #include "features/ai_client/ai_client.h"
+#endif
 #include "ui/icons.h"
 #include <algorithm>
 #include <cstdio>
@@ -155,9 +157,11 @@ void AIAssistantPanel::finishStreamingResponse() {
 }
 
 // 工具调用显示管理
+#ifdef BUILD_AI_CLIENT_SUPPORT
 void AIAssistantPanel::addToolCall(const pnana::features::ai_client::ToolCall& tool_call) {
     current_tool_calls_.push_back(tool_call);
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
 void AIAssistantPanel::clearToolCalls() {
     current_tool_calls_.clear();
@@ -420,6 +424,7 @@ std::vector<std::string> AIAssistantPanel::getQuickActions() const {
             "Add Comments", "Fix Errors",        "Optimize"};
 }
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
 // 获取工具定义列表
 std::vector<pnana::features::ai_client::ToolDefinition> AIAssistantPanel::getToolDefinitions()
     const {
@@ -584,7 +589,9 @@ std::vector<pnana::features::ai_client::ToolDefinition> AIAssistantPanel::getToo
 
     return tools;
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
+#ifdef BUILD_AI_CLIENT_SUPPORT
 // 执行工具调用
 pnana::features::ai_client::ToolCallResult AIAssistantPanel::executeToolCall(
     const pnana::features::ai_client::ToolCall& tool_call) {
@@ -1088,6 +1095,7 @@ void AIAssistantPanel::analyzeDirectoryStructure(const std::string& path,
         // 忽略访问错误
     }
 }
+#endif // BUILD_AI_CLIENT_SUPPORT
 
 bool AIAssistantPanel::handleInput(Event event) {
     if (!visible_)
