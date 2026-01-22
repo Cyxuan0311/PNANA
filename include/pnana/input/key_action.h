@@ -77,6 +77,9 @@ enum class KeyAction {
     // 命令面板
     COMMAND_PALETTE,
 
+    // AI助手
+    AI_ASSISTANT,
+
     // 分屏导航
     FOCUS_LEFT_REGION,  // 聚焦左侧区域
     FOCUS_RIGHT_REGION, // 聚焦右侧区域

@@ -89,11 +89,30 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
 }
 
 bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
-    // 对话框优先级：命令面板 > SSH对话框 > 其他对话框
-    // 这里需要访问 Editor 的对话框状态
-    // 暂时返回 false，具体实现将在后续完善
-    (void)event;
-    (void)editor;
+    // 对话框优先级：命令面板 > 最近文件弹窗 > TUI配置弹窗
+
+    // 1. 命令面板
+    if (editor->command_palette_.isOpen()) {
+        editor->handleCommandPaletteInput(event);
+        return true;
+    }
+
+    // 2. 最近文件弹窗
+    if (editor->recent_files_popup_.isOpen()) {
+        if (editor->recent_files_popup_.handleInput(event)) {
+            return true;
+        }
+    }
+
+    // 3. TUI配置弹窗
+    if (editor->tui_config_popup_.isOpen()) {
+        if (editor->tui_config_popup_.handleInput(event)) {
+            return true;
+        }
+    }
+
+    // TODO: 添加其他对话框的处理
+
     return false;
 }
 
