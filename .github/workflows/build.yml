@@ -56,7 +56,9 @@ jobs:
             libncurses-dev \
             libtinfo-dev \
             git \
-            ccache
+            ccache \
+            curl \
+            libcurl4-openssl-dev
 
       - name: Build and install FTXUI
         run: |

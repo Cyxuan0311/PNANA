@@ -34,7 +34,9 @@ jobs:
             libswscale-dev \
             libavutil-dev \
             golang-go \
-            git
+            git \
+            curl \
+            libcurl4-openssl-dev
 
       - name: Build and install FTXUI
         run: |
