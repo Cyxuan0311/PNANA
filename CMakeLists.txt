@@ -60,27 +60,42 @@ else()
     message(STATUS "  Requires: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
 endif()
 
-# 检查 nlohmann/json (本地第三方库，用于 LSP 支持)
+# 检查 nlohmann/json (用于 AI 配置和 LSP 支持)
 set(NLOHMANN_JSON_HEADER "${CMAKE_SOURCE_DIR}/third-party/nlohmann/json.hpp")
 
 # 检查 jsonrpccxx (本地第三方库)
 set(JSONRPCCXX_DIR "${CMAKE_SOURCE_DIR}/third-party/JSON-RPC-CXX")
 set(JSONRPCCXX_INCLUDE_DIR "${JSONRPCCXX_DIR}")
 
-# 如果找到本地的 nlohmann/json 和 jsonrpccxx，启用 LSP 支持
-if(EXISTS "${NLOHMANN_JSON_HEADER}" AND EXISTS "${JSONRPCCXX_INCLUDE_DIR}/jsonrpccxx/client.hpp")
-    set(BUILD_LSP_SUPPORT ON)
+# 检查 nlohmann/json 是否存在
+if(EXISTS "${NLOHMANN_JSON_HEADER}")
     set(NLOHMANN_JSON_FOUND ON)
     message(STATUS "nlohmann/json found at: ${CMAKE_SOURCE_DIR}/third-party/nlohmann/json.hpp")
+else()
+    set(NLOHMANN_JSON_FOUND OFF)
+    message(WARNING "nlohmann/json not found at ${NLOHMANN_JSON_HEADER}")
+    message(STATUS "  AI configuration features will be limited")
+endif()
+
+# 检查 libcurl (用于 AI 客户端)
+find_package(CURL QUIET)
+if(CURL_FOUND)
+    set(BUILD_AI_CLIENT_SUPPORT ON)
+    message(STATUS "✓ libcurl found - AI client support enabled")
+    message(STATUS "  Version: ${CURL_VERSION_STRING}")
+else()
+    set(BUILD_AI_CLIENT_SUPPORT OFF)
+    message(WARNING "✗ libcurl not found - AI client support disabled")
+    message(STATUS "  Install with: sudo apt install libcurl4-openssl-dev")
+endif()
+
+# 如果找到本地的 nlohmann/json 和 jsonrpccxx，启用 LSP 支持
+if(NLOHMANN_JSON_FOUND AND EXISTS "${JSONRPCCXX_INCLUDE_DIR}/jsonrpccxx/client.hpp")
+    set(BUILD_LSP_SUPPORT ON)
     message(STATUS "jsonrpccxx found at: ${JSONRPCCXX_INCLUDE_DIR}")
     message(STATUS "LSP support enabled (using local third-party libraries)")
 else()
     set(BUILD_LSP_SUPPORT OFF)
-    set(NLOHMANN_JSON_FOUND OFF)
-    if(NOT EXISTS "${NLOHMANN_JSON_HEADER}")
-        message(WARNING "nlohmann/json not found at ${NLOHMANN_JSON_HEADER}, LSP support disabled")
-        message(STATUS "  To enable LSP support, ensure nlohmann/json.hpp exists in third-party/nlohmann/")
-    endif()
     if(NOT EXISTS "${JSONRPCCXX_INCLUDE_DIR}/jsonrpccxx/client.hpp")
         message(WARNING "jsonrpccxx not found at ${JSONRPCCXX_INCLUDE_DIR}, LSP support disabled")
     endif()
@@ -230,7 +245,10 @@ set(SOURCES
     src/ui/ssh_dialog.cpp
     src/ui/ssh_transfer_dialog.cpp
     src/ui/file_type_color_mapper.cpp
+    src/ui/ai_config_dialog.cpp
+    src/ui/ai_assistant_panel.cpp
     src/ui/completion_popup.cpp
+    src/ui/command_palette_ui.cpp
     src/ui/diagnostics_popup.cpp
     src/ui/format_dialog.cpp
     src/ui/git_panel.cpp
@@ -241,6 +259,10 @@ set(SOURCES
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
     src/utils/file_type_icon_mapper.cpp
+    src/features/recent_files_manager.cpp
+    src/features/tui_config_manager.cpp
+    src/ui/recent_files_popup.cpp
+    src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
     # Markdown 解析库
     third-party/md4c/md4c.c
@@ -262,6 +284,8 @@ set(SOURCES
     src/features/md_render/markdown_renderer.cpp
     src/features/encoding_converter.cpp
     src/features/cursor/cursor_renderer.cpp
+    src/features/ai_config/ai_config.cpp
+    src/features/ai_client/ai_client.cpp
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
@@ -372,8 +396,11 @@ set(HEADERS
     include/pnana/ui/split_dialog.h
     include/pnana/ui/terminal_ui.h
     include/pnana/ui/ssh_dialog.h
+    include/pnana/ui/ai_assistant_panel.h
+    include/pnana/ui/ai_config_dialog.h
     include/pnana/ui/icons.h
     include/pnana/ui/completion_popup.h
+    include/pnana/ui/command_palette_ui.h
     include/pnana/ui/format_dialog.h
     # 功能模块头文件
     include/pnana/features/search.h
@@ -389,6 +416,8 @@ set(HEADERS
     include/pnana/features/md_render/markdown_renderer.h
     include/pnana/features/encoding_converter.h
     include/pnana/features/cursor/cursor_renderer.h
+    include/pnana/features/ai_client/ai_client.h
+    include/pnana/features/ai_config/ai_config.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
     # 插件系统头文件
@@ -489,18 +518,28 @@ if(BUILD_IMAGE_PREVIEW_SUPPORT)
     target_compile_definitions(pnana PRIVATE BUILD_IMAGE_PREVIEW_SUPPORT)
 endif()
 
+# 链接 libcurl (如果找到，用于 AI 客户端)
+if(BUILD_AI_CLIENT_SUPPORT)
+    target_link_libraries(pnana PRIVATE CURL::libcurl)
+    target_compile_definitions(pnana PRIVATE BUILD_AI_CLIENT_SUPPORT)
+    message(STATUS "AI client support configured with libcurl")
+endif()
+
+# 包含第三方库
+target_include_directories(pnana PRIVATE ${CMAKE_SOURCE_DIR}/third-party)
+
 # 包含 jsonrpccxx 和 nlohmann/json (如果启用 LSP 支持)
 if(BUILD_LSP_SUPPORT)
-    # 添加 jsonrpccxx 和 nlohmann/json 的包含目录
-    target_include_directories(pnana PRIVATE
-        ${JSONRPCCXX_INCLUDE_DIR}
-        ${CMAKE_SOURCE_DIR}/third-party
-    )
-
+    target_include_directories(pnana PRIVATE ${JSONRPCCXX_INCLUDE_DIR})
     target_compile_definitions(pnana PRIVATE BUILD_LSP_SUPPORT)
     message(STATUS "LSP support configured with local third-party libraries")
     message(STATUS "  jsonrpccxx: ${JSONRPCCXX_INCLUDE_DIR}")
-    message(STATUS "  nlohmann/json: ${CMAKE_SOURCE_DIR}/third-party/nlohmann/json.hpp")
+endif()
+
+if(NLOHMANN_JSON_FOUND)
+    message(STATUS "nlohmann/json available for AI configuration")
+else()
+    message(WARNING "nlohmann/json not available - AI configuration will have limited functionality")
 endif()
 
 # 链接 Lua 库（如果启用插件系统）
