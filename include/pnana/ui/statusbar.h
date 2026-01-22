@@ -4,6 +4,7 @@
 #include "ui/theme.h"
 #include "utils/file_type_icon_mapper.h"
 #include "utils/logger.h"
+#include <algorithm>
 #include <chrono>
 #include <ftxui/dom/elements.hpp>
 #include <future>
