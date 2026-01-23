@@ -183,6 +183,7 @@ class GitPanel {
     std::string getStatusText(GitFileStatus status) const;
     std::string getModeTitle(GitPanelMode mode) const;
     ftxui::Color getStatusColor(GitFileStatus status) const;
+    ftxui::Color getStatusColor(GitFileStatus status, bool is_staged) const;
     ftxui::Color getDiffLineColor(const std::string& line);
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;

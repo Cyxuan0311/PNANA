@@ -252,9 +252,8 @@ void Editor::handleInput(Event event) {
         return;
     }
 
-    // 如果帮助窗口打开，优先处理
+    // 如果帮助窗口打开，优先处理（帮助面板是覆盖在其他区域之上的对话框）
     if (show_help_) {
-        region_manager_.setRegion(EditorRegion::HELP_WINDOW);
         // 处理翻页等操作
         if (help_.handleInput(event)) {
             return;
@@ -263,7 +262,6 @@ void Editor::handleInput(Event event) {
         if (event == Event::Escape || event == Event::F1) {
             show_help_ = false;
             help_.reset();
-            region_manager_.setRegion(EditorRegion::CODE_AREA);
             setStatusMessage("Help closed | Region: " + region_manager_.getRegionName());
         }
         return;
