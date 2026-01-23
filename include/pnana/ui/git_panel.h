@@ -112,6 +112,7 @@ class GitPanel {
     size_t cached_staged_count_ = 0;
     size_t cached_unstaged_count_ = 0;
     bool stats_cache_valid_ = false;
+    bool show_detailed_stats_ = false; // Whether to show staged/unstaged breakdown
 
     // Cached repository display info to avoid frequent git calls during rendering
     std::string cached_repo_path_display_;
@@ -183,7 +184,6 @@ class GitPanel {
     std::string getStatusText(GitFileStatus status) const;
     std::string getModeTitle(GitPanelMode mode) const;
     ftxui::Color getStatusColor(GitFileStatus status) const;
-    ftxui::Color getStatusColor(GitFileStatus status, bool is_staged) const;
     ftxui::Color getDiffLineColor(const std::string& line);
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;

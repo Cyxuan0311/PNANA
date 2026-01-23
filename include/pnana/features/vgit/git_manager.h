@@ -107,6 +107,9 @@ class GitManager {
         last_error_.clear();
     }
 
+    // Get number of files currently staged (cached index)
+    size_t getStagedCount() const;
+
   private:
     std::string repo_path_;
     std::string repo_root_;
