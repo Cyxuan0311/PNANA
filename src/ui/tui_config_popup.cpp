@@ -118,75 +118,186 @@ Element TUIConfigPopup::renderConfigList() const {
         list_elements.push_back(hbox(
             {text("  "), text("No TUI configuration files found") | color(colors.comment) | dim}));
     } else {
-        // 按类别分组显示
-        std::map<std::string, std::vector<size_t>> category_groups;
-
+        // 直接显示所有配置项，按可用性排序（有配置文件的优先）
+        std::vector<size_t> sorted_indices;
         for (size_t i = 0; i < tui_configs_.size(); ++i) {
-            const auto& config = tui_configs_[i];
-            category_groups[config.category.empty() ? "other" : config.category].push_back(i);
+            sorted_indices.push_back(i);
         }
 
-        // 定义类别显示顺序
-        std::vector<std::string> category_order = {"terminal",    "editor",  "file_manager",
-                                                   "multiplexer", "shell",   "version_control",
-                                                   "system",      "utility", "other"};
-
-        for (const auto& category : category_order) {
-            auto it = category_groups.find(category);
-            if (it == category_groups.end())
-                continue;
-
-            // 添加类别标题
-            std::string category_title = getCategoryDisplayName(category);
-            if (!category_title.empty()) {
-                list_elements.push_back(text(""));
-                list_elements.push_back(
-                    hbox({text("  "), text(category_title) | color(colors.success) | bold}));
-                list_elements.push_back(separator());
+        // 排序：有配置文件的排在前面
+        std::sort(sorted_indices.begin(), sorted_indices.end(), [this](size_t a, size_t b) {
+            bool a_has_config = !getConfigPathDisplay(tui_configs_[a]).empty() &&
+                                getConfigPathDisplay(tui_configs_[a]) != "Not found";
+            bool b_has_config = !getConfigPathDisplay(tui_configs_[b]).empty() &&
+                                getConfigPathDisplay(tui_configs_[b]) != "Not found";
+            if (a_has_config != b_has_config) {
+                return a_has_config > b_has_config; // 有配置文件的排前面
             }
+            return tui_configs_[a].display_name < tui_configs_[b].display_name; // 按名称排序
+        });
 
-            // 添加该类别的配置项
-            for (size_t config_index : it->second) {
-                const auto& config = tui_configs_[config_index];
-                bool is_selected = (config_index == selected_index_);
+        // 显示配置项列表
+        for (size_t config_index : sorted_indices) {
+            const auto& config = tui_configs_[config_index];
+            bool is_selected = (config_index == selected_index_);
 
-                Elements config_elements;
-                config_elements.push_back(text("  "));
+            list_elements.push_back(renderConfigItem(config, config_index, is_selected));
 
-                // 选中标记
-                if (is_selected) {
-                    config_elements.push_back(text("► ") | color(colors.success) | bold);
-                } else {
-                    config_elements.push_back(text("  "));
-                }
-
-                // 工具名称
-                config_elements.push_back(
-                    text(config.display_name) |
-                    (is_selected ? color(colors.dialog_fg) | bold : color(colors.foreground)));
-
-                // 配置文件路径
-                std::string path_display = getConfigPathDisplay(config);
-                config_elements.push_back(filler());
-                config_elements.push_back(text(path_display) | color(colors.comment) | dim);
-
-                Element config_line = hbox(config_elements);
-                if (is_selected) {
-                    config_line = config_line | bgcolor(colors.selection);
-                }
-
-                list_elements.push_back(config_line);
-
-                // 如果选中，显示描述
-                if (is_selected && !config.description.empty()) {
-                    list_elements.push_back(hbox(
-                        {text("    "), text(config.description) | color(colors.comment) | dim}));
-                }
+            // 如果选中，显示描述
+            if (is_selected && !config.description.empty()) {
+                list_elements.push_back(
+                    hbox({text("    "), text(config.description) | color(colors.comment) | dim}));
             }
         }
     }
 
     return vbox(list_elements);
+}
+
+Element TUIConfigPopup::renderConfigItem(const features::TUIConfig& config, size_t /*config_index*/,
+                                         bool is_selected) const {
+    const auto& colors = theme_.getColors();
+
+    // 获取工具图标
+    std::string tool_icon = getToolIcon(config.name);
+    Color tool_icon_color = getToolIconColor(config.category);
+
+    // 配置状态指示器 - 检查是否有可用的配置文件
+    std::string status_indicator;
+    Color status_color = colors.comment;
+    bool has_config =
+        !getConfigPathDisplay(config).empty() && getConfigPathDisplay(config) != "Not found";
+
+    if (has_config) {
+        status_indicator = "●"; // 实心圆表示有配置文件
+        status_color = colors.success;
+    } else {
+        status_indicator = "○"; // 空心圆表示无配置文件
+        status_color = colors.comment;
+    }
+
+    // 配置文件路径显示
+    std::string path_display = getConfigPathDisplay(config);
+    if (path_display == "Not found") {
+        path_display = "No config found";
+    }
+
+    // 参考命令面板的布局风格
+    Elements cmd_elements;
+    cmd_elements.push_back(text("  "));
+
+    // 选中标记 - 参考命令面板的样式
+    if (is_selected) {
+        cmd_elements.push_back(text("► ") | color(colors.success) | bold);
+    } else {
+        cmd_elements.push_back(text("  "));
+    }
+
+    // 状态指示器和工具图标
+    cmd_elements.push_back(text(status_indicator) | color(status_color) | bold);
+    cmd_elements.push_back(text(" "));
+    cmd_elements.push_back(text(tool_icon) | color(tool_icon_color));
+    cmd_elements.push_back(text(" "));
+
+    // 工具名称 - 参考命令面板的样式
+    cmd_elements.push_back(text(config.display_name) | (is_selected ? color(colors.dialog_fg) | bold
+                                                                    : color(colors.foreground)));
+
+    // 配置文件路径 - 右对齐，参考命令面板的描述显示
+    if (!path_display.empty()) {
+        cmd_elements.push_back(filler());
+        cmd_elements.push_back(text(path_display) | color(colors.comment) | dim);
+    }
+
+    Element cmd_line = hbox(std::move(cmd_elements));
+
+    // 选中状态样式 - 参考命令面板
+    if (is_selected) {
+        cmd_line = cmd_line | bgcolor(colors.selection);
+    }
+
+    return cmd_line;
+}
+
+std::string TUIConfigPopup::getToolIcon(const std::string& tool_name) const {
+    static const std::map<std::string, std::string> tool_icons = {
+        // 终端模拟器
+        {"kitty", pnana::ui::icons::TERMINAL},
+        {"ghostty", pnana::ui::icons::TERMINAL},
+        {"alacritty", pnana::ui::icons::TERMINAL},
+        {"wezterm", pnana::ui::icons::TERMINAL},
+        {"foot", pnana::ui::icons::TERMINAL},
+        {"konsole", pnana::ui::icons::TERMINAL},
+        {"gnome-terminal", pnana::ui::icons::TERMINAL},
+        {"xfce4-terminal", pnana::ui::icons::TERMINAL},
+
+        // 编辑器
+        {"neovim", pnana::ui::icons::CODE},
+        {"vim", pnana::ui::icons::CODE},
+        {"helix", pnana::ui::icons::CODE},
+        {"kakoune", pnana::ui::icons::CODE},
+        {"micro", pnana::ui::icons::CODE},
+        {"nano", pnana::ui::icons::CODE},
+        {"emacs", pnana::ui::icons::CODE},
+        {"vscode", pnana::ui::icons::CODE},
+
+        // 文件管理器
+        {"yazi", pnana::ui::icons::FOLDER_OPEN},
+        {"lf", pnana::ui::icons::FOLDER_OPEN},
+        {"ranger", pnana::ui::icons::FOLDER_OPEN},
+        {"nnn", pnana::ui::icons::FOLDER_OPEN},
+        {"vifm", pnana::ui::icons::FOLDER_OPEN},
+        {"mc", pnana::ui::icons::FOLDER_OPEN},
+
+        // 多路复用器
+        {"tmux", pnana::ui::icons::SPLIT},
+        {"screen", pnana::ui::icons::SPLIT},
+        {"zellij", pnana::ui::icons::SPLIT},
+
+        // Shell
+        {"zsh", pnana::ui::icons::SHELL},
+        {"bash", pnana::ui::icons::SHELL},
+        {"fish", pnana::ui::icons::SHELL},
+        {"nushell", pnana::ui::icons::SHELL},
+
+        // 版本控制
+        {"git", pnana::ui::icons::GIT_BRANCH},
+
+        // 系统工具
+        {"htop", pnana::ui::icons::SETTINGS},
+        {"btop", pnana::ui::icons::SETTINGS},
+        {"top", pnana::ui::icons::SETTINGS},
+        {"iotop", pnana::ui::icons::SETTINGS},
+
+        // 工具
+        {"fzf", pnana::ui::icons::SEARCH},
+        {"ripgrep", pnana::ui::icons::SEARCH},
+        {"fd", pnana::ui::icons::SEARCH},
+        {"bat", pnana::ui::icons::FILE_TEXT},
+        {"exa", pnana::ui::icons::FILE_TEXT},
+        {"delta", pnana::ui::icons::GIT_DIFF}};
+
+    auto it = tool_icons.find(tool_name);
+    return it != tool_icons.end() ? it->second : pnana::ui::icons::GEAR;
+}
+
+Color TUIConfigPopup::getToolIconColor(const std::string& category) const {
+    const auto& colors = theme_.getColors();
+
+    static const std::map<std::string, Color> category_colors = {
+        {"terminal", Color::RGB(138, 173, 244)},        // 蓝色 - 终端
+        {"editor", Color::RGB(166, 227, 161)},          // 绿色 - 编辑器
+        {"file_manager", Color::RGB(245, 194, 231)},    // 粉色 - 文件管理器
+        {"multiplexer", Color::RGB(250, 179, 135)},     // 橙色 - 多路复用器
+        {"shell", Color::RGB(203, 166, 247)},           // 紫色 - Shell
+        {"version_control", Color::RGB(249, 226, 175)}, // 黄色 - 版本控制
+        {"system", Color::RGB(137, 220, 235)},          // 青色 - 系统工具
+        {"utility", Color::RGB(186, 194, 222)},         // 灰色 - 工具
+        {"other", colors.comment}                       // 默认颜色
+    };
+
+    auto it = category_colors.find(category);
+    return it != category_colors.end() ? it->second : colors.comment;
 }
 
 Element TUIConfigPopup::renderHelpBar() const {
