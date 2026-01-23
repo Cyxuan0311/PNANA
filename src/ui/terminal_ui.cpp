@@ -16,6 +16,20 @@ Element renderStyledPrompt(const std::string& command_line, features::Terminal& 
     auto& theme = terminal.getTheme();
     auto& colors = theme.getColors();
 
+    // 定义终端UI专用的颜色映射，使用主题色
+    ftxui::Color terminal_user_bg = colors.success;      // 用户信息背景
+    ftxui::Color terminal_user_fg = colors.background;   // 用户信息前景
+    ftxui::Color terminal_dir_bg = colors.function;      // 目录信息背景
+    ftxui::Color terminal_dir_fg = colors.background;    // 目录信息前景
+    ftxui::Color terminal_time_bg = colors.comment;      // 时间戳背景
+    ftxui::Color terminal_time_fg = colors.background;   // 时间戳前景
+    ftxui::Color terminal_git_bg = colors.keyword;       // Git分支背景
+    ftxui::Color terminal_git_fg = colors.background;    // Git分支前景
+    ftxui::Color terminal_status_bg = colors.success;    // 状态指示器背景
+    ftxui::Color terminal_status_fg = colors.background; // 状态指示器前景
+    ftxui::Color terminal_arrow = colors.success;        // 箭头颜色
+    ftxui::Color terminal_command = colors.foreground;   // 命令文本颜色
+
     Elements elements;
 
     // 查找箭头 " → " 的位置，这标志着提示符的结束
@@ -52,12 +66,12 @@ Element renderStyledPrompt(const std::string& command_line, features::Terminal& 
         std::string user_host = prompt_parts[0];
 
         // 终端图标
-        elements.push_back(text(std::string(" ") + icons::TERMINAL + " ") | bgcolor(Color::Green) |
-                           color(Color::Black) | bold);
+        elements.push_back(text(std::string(" ") + icons::TERMINAL + " ") |
+                           bgcolor(terminal_user_bg) | color(terminal_user_fg) | bold);
 
         // 用户名@主机名
-        elements.push_back(text(" " + user_host + " ") | bgcolor(Color::Green) |
-                           color(Color::Black) | bold);
+        elements.push_back(text(" " + user_host + " ") | bgcolor(terminal_user_bg) |
+                           color(terminal_user_fg) | bold);
 
         // 分隔符
         elements.push_back(text(" ") | bgcolor(colors.background));
@@ -67,11 +81,11 @@ Element renderStyledPrompt(const std::string& command_line, features::Terminal& 
     if (prompt_parts.size() >= 3) {
         std::string dir = prompt_parts[2];
 
-        elements.push_back(text(std::string(" ") + icons::FOLDER + " ") | bgcolor(Color::Blue) |
-                           color(Color::White) | bold);
+        elements.push_back(text(std::string(" ") + icons::FOLDER + " ") | bgcolor(terminal_dir_bg) |
+                           color(terminal_dir_fg) | bold);
 
-        elements.push_back(text(" " + dir + " ") | bgcolor(Color::Blue) | color(Color::White) |
-                           bold);
+        elements.push_back(text(" " + dir + " ") | bgcolor(terminal_dir_bg) |
+                           color(terminal_dir_fg) | bold);
 
         // 分隔符
         elements.push_back(text(" ") | bgcolor(colors.background));
@@ -81,10 +95,11 @@ Element renderStyledPrompt(const std::string& command_line, features::Terminal& 
     if (prompt_parts.size() >= 2) {
         std::string time_str = prompt_parts[1];
 
-        elements.push_back(text(std::string(" ") + icons::CLOCK + " ") | bgcolor(Color::Cyan) |
-                           color(Color::Black) | bold);
+        elements.push_back(text(std::string(" ") + icons::CLOCK + " ") | bgcolor(terminal_time_bg) |
+                           color(terminal_time_fg) | bold);
 
-        elements.push_back(text(" " + time_str + " ") | bgcolor(Color::Cyan) | color(Color::Black));
+        elements.push_back(text(" " + time_str + " ") | bgcolor(terminal_time_bg) |
+                           color(terminal_time_fg));
     }
 
     // 第四部分：Git 分支（如果存在）
@@ -95,11 +110,11 @@ Element renderStyledPrompt(const std::string& command_line, features::Terminal& 
 
             elements.push_back(text(" ") | bgcolor(colors.background));
 
-            elements.push_back(text(std::string(" ") + icons::GIT + " ") | bgcolor(Color::Yellow) |
-                               color(Color::Black) | bold);
+            elements.push_back(text(std::string(" ") + icons::GIT + " ") |
+                               bgcolor(terminal_git_bg) | color(terminal_git_fg) | bold);
 
-            elements.push_back(text(" " + git_branch + " ") | bgcolor(Color::Yellow) |
-                               color(Color::Black) | bold);
+            elements.push_back(text(" " + git_branch + " ") | bgcolor(terminal_git_bg) |
+                               color(terminal_git_fg) | bold);
         }
     }
 
@@ -107,15 +122,15 @@ Element renderStyledPrompt(const std::string& command_line, features::Terminal& 
     elements.push_back(text(" ") | bgcolor(colors.background));
 
     // 状态指示器（历史命令默认成功状态）
-    elements.push_back(text(" " + std::string(icons::SUCCESS) + " ") | bgcolor(Color::Green) |
-                       color(Color::White) | bold);
+    elements.push_back(text(" " + std::string(icons::SUCCESS) + " ") | bgcolor(terminal_status_bg) |
+                       color(terminal_status_fg) | bold);
 
     // 最终的提示符箭头
     elements.push_back(text(" ") | bgcolor(colors.background));
-    elements.push_back(text(std::string(icons::ARROW_RIGHT) + " ") | color(Color::Green) | bold);
+    elements.push_back(text(std::string(icons::ARROW_RIGHT) + " ") | color(terminal_arrow) | bold);
 
     // 命令部分
-    elements.push_back(text(command_part) | color(Color::White));
+    elements.push_back(text(command_part) | color(terminal_command));
 
     return hbox(elements);
 }
@@ -127,6 +142,21 @@ Element renderTerminal(features::Terminal& terminal, int height) {
 
     auto& theme = terminal.getTheme();
     auto& colors = theme.getColors();
+
+    // 定义终端UI专用的颜色映射，使用主题色
+    ftxui::Color terminal_user_bg = colors.success;      // 用户信息背景
+    ftxui::Color terminal_user_fg = colors.background;   // 用户信息前景
+    ftxui::Color terminal_dir_bg = colors.function;      // 目录信息背景
+    ftxui::Color terminal_dir_fg = colors.background;    // 目录信息前景
+    ftxui::Color terminal_time_bg = colors.comment;      // 时间戳背景
+    ftxui::Color terminal_time_fg = colors.background;   // 时间戳前景
+    ftxui::Color terminal_git_bg = colors.keyword;       // Git分支背景
+    ftxui::Color terminal_git_fg = colors.background;    // Git分支前景
+    ftxui::Color terminal_status_bg = colors.success;    // 状态指示器背景
+    ftxui::Color terminal_status_fg = colors.background; // 状态指示器前景
+    ftxui::Color terminal_arrow = colors.success;        // 箭头颜色
+    ftxui::Color terminal_command = colors.foreground;   // 命令文本颜色
+    ftxui::Color terminal_cursor_bg = colors.selection;  // 光标背景色
 
     // 输出区域和输入行
     Elements output_lines;
@@ -202,10 +232,10 @@ Element renderTerminal(features::Terminal& terminal, int height) {
 
     // 用户信息块（反白效果）
     input_elements.push_back(text(std::string(" ") + icons::TERMINAL + " ") |
-                             bgcolor(Color::Green) | color(Color::Black) | bold);
+                             bgcolor(terminal_user_bg) | color(terminal_user_fg) | bold);
 
-    input_elements.push_back(text(" " + username + "@" + hostname + " ") | bgcolor(Color::Green) |
-                             color(Color::Black) | bold);
+    input_elements.push_back(text(" " + username + "@" + hostname + " ") |
+                             bgcolor(terminal_user_bg) | color(terminal_user_fg) | bold);
 
     // 分隔符
     input_elements.push_back(text(" ") | bgcolor(colors.background));
@@ -224,22 +254,22 @@ Element renderTerminal(features::Terminal& terminal, int height) {
         }
     }
 
-    input_elements.push_back(text(std::string(" ") + icons::FOLDER + " ") | bgcolor(Color::Blue) |
-                             color(Color::White) | bold);
+    input_elements.push_back(text(std::string(" ") + icons::FOLDER + " ") |
+                             bgcolor(terminal_dir_bg) | color(terminal_dir_fg) | bold);
 
-    input_elements.push_back(text(" " + dir + " ") | bgcolor(Color::Blue) | color(Color::White) |
-                             bold);
+    input_elements.push_back(text(" " + dir + " ") | bgcolor(terminal_dir_bg) |
+                             color(terminal_dir_fg) | bold);
 
     // 分隔符
     input_elements.push_back(text(" ") | bgcolor(colors.background));
 
     // 第三部分：时间戳（青色背景）
     std::string time_str = terminal.getCurrentTime();
-    input_elements.push_back(text(std::string(" ") + icons::CLOCK + " ") | bgcolor(Color::Cyan) |
-                             color(Color::Black) | bold);
+    input_elements.push_back(text(std::string(" ") + icons::CLOCK + " ") |
+                             bgcolor(terminal_time_bg) | color(terminal_time_fg) | bold);
 
-    input_elements.push_back(text(" " + time_str + " ") | bgcolor(Color::Cyan) |
-                             color(Color::Black));
+    input_elements.push_back(text(" " + time_str + " ") | bgcolor(terminal_time_bg) |
+                             color(terminal_time_fg));
 
     // 第四部分：Git 分支（如果有，金色背景）
     std::string git_branch = terminal.getGitBranch();
@@ -249,42 +279,42 @@ Element renderTerminal(features::Terminal& terminal, int height) {
 
         // Git 分支块
         input_elements.push_back(text(std::string(" ") + icons::GIT + " ") |
-                                 bgcolor(Color::Yellow) | color(Color::Black) | bold);
+                                 bgcolor(terminal_git_bg) | color(terminal_git_fg) | bold);
 
-        input_elements.push_back(text(" " + git_branch + " ") | bgcolor(Color::Yellow) |
-                                 color(Color::Black) | bold);
+        input_elements.push_back(text(" " + git_branch + " ") | bgcolor(terminal_git_bg) |
+                                 color(terminal_git_fg) | bold);
     }
 
     // 分隔符
     input_elements.push_back(text(" ") | bgcolor(colors.background));
 
     // 第五部分：状态指示器（根据终端状态）
-    Color status_bg = Color::Green; // 默认成功状态
+    ftxui::Color status_bg = terminal_status_bg; // 使用主题色
     std::string status_icon = icons::SUCCESS;
 
     // 可以根据终端的最后命令状态来设置颜色
-    // 这里暂时使用绿色成功状态
+    // 这里暂时使用主题的成功状态
 
     input_elements.push_back(text(" " + status_icon + " ") | bgcolor(status_bg) |
-                             color(Color::White) | bold);
+                             color(terminal_status_fg) | bold);
 
     // 最终的提示符箭头
     input_elements.push_back(text(" ") | bgcolor(colors.background));
 
-    input_elements.push_back(text(std::string(icons::ARROW_RIGHT) + " ") | color(Color::Green) |
+    input_elements.push_back(text(std::string(icons::ARROW_RIGHT) + " ") | color(terminal_arrow) |
                              bold);
 
-    // 用户输入（白色，更清晰）
-    input_elements.push_back(text(before_cursor) | color(Color::White));
+    // 用户输入（使用主题前景色）
+    input_elements.push_back(text(before_cursor) | color(terminal_command));
 
     // 块状光标（更醒目的样式）
     if (cursor_position < current_input.length()) {
-        input_elements.push_back(text(cursor_char) | bgcolor(Color::Green) | color(Color::Black) |
-                                 bold);
-        input_elements.push_back(text(after_cursor) | color(Color::White));
+        input_elements.push_back(text(cursor_char) | bgcolor(terminal_cursor_bg) |
+                                 color(colors.background) | bold);
+        input_elements.push_back(text(after_cursor) | color(terminal_command));
     } else {
-        // 光标在行尾（显示为绿色竖线）
-        input_elements.push_back(text("│") | color(Color::Green) | bold);
+        // 光标在行尾（显示为主题色竖线）
+        input_elements.push_back(text("│") | color(terminal_cursor_bg) | bold);
     }
 
     // 构建最终布局：输出区域 + 输入行（固定底部）
@@ -296,7 +326,7 @@ Element renderTerminal(features::Terminal& terminal, int height) {
                output_area | flex, // 输出区域可滚动
                input_line          // 输入行固定在底部
            }) |
-           size(HEIGHT, EQUAL, height) | bgcolor(Color::RGB(20, 20, 25)); // 深色终端背景
+           size(HEIGHT, EQUAL, height) | bgcolor(colors.background); // 使用主题背景色
 }
 
 } // namespace ui
