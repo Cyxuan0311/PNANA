@@ -64,6 +64,17 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
 
     // global shortcut action: action
 
+    // 检查当前区域，如果是终端区域且按键是F1或F2，优先让区域处理器处理
+    EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
+    if (current_region == EditorRegion::TERMINAL) {
+        if (action == pnana::input::KeyAction::TOGGLE_HELP && event == ftxui::Event::F1) {
+            // F1在终端区域用于增加终端高度，不执行全局的TOGGLE_HELP
+            LOG("[INPUT] Skipping TOGGLE_HELP in terminal region (F1 used for height adjustment)");
+            return false;
+        }
+        // F2在终端区域用于减少终端高度，但F2没有被绑定为全局快捷键，所以不需要特殊处理
+    }
+
     // 全局快捷键：文件操作、视图操作等
     if (action == pnana::input::KeyAction::SAVE_AS ||
         action == pnana::input::KeyAction::CREATE_FOLDER ||
