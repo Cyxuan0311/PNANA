@@ -1868,8 +1868,15 @@ Component GitPanel::buildMainComponent() {
 bool GitPanel::handleStatusModeKey(Event event) {
     const size_t MAX_VISIBLE_FILES = 25; // Must match renderStatusPanel
 
-    // Ensure we have files to work with
+    // Tab navigation between modes (must be first)
+    if (event == Event::Tab) {
+        switchMode(getNextMode(current_mode_));
+        return true;
+    }
+
+    // Ensure we have files to work with (but still handle Tab navigation)
     if (files_.empty()) {
+        // Still allow tab navigation even if no files
         return false;
     }
 
@@ -1998,12 +2005,6 @@ bool GitPanel::handleStatusModeKey(Event event) {
     }
     if (event == Event::Character('U')) { // Unstage all
         performUnstageAll();
-        return true;
-    }
-
-    // Tab navigation between modes
-    if (event == Event::Tab) {
-        switchMode(getNextMode(current_mode_));
         return true;
     }
 
