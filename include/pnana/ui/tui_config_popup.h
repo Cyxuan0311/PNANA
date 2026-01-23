@@ -3,6 +3,7 @@
 
 #include "features/tui_config_manager.h"
 #include "ui/theme.h"
+#include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <functional>
@@ -56,6 +57,8 @@ class TUIConfigPopup {
     // 渲染各个组件
     ftxui::Element renderTitle() const;
     ftxui::Element renderConfigList() const;
+    ftxui::Element renderConfigItem(const features::TUIConfig& config, size_t config_index,
+                                    bool is_selected) const;
     ftxui::Element renderHelpBar() const;
 
     // 获取配置文件的显示路径
@@ -64,6 +67,10 @@ class TUIConfigPopup {
   private:
     // 获取类别显示名称
     std::string getCategoryDisplayName(const std::string& category) const;
+
+    // 获取工具图标和颜色
+    std::string getToolIcon(const std::string& tool_name) const;
+    ftxui::Color getToolIconColor(const std::string& category) const;
 
     // 展开路径（处理~和环境变量）
     std::filesystem::path expandPath(const std::string& path) const;
