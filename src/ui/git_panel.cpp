@@ -401,6 +401,18 @@ void GitPanel::performStageSelected() {
                 break;
             } else {
                 staged_count++;
+                // Immediately reflect staged state in UI so color/indicator update without waiting
+                {
+                    std::lock_guard<std::mutex> lock(data_mutex_);
+                    if (index < files_.size()) {
+                        files_[index].staged = true;
+                        // Invalidate cached stats so header will update
+                        stats_cache_valid_ = false;
+                    }
+                }
+                // Request a rebuild/redraw so changes are visible immediately
+                component_needs_rebuild_ = true;
+                needs_redraw_ = true;
                 auto single_stage_end = std::chrono::high_resolution_clock::now();
                 auto single_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                     single_stage_end - single_stage_start);
@@ -427,6 +439,8 @@ void GitPanel::performStageSelected() {
 
         // 标记数据已过期，下次需要时再刷新
         data_loaded_ = false;
+        // Invalidate cached stats so UI will recalculate staged/unstaged counts
+        stats_cache_valid_ = false;
         pnana::utils::Logger::getInstance().log(
             "GitPanel::performStageSelected - Marked data as stale, will refresh on next access");
     }
@@ -477,6 +491,18 @@ void GitPanel::performUnstageSelected() {
                 break;
             } else {
                 unstaged_count++;
+                // Immediately reflect unstaged state in UI so color/indicator update without
+                // waiting
+                {
+                    std::lock_guard<std::mutex> lock(data_mutex_);
+                    if (index < files_.size()) {
+                        files_[index].staged = false;
+                        // Invalidate cached stats so header will update
+                        stats_cache_valid_ = false;
+                    }
+                }
+                component_needs_rebuild_ = true;
+                needs_redraw_ = true;
                 auto single_unstage_end = std::chrono::high_resolution_clock::now();
                 auto single_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                     single_unstage_end - single_unstage_start);
@@ -582,7 +608,14 @@ void GitPanel::performCommit() {
 
     if (git_manager_->commit(commit_message_)) {
         commit_message_.clear();
+        // Refresh data and ensure UI updates immediately
         refreshData(); // commit后需要刷新所有数据，包括分支
+        // Invalidate cached stats to force recalculation
+        stats_cache_valid_ = false;
+        // Clear selection and request rebuild so Status panel reflects new state
+        clearSelection();
+        component_needs_rebuild_ = true;
+        needs_redraw_ = true;
         switchMode(GitPanelMode::STATUS);
     } else {
         error_message_ = git_manager_->getLastError();
@@ -841,6 +874,32 @@ Element GitPanel::renderCommitPanel() {
                              text(" Commit message:") | color(colors.menubar_fg)};
     elements.push_back(hbox(std::move(input_header)));
 
+    // Show staged file list (immediate from files_ so user sees what will be committed)
+    if (staged_count > 0) {
+        Elements staged_list_header = {text(pnana::ui::icons::SAVED) | color(colors.success),
+                                       text(" Staged files:") | color(colors.menubar_fg)};
+        elements.push_back(hbox(std::move(staged_list_header)));
+
+        // List staged file names (limit visual lines to avoid overflow)
+        const size_t MAX_STAGED_SHOW = 10;
+        size_t shown = 0;
+        for (const auto& f : files_) {
+            if (f.staged) {
+                Elements row = {text("  ") | color(colors.background),
+                                text(pnana::ui::icons::FILE) | color(colors.function), text(" "),
+                                text(f.path) | color(colors.success)};
+                elements.push_back(hbox(std::move(row)));
+                shown++;
+                if (shown >= MAX_STAGED_SHOW)
+                    break;
+            }
+        }
+        if (shown < staged_count) {
+            elements.push_back(text("  ...") | color(colors.comment));
+        }
+        elements.push_back(separator());
+    }
+
     // Show character count and validation
     std::string char_count = "(" + std::to_string(commit_message_.length()) + " chars)";
     elements.push_back(text(commit_message_) | color(colors.foreground) | border |
@@ -1027,7 +1086,7 @@ Element GitPanel::renderDiffPanel() {
     Elements file_header = {text(pnana::ui::icons::FILE) | color(colors.function),
                             text(" Files with changes:") | color(colors.menubar_fg)};
     diff_elements.push_back(hbox(std::move(file_header)));
-    diff_elements.push_back(separatorLight());
+    // Removed separator line between header and file list for cleaner diff panel UI
 
     // File list
     const size_t MAX_VISIBLE_FILES = 20; // Show more files in diff panel
@@ -1093,7 +1152,8 @@ Element GitPanel::renderFileItem(const GitFile& file, size_t /*index*/, bool is_
     auto& colors = theme_.getColors();
 
     // Enhanced git file item styling inspired by file_browser_view and neovim git plugins
-    Color item_color = colors.foreground;
+    // Use a different color for staged files to make them stand out per theme
+    Color item_color = file.staged ? colors.success : colors.foreground;
     std::string status_text = getStatusText(file.status);
 
     // Get file type icon (use the mapper only; remove the old file icon to avoid duplication)
@@ -1205,9 +1265,11 @@ Element GitPanel::renderFileItem(const GitFile& file, size_t /*index*/, bool is_
                      item_text);
 
     if (is_highlighted && is_selected) {
-        item_text = item_text | bgcolor(colors.selection) | color(colors.background) | bold;
+        // Show selection background and bold, but DO NOT override child element colors
+        item_text = item_text | bgcolor(colors.selection) | bold;
     } else if (is_highlighted) {
-        item_text = item_text | bgcolor(colors.selection) | color(colors.background) | bold;
+        // Highlighted (cursor) - show selection background but preserve element colors.
+        item_text = item_text | bgcolor(colors.selection) | bold;
     } else if (is_selected) {
         // dim background for selected but not highlighted
         item_text = item_text | bgcolor(Color::RGB(30, 30, 30));
@@ -1594,7 +1656,7 @@ Element GitPanel::renderFooter() {
                                     text(" | ") | color(colors.comment),
                                     text("Switch: Enter") | color(colors.success) | bold,
                                     text(" | ") | color(colors.comment),
-                                    text("New: n") | color(colors.comment),
+                                    text("New: Ctrl+N") | color(colors.comment),
                                     text(" | ") | color(colors.comment),
                                     text("Switch mode: Tab") | color(colors.comment),
                                     text(" | ") | color(colors.comment),
@@ -1899,9 +1961,32 @@ bool GitPanel::handleStatusModeKey(Event event) {
     }
 
     // Git operations
-    if (event == Event::Character('s')) { // Stage selected
-        performStageSelected();
-        return true;
+    if (event == Event::Character('s')) { // Stage selected or toggle detailed stats / unstage
+        if (selected_files_.empty()) {
+            // No files selected, toggle detailed stats view
+            show_detailed_stats_ = !show_detailed_stats_;
+            pnana::utils::Logger::getInstance().log(
+                "GitPanel::handleStatusModeKey - Toggled detailed stats: " +
+                std::string(show_detailed_stats_ ? "on" : "off"));
+            return true;
+        } else {
+            // If all selected files are already staged, unstage them; otherwise stage selected
+            bool all_staged = true;
+            for (size_t idx : selected_files_) {
+                if (idx < files_.size()) {
+                    if (!files_[idx].staged) {
+                        all_staged = false;
+                        break;
+                    }
+                }
+            }
+            if (all_staged) {
+                performUnstageSelected();
+            } else {
+                performStageSelected();
+            }
+            return true;
+        }
     }
     if (event == Event::Character('u')) { // Unstage selected
         performUnstageSelected();
@@ -2005,14 +2090,13 @@ bool GitPanel::handleBranchModeKey(Event event) {
         performSwitchBranch();
         return true;
     }
-    if (event == Event::Character('n')) {
-        // Start creating new branch - prepare input mode
+    // Ctrl+N to create new branch (avoid plain 'n' to reduce accidental creates)
+    if (event == Event::CtrlN) {
         branch_name_.clear();
-        // Note: In a full implementation, we would switch to an input mode
-        // For now, we'll just clear the branch name to indicate we're ready for input
         return true;
     }
-    if (event == Event::Character('d')) {
+    // Ctrl+D to delete selected branch
+    if (event == Event::CtrlD) {
         if (selected_index_ < branches_.size() && !branches_[selected_index_].is_current) {
             git_manager_->deleteBranch(branches_[selected_index_].name);
             refreshData();
@@ -2164,6 +2248,10 @@ std::string GitPanel::getStatusText(GitFileStatus status) const {
             return "renamed";
         case GitFileStatus::COPIED:
             return "copied";
+        case GitFileStatus::UPDATED_BUT_UNMERGED:
+            return "unmerged";
+        case GitFileStatus::UNMODIFIED:
+            return "unmodified";
         case GitFileStatus::UNTRACKED:
             return "untracked";
         case GitFileStatus::IGNORED:
@@ -2236,16 +2324,22 @@ void GitPanel::updateCachedStats() {
     pnana::utils::Logger::getInstance().log("GitPanel::updateCachedStats - START (" +
                                             std::to_string(files_.size()) + " files)");
 
-    cached_staged_count_ = 0;
-    cached_unstaged_count_ = 0;
-
-    for (const auto& file : files_) {
-        if (file.staged) {
-            cached_staged_count_++;
-        } else {
-            cached_unstaged_count_++;
+    // Use git to get authoritative staged count (handles cached index reliably)
+    try {
+        cached_staged_count_ = git_manager_->getStagedCount();
+    } catch (...) {
+        // Fallback: count from parsed files_
+        cached_staged_count_ = 0;
+        for (const auto& file : files_) {
+            if (file.staged) {
+                cached_staged_count_++;
+            }
         }
     }
+
+    // Unstaged count is approximate: remaining files that are not staged
+    cached_unstaged_count_ =
+        (files_.size() > cached_staged_count_) ? (files_.size() - cached_staged_count_) : 0;
 
     stats_cache_valid_ = true;
 
