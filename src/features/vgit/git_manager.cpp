@@ -1114,6 +1114,56 @@ void GitManager::parseStatusLine(const std::string& line, std::vector<GitFile>& 
     }
 }
 
+GitBranchStatus GitManager::getBranchStatus(const std::string& branch) {
+    std::string branch_name = branch.empty() ? getCurrentBranch() : branch;
+
+    if (branch_name.empty()) {
+        last_error_ = "No current branch";
+        return GitBranchStatus();
+    }
+
+    // Get remote tracking branch
+    std::string remote_cmd = "git -C \"" + repo_path_ + "\" rev-parse --abbrev-ref " + branch_name +
+                             "@{upstream} 2>/dev/null";
+    std::string remote_branch = executeGitCommand(remote_cmd);
+
+    if (remote_branch.empty() || remote_branch.find("fatal") != std::string::npos) {
+        // No remote tracking branch
+        return GitBranchStatus(0, 0, "", false);
+    }
+
+    // Remove trailing newline
+    if (!remote_branch.empty() && remote_branch.back() == '\n') {
+        remote_branch.pop_back();
+    }
+
+    // Get ahead/behind count using rev-list
+    std::string count_cmd = "git -C \"" + repo_path_ + "\" rev-list --left-right --count " +
+                            branch_name + "..." + remote_branch + " 2>/dev/null";
+    std::string count_output = executeGitCommand(count_cmd);
+
+    if (count_output.empty() || count_output.find("fatal") != std::string::npos) {
+        // Cannot determine ahead/behind status
+        return GitBranchStatus(0, 0, remote_branch, true);
+    }
+
+    // Parse the output (format: "ahead\tbehind")
+    size_t tab_pos = count_output.find('\t');
+    if (tab_pos == std::string::npos) {
+        return GitBranchStatus(0, 0, remote_branch, true);
+    }
+
+    try {
+        int ahead = std::stoi(count_output.substr(0, tab_pos));
+        int behind = std::stoi(count_output.substr(tab_pos + 1));
+
+        return GitBranchStatus(ahead, behind, remote_branch, true);
+    } catch (const std::exception&) {
+        // Parse error
+        return GitBranchStatus(0, 0, remote_branch, true);
+    }
+}
+
 std::string GitManager::escapePath(const std::string& path) const {
     std::string escaped = path;
     // Escape quotes

@@ -54,6 +54,17 @@ struct GitCommit {
         : hash(h), message(msg), author(auth), date(dt) {}
 };
 
+struct GitBranchStatus {
+    int ahead = 0;                    // Number of commits ahead of remote
+    int behind = 0;                   // Number of commits behind remote
+    std::string remote_branch;        // Remote branch name (e.g., "origin/main")
+    bool has_remote_tracking = false; // Whether this branch has a remote tracking branch
+
+    GitBranchStatus() = default;
+    GitBranchStatus(int a, int b, const std::string& remote, bool has_tracking)
+        : ahead(a), behind(b), remote_branch(remote), has_remote_tracking(has_tracking) {}
+};
+
 class GitManager {
   public:
     GitManager(const std::string& repo_path = ".");
@@ -89,6 +100,7 @@ class GitManager {
     bool switchBranch(const std::string& name);
     bool deleteBranch(const std::string& name, bool force = false);
     std::string getCurrentBranch();
+    GitBranchStatus getBranchStatus(const std::string& branch = "");
 
     // Remote operations
     bool push(const std::string& remote = "origin", const std::string& branch = "");
