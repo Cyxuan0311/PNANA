@@ -31,6 +31,7 @@ GitPanel::GitPanel(ui::Theme& theme, const std::string& repo_path)
     // Initialize cache timestamps
     last_repo_display_update_ = std::chrono::steady_clock::now() - repo_display_cache_timeout_;
     last_branch_update_ = std::chrono::steady_clock::now() - branch_cache_timeout_;
+    last_branch_status_update_ = std::chrono::steady_clock::now() - branch_status_cache_timeout_;
 }
 
 Component GitPanel::getComponent() {
@@ -1016,6 +1017,52 @@ Element GitPanel::renderRemotePanel() {
                                     text(" Current branch: ") | color(colors.menubar_fg),
                                     text(current_branch) | color(colors.foreground) | bold};
         elements.push_back(hbox(std::move(branch_elements)));
+        elements.push_back(separator());
+    }
+
+    // Branch status info (push/sync status)
+    GitBranchStatus branch_status = getCachedBranchStatus();
+    if (branch_status.has_remote_tracking) {
+        Elements status_elements;
+
+        // Status icon and text
+        status_elements.push_back(text(pnana::ui::icons::REFRESH) | color(colors.comment));
+
+        if (branch_status.ahead > 0 && branch_status.behind == 0) {
+            // Ahead of remote - ready to push
+            status_elements.push_back(text(" Local commits ready to push") | color(colors.success) |
+                                      bold);
+            status_elements.push_back(
+                text(" (" + std::to_string(branch_status.ahead) + " commits ahead)") |
+                color(colors.success));
+        } else if (branch_status.ahead == 0 && branch_status.behind > 0) {
+            // Behind remote - need to pull
+            status_elements.push_back(text(" Remote has new commits") | color(colors.warning) |
+                                      bold);
+            status_elements.push_back(
+                text(" (" + std::to_string(branch_status.behind) + " commits behind)") |
+                color(colors.warning));
+        } else if (branch_status.ahead > 0 && branch_status.behind > 0) {
+            // Diverged - need to handle merge/rebase
+            status_elements.push_back(text(" Branch diverged from remote") | color(colors.warning) |
+                                      bold);
+            status_elements.push_back(text(" (" + std::to_string(branch_status.ahead) + " ahead, " +
+                                           std::to_string(branch_status.behind) + " behind)") |
+                                      color(colors.warning));
+        } else {
+            // In sync
+            status_elements.push_back(text(" Branch is in sync with remote") |
+                                      color(colors.comment));
+        }
+
+        elements.push_back(hbox(std::move(status_elements)));
+        elements.push_back(separator());
+    } else if (!current_branch.empty()) {
+        // No remote tracking branch
+        Elements no_remote_elements = {
+            text(pnana::ui::icons::WARNING) | color(colors.warning),
+            text(" No remote tracking branch configured") | color(colors.comment)};
+        elements.push_back(hbox(std::move(no_remote_elements)));
         elements.push_back(separator());
     }
 
@@ -2398,6 +2445,30 @@ std::string GitPanel::getCachedCurrentBranch() {
                                             cached_current_branch_);
 
     return cached_current_branch_;
+}
+
+GitBranchStatus GitPanel::getCachedBranchStatus() {
+    auto now = std::chrono::steady_clock::now();
+    auto time_since_last_update =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - last_branch_status_update_);
+
+    // Use cached result if within timeout
+    if (cached_branch_status_.has_remote_tracking &&
+        time_since_last_update < branch_status_cache_timeout_) {
+        return cached_branch_status_;
+    }
+
+    // Update cache
+    cached_branch_status_ = git_manager_->getBranchStatus();
+    last_branch_status_update_ = now;
+
+    std::string log_msg = "GitPanel::getCachedBranchStatus - Cache updated: ahead=" +
+                          std::to_string(cached_branch_status_.ahead) +
+                          ", behind=" + std::to_string(cached_branch_status_.behind) +
+                          ", remote=" + cached_branch_status_.remote_branch;
+    pnana::utils::Logger::getInstance().log(log_msg);
+
+    return cached_branch_status_;
 }
 
 std::string GitPanel::getFileExtension(const std::string& filename) const {

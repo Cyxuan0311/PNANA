@@ -2,6 +2,7 @@
 #define PNANA_UI_DIAGNOSTICS_POPUP_H
 
 #include "features/lsp/lsp_client.h"
+#include "ui/theme.h"
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -13,7 +14,7 @@ namespace ui {
 
 class DiagnosticsPopup {
   public:
-    DiagnosticsPopup();
+    DiagnosticsPopup(Theme& theme);
 
     // 设置诊断信息
     void setDiagnostics(const std::vector<pnana::features::Diagnostic>& diagnostics);
@@ -61,6 +62,7 @@ class DiagnosticsPopup {
     size_t getWarningCount() const;
 
   private:
+    Theme& theme_;
     std::vector<pnana::features::Diagnostic> diagnostics_;
     size_t selected_index_;
     bool visible_;

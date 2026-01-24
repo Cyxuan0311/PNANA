@@ -17,13 +17,21 @@ static inline Decorator borderWithColor(Color border_color) {
 namespace pnana {
 namespace ui {
 
-TUIConfigPopup::TUIConfigPopup(Theme& theme) : theme_(theme), is_open_(false), selected_index_(0) {}
+TUIConfigPopup::TUIConfigPopup(Theme& theme)
+    : theme_(theme), is_open_(false), original_configs_(), filtered_configs_(), selected_index_(0),
+      scroll_offset_(0), input_("") {}
 
 void TUIConfigPopup::setData(bool is_open, const std::vector<features::TUIConfig>& tui_configs,
                              size_t selected_index) {
     is_open_ = is_open;
-    tui_configs_ = tui_configs;
+    original_configs_ = tui_configs;
+    updateFilteredConfigs();
     selected_index_ = selected_index;
+    if (selected_index_ >= filtered_configs_.size()) {
+        selected_index_ = 0;
+    }
+    scroll_offset_ = 0;
+    adjustScrollOffset();
 }
 
 ftxui::Element TUIConfigPopup::render() {
@@ -39,18 +47,26 @@ ftxui::Element TUIConfigPopup::render() {
 
     dialog_content.push_back(separator());
 
+    // 搜索输入框
+    dialog_content.push_back(text(""));
+    dialog_content.push_back(renderInputBox());
+
+    dialog_content.push_back(text(""));
+    dialog_content.push_back(separator());
+
     // 配置文件列表
     dialog_content.push_back(renderConfigList());
 
+    dialog_content.push_back(text(""));
     dialog_content.push_back(separator());
 
     // 帮助栏
     dialog_content.push_back(renderHelpBar());
 
     int height =
-        std::min(25, int(12 + static_cast<int>(std::min(tui_configs_.size(), size_t(15)))));
+        std::min(22, int(15 + static_cast<int>(std::min(filtered_configs_.size(), size_t(12)))));
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 90) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 85) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }
@@ -61,26 +77,44 @@ bool TUIConfigPopup::handleInput(ftxui::Event event) {
     }
 
     if (event == ftxui::Event::Escape) {
-        close();
+        if (!input_.empty()) {
+            // 如果有搜索内容，先清除搜索
+            setInput("");
+        } else {
+            close();
+        }
         return true;
     } else if (event == ftxui::Event::Return) {
-        if (config_open_callback_ && selected_index_ < tui_configs_.size()) {
-            config_open_callback_(tui_configs_[selected_index_]);
+        if (config_open_callback_ && selected_index_ < filtered_configs_.size()) {
+            config_open_callback_(filtered_configs_[selected_index_]);
         }
         close();
         return true;
+    } else if (event == ftxui::Event::Backspace) {
+        if (!input_.empty()) {
+            setInput(input_.substr(0, input_.size() - 1));
+        }
+        return true;
     } else if (event == ftxui::Event::ArrowDown) {
-        if (!tui_configs_.empty()) {
-            selected_index_ = (selected_index_ + 1) % tui_configs_.size();
+        if (!filtered_configs_.empty()) {
+            if (selected_index_ + 1 < filtered_configs_.size()) {
+                selected_index_++;
+                adjustScrollOffset();
+            }
         }
         return true;
     } else if (event == ftxui::Event::ArrowUp) {
-        if (!tui_configs_.empty()) {
-            if (selected_index_ == 0) {
-                selected_index_ = tui_configs_.size() - 1;
-            } else {
+        if (!filtered_configs_.empty()) {
+            if (selected_index_ > 0) {
                 selected_index_--;
+                adjustScrollOffset();
             }
+        }
+        return true;
+    } else if (event.is_character()) {
+        std::string ch = event.character();
+        if (ch.length() == 1 && ch[0] >= 32 && ch[0] < 127) {
+            setInput(input_ + ch);
         }
         return true;
     }
@@ -90,17 +124,76 @@ bool TUIConfigPopup::handleInput(ftxui::Event event) {
 
 void TUIConfigPopup::open() {
     is_open_ = true;
+    input_ = "";
     selected_index_ = 0;
+    scroll_offset_ = 0;
+    updateFilteredConfigs();
 }
 
 void TUIConfigPopup::close() {
     is_open_ = false;
+    input_ = "";
     selected_index_ = 0;
+    scroll_offset_ = 0;
 }
 
 void TUIConfigPopup::setConfigOpenCallback(
     std::function<void(const features::TUIConfig&)> callback) {
     config_open_callback_ = callback;
+}
+
+void TUIConfigPopup::updateFilteredConfigs() {
+    if (input_.empty()) {
+        filtered_configs_ = original_configs_;
+    } else {
+        filtered_configs_.clear();
+        std::string lower_input = input_;
+        std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
+
+        for (const auto& config : original_configs_) {
+            std::string lower_name = config.name;
+            std::string lower_display = config.display_name;
+            std::string lower_desc = config.description;
+            std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+            std::transform(lower_display.begin(), lower_display.end(), lower_display.begin(),
+                           ::tolower);
+            std::transform(lower_desc.begin(), lower_desc.end(), lower_desc.begin(), ::tolower);
+
+            if (lower_name.find(lower_input) != std::string::npos ||
+                lower_display.find(lower_input) != std::string::npos ||
+                lower_desc.find(lower_input) != std::string::npos) {
+                filtered_configs_.push_back(config);
+            }
+        }
+    }
+}
+
+void TUIConfigPopup::setInput(const std::string& input) {
+    input_ = input;
+    updateFilteredConfigs();
+    selected_index_ = 0;
+    scroll_offset_ = 0;
+    adjustScrollOffset();
+}
+
+void TUIConfigPopup::adjustScrollOffset() {
+    if (filtered_configs_.empty()) {
+        scroll_offset_ = 0;
+        return;
+    }
+
+    // 确保选中的项目可见
+    size_t max_visible = 12; // 最大可见项目数
+    if (selected_index_ < scroll_offset_) {
+        scroll_offset_ = selected_index_;
+    } else if (selected_index_ >= scroll_offset_ + max_visible) {
+        scroll_offset_ = selected_index_ - max_visible + 1;
+    }
+
+    // 确保滚动偏移不会超出范围
+    if (scroll_offset_ > filtered_configs_.size() - max_visible) {
+        scroll_offset_ = std::max(size_t(0), filtered_configs_.size() - max_visible);
+    }
 }
 
 Element TUIConfigPopup::renderTitle() const {
@@ -110,35 +203,30 @@ Element TUIConfigPopup::renderTitle() const {
            bold | bgcolor(colors.dialog_title_bg) | color(colors.dialog_title_fg) | center;
 }
 
+Element TUIConfigPopup::renderInputBox() const {
+    const auto& colors = theme_.getColors();
+    std::string input_display = input_.empty() ? "_" : input_ + "_";
+    return hbox({text("  > "),
+                 text(input_display) | bold | color(colors.dialog_fg) | bgcolor(colors.selection)});
+}
+
 Element TUIConfigPopup::renderConfigList() const {
     const auto& colors = theme_.getColors();
     Elements list_elements;
 
-    if (tui_configs_.empty()) {
-        list_elements.push_back(hbox(
-            {text("  "), text("No TUI configuration files found") | color(colors.comment) | dim}));
+    if (filtered_configs_.empty()) {
+        std::string no_result_text = input_.empty() ? "No TUI configuration files found"
+                                                    : "No matching configurations found";
+        list_elements.push_back(
+            hbox({text("  "), text(no_result_text) | color(colors.comment) | dim}));
     } else {
-        // 直接显示所有配置项，按可用性排序（有配置文件的优先）
-        std::vector<size_t> sorted_indices;
-        for (size_t i = 0; i < tui_configs_.size(); ++i) {
-            sorted_indices.push_back(i);
-        }
+        // 显示过滤后的配置项列表（最多12个）
+        size_t max_display = std::min(filtered_configs_.size(), size_t(12));
 
-        // 排序：有配置文件的排在前面
-        std::sort(sorted_indices.begin(), sorted_indices.end(), [this](size_t a, size_t b) {
-            bool a_has_config = !getConfigPathDisplay(tui_configs_[a]).empty() &&
-                                getConfigPathDisplay(tui_configs_[a]) != "Not found";
-            bool b_has_config = !getConfigPathDisplay(tui_configs_[b]).empty() &&
-                                getConfigPathDisplay(tui_configs_[b]) != "Not found";
-            if (a_has_config != b_has_config) {
-                return a_has_config > b_has_config; // 有配置文件的排前面
-            }
-            return tui_configs_[a].display_name < tui_configs_[b].display_name; // 按名称排序
-        });
-
-        // 显示配置项列表
-        for (size_t config_index : sorted_indices) {
-            const auto& config = tui_configs_[config_index];
+        for (size_t i = 0; i < max_display && (scroll_offset_ + i) < filtered_configs_.size();
+             ++i) {
+            size_t config_index = scroll_offset_ + i;
+            const auto& config = filtered_configs_[config_index];
             bool is_selected = (config_index == selected_index_);
 
             list_elements.push_back(renderConfigItem(config, config_index, is_selected));
@@ -149,14 +237,25 @@ Element TUIConfigPopup::renderConfigList() const {
                     hbox({text("    "), text(config.description) | color(colors.comment) | dim}));
             }
         }
+
+        // 如果还有更多配置，显示提示
+        if (filtered_configs_.size() > max_display) {
+            list_elements.push_back(text(""));
+            std::string more_text = "... " +
+                                    std::to_string(filtered_configs_.size() - max_display) +
+                                    " more configurations";
+            list_elements.push_back(
+                hbox({text("  "), text(more_text) | color(colors.comment) | dim}));
+        }
     }
 
     return vbox(list_elements);
 }
 
-Element TUIConfigPopup::renderConfigItem(const features::TUIConfig& config, size_t /*config_index*/,
+Element TUIConfigPopup::renderConfigItem(const features::TUIConfig& config, size_t config_index,
                                          bool is_selected) const {
     const auto& colors = theme_.getColors();
+    (void)config_index; // avoid unused parameter warning; kept for future use
 
     // 获取工具图标
     std::string tool_icon = getToolIcon(config.name);
@@ -203,10 +302,11 @@ Element TUIConfigPopup::renderConfigItem(const features::TUIConfig& config, size
     cmd_elements.push_back(text(config.display_name) | (is_selected ? color(colors.dialog_fg) | bold
                                                                     : color(colors.foreground)));
 
-    // 配置文件路径 - 右对齐，参考命令面板的描述显示
-    if (!path_display.empty()) {
+    // 类别标签
+    std::string category_display = getCategoryDisplayName(config.category);
+    if (!category_display.empty()) {
         cmd_elements.push_back(filler());
-        cmd_elements.push_back(text(path_display) | color(colors.comment) | dim);
+        cmd_elements.push_back(text("[" + category_display + "]") | color(colors.comment) | dim);
     }
 
     Element cmd_line = hbox(std::move(cmd_elements));
@@ -275,7 +375,139 @@ std::string TUIConfigPopup::getToolIcon(const std::string& tool_name) const {
         {"fd", pnana::ui::icons::SEARCH},
         {"bat", pnana::ui::icons::FILE_TEXT},
         {"exa", pnana::ui::icons::FILE_TEXT},
-        {"delta", pnana::ui::icons::GIT_DIFF}};
+        {"delta", pnana::ui::icons::GIT_DIFF},
+
+        // 新增的工具图标映射
+        // 编辑器
+        {"subl", pnana::ui::icons::CODE},
+        {"atom", pnana::ui::icons::CODE},
+        {"code-oss", pnana::ui::icons::CODE},
+        {"vscodium", pnana::ui::icons::CODE},
+        {"lite-xl", pnana::ui::icons::CODE},
+        {"lapce", pnana::ui::icons::CODE},
+        {"zed", pnana::ui::icons::CODE},
+        {"vis", pnana::ui::icons::CODE},
+        {"amp", pnana::ui::icons::CODE},
+        {"ne", pnana::ui::icons::CODE},
+        {"jed", pnana::ui::icons::CODE},
+        {"joe", pnana::ui::icons::CODE},
+        {"mg", pnana::ui::icons::CODE},
+        {"le", pnana::ui::icons::CODE},
+
+        // 文件管理器
+        {"dolphin", pnana::ui::icons::FOLDER_OPEN},
+        {"thunar", pnana::ui::icons::FOLDER_OPEN},
+        {"pcmanfm", pnana::ui::icons::FOLDER_OPEN},
+        {"nemo", pnana::ui::icons::FOLDER_OPEN},
+        {"caja", pnana::ui::icons::FOLDER_OPEN},
+        {"nautilus", pnana::ui::icons::FOLDER_OPEN},
+        {"doublecmd", pnana::ui::icons::FOLDER_OPEN},
+        {"fff", pnana::ui::icons::FOLDER_OPEN},
+        {"clifm", pnana::ui::icons::FOLDER_OPEN},
+        {"cfm", pnana::ui::icons::FOLDER_OPEN},
+        {"noice", pnana::ui::icons::FOLDER_OPEN},
+
+        // 版本控制
+        {"mercurial", pnana::ui::icons::GIT_BRANCH},
+        {"svn", pnana::ui::icons::GIT_BRANCH},
+        {"fossil", pnana::ui::icons::GIT_BRANCH},
+        {"pijul", pnana::ui::icons::GIT_BRANCH},
+        {"darcs", pnana::ui::icons::GIT_BRANCH},
+
+        // 系统工具
+        {"iftop", pnana::ui::icons::SETTINGS},
+        {"nload", pnana::ui::icons::SETTINGS},
+        {"powertop", pnana::ui::icons::SETTINGS},
+        {"nvtop", pnana::ui::icons::SETTINGS},
+        {"s-tui", pnana::ui::icons::SETTINGS},
+        {"radeontop", pnana::ui::icons::SETTINGS},
+        {"atop", pnana::ui::icons::SETTINGS},
+        {"slurm", pnana::ui::icons::SETTINGS},
+        {"conky", pnana::ui::icons::SETTINGS},
+        {"dstat", pnana::ui::icons::SETTINGS},
+        {"collectl", pnana::ui::icons::SETTINGS},
+
+        // 开发工具
+        {"docker", pnana::ui::icons::PACKAGE},
+        {"kubectl", pnana::ui::icons::PACKAGE},
+        {"helm", pnana::ui::icons::PACKAGE},
+        {"terraform", pnana::ui::icons::PACKAGE},
+        {"ansible", pnana::ui::icons::PACKAGE},
+
+        // 文本处理工具
+        {"jq", pnana::ui::icons::FILE_TEXT},
+        {"yq", pnana::ui::icons::FILE_TEXT},
+        {"pandoc", pnana::ui::icons::FILE_TEXT},
+        {"pandoc-citeproc", pnana::ui::icons::FILE_TEXT},
+
+        // 网络工具
+        {"curl", pnana::ui::icons::GLOBE},
+        {"wget", pnana::ui::icons::GLOBE},
+        {"httpie", pnana::ui::icons::GLOBE},
+        {"aria2", pnana::ui::icons::GLOBE},
+
+        // 数据库客户端
+        {"sqlite3", pnana::ui::icons::DATABASE},
+        {"mysql", pnana::ui::icons::DATABASE},
+        {"psql", pnana::ui::icons::DATABASE},
+        {"mongosh", pnana::ui::icons::DATABASE},
+        {"redis-cli", pnana::ui::icons::DATABASE},
+
+        // 编程语言包管理器
+        {"pip", pnana::ui::icons::PACKAGE},
+        {"npm", pnana::ui::icons::PACKAGE},
+        {"yarn", pnana::ui::icons::PACKAGE},
+        {"pnpm", pnana::ui::icons::PACKAGE},
+        {"cargo", pnana::ui::icons::PACKAGE},
+        {"go", pnana::ui::icons::PACKAGE},
+        {"rustup", pnana::ui::icons::PACKAGE},
+
+        // 更多实用工具
+        {"tmuxp", pnana::ui::icons::SPLIT},
+        {"byobu", pnana::ui::icons::SPLIT},
+        {"abduco", pnana::ui::icons::SPLIT},
+        {"dtach", pnana::ui::icons::TERMINAL},
+        {"tig", pnana::ui::icons::GIT_BRANCH},
+        {"gitui", pnana::ui::icons::GIT_BRANCH},
+        {"lazygit", pnana::ui::icons::GIT_BRANCH},
+        {"gh", pnana::ui::icons::GIT_BRANCH},
+        {"glab", pnana::ui::icons::GIT_BRANCH},
+        {"task", pnana::ui::icons::CHECKLIST},
+        {"timewarrior", pnana::ui::icons::CLOCK},
+        {"khal", pnana::ui::icons::CALENDAR},
+        {"vdirsyncer", pnana::ui::icons::CALENDAR},
+        {"newsboat", pnana::ui::icons::RSS},
+        {"neomutt", pnana::ui::icons::MAIL},
+        {"mutt", pnana::ui::icons::MAIL},
+        {"alpine", pnana::ui::icons::MAIL},
+        {"lynx", pnana::ui::icons::GLOBE},
+        {"w3m", pnana::ui::icons::GLOBE},
+        {"links", pnana::ui::icons::GLOBE},
+        {"elinks", pnana::ui::icons::GLOBE},
+
+        // 更多终端模拟器
+        {"terminator", pnana::ui::icons::TERMINAL},
+        {"tilix", pnana::ui::icons::TERMINAL},
+        {"cool-retro-term", pnana::ui::icons::TERMINAL},
+        {"hyper", pnana::ui::icons::TERMINAL},
+        {"tabby", pnana::ui::icons::TERMINAL},
+        {"st", pnana::ui::icons::TERMINAL},
+        {"rxvt", pnana::ui::icons::TERMINAL},
+
+        // 更多Shell
+        {"dash", pnana::ui::icons::SHELL},
+        {"ash", pnana::ui::icons::SHELL},
+        {"ksh", pnana::ui::icons::SHELL},
+        {"tcsh", pnana::ui::icons::SHELL},
+        {"ion", pnana::ui::icons::SHELL},
+        {"murex", pnana::ui::icons::SHELL},
+        {"oil", pnana::ui::icons::SHELL},
+        {"xonsh", pnana::ui::icons::SHELL},
+        {"elvish", pnana::ui::icons::SHELL},
+
+        // 更多多路复用器
+        {"tmate", pnana::ui::icons::SPLIT},
+        {"dvtm", pnana::ui::icons::SPLIT}};
 
     auto it = tool_icons.find(tool_name);
     return it != tool_icons.end() ? it->second : pnana::ui::icons::GEAR;
@@ -304,7 +536,8 @@ Element TUIConfigPopup::renderHelpBar() const {
     const auto& colors = theme_.getColors();
     return hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
                  text("Enter") | color(colors.helpbar_key) | bold, text(": Open  "),
-                 text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
+                 text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel  "),
+                 text("Type") | color(colors.helpbar_key) | bold, text(": Filter")}) |
            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;
 }
 

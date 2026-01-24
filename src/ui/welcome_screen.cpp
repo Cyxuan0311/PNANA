@@ -79,7 +79,7 @@ Element WelcomeScreen::render() {
 
     welcome_content.push_back(
         hbox({text("  "), text("Ctrl+T") | color(colors.function) | bold, text("  Themes       "),
-              text("Ctrl+Z") | color(colors.function) | bold, text("  Undo/Redo")}) |
+              text("Ctrl+Z") | color(colors.function) | bold, text("  Undo")}) |
         center);
 
     welcome_content.push_back(text(""));

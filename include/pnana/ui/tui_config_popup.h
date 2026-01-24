@@ -48,18 +48,27 @@ class TUIConfigPopup {
   private:
     Theme& theme_;
     bool is_open_;
-    std::vector<features::TUIConfig> tui_configs_;
+    std::vector<features::TUIConfig> original_configs_; // 原始配置列表
+    std::vector<features::TUIConfig> filtered_configs_; // 过滤后的配置列表
     size_t selected_index_;
+    size_t scroll_offset_; // 滚动偏移
+    std::string input_;    // 搜索输入
 
     // 配置打开回调
     std::function<void(const features::TUIConfig&)> config_open_callback_;
 
     // 渲染各个组件
     ftxui::Element renderTitle() const;
+    ftxui::Element renderInputBox() const;
     ftxui::Element renderConfigList() const;
     ftxui::Element renderConfigItem(const features::TUIConfig& config, size_t config_index,
                                     bool is_selected) const;
     ftxui::Element renderHelpBar() const;
+
+    // 搜索和过滤功能
+    void updateFilteredConfigs();
+    void setInput(const std::string& input);
+    void adjustScrollOffset();
 
     // 获取配置文件的显示路径
     std::string getConfigPathDisplay(const features::TUIConfig& config) const;

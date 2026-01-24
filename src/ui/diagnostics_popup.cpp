@@ -9,8 +9,9 @@ using namespace pnana::ui::icons;
 namespace pnana {
 namespace ui {
 
-DiagnosticsPopup::DiagnosticsPopup()
-    : selected_index_(0), visible_(false), jump_callback_(nullptr), copy_callback_(nullptr) {}
+DiagnosticsPopup::DiagnosticsPopup(Theme& theme)
+    : theme_(theme), selected_index_(0), visible_(false), jump_callback_(nullptr),
+      copy_callback_(nullptr) {}
 
 void DiagnosticsPopup::setDiagnostics(const std::vector<pnana::features::Diagnostic>& diagnostics) {
     diagnostics_ = diagnostics;
@@ -70,12 +71,14 @@ Element DiagnosticsPopup::render() const {
         return text("");
     }
 
+    auto& colors = theme_.getColors();
+
     Elements content;
 
     // 标题栏（参考其他弹窗样式）
     Elements title_elements;
-    title_elements.push_back(text(pnana::ui::icons::WARNING) | color(Color::Red));
-    title_elements.push_back(text(" LSP Diagnostics ") | color(Color::White) | bold);
+    title_elements.push_back(text(pnana::ui::icons::WARNING) | color(colors.warning));
+    title_elements.push_back(text(" LSP Diagnostics ") | color(colors.foreground) | bold);
     content.push_back(hbox(title_elements) | center);
 
     content.push_back(separator());
@@ -113,7 +116,8 @@ Element DiagnosticsPopup::render() const {
 
     // 使用window样式，参考search_dialog
     return window(text("Diagnostics"), dialog_content) | size(WIDTH, GREATER_THAN, 70) |
-           size(HEIGHT, GREATER_THAN, 12) | bgcolor(Color::Black) | border;
+           size(HEIGHT, GREATER_THAN, 12) | bgcolor(colors.background) |
+           color(colors.dialog_border) | border;
 }
 
 Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic& diagnostic,
@@ -158,7 +162,8 @@ Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic
     // 应用样式
     Element element = text(full_text);
     if (is_selected) {
-        element = element | bgcolor(Color::GrayDark) | color(Color::White);
+        element = element | bgcolor(theme_.getColors().current_line) |
+                  color(theme_.getColors().foreground);
     } else {
         element = element | color(severity_color);
     }
@@ -182,17 +187,18 @@ std::string DiagnosticsPopup::getSeverityString(int severity) const {
 }
 
 Color DiagnosticsPopup::getSeverityColor(int severity) const {
+    auto& colors = theme_.getColors();
     switch (severity) {
         case 1: // ERROR
-            return Color::Red;
+            return colors.error;
         case 2: // WARNING
-            return Color::Yellow;
+            return colors.warning;
         case 3: // INFORMATION
-            return Color::Blue;
+            return colors.info;
         case 4: // HINT
-            return Color::Green;
+            return colors.success;
         default:
-            return Color::White;
+            return colors.foreground;
     }
 }
 

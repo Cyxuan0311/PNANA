@@ -521,6 +521,27 @@ constexpr const char* BOOK = "\uf02d";   // nf-fa-book (文档)
 // 终端
 constexpr const char* TERMINAL = "\uf120"; // nf-fa-terminal (终端)
 
+// 包管理和容器
+constexpr const char* PACKAGE = "\uf187";   // nf-fa-archive (包)
+constexpr const char* CONTAINER = "\ue7b0"; // nf-dev-docker (容器)
+
+// 任务和列表
+constexpr const char* CHECKLIST = "\uf046"; // nf-fa-check-square-o (检查列表)
+constexpr const char* TASK = "\uf0ae";      // nf-fa-tasks (任务)
+constexpr const char* LIST = "\uf03a";      // nf-fa-list-ul (列表)
+
+// 通信
+constexpr const char* MAIL = "\uf0e0";  // nf-fa-envelope (邮件)
+constexpr const char* EMAIL = "\uf0e0"; // nf-fa-envelope (电子邮件)
+constexpr const char* RSS = "\uf143";   // nf-fa-rss (RSS订阅)
+constexpr const char* CHAT = "\uf086";  // nf-fa-comments (聊天)
+
+// 更多实用工具图标
+constexpr const char* CALENDAR_ALT = "\uf073"; // nf-fa-calendar (日历替代)
+constexpr const char* CLOCK_ALT = "\uf017";    // nf-fa-clock-o (时钟替代)
+constexpr const char* FOLDER_ALT = "\uf07b";   // nf-fa-folder (文件夹替代)
+constexpr const char* FILE_ALT = "\uf15b";     // nf-fa-file (文件替代)
+
 // 文件类型图标映射函数
 inline std::string getFileTypeIcon(const std::string& file_type) {
     // 编程语言文件

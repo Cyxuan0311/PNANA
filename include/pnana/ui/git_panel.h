@@ -124,6 +124,10 @@ class GitPanel {
     std::chrono::steady_clock::time_point last_branch_update_;
     std::chrono::milliseconds branch_cache_timeout_{15000}; // 15 seconds for branch info
 
+    GitBranchStatus cached_branch_status_;
+    std::chrono::steady_clock::time_point last_branch_status_update_;
+    std::chrono::milliseconds branch_status_cache_timeout_{10000}; // 10 seconds for branch status
+
     // Private methods
     void switchMode(GitPanelMode mode);
     GitPanelMode getNextMode(GitPanelMode current);
@@ -190,6 +194,7 @@ class GitPanel {
     bool isNavigationKey(ftxui::Event event) const;
     std::string getCachedRepoPathDisplay();
     std::string getCachedCurrentBranch();
+    GitBranchStatus getCachedBranchStatus();
     std::string getFileExtension(const std::string& filename) const;
     void ensureValidIndices();
 };
