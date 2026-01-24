@@ -2,6 +2,7 @@
 #define PNANA_CORE_DOCUMENT_MANAGER_H
 
 #include "core/document.h"
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -13,6 +14,13 @@ namespace core {
 class DocumentManager {
   public:
     DocumentManager();
+
+    // 文档切换回调
+    using DocumentSwitchedCallback =
+        std::function<void(size_t /*old_index*/, size_t /*new_index*/)>;
+    void setDocumentSwitchedCallback(DocumentSwitchedCallback callback) {
+        document_switched_callback_ = callback;
+    }
 
     // 文档操作
     size_t openDocument(const std::string& filepath); // 返回文档索引
@@ -59,6 +67,7 @@ class DocumentManager {
     std::vector<std::unique_ptr<Document>> documents_;
     size_t current_index_;
     size_t next_untitled_number_; // 用于未命名文档编号
+    DocumentSwitchedCallback document_switched_callback_;
 
     void ensureAtLeastOneDocument();
 };

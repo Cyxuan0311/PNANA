@@ -445,6 +445,12 @@ void Editor::cut() {
             setStatusMessage("Line is empty");
             return;
         }
+
+        // 记录删除行的撤销操作
+        Document* doc = getCurrentDocument();
+        doc->pushChange(
+            DocumentChange(DocumentChange::Type::DELETE, cursor_row_, 0, content + "\n", ""));
+
         deleteLine();
     } else {
         // 剪切选中内容
@@ -464,6 +470,11 @@ void Editor::cut() {
         }
 
         Document* doc = getCurrentDocument();
+
+        // 记录删除操作到撤销栈
+        doc->pushChange(
+            DocumentChange(DocumentChange::Type::DELETE, start_row, start_col, content, ""));
+
         if (start_row == end_row) {
             // 同一行内的选择
             std::string& line = doc->getLines()[start_row];

@@ -469,6 +469,20 @@ class Editor {
     bool show_diagnostics_popup_;
     std::vector<features::Diagnostic> current_file_diagnostics_;
     std::mutex diagnostics_mutex_;
+
+    // 诊断缓存（文件级缓存，提升切换响应速度）
+    std::map<std::string, std::vector<features::Diagnostic>> diagnostics_cache_;
+    std::mutex diagnostics_cache_mutex_;
+
+    // 折叠状态缓存（文件级缓存，提升切换响应速度）
+    struct FoldingCacheEntry {
+        std::vector<features::FoldingRange> ranges;
+        std::set<int> folded_lines;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+    std::map<std::string, FoldingCacheEntry> folding_cache_;
+    std::mutex folding_cache_mutex_;
+    static const std::chrono::minutes FOLDING_CACHE_DURATION; // 缓存有效期
 #ifdef BUILD_LSP_SUPPORT
     // Completion popup last shown state (用于防抖/去抖动显示)
     std::chrono::steady_clock::time_point last_popup_shown_time_;
@@ -718,6 +732,10 @@ class Editor {
     void handleCompletionInput(ftxui::Event event);
     void applyCompletion();
     void updateLspDocument();
+    void updateCurrentFileDiagnostics();
+    void updateCurrentFileFolding();
+    void preloadAdjacentDocuments(size_t current_index);
+    void cleanupExpiredCaches();
     ftxui::Element renderCompletionPopup();
     void showCompletionPopupIfChanged(const std::vector<features::CompletionItem>& items, int row,
                                       int col, int screen_w, int screen_h,

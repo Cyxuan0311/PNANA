@@ -88,6 +88,22 @@ bool Editor::openFile(const std::string& filepath) {
         // 通知 LSP 服务器文件已打开
         // 注意：如果 LSP 初始化失败或文件类型不支持，不应该阻塞文件打开
         try {
+            // 定期清理过期缓存
+            static int file_open_count = 0;
+            if (++file_open_count % 10 == 0) { // 每打开10个文件清理一次缓存
+                cleanupExpiredCaches();
+                LOG("Expired caches cleaned (file_open_count: " + std::to_string(file_open_count) +
+                    ")");
+            }
+
+            // 先从缓存加载诊断信息，提升响应速度
+            updateCurrentFileDiagnostics();
+            LOG("Current file diagnostics updated from cache");
+
+            // 立即开始折叠初始化，提升响应速度
+            updateCurrentFileFolding();
+            LOG("Current file folding updated from cache");
+
             updateLspDocument();
             LOG("LSP document updated");
         } catch (const std::exception& e) {

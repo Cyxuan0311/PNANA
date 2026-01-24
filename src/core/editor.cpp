@@ -28,6 +28,9 @@ using namespace ftxui;
 namespace pnana {
 namespace core {
 
+// 定义折叠缓存持续时间常量
+const std::chrono::minutes Editor::FOLDING_CACHE_DURATION = std::chrono::minutes(30);
+
 // 构造函数
 Editor::Editor()
     : document_manager_(), key_binding_manager_(), action_executor_(this),
@@ -47,9 +50,9 @@ Editor::Editor()
       image_preview_(),
 #endif
       syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
-      split_view_manager_(), mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0),
-      view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false), show_help_(false),
-      show_create_folder_(false), show_save_as_(false), selection_active_(false),
+      split_view_manager_(), diagnostics_popup_(theme_), mode_(EditorMode::NORMAL), cursor_row_(0),
+      cursor_col_(0), view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false),
+      show_help_(false), show_create_folder_(false), show_save_as_(false), selection_active_(false),
       selection_start_row_(0), selection_start_col_(0), show_line_numbers_(true),
       relative_line_numbers_(false), syntax_highlighting_(true), zoom_level_(0),
       file_browser_width_(35), // 默认宽度35列
@@ -86,6 +89,48 @@ Editor::Editor()
     // 初始化最近文件弹窗
     recent_files_popup_.setFileOpenCallback([this](size_t index) {
         this->recent_files_manager_.openFile(index);
+    });
+
+    // 设置文档切换回调，优化LSP诊断响应速度
+    document_manager_.setDocumentSwitchedCallback([this](size_t old_index, size_t new_index) {
+        LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH START =====");
+        LOG("[DOC_SWITCH] Document switched from " + std::to_string(old_index) + " to " +
+            std::to_string(new_index));
+
+        // 获取新文档信息
+        Document* new_doc = document_manager_.getDocument(new_index);
+        std::string filepath = new_doc ? new_doc->getFilePath() : "null";
+        LOG("[DOC_SWITCH] New document filepath: " + filepath);
+
+        // 立即更新当前文件的诊断信息，提升响应速度
+        LOG("[DOC_SWITCH] Updating diagnostics...");
+        updateCurrentFileDiagnostics();
+
+        // 检查诊断更新结果
+        {
+            std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+            LOG("[DOC_SWITCH] Current diagnostics count: " +
+                std::to_string(current_file_diagnostics_.size()));
+        }
+
+        // 立即更新折叠状态，提升响应速度
+        LOG("[DOC_SWITCH] Updating folding...");
+        updateCurrentFileFolding();
+
+        // 预加载相邻文档的诊断和折叠数据，提升后续切换响应速度
+        LOG("[DOC_SWITCH] Starting preload for adjacent documents...");
+        preloadAdjacentDocuments(new_index);
+
+        // 强制UI重新渲染，确保诊断和折叠立即显示
+        force_ui_update_ = true;
+        last_render_source_ = "document_switch";
+        LOG("[DOC_SWITCH] Set force_ui_update=true, last_render_source=document_switch");
+
+        // 发送自定义事件触发立即渲染
+        screen_.PostEvent(Event::Custom);
+        LOG("[DOC_SWITCH] Posted custom event for immediate render");
+
+        LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH END =====");
     });
 
     // 初始化TUI配置管理器

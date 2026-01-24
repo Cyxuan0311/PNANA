@@ -91,25 +91,59 @@ void Editor::initializeLsp() {
     // 设置诊断回调（应用到所有 LSP 客户端）
     lsp_manager_->setDiagnosticsCallback(
         [this](const std::string& uri, const std::vector<features::Diagnostic>& diagnostics) {
-            LOG("Received diagnostics callback: uri=" + uri +
+            LOG("[LSP_DIAGNOSTICS_CALLBACK] ===== RECEIVED DIAGNOSTICS =====");
+            LOG("[LSP_DIAGNOSTICS_CALLBACK] URI: " + uri +
                 ", count=" + std::to_string(diagnostics.size()));
 
-            // 更新当前文件的诊断信息（内存更新）
+            // 打印前几个诊断的详细信息（用于调试）
+            for (size_t i = 0; i < std::min(diagnostics.size(), size_t(3)); ++i) {
+                const auto& diag = diagnostics[i];
+                LOG("[LSP_DIAGNOSTICS_CALLBACK] Diagnostic " + std::to_string(i) +
+                    ": line=" + std::to_string(diag.range.start.line) +
+                    ", severity=" + std::to_string(diag.severity) + ", message='" +
+                    diag.message.substr(0, 50) + "'");
+            }
+
+            // 更新当前文件的诊断信息（内存更新 + 缓存）
             bool is_current_file = false;
             {
                 std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+                std::lock_guard<std::mutex> cache_lock(diagnostics_cache_mutex_);
+
+                // 更新缓存
+                diagnostics_cache_[uri] = diagnostics;
+                LOG("[LSP_DIAGNOSTICS_CALLBACK] Updated cache for " + uri + " with " +
+                    std::to_string(diagnostics.size()) + " diagnostics");
+
                 auto current_doc = getCurrentDocument();
-                if (current_doc && uri == filepathToUri(current_doc->getFilePath())) {
+                std::string current_uri =
+                    current_doc ? filepathToUri(current_doc->getFilePath()) : "";
+                LOG("[LSP_DIAGNOSTICS_CALLBACK] Current document URI: " + current_uri);
+
+                if (current_doc && uri == current_uri) {
                     current_file_diagnostics_ = diagnostics;
                     is_current_file = true;
-                    LOG("Updated current file diagnostics: " +
+                    LOG("[LSP_DIAGNOSTICS_CALLBACK] Updated current file diagnostics: " +
                         std::to_string(current_file_diagnostics_.size()));
+
+                    // 对于当前文件，立即触发UI重新渲染以显示诊断信息
+                    force_ui_update_ = true;
+                    last_render_source_ = "lsp_diagnostics_callback";
+                    LOG("[LSP_DIAGNOSTICS_CALLBACK] Set force_ui_update for current file "
+                        "diagnostics display");
+                } else {
+                    LOG("[LSP_DIAGNOSTICS_CALLBACK] Not current file, only updated cache");
                 }
             }
 
-            // 对于当前文件，立即更新状态栏以提高实时性
+            // 对于当前文件，立即更新状态栏并强制UI重新渲染
             if (is_current_file) {
                 updateDiagnosticsStatus(diagnostics);
+                // 立即触发UI重新渲染以显示诊断信息
+                force_ui_update_ = true;
+                last_render_source_ = "lsp_diagnostics_callback";
+                // 注意：不在回调线程中直接调用screen_.PostEvent，这可能导致线程安全问题
+                // 改为在下一个UI渲染周期中处理
             } else {
                 // 对于其他文件，使用异步更新
                 if (lsp_request_manager_) {
@@ -380,6 +414,327 @@ std::string Editor::filepathToUri(const std::string& filepath) {
     return uri;
 }
 
+void Editor::updateCurrentFileDiagnostics() {
+    LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics START =====");
+
+    // 在文件切换时立即从缓存更新当前文件的诊断信息，提升响应速度
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        LOG("[DIAGNOSTICS_UPDATE] No current document, clearing diagnostics");
+        std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+        current_file_diagnostics_.clear();
+        force_ui_update_ = true;
+        last_render_source_ = "diagnostic_clear";
+        LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END =====");
+        return;
+    }
+
+    std::string filepath = doc->getFilePath();
+    if (filepath.empty()) {
+        LOG("[DIAGNOSTICS_UPDATE] Document has no filepath, clearing diagnostics");
+        std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+        current_file_diagnostics_.clear();
+        force_ui_update_ = true;
+        last_render_source_ = "diagnostic_clear";
+        LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END =====");
+        return;
+    }
+
+    LOG("[DIAGNOSTICS_UPDATE] Processing file: " + filepath);
+    std::string uri = filepathToUri(filepath);
+    LOG("[DIAGNOSTICS_UPDATE] URI: " + uri);
+
+    std::lock_guard<std::mutex> cache_lock(diagnostics_cache_mutex_);
+    auto it = diagnostics_cache_.find(uri);
+    if (it != diagnostics_cache_.end()) {
+        std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+        current_file_diagnostics_ = it->second;
+        LOG("[DIAGNOSTICS_UPDATE] Updated current file diagnostics from cache: " +
+            std::to_string(current_file_diagnostics_.size()) + " diagnostics for " + filepath);
+
+        // 打印前几个诊断的详细信息（用于调试）
+        for (size_t i = 0; i < std::min(current_file_diagnostics_.size(), size_t(3)); ++i) {
+            const auto& diag = current_file_diagnostics_[i];
+            LOG("[DIAGNOSTICS_UPDATE] Diagnostic " + std::to_string(i) +
+                ": line=" + std::to_string(diag.range.start.line) + ", severity=" +
+                std::to_string(diag.severity) + ", message='" + diag.message.substr(0, 50) + "'");
+        }
+    } else {
+        // 优化策略：如果缓存中没有该文件的诊断信息，不要立即清空显示
+        // 而是保持当前的诊断显示状态，这样可以避免切换时的空白间隔
+        // 让用户看到连续的诊断状态变化，而不是先空白再显示
+        LOG("[DIAGNOSTICS_UPDATE] No cache found for " + uri +
+            ", keeping current diagnostics to avoid blank state during transition");
+
+        // 不清空 current_file_diagnostics_，让它保持之前的状态
+        // LSP 回调到来时会更新为正确的诊断信息
+    }
+
+    // 强制UI更新以立即显示诊断信息
+    force_ui_update_ = true;
+    last_render_source_ = "diagnostic_update";
+    LOG("[DIAGNOSTICS_UPDATE] Set force_ui_update=true, last_render_source=diagnostic_update");
+    LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END =====");
+}
+
+void Editor::preloadAdjacentDocuments(size_t current_index) {
+    // 预加载相邻文档的诊断和折叠数据，提升后续切换响应速度
+    auto tabs = document_manager_.getAllTabs();
+    if (tabs.empty()) {
+        return;
+    }
+
+    LOG("[PRELOAD] Starting preload for adjacent documents around index " +
+        std::to_string(current_index));
+
+    // 只预加载最近的2个文档，避免过度消耗资源
+    const size_t PRELOAD_COUNT = 2;
+    std::vector<size_t> indices_to_preload;
+
+    // 收集需要预加载的文档索引（当前文档的前后各1个）
+    if (current_index > 0) {
+        indices_to_preload.push_back(current_index - 1);
+    }
+    if (current_index + 1 < tabs.size()) {
+        indices_to_preload.push_back(current_index + 1);
+    }
+
+    // 限制预加载数量
+    if (indices_to_preload.size() > PRELOAD_COUNT) {
+        indices_to_preload.resize(PRELOAD_COUNT);
+    }
+
+    for (size_t idx : indices_to_preload) {
+        if (idx >= tabs.size())
+            continue;
+
+        const auto& tab = tabs[idx];
+        if (tab.filepath.empty())
+            continue; // 跳过未保存的文件
+
+        std::string uri = filepathToUri(tab.filepath);
+        LOG("[PRELOAD] Preloading data for " + tab.filepath);
+
+        // 检查诊断缓存，如果没有则异步请求
+        {
+            std::lock_guard<std::mutex> cache_lock(diagnostics_cache_mutex_);
+            if (diagnostics_cache_.find(uri) == diagnostics_cache_.end()) {
+                LOG("[PRELOAD] No diagnostic cache for " + uri +
+                    ", will be loaded when LSP responds");
+                // 诊断数据只能通过LSP回调获得，这里不主动触发
+            } else {
+                LOG("[PRELOAD] Diagnostic cache already exists for " + uri);
+            }
+        }
+
+        // 检查折叠缓存，如果没有则异步初始化
+        {
+            std::lock_guard<std::mutex> cache_lock(folding_cache_mutex_);
+            if (folding_cache_.find(uri) == folding_cache_.end()) {
+                LOG("[PRELOAD] No folding cache for " + uri + ", starting async initialization");
+
+                // 异步初始化折叠数据
+                if (lsp_request_manager_) {
+                    std::string fold_key = std::string("preload:fold:") + uri;
+                    lsp_request_manager_->postOrReplace(
+                        fold_key, features::LspRequestManager::Priority::LOW, [this, uri]() {
+                            try {
+                                LOG("[PRELOAD] Async folding init for " + uri);
+                                if (folding_manager_) {
+                                    folding_manager_->initializeFoldingRanges(uri);
+                                    LOG("[PRELOAD] Folding ranges preloaded for " + uri);
+                                }
+                            } catch (const std::exception& e) {
+                                LOG_WARNING("[PRELOAD] Folding preload failed for " + uri + ": " +
+                                            std::string(e.what()));
+                            }
+                        });
+                }
+            } else {
+                LOG("[PRELOAD] Folding cache already exists for " + uri);
+            }
+        }
+    }
+
+    LOG("[PRELOAD] Preload completed for " + std::to_string(indices_to_preload.size()) +
+        " adjacent documents");
+}
+
+void Editor::cleanupExpiredCaches() {
+    // 定期清理过期的缓存，避免内存泄漏
+    auto now = std::chrono::steady_clock::now();
+
+    // 清理诊断缓存
+    {
+        std::lock_guard<std::mutex> lock(diagnostics_cache_mutex_);
+        for (auto it = diagnostics_cache_.begin(); it != diagnostics_cache_.end();) {
+            // 诊断缓存不过期，因为它们相对稳定且有用
+            // 但如果缓存过多，可以清理最老的条目
+            if (diagnostics_cache_.size() > 100) { // 最多缓存100个文件的诊断信息
+                it = diagnostics_cache_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // 清理折叠缓存
+    {
+        std::lock_guard<std::mutex> lock(folding_cache_mutex_);
+        for (auto it = folding_cache_.begin(); it != folding_cache_.end();) {
+            auto age = now - it->second.timestamp;
+            if (age > FOLDING_CACHE_DURATION ||
+                folding_cache_.size() > 50) { // 最多缓存50个文件的折叠状态
+                it = folding_cache_.erase(it);
+                LOG("[CACHE_CLEANUP] Removed expired folding cache entry");
+            } else {
+                ++it;
+            }
+        }
+    }
+}
+
+void Editor::updateCurrentFileFolding() {
+    LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding START =====");
+
+    // 在文件切换时立即更新折叠管理器，提升响应速度
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        LOG("[FOLDING_UPDATE] No current document");
+        return;
+    }
+
+    std::string filepath = doc->getFilePath();
+    if (filepath.empty()) {
+        LOG("[FOLDING_UPDATE] Document has no filepath");
+        return;
+    }
+
+    std::string uri = filepathToUri(filepath);
+    LOG("[FOLDING_UPDATE] Processing file: " + filepath + " (URI: " + uri + ")");
+
+    // 首先尝试从缓存恢复折叠状态（更积极的策略）
+    bool cache_restored = false;
+    {
+        std::lock_guard<std::mutex> cache_lock(folding_cache_mutex_);
+        auto cache_it = folding_cache_.find(uri);
+        if (cache_it != folding_cache_.end()) {
+            auto now = std::chrono::steady_clock::now();
+            auto age = now - cache_it->second.timestamp;
+
+            // 延长缓存有效期，从30分钟改为60分钟，因为折叠状态相对稳定
+            auto extended_duration = std::chrono::minutes(60);
+
+            if (age <= extended_duration) {
+                // 缓存有效，直接恢复状态到文档
+                LOG("[FOLDING_UPDATE] Cache found (age: " +
+                    std::to_string(std::chrono::duration_cast<std::chrono::minutes>(age).count()) +
+                    "min), restoring " + std::to_string(cache_it->second.ranges.size()) +
+                    " ranges, " + std::to_string(cache_it->second.folded_lines.size()) +
+                    " folded lines");
+
+                doc->setFoldingRanges(cache_it->second.ranges);
+                doc->unfoldAll(); // 先展开所有
+                for (int line : cache_it->second.folded_lines) {
+                    doc->setFolded(line, true);
+                    LOG("[FOLDING_UPDATE] Restored folded line " + std::to_string(line));
+                }
+
+                cache_restored = true;
+                LOG("[FOLDING_CACHE] Successfully restored folding state from cache for " +
+                    filepath);
+
+                // 立即重新初始化折叠管理器以同步状态
+                if (folding_manager_) {
+                    folding_manager_->clear(); // 清除旧状态
+                    LOG("[FOLDING_UPDATE] Cleared folding manager state for sync");
+                }
+            } else {
+                // 缓存过期，清理
+                folding_cache_.erase(cache_it);
+                LOG("[FOLDING_CACHE] Cache expired for " + filepath + " (age: " +
+                    std::to_string(std::chrono::duration_cast<std::chrono::minutes>(age).count()) +
+                    "min), removed");
+            }
+        } else {
+            LOG("[FOLDING_UPDATE] No cache found for " + uri + ", will initialize asynchronously");
+        }
+    }
+
+    if (!folding_manager_) {
+        LOG("[FOLDING_UPDATE] No folding manager available");
+        // 如果没有折叠管理器，从缓存恢复就足够了
+        if (cache_restored) {
+            force_ui_update_ = true;
+            last_render_source_ = "folding_cache_restored";
+            LOG("[FOLDING_UPDATE] Force UI update set (cache restored)");
+        }
+        LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding END =====");
+        return;
+    }
+
+    LOG("[FOLDING_UPDATE] Folding manager available, initialized: " +
+        std::to_string(folding_manager_->isInitialized()));
+
+    // 检查折叠管理器是否已经为当前文件初始化
+    if (!folding_manager_->isInitialized()) {
+        // 如果未初始化，异步初始化折叠范围
+        LOG("[FOLDING_UPDATE] Folding not initialized for " + filepath +
+            ", initializing asynchronously");
+
+        // 使用请求管理器进行异步初始化，确保不阻塞UI
+        if (lsp_request_manager_) {
+            std::string fold_key = std::string("fold:switch:") + uri;
+            LOG("[FOLDING_UPDATE] Posting async folding init request: " + fold_key);
+            lsp_request_manager_->postOrReplace(
+                fold_key, features::LspRequestManager::Priority::HIGH, [this, uri]() {
+                    try {
+                        LOG("[FOLDING_UPDATE] Starting async folding initialization for " + uri);
+                        if (folding_manager_) {
+                            folding_manager_->initializeFoldingRanges(uri);
+                            // 初始化完成后强制UI更新
+                            force_ui_update_ = true;
+                            last_render_source_ = "folding_async_init";
+                            LOG("[FOLDING_UPDATE] Folding ranges initialized asynchronously for " +
+                                uri);
+                        } else {
+                            LOG("[FOLDING_UPDATE] Folding manager became null during async init");
+                        }
+                    } catch (const std::exception& e) {
+                        LOG_WARNING("[FOLDING_UPDATE] Async folding initialization failed: " +
+                                    std::string(e.what()));
+                    }
+                });
+        } else {
+            // Fallback: 使用线程
+            LOG("[FOLDING_UPDATE] Using fallback thread for folding init");
+            std::thread([this, uri]() {
+                try {
+                    LOG("[FOLDING_UPDATE] Starting fallback folding initialization for " + uri);
+                    if (folding_manager_) {
+                        folding_manager_->initializeFoldingRanges(uri);
+                        // 初始化完成后强制UI更新
+                        force_ui_update_ = true;
+                        last_render_source_ = "folding_fallback_init";
+                        LOG("[FOLDING_UPDATE] Folding ranges initialized (fallback) for " + uri);
+                    }
+                } catch (const std::exception& e) {
+                    LOG_WARNING("[FOLDING_UPDATE] Fallback folding initialization failed: " +
+                                std::string(e.what()));
+                }
+            }).detach();
+        }
+    } else {
+        LOG("[FOLDING_UPDATE] Folding already initialized for " + filepath);
+    }
+
+    // 强制UI更新以立即显示折叠状态
+    force_ui_update_ = true;
+    last_render_source_ = "folding_update";
+    LOG("[FOLDING_UPDATE] Set force_ui_update=true, last_render_source=folding_update");
+    LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding END =====");
+}
+
 void Editor::updateLspDocument() {
     LOG("[LSP_UPDATE] ===== updateLspDocument() START =====");
 
@@ -529,7 +884,7 @@ void Editor::updateLspDocument() {
 
                 // 设置文档同步回调
                 folding_manager_->setDocumentSyncCallback(
-                    [this](const auto& ranges, const auto& folded) {
+                    [this, uri](const auto& ranges, const auto& folded) {
                         if (auto doc = getCurrentDocument()) {
                             // Update folding ranges
                             doc->setFoldingRanges(ranges);
@@ -542,23 +897,56 @@ void Editor::updateLspDocument() {
                                 doc->setFolded(line, true);
                             }
 
+                            // 缓存折叠状态，提升切换响应速度
+                            {
+                                std::lock_guard<std::mutex> cache_lock(folding_cache_mutex_);
+                                folding_cache_[uri] = {ranges, folded,
+                                                       std::chrono::steady_clock::now()};
+                                LOG("[FOLDING_CACHE] Cached folding state for " + uri + " (" +
+                                    std::to_string(ranges.size()) + " ranges, " +
+                                    std::to_string(folded.size()) + " folded)");
+                            }
+
                             // 同步后强制UI更新
                             force_ui_update_ = true;
                         }
                     });
 
                 // 异步初始化折叠范围，不阻塞文件打开
-                std::thread([this, uri, client]() {
-                    try {
-                        folding_manager_->initializeFoldingRanges(uri);
-
-                        // 初始化完成后强制UI更新
-                        force_ui_update_ = true;
-                    } catch (const std::exception& e) {
-                        LOG("[LSP_UPDATE] Async folding initialization failed: " +
-                            std::string(e.what()));
-                    }
-                }).detach();
+                // 使用更高的优先级，确保快速响应
+                if (lsp_request_manager_) {
+                    std::string fold_key = std::string("fold:init:") + uri;
+                    lsp_request_manager_->postOrReplace(
+                        fold_key, features::LspRequestManager::Priority::HIGH, [this, uri]() {
+                            try {
+                                if (folding_manager_) {
+                                    folding_manager_->initializeFoldingRanges(uri);
+                                    // 初始化完成后强制UI更新
+                                    force_ui_update_ = true;
+                                    LOG("[LSP_UPDATE] Folding ranges initialized for " + uri);
+                                }
+                            } catch (const std::exception& e) {
+                                LOG("[LSP_UPDATE] Async folding initialization failed: " +
+                                    std::string(e.what()));
+                            }
+                        });
+                } else {
+                    // Fallback: spawn background thread
+                    std::thread([this, uri]() {
+                        try {
+                            if (folding_manager_) {
+                                folding_manager_->initializeFoldingRanges(uri);
+                                // 初始化完成后强制UI更新
+                                force_ui_update_ = true;
+                                LOG("[LSP_UPDATE] Folding ranges initialized (fallback) for " +
+                                    uri);
+                            }
+                        } catch (const std::exception& e) {
+                            LOG("[LSP_UPDATE] Async folding initialization failed: " +
+                                std::string(e.what()));
+                        }
+                    }).detach();
+                }
 
             } catch (const std::exception& e) {
                 LOG_ERROR("[LSP_UPDATE] didOpen failed: " + std::string(e.what()));

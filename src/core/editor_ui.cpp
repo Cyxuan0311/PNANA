@@ -102,21 +102,62 @@ Element Editor::renderUI() {
     // 增量渲染优化：抑制快速的光标移动渲染
     auto time_since_last_render = current_time - last_render_time_;
 
-    // 如果强制更新或距离上次渲染足够久，允许渲染
-    if (force_ui_update_ || time_since_last_render >= MIN_RENDER_INTERVAL ||
+    // 检查是否是高优先级更新（诊断、折叠状态变化等）
+    bool is_high_priority_update = last_render_source_.find("diagnostic") != std::string::npos ||
+                                   last_render_source_.find("folding") != std::string::npos ||
+                                   last_render_source_.find("lsp") != std::string::npos;
+
+    // 优化渲染逻辑：对LSP状态变化更敏感
+    bool is_lsp_state_change = last_render_source_.find("diagnostic") != std::string::npos ||
+                               last_render_source_.find("folding") != std::string::npos ||
+                               last_render_source_.find("lsp") != std::string::npos;
+
+    // 如果强制更新、高优先级更新、LSP状态变化或距离上次渲染足够久，允许渲染
+    if (force_ui_update_ || is_high_priority_update || is_lsp_state_change ||
+        time_since_last_render >= MIN_RENDER_INTERVAL ||
         (last_render_source_.find("resumeRendering") != std::string::npos ||
          last_render_source_.find("Event::Custom") != std::string::npos)) {
+        LOG("[DEBUG UI] ===== RENDER ALLOWED =====");
         LOG("[DEBUG UI] Force UI update triggered - force_ui_update_=" +
-            std::to_string(force_ui_update_) + ", last_render_source='" + last_render_source_ +
-            "'");
+            std::to_string(force_ui_update_) +
+            ", is_high_priority_update=" + std::to_string(is_high_priority_update) +
+            ", is_lsp_state_change=" + std::to_string(is_lsp_state_change) +
+            ", last_render_source='" + last_render_source_ + "'");
+        LOG("[DEBUG UI] time_since_last_render=" + std::to_string(time_since_last_render.count()) +
+            "ms");
+
+        // 检查当前文档状态
+        Document* current_doc = getCurrentDocument();
+        std::string doc_path = current_doc ? current_doc->getFilePath() : "null";
+        LOG("[DEBUG UI] Current document: " + doc_path);
+
+        // 检查诊断状态
+        {
+            std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+            LOG("[DEBUG UI] Current diagnostics count: " +
+                std::to_string(current_file_diagnostics_.size()));
+        }
+
+        // 检查折叠状态
+        if (folding_manager_) {
+            LOG("[DEBUG UI] Folding manager initialized: " +
+                std::to_string(folding_manager_->isInitialized()));
+        } else {
+            LOG("[DEBUG UI] Folding manager is null");
+        }
+
         // 允许渲染，更新时间戳
         last_render_time_ = current_time;
         last_render_source_ = "";
         pending_cursor_update_ = false;
         force_ui_update_ = false; // 重置强制更新标志
+
+        LOG("[DEBUG UI] ===== STARTING RENDER =====");
     } else {
+        LOG("[DEBUG UI] ===== RENDER SKIPPED =====");
         LOG("[DEBUG UI] Skipping render - force_ui_update_=" + std::to_string(force_ui_update_) +
-            ", time_since_last_render=" + std::to_string(time_since_last_render.count()) +
+            ", is_high_priority_update=" + std::to_string(is_high_priority_update) +
+            ", time_since_last_render=" + std::to_string(time_since_last_render.count()) + "ms" +
             ", last_render_source='" + last_render_source_ + "'");
         // 标记有待处理的更新，稍后会通过定时器或事件触发
         pending_cursor_update_ = true;
@@ -553,7 +594,6 @@ Element Editor::renderEditor() {
         }
         lines.push_back(hbox(empty_line));
     }
-
     return vbox(lines);
 }
 
@@ -685,34 +725,33 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
 
     // 折叠指示器
 #ifdef BUILD_LSP_SUPPORT
-    if (lsp_enabled_ && folding_manager_ && doc) {
+    if (doc) {
         std::string fold_indicator = " ";
         bool can_fold = false;
 
-        // 检查这一行是否可以折叠
-        const auto& foldable_lines = folding_manager_->getFoldableLines();
-        bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
-                                     static_cast<int>(line_num)) != foldable_lines.end();
+        // 首先检查文档是否有折叠状态（从缓存恢复的）
+        bool is_folded_in_doc = doc->isFolded(static_cast<int>(line_num));
 
-        if (is_foldable) {
+        if (lsp_enabled_ && folding_manager_ && folding_manager_->isInitialized()) {
+            // 如果折叠管理器已初始化，使用管理器的状态
+            const auto& foldable_lines = folding_manager_->getFoldableLines();
+            bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
+                                         static_cast<int>(line_num)) != foldable_lines.end();
+
+            if (is_foldable) {
+                can_fold = true;
+                bool is_folded = folding_manager_->isFolded(static_cast<int>(line_num));
+
+                if (is_folded) {
+                    fold_indicator = "▶";
+                } else {
+                    fold_indicator = "▼";
+                }
+            }
+        } else if (is_folded_in_doc) {
+            // 如果折叠管理器未初始化，但文档中有折叠状态，显示折叠指示器
             can_fold = true;
-            // 直接检查FoldingManager的状态，这是权威来源
-            bool is_folded = folding_manager_->isFolded(static_cast<int>(line_num));
-
-            if (is_folded) {
-                // Show compact fold indicator only; range shown in line number column.
-                fold_indicator = "▶";
-            } else {
-                fold_indicator = "▼"; // 展开状态
-            }
-
-            // 临时调试：每行都打印状态（仅用于调试）
-            static size_t last_line = static_cast<size_t>(-1);
-            if (line_num != last_line && line_num < 20) { // 只打印前20行
-                last_line = line_num;
-                LOG("[DEBUG] UI Line " + std::to_string(line_num) + " is_folded=" +
-                    (is_folded ? "true" : "false") + ", fold_indicator='" + fold_indicator + "'");
-            }
+            fold_indicator = "▶"; // 显示为折叠状态
         }
 
         if (can_fold) {
