@@ -119,34 +119,24 @@ jobs:
         with:
           script: |
             const commitSha = process.env.GITHUB_SHA || 'unknown';
-            const shortSha = commitSha !== 'unknown' ? \
-              commitSha.substring(0, 7) : 'unknown';
+            const shortSha = commitSha !== 'unknown' ? commitSha.substring(0, 7) : 'unknown';
             const branch = process.env.GITHUB_REF || 'unknown';
             const author = process.env.GITHUB_ACTOR || 'unknown';
             const runId = process.env.GITHUB_RUN_ID || 'unknown';
             const repository = process.env.GITHUB_REPOSITORY || 'unknown';
 
-            const title = `🚨 Build Failed: ${shortSha}`;
-            const logsUrl = `https://github.com/${repository}/actions/runs/\
-              ${runId}`;
-            const body = `
-            ## Build Validation Failed
-
-            **Commit:** ${commitSha}
-            **Branch:** ${branch}
-            **Author:** ${author}
-
-            The code failed to compile. Please check the build logs and fix \
-            the compilation errors before pushing again.
-
-            ### Actions Required:
-            - Fix compilation errors
-            - Run \`./build.sh --clean\` locally to verify
-            - Commit and push the fixes
-
-            [View Build Logs](${github.server_url}/${github.repository}/\
-            actions/runs/${github.run_id})
-            `;
+            const title = '🚨 Build Failed: ' + shortSha;
+            const logsUrl = 'https://github.com/' + repository + '/actions/runs/' + runId;
+            var body = '## Build Validation Failed\\n\\n' +
+              '**Commit:** ' + commitSha + '\\n' +
+              '**Branch:** ' + branch + '\\n' +
+              '**Author:** ' + author + '\\n\\n' +
+              'The code failed to compile. Please check the build logs and fix the compilation errors before pushing again.\\n\\n' +
+              '### Actions Required:\\n' +
+              '- Fix compilation errors\\n' +
+              '- Run `./build.sh --clean` locally to verify\\n' +
+              '- Commit and push the fixes\\n\\n' +
+              '[View Build Logs](' + logsUrl + ')\\n';
 
             const [owner, repo] = repository.split('/');
 
