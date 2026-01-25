@@ -774,9 +774,11 @@ void Editor::toggleAIAssistant() {
 
 void Editor::initializeAIAssistant() {
     // 设置AI助手的回调函数
+#ifdef BUILD_AI_CLIENT_SUPPORT
     ai_assistant_panel_.setOnSendMessage([this](const std::string& message) {
         handleAIMessage(message);
     });
+#endif
 
     ai_assistant_panel_.setOnInsertCode([this](const std::string& code) {
         insertCodeAtCursor(code);

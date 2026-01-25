@@ -793,10 +793,12 @@ class Editor {
     std::string getCallStackInfo();
 
     // AI增强上下文
+#ifdef BUILD_AI_CLIENT_SUPPORT
     void buildEnhancedContext(pnana::features::ai_client::AIRequest& request) const;
     void addProjectStructureContext(pnana::features::ai_client::AIRequest& request) const;
     void addRecentFilesContext(pnana::features::ai_client::AIRequest& request) const;
     void addSessionStateContext(pnana::features::ai_client::AIRequest& request) const;
+#endif
     std::string joinStrings(const std::vector<std::string>& strings,
                             const std::string& delimiter) const;
 
