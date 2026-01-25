@@ -797,9 +797,9 @@ void Editor::initializeAIAssistant() {
 }
 
 void Editor::openRecentFilesDialog() {
-    auto recent_files = recent_files_manager_.getRecentFiles();
-    if (!recent_files.empty()) {
-        recent_files_popup_.setData(true, recent_files, 0);
+    auto recent_projects = recent_files_manager_.getRecentProjects();
+    if (!recent_projects.empty()) {
+        recent_files_popup_.setData(true, recent_projects, 0);
         recent_files_popup_.open();
     }
 }
@@ -1704,6 +1704,8 @@ void Editor::openFilePicker() {
                 if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
                     // 如果是目录，更新文件浏览器的当前目录
                     if (file_browser_.openDirectory(path)) {
+                        // 添加到最近文件夹列表
+                        recent_files_manager_.addFolder(path);
                         setStatusMessage("Changed to directory: " + path);
                     } else {
                         setStatusMessage("Failed to open directory: " + path);

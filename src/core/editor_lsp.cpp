@@ -2,6 +2,7 @@
 #include "core/editor.h"
 #include "features/lsp/lsp_request_manager.h"
 #include "features/lsp/lsp_server_manager.h"
+#include "features/lsp/lsp_types.h"
 #include "features/lsp/lsp_worker_pool.h"
 #include "ui/icons.h"
 #include "utils/clipboard.h"
@@ -1687,33 +1688,42 @@ void Editor::toggleFold() {
 
     const auto& ranges = folding_manager_->getFoldingRanges();
 
-    // 1) If cursor is inside a folding range, toggle that range.
+    // 1) If cursor is inside a folding range, toggle the innermost range.
+    const pnana::features::FoldingRange* innermost_range = nullptr;
+    int min_range_size = INT_MAX;
     for (const auto& range : ranges) {
         if (range.containsLine(cursor_line)) {
-            int start = range.startLine;
-
-            (void)folding_manager_->isFolded(start);
-            folding_manager_->toggleFold(start);
-            bool now_folded = folding_manager_->isFolded(start);
-
-            // Neovim behavior:
-            // - If we just folded, move cursor to the fold start.
-            // - If we unfolded, keep the cursor on the same logical line but ensure it's visible.
-            if (now_folded) {
-                cursor_row_ = static_cast<size_t>(start);
-                adjustCursor();
-                adjustViewOffset();
-            } else {
-                adjustCursor();
-                adjustViewOffset();
+            int range_size = range.endLine - range.startLine;
+            if (range_size < min_range_size) {
+                min_range_size = range_size;
+                innermost_range = &range;
             }
-
-            setStatusMessage(now_folded ? "Folded" : "Unfolded");
-            doc->setModified(was_modified);
-            force_ui_update_ = true;
-            last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
-            return;
         }
+    }
+    if (innermost_range) {
+        int start = innermost_range->startLine;
+
+        (void)folding_manager_->isFolded(start);
+        folding_manager_->toggleFold(start);
+        bool now_folded = folding_manager_->isFolded(start);
+
+        // Neovim behavior:
+        // - If we just folded, move cursor to the fold start.
+        // - If we unfolded, keep the cursor on the same logical line but ensure it's visible.
+        if (now_folded) {
+            cursor_row_ = static_cast<size_t>(start);
+            adjustCursor();
+            adjustViewOffset();
+        } else {
+            adjustCursor();
+            adjustViewOffset();
+        }
+
+        setStatusMessage(now_folded ? "Folded" : "Unfolded");
+        doc->setModified(was_modified);
+        force_ui_update_ = true;
+        last_render_time_ = std::chrono::steady_clock::now() - std::chrono::milliseconds(200);
+        return;
     }
 
     // 2) If cursor is exactly on a fold start, toggle it.

@@ -245,8 +245,8 @@ Element Editor::overlayDialogs(Element main_ui) {
         return renderCommandPalette();
     });
     overlay_manager_->setRenderRecentFilesCallback([this]() {
-        auto recent_files = recent_files_manager_.getRecentFiles();
-        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_files,
+        auto recent_projects = recent_files_manager_.getRecentProjects();
+        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_projects,
                                     recent_files_popup_.getSelectedIndex());
         return recent_files_popup_.render();
     });
@@ -272,8 +272,8 @@ Element Editor::overlayDialogs(Element main_ui) {
         return encoding_dialog_.render();
     });
     overlay_manager_->setRenderRecentFilesCallback([this]() {
-        auto recent_files = recent_files_manager_.getRecentFiles();
-        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_files,
+        auto recent_projects = recent_files_manager_.getRecentProjects();
+        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_projects,
                                     recent_files_popup_.getSelectedIndex());
         return recent_files_popup_.render();
     });
