@@ -164,7 +164,11 @@ void AIAssistantPanel::addToolCall(const pnana::features::ai_client::ToolCall& t
 #endif // BUILD_AI_CLIENT_SUPPORT
 
 void AIAssistantPanel::clearToolCalls() {
+#ifdef BUILD_AI_CLIENT_SUPPORT
     current_tool_calls_.clear();
+#else
+    current_tool_calls_ = 0; // Reset placeholder
+#endif
 }
 
 // 会话管理
@@ -373,6 +377,7 @@ Element AIAssistantPanel::renderMessage(const ChatMessage& message) {
                                   center);
 
         // 如果有工具调用信息，显示工具使用状态
+#ifdef BUILD_AI_CLIENT_SUPPORT
         if (!current_tool_calls_.empty()) {
             status_elements.push_back(text("🔧 Using tools:") | color(colors.keyword) | center);
             for (const auto& tool_call : current_tool_calls_) {
@@ -383,6 +388,7 @@ Element AIAssistantPanel::renderMessage(const ChatMessage& message) {
                     center);
             }
         }
+#endif
 
         message_parts.push_back(vbox(std::move(status_elements)));
     }

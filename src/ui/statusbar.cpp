@@ -281,86 +281,65 @@ std::string Statusbar::getRegionIcon(const std::string& region_name) {
 
 std::string Statusbar::getPlatformIcon() {
     namespace icons = pnana::ui::icons;
-    using clock = std::chrono::steady_clock;
 
-    // 优先返回缓存（如果在有效期内）
-    {
-        std::lock_guard<std::mutex> lock(platform_cache_mutex_);
-        auto now = clock::now();
-        if (!platform_cache_.icon.empty() && (now - platform_cache_.timestamp) < CACHE_DURATION) {
-            return platform_cache_.icon;
-        }
-        // 如果正在获取中，返回当前缓存（可能为空）
-        if (platform_cache_.is_fetching) {
-            return platform_cache_.icon;
-        }
-        // 标记为正在获取，下面会异步更新
-        platform_cache_.is_fetching = true;
+    // 如果配置中已有平台图标，直接返回
+    if (!beautify_config_.platform_icon.empty()) {
+        return beautify_config_.platform_icon;
     }
 
-    // 异步获取并更新缓存，避免阻塞 UI 渲染
-    std::thread([this]() {
-        namespace icons = pnana::ui::icons;
-        std::string os_name = this->getOperatingSystem();
-        std::string found_icon = icons::LINUX;
+    // 首次调用时检测操作系统并设置图标
+    std::string os_name = this->getOperatingSystem();
+    std::string found_icon = icons::LINUX;
 
-        if (os_name.find("Ubuntu") != std::string::npos) {
-            found_icon = icons::UBUNTU;
-        } else if (os_name.find("Fedora") != std::string::npos) {
-            found_icon = icons::FEDORA;
-        } else if (os_name.find("CentOS") != std::string::npos) {
-            found_icon = icons::CENTOS;
-        } else if (os_name.find("Red Hat") != std::string::npos ||
-                   os_name.find("RHEL") != std::string::npos) {
-            found_icon = icons::REDHAT;
-        } else if (os_name.find("Debian") != std::string::npos) {
-            found_icon = icons::DEBIAN;
-        } else if (os_name.find("Arch") != std::string::npos) {
-            found_icon = icons::ARCHLINUX;
-        } else if (os_name.find("Manjaro") != std::string::npos) {
-            found_icon = icons::MANJARO;
-        } else if (os_name.find("SUSE") != std::string::npos ||
-                   os_name.find("openSUSE") != std::string::npos) {
-            found_icon = icons::SUSE;
-        } else if (os_name.find("Gentoo") != std::string::npos) {
-            found_icon = icons::GENTOO;
-        } else if (os_name.find("Linux Mint") != std::string::npos) {
-            found_icon = icons::MINT;
-        } else if (os_name.find("Pop!_OS") != std::string::npos) {
-            found_icon = icons::POP_OS;
-        } else if (os_name.find("Elementary") != std::string::npos) {
-            found_icon = icons::ELEMENTARY;
-        } else if (os_name.find("Windows") != std::string::npos) {
-            found_icon = icons::WINDOWS;
-        } else if (os_name.find("macOS") != std::string::npos ||
-                   os_name.find("Darwin") != std::string::npos) {
-            found_icon = icons::MACOS;
-        } else if (os_name.find("FreeBSD") != std::string::npos) {
-            found_icon = icons::FREEBSD;
-        } else if (os_name.find("OpenBSD") != std::string::npos) {
-            found_icon = icons::OPENBSD;
-        } else if (os_name.find("NetBSD") != std::string::npos) {
-            found_icon = icons::NETBSD;
-        } else if (os_name.find("Solaris") != std::string::npos) {
-            found_icon = icons::SOLARIS;
-        } else if (os_name.find("Linux") != std::string::npos) {
-            found_icon = icons::LINUX;
-        } else {
-            found_icon = icons::LINUX;
-        }
+    if (os_name.find("Ubuntu") != std::string::npos) {
+        found_icon = icons::UBUNTU;
+    } else if (os_name.find("Fedora") != std::string::npos) {
+        found_icon = icons::FEDORA;
+    } else if (os_name.find("CentOS") != std::string::npos) {
+        found_icon = icons::CENTOS;
+    } else if (os_name.find("Red Hat") != std::string::npos ||
+               os_name.find("RHEL") != std::string::npos) {
+        found_icon = icons::REDHAT;
+    } else if (os_name.find("Debian") != std::string::npos) {
+        found_icon = icons::DEBIAN;
+    } else if (os_name.find("Arch") != std::string::npos) {
+        found_icon = icons::ARCHLINUX;
+    } else if (os_name.find("Manjaro") != std::string::npos) {
+        found_icon = icons::MANJARO;
+    } else if (os_name.find("SUSE") != std::string::npos ||
+               os_name.find("openSUSE") != std::string::npos) {
+        found_icon = icons::SUSE;
+    } else if (os_name.find("Gentoo") != std::string::npos) {
+        found_icon = icons::GENTOO;
+    } else if (os_name.find("Linux Mint") != std::string::npos) {
+        found_icon = icons::MINT;
+    } else if (os_name.find("Pop!_OS") != std::string::npos) {
+        found_icon = icons::POP_OS;
+    } else if (os_name.find("Elementary") != std::string::npos) {
+        found_icon = icons::ELEMENTARY;
+    } else if (os_name.find("Windows") != std::string::npos) {
+        found_icon = icons::WINDOWS;
+    } else if (os_name.find("macOS") != std::string::npos ||
+               os_name.find("Darwin") != std::string::npos) {
+        found_icon = icons::MACOS;
+    } else if (os_name.find("FreeBSD") != std::string::npos) {
+        found_icon = icons::FREEBSD;
+    } else if (os_name.find("OpenBSD") != std::string::npos) {
+        found_icon = icons::OPENBSD;
+    } else if (os_name.find("NetBSD") != std::string::npos) {
+        found_icon = icons::NETBSD;
+    } else if (os_name.find("Solaris") != std::string::npos) {
+        found_icon = icons::SOLARIS;
+    } else if (os_name.find("Linux") != std::string::npos) {
+        found_icon = icons::LINUX;
+    } else {
+        found_icon = icons::LINUX;
+    }
 
-        // 更新缓存
-        {
-            std::lock_guard<std::mutex> lock(this->platform_cache_mutex_);
-            this->platform_cache_.icon = found_icon;
-            this->platform_cache_.timestamp = clock::now();
-            this->platform_cache_.is_fetching = false;
-        }
-    }).detach();
+    // 持久化到配置中，避免后续重复检测
+    beautify_config_.platform_icon = found_icon;
 
-    // 返回当前（可能为空）的缓存，UI 渲染将继续，后续渲染会展示已更新的图标
-    std::lock_guard<std::mutex> lock(platform_cache_mutex_);
-    return platform_cache_.icon;
+    return found_icon;
 }
 
 std::string Statusbar::getOperatingSystem() {

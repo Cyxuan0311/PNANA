@@ -1,17 +1,24 @@
 #ifndef PNANA_UI_AI_ASSISTANT_PANEL_H
 #define PNANA_UI_AI_ASSISTANT_PANEL_H
 
-#include "features/ai_client/ai_client.h"
-#include "features/ai_config/ai_config.h"
 #include "ui/theme.h"
 #include <chrono>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <functional>
+#include <iomanip>
 #include <memory>
 #include <string>
 #include <vector>
+
+#ifdef BUILD_AI_CLIENT_SUPPORT
+#include "features/ai_client/ai_client.h"
+#endif
+
+#ifdef BUILD_AI_CLIENT_SUPPORT
+#include "features/ai_config/ai_config.h"
+#endif
 
 namespace pnana {
 namespace ui {
@@ -68,7 +75,9 @@ class AIAssistantPanel {
     void finishStreamingResponse();
 
     // 工具调用显示
+#ifdef BUILD_AI_CLIENT_SUPPORT
     void addToolCall(const pnana::features::ai_client::ToolCall& tool_call);
+#endif
     void clearToolCalls();
 
     // 会话管理
@@ -84,9 +93,11 @@ class AIAssistantPanel {
     std::string getCurrentFileContent() const;
 
     // 工具定义和执行
+#ifdef BUILD_AI_CLIENT_SUPPORT
     std::vector<pnana::features::ai_client::ToolDefinition> getToolDefinitions() const;
     pnana::features::ai_client::ToolCallResult executeToolCall(
         const pnana::features::ai_client::ToolCall& tool_call);
+#endif
 
     // 目录分析
     void analyzeDirectoryStructure(const std::string& path, std::vector<std::string>& structure,
@@ -129,7 +140,11 @@ class AIAssistantPanel {
     int scroll_offset_;
     bool is_streaming_;
     std::string current_streaming_model_;
+#ifdef BUILD_AI_CLIENT_SUPPORT
     std::vector<pnana::features::ai_client::ToolCall> current_tool_calls_;
+#else
+    int current_tool_calls_; // Placeholder when AI support is disabled
+#endif
 
     // 会话管理
     std::vector<std::pair<std::string, std::string>>

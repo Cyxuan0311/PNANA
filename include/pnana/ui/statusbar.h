@@ -40,6 +40,9 @@ struct StatusbarBeautifyConfig {
     std::map<std::string, std::string> region_icons;
     std::map<std::string, std::string> status_icons;
     std::map<std::string, std::vector<int>> element_colors;
+
+    // 平台图标（持久化缓存）
+    std::string platform_icon;
 };
 
 // 状态栏组件
@@ -97,16 +100,6 @@ class Statusbar {
     std::unordered_map<std::string, VersionCacheEntry> version_cache_;
     std::mutex cache_mutex_;
     static constexpr auto CACHE_DURATION = std::chrono::minutes(5); // 缓存5分钟
-
-    // 平台图标缓存条目（异步获取）
-    struct PlatformCacheEntry {
-        std::string icon;
-        std::chrono::steady_clock::time_point timestamp;
-        bool is_fetching = false;
-    };
-
-    PlatformCacheEntry platform_cache_;
-    std::mutex platform_cache_mutex_;
 
     // 获取文件类型图标
     std::string getFileTypeIcon(const std::string& file_type);
