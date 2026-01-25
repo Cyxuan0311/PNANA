@@ -2,7 +2,9 @@
 #include "features/lsp/lsp_client.h"
 #include "utils/logger.h"
 #include <algorithm>
+#include <limits>
 #include <set>
+#include <string>
 
 namespace pnana {
 namespace features {
@@ -81,12 +83,22 @@ void FoldingManager::unfoldAll() {
 }
 
 void FoldingManager::foldAtLine(int line) {
-    // 查找包含该行的折叠范围
+    // 查找包含该行的所有折叠范围，选择最内层（范围最小）的进行折叠
+    const FoldingRange* innermost_range = nullptr;
+    int min_range_size = std::numeric_limits<int>::max();
+
     for (const auto& range : folding_ranges_) {
         if (range.containsLine(line)) {
-            toggleFold(range.startLine);
-            break;
+            int range_size = range.endLine - range.startLine;
+            if (range_size < min_range_size) {
+                min_range_size = range_size;
+                innermost_range = &range;
+            }
         }
+    }
+
+    if (innermost_range) {
+        toggleFold(innermost_range->startLine);
     }
 }
 
