@@ -1619,13 +1619,12 @@ Element GitPanel::renderDiffViewer() {
             viewer_elements.push_back(hbox(std::move(line_elements)));
         }
 
-        // Add scroll indicator if needed
+        // Add scroll indicator if needed (no dashed separator)
         if (diff_content_.size() > VISIBLE_LINES) {
             size_t total_pages = (diff_content_.size() + VISIBLE_LINES - 1) / VISIBLE_LINES;
             size_t current_page = diff_scroll_offset_ / VISIBLE_LINES + 1;
             std::string scroll_info =
                 "[" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
-            viewer_elements.push_back(separatorLight());
             viewer_elements.push_back(text(scroll_info) | color(colors.comment) | center);
         }
     }
