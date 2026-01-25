@@ -23,8 +23,15 @@ std::shared_ptr<MarkdownElement> MarkdownParser::parse(const std::string& markdo
     context_.in_table = false;
 
     // 设置MD4C解析器
+    // Some md4c versions may not expose MD_PARSER_ABI_VERSION; fall back to 0 if missing.
+    // Use unsigned to match MD_PARSER.abi_version type and avoid narrowing warnings.
+    unsigned parser_abi = 0u;
+#ifdef MD_PARSER_ABI_VERSION
+    parser_abi = static_cast<unsigned>(MD_PARSER_ABI_VERSION);
+#endif
+
     MD_PARSER parser = {
-        0,                 // abi_version
+        parser_abi,        // abi_version (guarded)
         MD_DIALECT_GITHUB, // flags - 使用GitHub风格的markdown
         enter_block_callback,
         leave_block_callback,
@@ -103,6 +110,12 @@ void MarkdownParser::handle_enter_block(MD_BLOCKTYPE type, void* detail) {
         case MD_BLOCK_CODE:
             elem_type = MarkdownElementType::CODE_BLOCK;
             context_.in_code_block = true;
+            if (detail) {
+                auto* code_detail = static_cast<MD_BLOCK_CODE_DETAIL*>(detail);
+                // MD4C provides language info in code_detail->lang
+                // We'll attach it to the element after creation.
+                (void)code_detail;
+            }
             break;
 
         case MD_BLOCK_QUOTE:
@@ -145,6 +158,13 @@ void MarkdownParser::handle_enter_block(MD_BLOCKTYPE type, void* detail) {
     }
 
     auto element = create_element(elem_type, content);
+    // 如果是代码块并包含语言信息，则提取语言到 element->lang
+    if (elem_type == MarkdownElementType::CODE_BLOCK && detail) {
+        auto* code_detail = static_cast<MD_BLOCK_CODE_DETAIL*>(detail);
+        if (code_detail->lang.size > 0 && code_detail->lang.text != nullptr) {
+            element->lang = std::string(code_detail->lang.text, code_detail->lang.size);
+        }
+    }
     add_to_current_parent(element);
     context_.element_stack.push(element);
 }
@@ -173,7 +193,8 @@ void MarkdownParser::handle_leave_block(MD_BLOCKTYPE type, void* detail) {
             break;
     }
 
-    if (!context_.element_stack.empty()) {
+    // 仅在栈顶不是根节点时弹出，避免对无需 push 的块（如 UL/OL）在 leave 时错误弹出 root
+    if (!context_.element_stack.empty() && context_.element_stack.top() != context_.root) {
         context_.element_stack.pop();
     }
 }
