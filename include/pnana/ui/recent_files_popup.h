@@ -1,6 +1,7 @@
 #ifndef PNANA_UI_RECENT_FILES_POPUP_H
 #define PNANA_UI_RECENT_FILES_POPUP_H
 
+#include "features/recent_files_manager.h"
 #include "ui/theme.h"
 #include "utils/file_type_icon_mapper.h"
 #include <ftxui/component/event.hpp>
@@ -18,7 +19,8 @@ class RecentFilesPopup {
     explicit RecentFilesPopup(Theme& theme);
 
     // 设置数据
-    void setData(bool is_open, const std::vector<std::string>& recent_files, size_t selected_index);
+    void setData(bool is_open, const std::vector<features::ProjectItem>& recent_projects,
+                 size_t selected_index);
 
     // 渲染弹窗
     ftxui::Element render();
@@ -46,7 +48,7 @@ class RecentFilesPopup {
   private:
     Theme& theme_;
     bool is_open_;
-    std::vector<std::string> recent_files_;
+    std::vector<features::ProjectItem> recent_projects_;
     size_t selected_index_;
     utils::FileTypeIconMapper icon_mapper_;
 
@@ -62,6 +64,12 @@ class RecentFilesPopup {
     std::string getFileName(const std::string& filepath) const;
     std::string getFilePath(const std::string& filepath) const;
     std::string getFileIcon(const std::string& filepath) const;
+
+    // 项目相关辅助方法
+    std::string getProjectIcon(const features::ProjectItem& project) const;
+    std::string getProjectName(const features::ProjectItem& project) const;
+    std::string getProjectTypeString(const features::ProjectItem& project) const;
+    std::string getProjectPath(const features::ProjectItem& project) const;
 };
 
 } // namespace ui

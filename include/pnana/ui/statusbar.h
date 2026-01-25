@@ -98,6 +98,16 @@ class Statusbar {
     std::mutex cache_mutex_;
     static constexpr auto CACHE_DURATION = std::chrono::minutes(5); // 缓存5分钟
 
+    // 平台图标缓存条目（异步获取）
+    struct PlatformCacheEntry {
+        std::string icon;
+        std::chrono::steady_clock::time_point timestamp;
+        bool is_fetching = false;
+    };
+
+    PlatformCacheEntry platform_cache_;
+    std::mutex platform_cache_mutex_;
+
     // 获取文件类型图标
     std::string getFileTypeIcon(const std::string& file_type);
 
@@ -109,6 +119,12 @@ class Statusbar {
 
     // 获取区域图标
     std::string getRegionIcon(const std::string& region_name);
+
+    // 获取平台图标
+    std::string getPlatformIcon();
+
+    // 获取操作系统信息
+    std::string getOperatingSystem();
 
     // 创建状态指示器
     ftxui::Element createIndicator(const std::string& icon, const std::string& label,

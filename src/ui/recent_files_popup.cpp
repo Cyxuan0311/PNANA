@@ -20,10 +20,11 @@ namespace ui {
 RecentFilesPopup::RecentFilesPopup(Theme& theme)
     : theme_(theme), is_open_(false), selected_index_(0) {}
 
-void RecentFilesPopup::setData(bool is_open, const std::vector<std::string>& recent_files,
+void RecentFilesPopup::setData(bool is_open,
+                               const std::vector<features::ProjectItem>& recent_projects,
                                size_t selected_index) {
     is_open_ = is_open;
-    recent_files_ = recent_files;
+    recent_projects_ = recent_projects;
     selected_index_ = selected_index;
 }
 
@@ -49,7 +50,7 @@ ftxui::Element RecentFilesPopup::render() {
     dialog_content.push_back(renderHelpBar());
 
     int height =
-        std::min(22, int(10 + static_cast<int>(std::min(recent_files_.size(), size_t(8)))));
+        std::min(22, int(10 + static_cast<int>(std::min(recent_projects_.size(), size_t(8)))));
 
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 80) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
@@ -65,20 +66,20 @@ bool RecentFilesPopup::handleInput(ftxui::Event event) {
         close();
         return true;
     } else if (event == ftxui::Event::Return) {
-        if (file_open_callback_ && selected_index_ < recent_files_.size()) {
+        if (file_open_callback_ && selected_index_ < recent_projects_.size()) {
             file_open_callback_(selected_index_);
         }
         close();
         return true;
     } else if (event == ftxui::Event::ArrowDown) {
-        if (!recent_files_.empty()) {
-            selected_index_ = (selected_index_ + 1) % recent_files_.size();
+        if (!recent_projects_.empty()) {
+            selected_index_ = (selected_index_ + 1) % recent_projects_.size();
         }
         return true;
     } else if (event == ftxui::Event::ArrowUp) {
-        if (!recent_files_.empty()) {
+        if (!recent_projects_.empty()) {
             if (selected_index_ == 0) {
-                selected_index_ = recent_files_.size() - 1;
+                selected_index_ = recent_projects_.size() - 1;
             } else {
                 selected_index_--;
             }
@@ -114,46 +115,51 @@ Element RecentFilesPopup::renderFileList() const {
     const auto& colors = theme_.getColors();
     Elements list_elements;
 
-    if (recent_files_.empty()) {
+    if (recent_projects_.empty()) {
         list_elements.push_back(
-            hbox({text("  "), text("No recent files") | color(colors.comment) | dim}));
+            hbox({text("  "), text("No recent projects") | color(colors.comment) | dim}));
     } else {
-        for (size_t i = 0; i < recent_files_.size() && i < 8; ++i) {
-            const auto& filepath = recent_files_[i];
+        for (size_t i = 0; i < recent_projects_.size() && i < 8; ++i) {
+            const auto& project = recent_projects_[i];
             bool is_selected = (i == selected_index_);
 
-            Elements file_elements;
-            file_elements.push_back(text("  "));
+            Elements project_elements;
+            project_elements.push_back(text("  "));
 
             // 选中标记
             if (is_selected) {
-                file_elements.push_back(text("► ") | color(colors.success) | bold);
+                project_elements.push_back(text("► ") | color(colors.success) | bold);
             } else {
-                file_elements.push_back(text("  "));
+                project_elements.push_back(text("  "));
             }
 
-            // 文件图标
-            std::string icon = getFileIcon(filepath);
-            file_elements.push_back(text(icon + " ") | color(colors.success));
+            // 项目图标
+            std::string icon = getProjectIcon(project);
+            project_elements.push_back(text(icon + " ") | color(colors.success));
 
-            // 文件名
-            std::string filename = getFileName(filepath);
-            file_elements.push_back(text(filename) | (is_selected ? color(colors.dialog_fg) | bold
-                                                                  : color(colors.foreground)));
+            // 项目名
+            std::string name = getProjectName(project);
+            project_elements.push_back(text(name) | (is_selected ? color(colors.dialog_fg) | bold
+                                                                 : color(colors.foreground)));
+
+            // 类型标识
+            std::string type_str = getProjectTypeString(project);
+            project_elements.push_back(text(" ") | color(colors.comment));
+            project_elements.push_back(text(type_str) | color(colors.comment) | dim);
 
             // 路径
-            std::string path = getFilePath(filepath);
+            std::string path = getProjectPath(project);
             if (!path.empty()) {
-                file_elements.push_back(filler());
-                file_elements.push_back(text(path) | color(colors.comment) | dim);
+                project_elements.push_back(filler());
+                project_elements.push_back(text(path) | color(colors.comment) | dim);
             }
 
-            Element file_line = hbox(file_elements);
+            Element project_line = hbox(project_elements);
             if (is_selected) {
-                file_line = file_line | bgcolor(colors.selection);
+                project_line = project_line | bgcolor(colors.selection);
             }
 
-            list_elements.push_back(file_line);
+            list_elements.push_back(project_line);
         }
     }
 
@@ -202,6 +208,40 @@ std::string RecentFilesPopup::getFileIcon(const std::string& filepath) const {
     } catch (...) {
         return icon_mapper_.getIcon("default");
     }
+}
+
+std::string RecentFilesPopup::getProjectIcon(const features::ProjectItem& project) const {
+    if (project.type == features::ProjectType::FOLDER) {
+        return pnana::ui::icons::FOLDER; // 文件夹图标
+    } else {
+        return getFileIcon(project.path);
+    }
+}
+
+std::string RecentFilesPopup::getProjectName(const features::ProjectItem& project) const {
+    try {
+        std::filesystem::path path(project.path);
+        return path.filename().string();
+    } catch (...) {
+        return project.path;
+    }
+}
+
+std::string RecentFilesPopup::getProjectTypeString(const features::ProjectItem& project) const {
+    return project.type == features::ProjectType::FOLDER ? "[DIR]" : "[FILE]";
+}
+
+std::string RecentFilesPopup::getProjectPath(const features::ProjectItem& project) const {
+    try {
+        std::filesystem::path path(project.path);
+        std::filesystem::path parent = path.parent_path();
+        if (!parent.empty()) {
+            return parent.string();
+        }
+    } catch (...) {
+        // 如果路径解析失败，返回空字符串
+    }
+    return "";
 }
 
 } // namespace ui
