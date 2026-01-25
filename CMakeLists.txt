@@ -30,6 +30,9 @@ option(BUILD_LUA "Enable Lua plugin system" OFF)
 # Go SSH模块支持（手动启用）
 option(BUILD_GO "Enable Go SSH module" OFF)
 
+# AI客户端支持（手动启用）
+option(BUILD_AI_CLIENT "Enable AI client support" OFF)
+
 if(BUILD_IMAGE_PREVIEW)
     message(STATUS "Image preview support enabled - checking for FFmpeg...")
 
@@ -77,16 +80,25 @@ else()
     message(STATUS "  AI configuration features will be limited")
 endif()
 
-# 检查 libcurl (用于 AI 客户端)
-find_package(CURL QUIET)
-if(CURL_FOUND)
-    set(BUILD_AI_CLIENT_SUPPORT ON)
-    message(STATUS "✓ libcurl found - AI client support enabled")
-    message(STATUS "  Version: ${CURL_VERSION_STRING}")
+# AI客户端支持（手动启用）
+if(BUILD_AI_CLIENT)
+    message(STATUS "AI client support enabled - checking for libcurl...")
+
+    find_package(CURL QUIET)
+    if(CURL_FOUND)
+        set(BUILD_AI_CLIENT_SUPPORT ON)
+        message(STATUS "✓ libcurl found - AI client support enabled")
+        message(STATUS "  Version: ${CURL_VERSION_STRING}")
+    else()
+        set(BUILD_AI_CLIENT_SUPPORT OFF)
+        message(FATAL_ERROR "✗ libcurl not found but BUILD_AI_CLIENT is enabled")
+        message(STATUS "  Install with: sudo apt install libcurl4-openssl-dev")
+        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_AI_CLIENT=ON ..")
+    endif()
 else()
     set(BUILD_AI_CLIENT_SUPPORT OFF)
-    message(WARNING "✗ libcurl not found - AI client support disabled")
-    message(STATUS "  Install with: sudo apt install libcurl4-openssl-dev")
+    message(STATUS "AI client support disabled (use -DBUILD_AI_CLIENT=ON to enable)")
+    message(STATUS "  Requires: sudo apt install libcurl4-openssl-dev")
 endif()
 
 # 如果找到本地的 nlohmann/json 和 jsonrpccxx，启用 LSP 支持
