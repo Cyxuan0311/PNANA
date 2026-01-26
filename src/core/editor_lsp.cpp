@@ -235,10 +235,13 @@ std::string Editor::detectLanguageId(const std::string& filepath) {
     std::string ext = fs::path(filepath).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
+    LOG("[LSP DEBUG] Detecting language for file: " + filepath + ", extension: '" + ext + "'");
+
     if (ext == ".cpp" || ext == ".cxx" || ext == ".cc" || ext == ".hpp" || ext == ".hxx" ||
         ext == ".h" || ext == ".c") {
         return "cpp";
     } else if (ext == ".py") {
+        LOG("[LSP DEBUG] Detected Python file, returning language_id: python");
         return "python";
     } else if (ext == ".go") {
         return "go";
@@ -424,9 +427,10 @@ void Editor::updateCurrentFileDiagnostics() {
         LOG("[DIAGNOSTICS_UPDATE] No current document, clearing diagnostics");
         std::lock_guard<std::mutex> lock(diagnostics_mutex_);
         current_file_diagnostics_.clear();
-        force_ui_update_ = true;
+        // 在文档切换期间不强制UI更新，使用needs_render_避免抖动
+        needs_render_ = true;
         last_render_source_ = "diagnostic_clear";
-        LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END =====");
+        LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END (needs_render_) =====");
         return;
     }
 
@@ -435,9 +439,10 @@ void Editor::updateCurrentFileDiagnostics() {
         LOG("[DIAGNOSTICS_UPDATE] Document has no filepath, clearing diagnostics");
         std::lock_guard<std::mutex> lock(diagnostics_mutex_);
         current_file_diagnostics_.clear();
-        force_ui_update_ = true;
+        // 在文档切换期间不强制UI更新，使用needs_render_避免抖动
+        needs_render_ = true;
         last_render_source_ = "diagnostic_clear";
-        LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END =====");
+        LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END (needs_render_) =====");
         return;
     }
 
@@ -471,11 +476,11 @@ void Editor::updateCurrentFileDiagnostics() {
         // LSP 回调到来时会更新为正确的诊断信息
     }
 
-    // 强制UI更新以立即显示诊断信息
-    force_ui_update_ = true;
+    // 使用needs_render_而不是强制UI更新，避免文档切换时的抖动
+    needs_render_ = true;
     last_render_source_ = "diagnostic_update";
-    LOG("[DIAGNOSTICS_UPDATE] Set force_ui_update=true, last_render_source=diagnostic_update");
-    LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END =====");
+    LOG("[DIAGNOSTICS_UPDATE] Set needs_render_=true, last_render_source=diagnostic_update");
+    LOG("[DIAGNOSTICS_UPDATE] ===== updateCurrentFileDiagnostics END (needs_render_) =====");
 }
 
 void Editor::preloadAdjacentDocuments(size_t current_index) {
@@ -615,9 +620,11 @@ void Editor::updateCurrentFileFolding() {
     LOG("[FOLDING_UPDATE] Processing file: " + filepath + " (URI: " + uri + ")");
 
     // 首先尝试从缓存恢复折叠状态（更积极的策略）
+    LOG("[FOLDING_UPDATE] ===== CHECKING FOLDING CACHE =====");
     bool cache_restored = false;
     {
         std::lock_guard<std::mutex> cache_lock(folding_cache_mutex_);
+
         auto cache_it = folding_cache_.find(uri);
         if (cache_it != folding_cache_.end()) {
             auto now = std::chrono::steady_clock::now();
@@ -626,16 +633,26 @@ void Editor::updateCurrentFileFolding() {
             // 延长缓存有效期，从30分钟改为60分钟，因为折叠状态相对稳定
             auto extended_duration = std::chrono::minutes(60);
 
+            LOG("[FOLDING_UPDATE] Cache entry found, age: " +
+                std::to_string(std::chrono::duration_cast<std::chrono::minutes>(age).count()) +
+                "min, extended_duration: " +
+                std::to_string(
+                    std::chrono::duration_cast<std::chrono::minutes>(extended_duration).count()) +
+                "min");
+
             if (age <= extended_duration) {
                 // 缓存有效，直接恢复状态到文档
-                LOG("[FOLDING_UPDATE] Cache found (age: " +
-                    std::to_string(std::chrono::duration_cast<std::chrono::minutes>(age).count()) +
-                    "min), restoring " + std::to_string(cache_it->second.ranges.size()) +
-                    " ranges, " + std::to_string(cache_it->second.folded_lines.size()) +
-                    " folded lines");
+                LOG("[FOLDING_UPDATE] Cache valid, restoring " +
+                    std::to_string(cache_it->second.ranges.size()) + " ranges, " +
+                    std::to_string(cache_it->second.folded_lines.size()) + " folded lines");
 
+                LOG("[FOLDING_UPDATE] Setting folding ranges on document");
                 doc->setFoldingRanges(cache_it->second.ranges);
+
+                LOG("[FOLDING_UPDATE] Unfolding all lines first");
                 doc->unfoldAll(); // 先展开所有
+
+                LOG("[FOLDING_UPDATE] Applying folded lines");
                 for (int line : cache_it->second.folded_lines) {
                     doc->setFolded(line, true);
                     LOG("[FOLDING_UPDATE] Restored folded line " + std::to_string(line));
@@ -645,13 +662,20 @@ void Editor::updateCurrentFileFolding() {
                 LOG("[FOLDING_CACHE] Successfully restored folding state from cache for " +
                     filepath);
 
-                // 立即重新初始化折叠管理器以同步状态
+                // 同步折叠管理器状态，但不触发回调以避免死锁
                 if (folding_manager_) {
-                    folding_manager_->clear(); // 清除旧状态
-                    LOG("[FOLDING_UPDATE] Cleared folding manager state for sync");
+                    LOG("[FOLDING_UPDATE] Syncing folding manager state without triggering "
+                        "callbacks");
+                    // 直接设置状态而不调用clear()，避免触发同步回调
+                    folding_manager_->setFoldingRangesDirectly(cache_it->second.ranges);
+                    folding_manager_->setFoldedLinesDirectly(cache_it->second.folded_lines);
+                    LOG("[FOLDING_UPDATE] Folding manager state synchronized successfully");
+                } else {
+                    LOG("[FOLDING_UPDATE] No folding manager available for sync");
                 }
             } else {
                 // 缓存过期，清理
+                LOG("[FOLDING_UPDATE] Cache expired, removing entry");
                 folding_cache_.erase(cache_it);
                 LOG("[FOLDING_CACHE] Cache expired for " + filepath + " (age: " +
                     std::to_string(std::chrono::duration_cast<std::chrono::minutes>(age).count()) +
@@ -660,17 +684,18 @@ void Editor::updateCurrentFileFolding() {
         } else {
             LOG("[FOLDING_UPDATE] No cache found for " + uri + ", will initialize asynchronously");
         }
+        LOG("[FOLDING_UPDATE] ===== CACHE CHECK COMPLETE =====");
     }
 
     if (!folding_manager_) {
         LOG("[FOLDING_UPDATE] No folding manager available");
         // 如果没有折叠管理器，从缓存恢复就足够了
         if (cache_restored) {
-            force_ui_update_ = true;
+            needs_render_ = true;
             last_render_source_ = "folding_cache_restored";
-            LOG("[FOLDING_UPDATE] Force UI update set (cache restored)");
+            LOG("[FOLDING_UPDATE] Set needs_render_=true (cache restored)");
         }
-        LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding END =====");
+        LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding END (needs_render_) =====");
         return;
     }
 
@@ -684,20 +709,21 @@ void Editor::updateCurrentFileFolding() {
             ", initializing asynchronously");
 
         // 使用请求管理器进行异步初始化，确保不阻塞UI
+        // 注意：降低优先级并避免强制UI更新，减少文档切换时的抖动
         if (lsp_request_manager_) {
             std::string fold_key = std::string("fold:switch:") + uri;
             LOG("[FOLDING_UPDATE] Posting async folding init request: " + fold_key);
             lsp_request_manager_->postOrReplace(
-                fold_key, features::LspRequestManager::Priority::HIGH, [this, uri]() {
+                fold_key, features::LspRequestManager::Priority::LOW, [this, uri]() {
                     try {
                         LOG("[FOLDING_UPDATE] Starting async folding initialization for " + uri);
                         if (folding_manager_) {
                             folding_manager_->initializeFoldingRanges(uri);
-                            // 初始化完成后强制UI更新
-                            force_ui_update_ = true;
-                            last_render_source_ = "folding_async_init";
+                            // 初始化完成后设置渲染标志，避免强制UI更新导致抖动
+                            needs_render_ = true;
+                            last_render_source_ = "async_folding_init";
                             LOG("[FOLDING_UPDATE] Folding ranges initialized asynchronously for " +
-                                uri);
+                                uri + " (set needs_render_ to prevent jitter)");
                         } else {
                             LOG("[FOLDING_UPDATE] Folding manager became null during async init");
                         }
@@ -714,10 +740,11 @@ void Editor::updateCurrentFileFolding() {
                     LOG("[FOLDING_UPDATE] Starting fallback folding initialization for " + uri);
                     if (folding_manager_) {
                         folding_manager_->initializeFoldingRanges(uri);
-                        // 初始化完成后强制UI更新
-                        force_ui_update_ = true;
-                        last_render_source_ = "folding_fallback_init";
-                        LOG("[FOLDING_UPDATE] Folding ranges initialized (fallback) for " + uri);
+                        // 初始化完成后设置渲染标志，避免强制UI更新导致抖动
+                        needs_render_ = true;
+                        last_render_source_ = "async_folding_init_fallback";
+                        LOG("[FOLDING_UPDATE] Folding ranges initialized (fallback) for " + uri +
+                            " (set needs_render_ to prevent jitter)");
                     }
                 } catch (const std::exception& e) {
                     LOG_WARNING("[FOLDING_UPDATE] Fallback folding initialization failed: " +
@@ -729,11 +756,11 @@ void Editor::updateCurrentFileFolding() {
         LOG("[FOLDING_UPDATE] Folding already initialized for " + filepath);
     }
 
-    // 强制UI更新以立即显示折叠状态
-    force_ui_update_ = true;
+    // 使用needs_render_而不是强制UI更新，避免文档切换时的抖动
+    needs_render_ = true;
     last_render_source_ = "folding_update";
-    LOG("[FOLDING_UPDATE] Set force_ui_update=true, last_render_source=folding_update");
-    LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding END =====");
+    LOG("[FOLDING_UPDATE] Set needs_render_=true, last_render_source=folding_update");
+    LOG("[FOLDING_UPDATE] ===== updateCurrentFileFolding END (needs_render_) =====");
 }
 
 void Editor::updateLspDocument() {
@@ -875,18 +902,22 @@ void Editor::updateLspDocument() {
 
                 // 设置折叠状态变化回调
                 folding_manager_->setFoldingStateChangedCallback([this]() {
-                    force_ui_update_ = true;
-                    // 强制触发UI重新渲染，通过修改渲染时间戳
-                    last_render_time_ =
-                        std::chrono::steady_clock::now() - std::chrono::milliseconds(100);
-                    // 增加渲染调用计数以触发更新
-                    render_call_count_++;
+                    // 不强制UI更新，避免文档切换时的抖动
+                    needs_render_ = true;
+                    last_render_source_ = "folding_state_changed";
+                    LOG("[FOLDING_CALLBACK] Folding state changed, set needs_render_=true");
                 });
 
                 // 设置文档同步回调
                 folding_manager_->setDocumentSyncCallback(
                     [this, uri](const auto& ranges, const auto& folded) {
+                        LOG("[FOLDING_SYNC] ===== DOCUMENT SYNC CALLBACK START =====");
+                        LOG("[FOLDING_SYNC] URI: " + uri +
+                            ", ranges: " + std::to_string(ranges.size()) +
+                            ", folded: " + std::to_string(folded.size()));
+
                         if (auto doc = getCurrentDocument()) {
+                            LOG("[FOLDING_SYNC] Updating document folding ranges");
                             // Update folding ranges
                             doc->setFoldingRanges(ranges);
 
@@ -894,22 +925,36 @@ void Editor::updateLspDocument() {
                             // previously folded lines that are no longer folded get cleared.
                             doc->unfoldAll();
 
+                            LOG("[FOLDING_SYNC] Applying " + std::to_string(folded.size()) +
+                                " folded lines");
                             for (int line : folded) {
                                 doc->setFolded(line, true);
                             }
 
                             // 缓存折叠状态，提升切换响应速度
+                            // 注意：使用try_lock避免在缓存恢复过程中发生死锁
+                            LOG("[FOLDING_SYNC] Attempting to cache folding state");
                             {
-                                std::lock_guard<std::mutex> cache_lock(folding_cache_mutex_);
-                                folding_cache_[uri] = {ranges, folded,
-                                                       std::chrono::steady_clock::now()};
-                                LOG("[FOLDING_CACHE] Cached folding state for " + uri + " (" +
-                                    std::to_string(ranges.size()) + " ranges, " +
-                                    std::to_string(folded.size()) + " folded)");
+                                std::unique_lock<std::mutex> cache_lock(folding_cache_mutex_,
+                                                                        std::try_to_lock);
+                                if (cache_lock.owns_lock()) {
+                                    folding_cache_[uri] = {ranges, folded,
+                                                           std::chrono::steady_clock::now()};
+                                    LOG("[FOLDING_CACHE] Successfully cached folding state for " +
+                                        uri + " (" + std::to_string(ranges.size()) + " ranges, " +
+                                        std::to_string(folded.size()) + " folded)");
+                                } else {
+                                    LOG("[FOLDING_CACHE] Skipping cache update due to lock "
+                                        "contention - this prevents deadlock");
+                                }
                             }
 
-                            // 同步后强制UI更新
-                            force_ui_update_ = true;
+                            // 同步后设置渲染标志，避免强制UI更新导致抖动
+                            needs_render_ = true;
+                            last_render_source_ = "folding_sync";
+                            LOG("[FOLDING_SYNC] ===== DOCUMENT SYNC CALLBACK END =====");
+                        } else {
+                            LOG("[FOLDING_SYNC] No current document available for sync");
                         }
                     });
 
@@ -922,9 +967,11 @@ void Editor::updateLspDocument() {
                             try {
                                 if (folding_manager_) {
                                     folding_manager_->initializeFoldingRanges(uri);
-                                    // 初始化完成后强制UI更新
-                                    force_ui_update_ = true;
-                                    LOG("[LSP_UPDATE] Folding ranges initialized for " + uri);
+                                    // 初始化完成后设置渲染标志，避免强制UI更新导致抖动
+                                    needs_render_ = true;
+                                    last_render_source_ = "folding_async_init";
+                                    LOG("[LSP_UPDATE] Folding ranges initialized for " + uri +
+                                        " (set needs_render_)");
                                 }
                             } catch (const std::exception& e) {
                                 LOG("[LSP_UPDATE] Async folding initialization failed: " +
@@ -937,10 +984,11 @@ void Editor::updateLspDocument() {
                         try {
                             if (folding_manager_) {
                                 folding_manager_->initializeFoldingRanges(uri);
-                                // 初始化完成后强制UI更新
-                                force_ui_update_ = true;
+                                // 初始化完成后设置渲染标志，避免强制UI更新导致抖动
+                                needs_render_ = true;
+                                last_render_source_ = "folding_async_init_fallback";
                                 LOG("[LSP_UPDATE] Folding ranges initialized (fallback) for " +
-                                    uri);
+                                    uri + " (set needs_render_)");
                             }
                         } catch (const std::exception& e) {
                             LOG("[LSP_UPDATE] Async folding initialization failed: " +

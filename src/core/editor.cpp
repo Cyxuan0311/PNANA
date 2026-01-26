@@ -93,44 +93,70 @@ Editor::Editor()
 
     // 设置文档切换回调，优化LSP诊断响应速度
     document_manager_.setDocumentSwitchedCallback([this](size_t old_index, size_t new_index) {
-        LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH START =====");
-        LOG("[DOC_SWITCH] Document switched from " + std::to_string(old_index) + " to " +
-            std::to_string(new_index));
+        try {
+            LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH START =====");
+            LOG("[DOC_SWITCH] Document switched from " + std::to_string(old_index) + " to " +
+                std::to_string(new_index));
 
-        // 获取新文档信息
-        Document* new_doc = document_manager_.getDocument(new_index);
-        std::string filepath = new_doc ? new_doc->getFilePath() : "null";
-        LOG("[DOC_SWITCH] New document filepath: " + filepath);
+            // 安全检查：验证新文档索引有效
+            if (new_index >= document_manager_.getDocumentCount()) {
+                LOG_ERROR(
+                    "[DOC_SWITCH] Invalid new document index: " + std::to_string(new_index) +
+                    ", total documents: " + std::to_string(document_manager_.getDocumentCount()));
+                return;
+            }
 
-        // 立即更新当前文件的诊断信息，提升响应速度
-        LOG("[DOC_SWITCH] Updating diagnostics...");
-        updateCurrentFileDiagnostics();
+            // 获取新文档信息
+            Document* new_doc = document_manager_.getDocument(new_index);
+            if (!new_doc) {
+                LOG_ERROR("[DOC_SWITCH] Failed to get document at index " +
+                          std::to_string(new_index));
+                return;
+            }
 
-        // 检查诊断更新结果
-        {
-            std::lock_guard<std::mutex> lock(diagnostics_mutex_);
-            LOG("[DOC_SWITCH] Current diagnostics count: " +
-                std::to_string(current_file_diagnostics_.size()));
+            std::string filepath = new_doc->getFilePath();
+            LOG("[DOC_SWITCH] New document filepath: " + filepath);
+
+            // 安全检查：验证文档状态
+            if (filepath.empty()) {
+                LOG_WARNING("[DOC_SWITCH] Document has empty filepath, skipping LSP updates");
+                // 对于无路径文档，只需要设置渲染标志
+                needs_render_ = true;
+                last_render_source_ = "document_switch";
+                return;
+            }
+
+            // 立即更新当前文件的诊断信息，提升响应速度（不强制UI更新）
+            LOG("[DOC_SWITCH] Updating diagnostics...");
+            updateCurrentFileDiagnostics();
+
+            // 检查诊断更新结果
+            {
+                std::lock_guard<std::mutex> lock(diagnostics_mutex_);
+                LOG("[DOC_SWITCH] Current diagnostics count: " +
+                    std::to_string(current_file_diagnostics_.size()));
+            }
+
+            // 立即更新折叠状态，提升响应速度（不强制UI更新）
+            LOG("[DOC_SWITCH] Updating folding...");
+            updateCurrentFileFolding();
+
+            // 预加载相邻文档的诊断和折叠数据，提升后续切换响应速度
+            LOG("[DOC_SWITCH] Starting preload for adjacent documents...");
+            preloadAdjacentDocuments(new_index);
+
+            // 设置渲染标志，避免强制UI更新导致的抖动
+            needs_render_ = true;
+            last_render_source_ = "document_switch";
+            LOG("[DOC_SWITCH] Set needs_render_=true, last_render_source=document_switch");
+
+            LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH END =====");
+        } catch (const std::exception& e) {
+            LOG_ERROR("[DOC_SWITCH] Exception in document switch callback: " +
+                      std::string(e.what()));
+        } catch (...) {
+            LOG_ERROR("[DOC_SWITCH] Unknown exception in document switch callback");
         }
-
-        // 立即更新折叠状态，提升响应速度
-        LOG("[DOC_SWITCH] Updating folding...");
-        updateCurrentFileFolding();
-
-        // 预加载相邻文档的诊断和折叠数据，提升后续切换响应速度
-        LOG("[DOC_SWITCH] Starting preload for adjacent documents...");
-        preloadAdjacentDocuments(new_index);
-
-        // 强制UI重新渲染，确保诊断和折叠立即显示
-        force_ui_update_ = true;
-        last_render_source_ = "document_switch";
-        LOG("[DOC_SWITCH] Set force_ui_update=true, last_render_source=document_switch");
-
-        // 发送自定义事件触发立即渲染
-        screen_.PostEvent(Event::Custom);
-        LOG("[DOC_SWITCH] Posted custom event for immediate render");
-
-        LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH END =====");
     });
 
     // 初始化TUI配置管理器
