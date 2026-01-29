@@ -264,6 +264,7 @@ set(SOURCES
     src/ui/diagnostics_popup.cpp
     src/ui/format_dialog.cpp
     src/ui/git_panel.cpp
+    src/ui/todo_panel.cpp
     src/ui/move_file_dialog.cpp
     # 工具模块
     src/utils/logger.cpp
@@ -285,6 +286,7 @@ set(SOURCES
     src/features/file_browser.cpp
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
+    src/features/todo/todo_manager.cpp
     src/features/vgit/git_manager.cpp
     src/features/terminal/terminal.cpp
     src/features/terminal/terminal_color.cpp
@@ -425,6 +427,7 @@ set(HEADERS
     include/pnana/ui/completion_popup.h
     include/pnana/ui/command_palette_ui.h
     include/pnana/ui/format_dialog.h
+    include/pnana/ui/todo_panel.h
     include/pnana/ui/move_file_dialog.h
     # 功能模块头文件
     include/pnana/features/search.h
@@ -432,6 +435,7 @@ set(HEADERS
     include/pnana/features/SyntaxHighlighter/syntax_highlighter.h
     include/pnana/features/SyntaxHighlighter/makefile_syntax_constants.h
     include/pnana/features/command_palette.h
+    include/pnana/features/todo/todo_manager.h
     include/pnana/features/vgit/git_manager.h
     include/pnana/ui/git_panel.h
     include/pnana/features/terminal.h
