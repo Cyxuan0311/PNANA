@@ -32,6 +32,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox({main_ui, render_save_as_callback_() | center});
     }
 
+    // 如果移动文件对话框打开，叠加显示
+    if (is_move_file_visible_callback_ && is_move_file_visible_callback_() &&
+        render_move_file_callback_) {
+        return dbox({main_ui | dim, render_move_file_callback_() | center});
+    }
+
     // 光标配置对话框
     if (is_cursor_config_visible_callback_ && is_cursor_config_visible_callback_() &&
         render_cursor_config_callback_) {
