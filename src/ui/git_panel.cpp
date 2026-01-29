@@ -129,6 +129,9 @@ bool GitPanel::onKeyPress(Event event) {
         case GitPanelMode::DIFF:
             handled = handleDiffModeKey(event);
             break;
+        case GitPanelMode::GRAPH:
+            handled = handleGraphModeKey(event);
+            break;
     }
     auto handler_end = std::chrono::high_resolution_clock::now();
     auto handler_duration =
@@ -321,6 +324,15 @@ void GitPanel::switchMode(GitPanelMode mode) {
         clone_path_ = git_manager_->getRepositoryRoot().empty() ? fs::current_path().string()
                                                                 : git_manager_->getRepositoryRoot();
         clone_focus_on_url_ = true; // Default focus on URL
+    } else if (mode == GitPanelMode::GRAPH) {
+        // Load graph commits when switching to graph mode
+        if (graph_commits_.empty() || !data_loaded_) {
+            std::thread([this]() {
+                auto commits = git_manager_->getGraphCommits(100);
+                std::lock_guard<std::mutex> lock(data_mutex_);
+                graph_commits_ = std::move(commits);
+            }).detach();
+        }
     }
 
     // Ensure indices are valid for the new mode
@@ -340,6 +352,8 @@ GitPanelMode GitPanel::getNextMode(GitPanelMode current) {
         case GitPanelMode::CLONE:
             return GitPanelMode::DIFF;
         case GitPanelMode::DIFF:
+            return GitPanelMode::GRAPH;
+        case GitPanelMode::GRAPH:
             return GitPanelMode::STATUS;
         default:
             return GitPanelMode::STATUS;
@@ -713,7 +727,9 @@ Element GitPanel::renderTabs() {
         text(" │ ") | color(colors.comment),
         makeTab("Clone", GitPanelMode::CLONE, current_mode_ == GitPanelMode::CLONE),
         text(" │ ") | color(colors.comment),
-        makeTab("Diff", GitPanelMode::DIFF, current_mode_ == GitPanelMode::DIFF)};
+        makeTab("Diff", GitPanelMode::DIFF, current_mode_ == GitPanelMode::DIFF),
+        text(" │ ") | color(colors.comment),
+        makeTab("Graph", GitPanelMode::GRAPH, current_mode_ == GitPanelMode::GRAPH)};
     return hbox(std::move(elements)) | center;
 }
 
@@ -1734,6 +1750,18 @@ Element GitPanel::renderFooter() {
             footer_elements.push_back(hbox(clone_help));
             break;
         }
+        case GitPanelMode::GRAPH: {
+            Elements graph_help = {
+                text("Navigation: ↑↓/PgUp/PgDn/Home/End") | color(colors.comment),
+                text(" | ") | color(colors.comment),
+                text("Refresh: R/F5") | color(colors.comment),
+                text(" | ") | color(colors.comment),
+                text("Switch mode: Tab") | color(colors.comment),
+                text(" | ") | color(colors.comment),
+                text("Back: ESC") | color(colors.comment)};
+            footer_elements.push_back(hbox(graph_help));
+            break;
+        }
     }
 
     // Add scroll indicator if needed
@@ -1803,6 +1831,9 @@ Component GitPanel::buildMainComponent() {
                        break;
                    case GitPanelMode::DIFF:
                        content_elements.push_back(renderDiffPanel());
+                       break;
+                   case GitPanelMode::GRAPH:
+                       content_elements.push_back(renderGraphPanel());
                        break;
                }
 
@@ -1903,6 +1934,8 @@ Component GitPanel::buildMainComponent() {
                            return handleCloneModeKey(event);
                        case GitPanelMode::DIFF:
                            return handleDiffModeKey(event);
+                       case GitPanelMode::GRAPH:
+                           return handleGraphModeKey(event);
                    }
                }
                return false;
@@ -2260,6 +2293,193 @@ bool GitPanel::handleDiffModeKey(Event event) {
     return false;
 }
 
+Element GitPanel::renderGraphPanel() {
+    auto& colors = theme_.getColors();
+
+    // 如果数据正在加载，显示加载指示器
+    if (data_loading_ && graph_commits_.empty()) {
+        return vbox({text("Loading git graph...") | color(colors.comment) | center,
+                     text("Please wait...") | color(colors.menubar_fg) | center}) |
+               center | size(HEIGHT, EQUAL, 10);
+    }
+
+    Elements graph_elements;
+
+    // Enhanced header
+    Elements header_elements = {
+        text(pnana::ui::icons::GIT_BRANCH) | color(colors.function),
+        text(" Git Graph") | color(colors.foreground) | bold, text(" | ") | color(colors.comment),
+        text(std::to_string(graph_commits_.size()) + " commits") | color(colors.menubar_fg)};
+    graph_elements.push_back(hbox(std::move(header_elements)));
+    graph_elements.push_back(separator());
+
+    // Commit list with improved display
+    const size_t MAX_VISIBLE_COMMITS = 25;
+    size_t start = scroll_offset_;
+    size_t end = std::min(start + MAX_VISIBLE_COMMITS, graph_commits_.size());
+
+    // Ensure selected_index_ is within valid range
+    if (selected_index_ >= graph_commits_.size() && !graph_commits_.empty()) {
+        selected_index_ = graph_commits_.size() - 1;
+    }
+
+    // Adjust scroll_offset_ to keep selected item visible
+    if (selected_index_ < scroll_offset_) {
+        scroll_offset_ = selected_index_;
+        start = scroll_offset_;
+        end = std::min(start + MAX_VISIBLE_COMMITS, graph_commits_.size());
+    } else if (selected_index_ >= scroll_offset_ + MAX_VISIBLE_COMMITS) {
+        scroll_offset_ = selected_index_ - MAX_VISIBLE_COMMITS + 1;
+        start = scroll_offset_;
+        end = std::min(start + MAX_VISIBLE_COMMITS, graph_commits_.size());
+    }
+
+    for (size_t i = start; i < end; ++i) {
+        bool is_highlighted = (i == selected_index_);
+        graph_elements.push_back(renderGraphCommitItem(graph_commits_[i], i, is_highlighted));
+    }
+
+    if (graph_commits_.empty()) {
+        Elements empty_elements = {text(pnana::ui::icons::WARNING) | color(colors.warning),
+                                   text(" No commits found") | color(colors.warning)};
+        graph_elements.push_back(hbox(std::move(empty_elements)) | center);
+    }
+
+    return vbox(std::move(graph_elements));
+}
+
+Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*/,
+                                        bool is_highlighted) {
+    auto& colors = theme_.getColors();
+
+    // Truncate hash to 7 characters for display
+    std::string short_hash = commit.hash.length() > 7 ? commit.hash.substr(0, 7) : commit.hash;
+
+    // Truncate message if too long
+    std::string display_message = commit.message;
+    if (display_message.length() > 50) {
+        display_message = display_message.substr(0, 47) + "...";
+    }
+
+    // Build row elements
+    Elements row_elements = {
+        text(" ") | color(colors.background),                        // Leading space
+        text(pnana::ui::icons::GIT_COMMIT) | color(colors.function), // Commit icon
+        text(" ") | color(colors.background),
+        text(short_hash) | color(colors.keyword) | bold, // Hash
+        text(" ") | color(colors.background),
+        text(display_message) | color(colors.foreground), // Message
+        text(" ") | color(colors.background),
+        text("(" + commit.author + ")") | color(colors.comment) | dim, // Author
+        text(" ") | color(colors.background),
+        text(commit.date) | color(colors.comment) | dim // Date
+    };
+
+    auto item_text = hbox(std::move(row_elements));
+
+    if (is_highlighted) {
+        item_text = item_text | bgcolor(colors.selection) | bold;
+    } else {
+        item_text = item_text | bgcolor(colors.background);
+    }
+
+    return item_text;
+}
+
+bool GitPanel::handleGraphModeKey(Event event) {
+    // Tab navigation between modes
+    if (event == Event::Tab) {
+        switchMode(getNextMode(current_mode_));
+        return true;
+    }
+
+    const size_t MAX_VISIBLE_COMMITS = 25; // Must match renderGraphPanel
+
+    if (event == Event::ArrowUp) {
+        if (selected_index_ > 0) {
+            selected_index_--;
+            // Adjust scroll to keep selected item visible
+            if (selected_index_ < scroll_offset_) {
+                scroll_offset_ = selected_index_;
+            }
+        }
+        return true;
+    }
+    if (event == Event::ArrowDown) {
+        if (selected_index_ < graph_commits_.size() - 1) {
+            selected_index_++;
+            // Adjust scroll to keep selected item visible
+            if (selected_index_ >= scroll_offset_ + MAX_VISIBLE_COMMITS) {
+                scroll_offset_ = selected_index_ - MAX_VISIBLE_COMMITS + 1;
+            }
+        }
+        return true;
+    }
+
+    // Page navigation
+    if (event == Event::PageUp) {
+        if (selected_index_ > 0) {
+            size_t page_size = MAX_VISIBLE_COMMITS;
+            if (selected_index_ >= page_size) {
+                selected_index_ -= page_size;
+            } else {
+                selected_index_ = 0;
+            }
+            scroll_offset_ =
+                (selected_index_ > page_size / 2) ? selected_index_ - page_size / 2 : 0;
+        }
+        return true;
+    }
+    if (event == Event::PageDown) {
+        if (selected_index_ < graph_commits_.size() - 1) {
+            size_t page_size = MAX_VISIBLE_COMMITS;
+            size_t max_index = graph_commits_.size() - 1;
+            if (selected_index_ + page_size < max_index) {
+                selected_index_ += page_size;
+            } else {
+                selected_index_ = max_index;
+            }
+            size_t new_scroll =
+                (selected_index_ > page_size / 2) ? selected_index_ - page_size / 2 : 0;
+            if (new_scroll + MAX_VISIBLE_COMMITS > graph_commits_.size()) {
+                new_scroll = graph_commits_.size() > MAX_VISIBLE_COMMITS
+                                 ? graph_commits_.size() - MAX_VISIBLE_COMMITS
+                                 : 0;
+            }
+            scroll_offset_ = new_scroll;
+        }
+        return true;
+    }
+
+    // Home/End navigation
+    if (event == Event::Home) {
+        selected_index_ = 0;
+        scroll_offset_ = 0;
+        return true;
+    }
+    if (event == Event::End) {
+        selected_index_ = graph_commits_.size() > 0 ? graph_commits_.size() - 1 : 0;
+        scroll_offset_ = (graph_commits_.size() > MAX_VISIBLE_COMMITS)
+                             ? graph_commits_.size() - MAX_VISIBLE_COMMITS
+                             : 0;
+        return true;
+    }
+
+    // Refresh data
+    if (event == Event::Character('R') || event == Event::F5) {
+        graph_commits_.clear();
+        switchMode(GitPanelMode::GRAPH); // This will reload the commits
+        return true;
+    }
+
+    if (event == Event::Escape) {
+        switchMode(GitPanelMode::STATUS);
+        return true;
+    }
+
+    return false;
+}
+
 // Utility methods
 
 std::string GitPanel::getStatusIcon(GitFileStatus status) const {
@@ -2322,6 +2542,8 @@ std::string GitPanel::getModeTitle(GitPanelMode mode) const {
             return "Clone";
         case GitPanelMode::DIFF:
             return "Diff";
+        case GitPanelMode::GRAPH:
+            return "Graph";
         default:
             return "";
     }

@@ -14,7 +14,7 @@
 namespace pnana {
 namespace vgit {
 
-enum class GitPanelMode { STATUS, COMMIT, BRANCH, REMOTE, CLONE, DIFF };
+enum class GitPanelMode { STATUS, COMMIT, BRANCH, REMOTE, CLONE, DIFF, GRAPH };
 
 class GitPanel {
   public:
@@ -77,6 +77,7 @@ class GitPanel {
     GitPanelMode current_mode_ = GitPanelMode::STATUS;
     std::vector<GitFile> files_;
     std::vector<GitBranch> branches_;
+    std::vector<GitCommit> graph_commits_;
     size_t selected_index_ = 0;
     size_t scroll_offset_ = 0;
     std::string commit_message_;
@@ -160,11 +161,14 @@ class GitPanel {
     ftxui::Element renderRemotePanel();
     ftxui::Element renderClonePanel();
     ftxui::Element renderDiffPanel();
+    ftxui::Element renderGraphPanel();
     ftxui::Element renderDiffViewer();
     ftxui::Element renderDiffFileItem(const GitFile& file, size_t index, bool is_highlighted);
     ftxui::Element renderFileItem(const GitFile& file, size_t index, bool is_selected,
                                   bool is_highlighted);
     ftxui::Element renderBranchItem(const GitBranch& branch, size_t index, bool is_selected);
+    ftxui::Element renderGraphCommitItem(const GitCommit& commit, size_t index,
+                                         bool is_highlighted);
     ftxui::Element renderFooter();
     ftxui::Element renderError();
     ftxui::Element separatorLight();
@@ -182,6 +186,7 @@ class GitPanel {
     bool handleRemoteModeKey(ftxui::Event event);
     bool handleCloneModeKey(ftxui::Event event);
     bool handleDiffModeKey(ftxui::Event event);
+    bool handleGraphModeKey(ftxui::Event event);
 
     // Utility methods
     std::string getStatusIcon(GitFileStatus status) const;
