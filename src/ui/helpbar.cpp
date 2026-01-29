@@ -25,8 +25,9 @@ Element Helpbar::renderItem(const HelpItem& item) {
 }
 
 std::vector<HelpItem> Helpbar::getDefaultHelp() {
-    return {{"^S", "Save"},   {"^O", "Files"},     {"^W", "Close"}, {"^F", "Find"},
-            {"^T", "Themes"}, {"Tab", "Next Tab"}, {"^Z", "Undo"},  {"^Q", "Quit"}};
+    return {{"^S", "Save"},   {"^O", "Files"},          {"^W", "Close"}, {"^F", "Find"},
+            {"^T", "Themes"}, {"Tab", "Next Tab"},      {"^Z", "Undo"},  {"^Q", "Quit"},
+            {"F1", "Help"},   {"F3", "Command Palette"}};
 }
 
 std::vector<HelpItem> Helpbar::getEditModeHelp() {
