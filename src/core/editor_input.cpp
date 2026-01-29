@@ -117,6 +117,13 @@ void Editor::handleInput(Event event) {
         return;
     }
 
+    // 如果 Todo 面板打开，优先处理
+    if (todo_panel_.isVisible()) {
+        if (handleTodoPanelInput(event)) {
+            return;
+        }
+    }
+
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
     bool in_dialog = show_save_as_ || show_create_folder_ || show_move_file_ || show_theme_menu_ ||

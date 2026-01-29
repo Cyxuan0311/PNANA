@@ -241,6 +241,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderGitPanelCallback([this]() {
         return renderGitPanel();
     });
+    overlay_manager_->setRenderTodoPanelCallback([this]() {
+        return todo_panel_.render();
+    });
     overlay_manager_->setRenderFilePickerCallback([this]() {
         return file_picker_.render();
     });
@@ -329,6 +332,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsGitPanelVisibleCallback([this]() {
         return isGitPanelVisible();
+    });
+    overlay_manager_->setIsTodoPanelVisibleCallback([this]() {
+        return todo_panel_.isVisible();
     });
     overlay_manager_->setIsFilePickerVisibleCallback([this]() {
         return file_picker_.isVisible();
@@ -1314,8 +1320,30 @@ Element Editor::renderStatusbar() {
         git_uncommitted_count = cached_git_uncommitted_count;
     }
 
-    // 构建状态消息，包含SSH连接信息
+    // 检查到期的 todo 并添加闪烁提醒
+    auto due_todos = todo_panel_.getTodoManager().getDueTodos();
+    std::string todo_reminder = "";
+    bool has_todo_reminder = false;
+    if (!due_todos.empty()) {
+        // 始终显示提醒，但使用特殊标记以便状态栏识别并应用颜色变化
+        todo_reminder = "⚠ TODO: " + due_todos[0].content;
+        if (due_todos.size() > 1) {
+            todo_reminder += " (+" + std::to_string(due_todos.size() - 1) + " more)";
+        }
+        has_todo_reminder = true;
+    }
+
+    // 构建状态消息，包含SSH连接信息和Todo提醒
+    // 使用特殊标记分隔 todo 提醒和普通消息，以便状态栏能够分别渲染
     std::string display_message = status_message_;
+    if (has_todo_reminder) {
+        if (!display_message.empty()) {
+            display_message =
+                "[[TODO_REMINDER]]" + todo_reminder + "[[/TODO_REMINDER]] | " + display_message;
+        } else {
+            display_message = "[[TODO_REMINDER]]" + todo_reminder + "[[/TODO_REMINDER]]";
+        }
+    }
     if (!current_ssh_config_.host.empty()) {
         std::string ssh_info = "SSH: " + current_ssh_config_.user + "@" + current_ssh_config_.host;
         if (!display_message.empty()) {
