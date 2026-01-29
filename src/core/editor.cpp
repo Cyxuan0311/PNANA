@@ -39,9 +39,10 @@ Editor::Editor()
       file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
       ssh_transfer_dialog_(theme_), welcome_screen_(theme_), split_welcome_screen_(theme_),
       new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
-      save_as_dialog_(theme_), cursor_config_dialog_(theme_), binary_file_view_(theme_),
-      encoding_dialog_(theme_), format_dialog_(theme_), recent_files_popup_(theme_),
-      tui_config_popup_(theme_), ai_assistant_panel_(theme_), ai_config_dialog_(theme_),
+      save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
+      binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
+      recent_files_popup_(theme_), tui_config_popup_(theme_), ai_assistant_panel_(theme_),
+      ai_config_dialog_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -52,11 +53,11 @@ Editor::Editor()
       syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
       split_view_manager_(), diagnostics_popup_(theme_), mode_(EditorMode::NORMAL), cursor_row_(0),
       cursor_col_(0), view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false),
-      show_help_(false), show_create_folder_(false), show_save_as_(false), selection_active_(false),
-      selection_start_row_(0), selection_start_col_(0), show_line_numbers_(true),
-      relative_line_numbers_(false), syntax_highlighting_(true), zoom_level_(0),
-      file_browser_width_(35), // 默认宽度35列
-      terminal_height_(0),     // 0 表示使用默认值（屏幕高度的1/3）
+      show_help_(false), show_create_folder_(false), show_save_as_(false), show_move_file_(false),
+      selection_active_(false), selection_start_row_(0), selection_start_col_(0),
+      show_line_numbers_(true), relative_line_numbers_(false), syntax_highlighting_(true),
+      zoom_level_(0), file_browser_width_(35), // 默认宽度35列
+      terminal_height_(0),                     // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""), search_input_(""), replace_input_(""), search_cursor_pos_(0),
       replace_cursor_pos_(0), current_search_match_(0), total_search_matches_(0),
       current_option_index_(0), search_options_{false, false, false, false},
@@ -196,6 +197,29 @@ Editor::Editor()
     // 初始化插件系统
     initializePlugins();
 #endif
+    // 启动光标闪烁刷新线程（轻量级，仅在启用闪烁时触发 UI 刷新）
+    std::thread([this]() {
+        using namespace std::chrono_literals;
+        while (!should_quit_) {
+            std::this_thread::sleep_for(50ms); // 50ms 刷新检查间隔
+
+            // 仅在启用了闪烁且设置了有效频率时触发重绘
+            bool blink_on = false;
+            int rate = 0;
+            try {
+                blink_on = cursor_config_dialog_.getBlinkEnabled();
+                rate = getCursorBlinkRate();
+            } catch (...) {
+                // 避免异常中断线程
+                continue;
+            }
+
+            if (blink_on && rate > 0 && !rendering_paused_) {
+                // 触发一次自定义事件，让增量渲染逻辑根据时间重新绘制光标
+                screen_.PostEvent(ftxui::Event::Custom);
+            }
+        }
+    }).detach();
 }
 
 Document* Editor::getCurrentDocument() {
@@ -405,27 +429,17 @@ void Editor::applyCursorConfig() {
     // FTXUI 会在下一次事件循环时自动重新渲染
 }
 
-// 获取光标配置（用于渲染）
+// 获取光标配置（用于渲染）- 直接使用当前对话框状态，保证配置变更立即生效
 ::pnana::ui::CursorStyle Editor::getCursorStyle() const {
-    const auto& config = config_manager_.getConfig();
-    const auto& display_config = config.display;
-
-    if (display_config.cursor_style == "underline") {
-        return ::pnana::ui::CursorStyle::UNDERLINE;
-    } else if (display_config.cursor_style == "bar") {
-        return ::pnana::ui::CursorStyle::BAR;
-    } else if (display_config.cursor_style == "hollow") {
-        return ::pnana::ui::CursorStyle::HOLLOW;
-    }
-    return ::pnana::ui::CursorStyle::BLOCK; // 默认
+    // 始终以对话框中的当前值为准（对话框在 loadConfig/applyCursorConfig 中与配置保持同步）
+    return cursor_config_dialog_.getCursorStyle();
 }
 
 ftxui::Color Editor::getCursorColor() const {
-    const auto& config = config_manager_.getConfig();
-    const auto& display_config = config.display;
+    // 优先从光标配置对话框获取颜色字符串，确保用户调整后立即生效
+    std::string color_str = cursor_config_dialog_.getCursorColor();
 
     // 解析颜色字符串 "R,G,B"
-    std::string color_str = display_config.cursor_color;
     if (color_str.empty()) {
         return theme_.getColors().foreground; // 默认前景色
     }
@@ -458,13 +472,13 @@ ftxui::Color Editor::getCursorColor() const {
 }
 
 int Editor::getCursorBlinkRate() const {
-    const auto& config = config_manager_.getConfig();
-    return config.display.cursor_blink_rate;
+    // 直接使用对话框中的最新值
+    return cursor_config_dialog_.getBlinkRate();
 }
 
 bool Editor::getCursorSmooth() const {
-    const auto& config = config_manager_.getConfig();
-    return config.display.cursor_smooth;
+    // 直接使用对话框中的最新值
+    return cursor_config_dialog_.getSmoothCursor();
 }
 
 // 主题菜单

@@ -23,6 +23,7 @@
 #include "ui/format_dialog.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
+#include "ui/move_file_dialog.h"
 #include "ui/new_file_prompt.h"
 #include "ui/recent_files_popup.h"
 #include "ui/save_as_dialog.h"
@@ -132,7 +133,8 @@ class Editor {
     bool openFile(const std::string& filepath);
     bool saveFile();
     bool saveFileAs(const std::string& filepath);
-    void startSaveAs(); // 启动另存为对话框
+    void startSaveAs();   // 启动另存为对话框
+    void startMoveFile(); // 启动移动文件对话框
     bool closeFile();
     void newFile();
     void createFolder();   // 创建新文件夹
@@ -375,6 +377,7 @@ class Editor {
     pnana::ui::ThemeMenu theme_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
+    pnana::ui::MoveFileDialog move_file_dialog_;
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
     pnana::ui::BinaryFileView binary_file_view_;
     pnana::ui::EncodingDialog encoding_dialog_;
@@ -458,6 +461,17 @@ class Editor {
     // 代码片段管理器
     std::unique_ptr<features::SnippetManager> snippet_manager_;
 
+    // snippet 占位符会话状态（用于 Tab 跳转）
+    struct SnippetPlaceholderRange {
+        size_t row = 0;
+        size_t col = 0;
+        size_t len = 0;
+        int index = 0;
+    };
+    bool snippet_session_active_ = false;
+    std::vector<SnippetPlaceholderRange> snippet_placeholder_ranges_;
+    size_t snippet_placeholder_index_ = 0;
+
     // 文档变更跟踪器（阶段2优化）
     std::unique_ptr<features::DocumentChangeTracker> document_change_tracker_;
 
@@ -517,6 +531,9 @@ class Editor {
 
     // 另存为弹窗
     bool show_save_as_;
+
+    // 移动文件弹窗
+    bool show_move_file_;
 
     // 选择
     bool selection_active_;
@@ -758,6 +775,11 @@ class Editor {
     void copySelectedDiagnostic();
     void jumpToDiagnostic(const features::Diagnostic& diagnostic);
     ftxui::Element renderDiagnosticsPopup();
+
+    // Snippet placeholders (Tab jump after snippet expansion)
+    void startSnippetSession(std::vector<SnippetPlaceholderRange> ranges);
+    void endSnippetSession();
+    bool handleSnippetTabJump();
 #endif
 
     // 获取当前文档（便捷方法）
