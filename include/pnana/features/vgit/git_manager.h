@@ -93,6 +93,7 @@ class GitManager {
     // Commit operations
     bool commit(const std::string& message);
     std::vector<GitCommit> getRecentCommits(int count = 10);
+    std::vector<GitCommit> getGraphCommits(int count = 50); // Get commits for graph view
 
     // Branch operations
     std::vector<GitBranch> getBranches();

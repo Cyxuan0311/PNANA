@@ -647,6 +647,49 @@ std::vector<GitCommit> GitManager::getRecentCommits(int count) {
     return commits;
 }
 
+std::vector<GitCommit> GitManager::getGraphCommits(int count) {
+    if (!isGitRepository()) {
+        return {};
+    }
+
+    // Use git log with graph format to get commit history
+    // We'll use a simpler format that's easier to parse
+    std::string cmd = "git -C \"" + repo_root_ + "\" log --oneline --all --decorate -n " +
+                      std::to_string(count) + " --pretty=format:\"%H|%s|%an|%ad\" --date=short";
+    auto lines = executeGitCommandLines(cmd);
+
+    std::vector<GitCommit> commits;
+
+    for (const auto& line : lines) {
+        // Skip empty lines
+        if (line.empty()) {
+            continue;
+        }
+
+        // Parse format: hash|message|author|date
+        size_t pos1 = line.find('|');
+        if (pos1 == std::string::npos)
+            continue;
+
+        size_t pos2 = line.find('|', pos1 + 1);
+        if (pos2 == std::string::npos)
+            continue;
+
+        size_t pos3 = line.find('|', pos2 + 1);
+        if (pos3 == std::string::npos)
+            continue;
+
+        std::string hash = line.substr(0, pos1);
+        std::string message = line.substr(pos1 + 1, pos2 - pos1 - 1);
+        std::string author = line.substr(pos2 + 1, pos3 - pos2 - 1);
+        std::string date = line.substr(pos3 + 1);
+
+        commits.emplace_back(hash, message, author, date);
+    }
+
+    return commits;
+}
+
 std::vector<GitBranch> GitManager::getBranches() {
     if (!isGitRepository()) {
         return {};
