@@ -23,6 +23,7 @@ struct CompletionItem {
     std::string detail;
     std::string insertText;
     std::string documentation;
+    int insertTextFormat = 1; // 1=PlainText, 2=Snippet (LSP Spec)
 
     // 代码片段支持
     bool isSnippet = false;
