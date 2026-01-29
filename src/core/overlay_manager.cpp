@@ -86,6 +86,13 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
+    // 如果Todo面板打开，叠加显示
+    if (is_todo_panel_visible_callback_ && is_todo_panel_visible_callback_() &&
+        render_todo_panel_callback_) {
+        Elements dialog_elements = {main_ui | dim, render_todo_panel_callback_() | center};
+        return dbox(dialog_elements);
+    }
+
 #ifdef BUILD_LSP_SUPPORT
     // 如果补全弹窗打开，叠加显示
     if (is_completion_popup_visible_callback_ && is_completion_popup_visible_callback_() &&
