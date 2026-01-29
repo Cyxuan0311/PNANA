@@ -110,7 +110,13 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     // 选择状态（紧凑显示）
     if (has_selection) {
         std::ostringstream oss;
-        oss << " [" << selection_length << "]";
+        // 在文件浏览器区域显示文件选中数量，在代码区域显示文本选择
+        if (region_name.find("File Browser") != std::string::npos ||
+            region_name.find("FILES") != std::string::npos) {
+            oss << " [" << selection_length << " file" << (selection_length > 1 ? "s" : "") << "]";
+        } else {
+            oss << " [" << selection_length << "]";
+        }
         left_elements.push_back(text(oss.str()) | color(colors.warning) | dim);
     }
 
@@ -180,7 +186,7 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     }
 
     // 编译器/解释器版本（如果有）
-    std::string version = getVersionForFileType(file_type);
+    std::string version = version_detector_.getVersionForFileType(file_type);
     if (!version.empty()) {
         right_elements.push_back(text(version) | color(colors.function) | dim);
         right_elements.push_back(text(" │ ") | color(colors.comment) | dim);
@@ -463,175 +469,6 @@ int Statusbar::getGitUncommittedCount() {
     }
 
     return count;
-}
-
-std::string Statusbar::getVersionForFileType(const std::string& file_type) {
-    if (file_type == "c" || file_type == "cpp" || file_type == "cc" || file_type == "cxx") {
-        // C/C++ 除外，不显示版本
-        return "";
-    }
-
-    std::lock_guard<std::mutex> lock(cache_mutex_);
-
-    auto now = std::chrono::steady_clock::now();
-    auto it = version_cache_.find(file_type);
-
-    // 检查缓存是否存在且未过期
-    if (it != version_cache_.end()) {
-        auto& entry = it->second;
-        if (now - entry.timestamp < CACHE_DURATION) {
-            return entry.version;
-        }
-        // 如果正在获取中，返回上一次的结果
-        if (entry.is_fetching) {
-            return entry.version;
-        }
-    }
-
-    // 如果没有缓存或已过期，异步获取版本信息
-    auto& entry = version_cache_[file_type];
-    entry.is_fetching = true;
-
-    // 在后台异步执行版本获取
-    std::thread([this, file_type]() {
-        std::string version = this->fetchVersionForFileType(file_type);
-
-        std::lock_guard<std::mutex> lock(this->cache_mutex_);
-        auto& entry = this->version_cache_[file_type];
-        entry.version = version;
-        entry.timestamp = std::chrono::steady_clock::now();
-        entry.is_fetching = false;
-    }).detach();
-
-    // 返回缓存中的版本（如果有的话）或空字符串
-    return (it != version_cache_.end()) ? it->second.version : "";
-}
-
-std::string Statusbar::fetchVersionForFileType(const std::string& file_type) {
-    std::string command;
-    std::string version_prefix;
-
-    // 根据文件类型确定对应的版本检查命令
-    if (file_type == "python" || file_type == "py") {
-        command = "python3 --version 2>&1 || python --version 2>&1";
-        version_prefix = "Python ";
-    } else if (file_type == "javascript" || file_type == "js") {
-        command = "node --version 2>&1";
-        version_prefix = "Node ";
-    } else if (file_type == "typescript" || file_type == "ts") {
-        command = "tsc --version 2>&1 || node --version 2>&1";
-        version_prefix = "TypeScript ";
-    } else if (file_type == "java") {
-        command = "java -version 2>&1 | head -1";
-        version_prefix = "Java ";
-    } else if (file_type == "kotlin" || file_type == "kt") {
-        command = "kotlin -version 2>&1 || kotlinc -version 2>&1";
-        version_prefix = "Kotlin ";
-    } else if (file_type == "go" || file_type == "golang") {
-        command = "go version 2>&1";
-        version_prefix = "Go ";
-    } else if (file_type == "rust" || file_type == "rs") {
-        command = "rustc --version 2>&1";
-        version_prefix = "Rust ";
-    } else if (file_type == "ruby" || file_type == "rb") {
-        command = "ruby --version 2>&1";
-        version_prefix = "Ruby ";
-    } else if (file_type == "php") {
-        command = "php --version 2>&1 | head -1";
-        version_prefix = "PHP ";
-    } else if (file_type == "perl" || file_type == "pl") {
-        command = "perl --version 2>&1 | head -2 | tail -1";
-        version_prefix = "Perl ";
-    } else if (file_type == "lua") {
-        command = "lua -v 2>&1 || luajit -v 2>&1";
-        version_prefix = "Lua ";
-    } else if (file_type == "r") {
-        command = "R --version 2>&1 | head -1";
-        version_prefix = "R ";
-    } else if (file_type == "scala") {
-        command = "scala -version 2>&1";
-        version_prefix = "Scala ";
-    } else if (file_type == "swift") {
-        command = "swift --version 2>&1 | head -1";
-        version_prefix = "Swift ";
-    } else if (file_type == "dart") {
-        command = "dart --version 2>&1";
-        version_prefix = "Dart ";
-    } else if (file_type == "haskell" || file_type == "hs") {
-        command = "ghc --version 2>&1 || runghc --version 2>&1";
-        version_prefix = "Haskell ";
-    } else if (file_type == "clojure" || file_type == "clj") {
-        command = "clojure --version 2>&1 || lein --version 2>&1";
-        version_prefix = "Clojure ";
-    } else if (file_type == "erlang" || file_type == "erl") {
-        command =
-            "erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().' -noshell 2>&1";
-        version_prefix = "Erlang ";
-    } else if (file_type == "elixir" || file_type == "ex" || file_type == "exs") {
-        command = "elixir --version 2>&1";
-        version_prefix = "Elixir ";
-    } else if (file_type == "shell" || file_type == "bash" || file_type == "sh" ||
-               file_type == "zsh") {
-        command = "bash --version 2>&1 | head -1";
-        version_prefix = "Bash ";
-    } else if (file_type == "fish") {
-        command = "fish --version 2>&1";
-        version_prefix = "Fish ";
-    } else if (file_type == "powershell" || file_type == "ps1") {
-        command = "pwsh --version 2>&1 || powershell --version 2>&1";
-        version_prefix = "PowerShell ";
-    } else {
-        return "";
-    }
-
-    // 执行命令获取版本信息
-    std::array<char, 256> buffer;
-    std::string result;
-
-    std::unique_ptr<FILE, FileDeleter> pipe(popen(command.c_str(), "r"));
-    if (!pipe) {
-        return "";
-    }
-
-    // 读取命令输出
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-
-    // 清理结果，提取版本号
-    if (!result.empty()) {
-        // 移除首尾空白字符
-        result.erase(result.begin(),
-                     std::find_if(result.begin(), result.end(), [](unsigned char ch) {
-                         return !std::isspace(ch);
-                     }));
-        result.erase(std::find_if(result.rbegin(), result.rend(),
-                                  [](unsigned char ch) {
-                                      return !std::isspace(ch);
-                                  })
-                         .base(),
-                     result.end());
-
-        // 如果结果包含版本前缀，则移除它
-        if (!version_prefix.empty() && result.find(version_prefix) == 0) {
-            result = result.substr(version_prefix.length());
-        }
-
-        // 只保留版本号的第一行
-        size_t newline_pos = result.find('\n');
-        if (newline_pos != std::string::npos) {
-            result = result.substr(0, newline_pos);
-        }
-
-        // 限制长度，避免状态栏过长
-        if (result.length() > 15) {
-            result = result.substr(0, 15) + "...";
-        }
-
-        return result;
-    }
-
-    return "";
 }
 
 } // namespace ui
