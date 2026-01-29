@@ -43,7 +43,8 @@ class FileBrowserView {
     ftxui::Element renderStatusBar(const features::FileBrowser& browser) const;
     ftxui::Element renderFileItem(const features::FileItem* item, size_t index,
                                   size_t selected_index,
-                                  const std::vector<features::FileItem*>& flat_items) const;
+                                  const std::vector<features::FileItem*>& flat_items,
+                                  const features::FileBrowser& browser) const;
     std::string buildTreePrefix(const features::FileItem* item, size_t index,
                                 const std::vector<features::FileItem*>& flat_items) const;
     std::string buildExpandPrefix(const features::FileItem* item, size_t index,
