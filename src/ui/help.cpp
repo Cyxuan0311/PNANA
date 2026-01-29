@@ -189,9 +189,6 @@ Element Help::render(int width, int height) {
 
     // 底部提示
     help_content.push_back(separator());
-    help_content.push_back(
-        hbox({text(" "), text(icons::BULB), text(" Tip: Most shortcuts work in any mode!")}) |
-        color(colors.success));
 
     // 应用滚动偏移
     size_t visible_height = static_cast<size_t>(height - 8); // 减去标题、分隔符、状态栏等
