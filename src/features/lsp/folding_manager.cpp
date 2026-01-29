@@ -14,7 +14,7 @@ FoldingManager::FoldingManager(std::shared_ptr<LspClient> lsp_client) : lsp_clie
 }
 
 void FoldingManager::initializeFoldingRanges(const std::string& uri) {
-    LOG("[LSP DEBUG] FoldingManager::initializeFoldingRanges called for URI: " + uri);
+    // LOG("[LSP DEBUG] FoldingManager::initializeFoldingRanges called for URI: " + uri);
 
     if (!lsp_client_) {
         LOG("[LSP DEBUG] No LSP client available for folding");
@@ -22,9 +22,10 @@ void FoldingManager::initializeFoldingRanges(const std::string& uri) {
     }
 
     try {
-        LOG("[LSP DEBUG] Requesting folding ranges from LSP server");
+        // LOG("[LSP DEBUG] Requesting folding ranges from LSP server");
         folding_ranges_ = lsp_client_->foldingRange(uri);
-        LOG("[LSP DEBUG] Received " + std::to_string(folding_ranges_.size()) + " folding ranges");
+        // LOG("[LSP DEBUG] Received " + std::to_string(folding_ranges_.size()) + " folding
+        // ranges");
 
         // 按起始行排序
         std::sort(folding_ranges_.begin(), folding_ranges_.end(),
@@ -37,7 +38,7 @@ void FoldingManager::initializeFoldingRanges(const std::string& uri) {
         for (const auto& range : folding_ranges_) {
             valid_lines.insert(range.startLine);
         }
-        LOG("[LSP DEBUG] Valid folding lines: " + std::to_string(valid_lines.size()));
+        // LOG("[LSP DEBUG] Valid folding lines: " + std::to_string(valid_lines.size()));
 
         // 移除不在有效范围内的折叠状态
         size_t old_count = folded_lines_.size();
@@ -49,15 +50,15 @@ void FoldingManager::initializeFoldingRanges(const std::string& uri) {
             }
         }
         if (old_count != folded_lines_.size()) {
-            LOG("[LSP DEBUG] Cleaned up " + std::to_string(old_count - folded_lines_.size()) +
-                " invalid folded lines");
+            // LOG("[LSP DEBUG] Cleaned up " + std::to_string(old_count - folded_lines_.size()) +
+            //     " invalid folded lines");
         }
 
         notifyStateChanged();
-        LOG("[LSP DEBUG] Folding ranges initialization completed successfully");
+        // LOG("[LSP DEBUG] Folding ranges initialization completed successfully");
     } catch (const std::exception& e) {
-        LOG("[LSP DEBUG] Exception in initializeFoldingRanges: " + std::string(e.what()));
-        // LSP不支持折叠或出错，清除折叠范围
+        // LOG("[LSP DEBUG] Exception in initializeFoldingRanges: " + std::string(e.what()));
+        //  LSP不支持折叠或出错，清除折叠范围
         folding_ranges_.clear();
         folded_lines_.clear();
     }

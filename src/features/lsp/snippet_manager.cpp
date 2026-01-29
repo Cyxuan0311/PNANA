@@ -1,5 +1,6 @@
 #include "features/lsp/snippet_manager.h"
 #include "core/editor.h" // 需要访问Editor类
+#include "features/lsp/snippets/snippets_registry.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -16,64 +17,51 @@ SnippetManager::SnippetManager() {
 }
 
 void SnippetManager::initializeBuiltinSnippets() {
-    // C/C++ 代码片段
-    std::vector<Snippet> cpp_snippets = {
-        {"for", "for (auto& ${1:item} : ${2:container}) {\n    ${3:// code}\n}",
-         "Range-based for loop"},
-        {"fori", "for (size_t ${1:i} = 0; ${1:i} < ${2:n}; ++${1:i}) {\n    ${3:// code}\n}",
-         "Index-based for loop"},
-        {"if", "if (${1:condition}) {\n    ${2:// code}\n}", "If statement"},
-        {"else", "else {\n    ${1:// code}\n}", "Else statement"},
-        {"while", "while (${1:condition}) {\n    ${2:// code}\n}", "While loop"},
-        {"class",
-         "class ${1:ClassName} {\npublic:\n    ${1}(${2});\n    ~${1}();\n\nprivate:\n    ${3}\n};",
-         "Class definition"},
-        {"struct", "struct ${1:StructName} {\n    ${2}\n};", "Struct definition"},
-        {"main", "int main(int argc, char* argv[]) {\n    ${1:// code}\n    return 0;\n}",
-         "Main function"},
-        {"include", "#include \"${1:header.h}\"", "Include header"},
-        {"guard", "#ifndef ${1:HEADER_H}\n#define ${1:HEADER_H}\n\n${2}\n\n#endif // ${1:HEADER_H}",
-         "Header guard"}};
+    // 从各个语言的代码片段文件中注册代码片段
+    using namespace snippets;
 
-    // Python 代码片段
-    std::vector<Snippet> python_snippets = {
-        {"def", "def ${1:function_name}(${2:parameters}):\n    ${3:pass}", "Function definition"},
-        {"class",
-         "class ${1:ClassName}:\n    def __init__(self${2:, parameters}):\n        ${3:pass}",
-         "Class definition"},
-        {"if", "if ${1:condition}:\n    ${2:pass}", "If statement"},
-        {"elif", "elif ${1:condition}:\n    ${2:pass}", "Elif statement"},
-        {"else", "else:\n    ${1:pass}", "Else statement"},
-        {"for", "for ${1:item} in ${2:iterable}:\n    ${3:pass}", "For loop"},
-        {"while", "while ${1:condition}:\n    ${2:pass}", "While loop"},
-        {"try", "try:\n    ${1:pass}\nexcept ${2:Exception} as ${3:e}:\n    ${4:pass}",
-         "Try-except block"},
-        {"import", "import ${1:module}", "Import statement"},
-        {"main", "if __name__ == \"__main__\":\n    ${1:main()}", "Main guard"}};
-
-    // JavaScript/TypeScript 代码片段
-    std::vector<Snippet> js_snippets = {
-        {"function", "function ${1:functionName}(${2:parameters}) {\n    ${3:// code}\n}",
-         "Function declaration"},
-        {"arrow", "const ${1:functionName} = (${2:parameters}) => {\n    ${3:// code}\n};",
-         "Arrow function"},
-        {"if", "if (${1:condition}) {\n    ${2:// code}\n}", "If statement"},
-        {"else", "else {\n    ${1:// code}\n}", "Else statement"},
-        {"for", "for (let ${1:i} = 0; ${1:i} < ${2:array}.length; ${1:i}++) {\n    ${3:// code}\n}",
-         "For loop"},
-        {"foreach", "${1:array}.forEach((${2:item}) => {\n    ${3:// code}\n});", "ForEach loop"},
-        {"console", "console.log(${1:message});", "Console log"},
-        {"class",
-         "class ${1:ClassName} {\n    constructor(${2:parameters}) {\n        ${3:// code}\n    "
-         "}\n}",
-         "Class definition"}};
-
+    // 注册 C/C++ 代码片段
+    std::vector<Snippet> cpp_snippets = getCppSnippets();
     builtin_snippets_["cpp"] = cpp_snippets;
     builtin_snippets_["c++"] = cpp_snippets;
     builtin_snippets_["c"] = cpp_snippets;
+
+    // 注册 Python 代码片段
+    std::vector<Snippet> python_snippets = getPythonSnippets();
     builtin_snippets_["python"] = python_snippets;
+
+    // 注册 JavaScript 代码片段
+    std::vector<Snippet> js_snippets = getJavaScriptSnippets();
     builtin_snippets_["javascript"] = js_snippets;
-    builtin_snippets_["typescript"] = js_snippets;
+    builtin_snippets_["js"] = js_snippets;
+
+    // 注册 TypeScript 代码片段
+    std::vector<Snippet> ts_snippets = getTypeScriptSnippets();
+    builtin_snippets_["typescript"] = ts_snippets;
+    builtin_snippets_["ts"] = ts_snippets;
+
+    // 注册 Rust 代码片段
+    std::vector<Snippet> rust_snippets = getRustSnippets();
+    builtin_snippets_["rust"] = rust_snippets;
+    builtin_snippets_["rs"] = rust_snippets;
+
+    // 注册 Go 代码片段
+    std::vector<Snippet> go_snippets = getGoSnippets();
+    builtin_snippets_["go"] = go_snippets;
+    builtin_snippets_["golang"] = go_snippets;
+
+    // 注册 Java 代码片段
+    std::vector<Snippet> java_snippets = getJavaSnippets();
+    builtin_snippets_["java"] = java_snippets;
+
+    // 注册 Ruby 代码片段
+    std::vector<Snippet> ruby_snippets = getRubySnippets();
+    builtin_snippets_["ruby"] = ruby_snippets;
+    builtin_snippets_["rb"] = ruby_snippets;
+
+    // 注册 PHP 代码片段
+    std::vector<Snippet> php_snippets = getPhpSnippets();
+    builtin_snippets_["php"] = php_snippets;
 
     // 为每个代码片段解析占位符
     for (auto& [lang, snippets] : builtin_snippets_) {
@@ -119,18 +107,178 @@ void SnippetManager::expandSnippet(const Snippet& snippet, core::Editor& editor)
         return;
     }
 
+    LOG("[SNIPPET] expandSnippet: prefix='" + snippet.prefix +
+        "' body.size=" + std::to_string(snippet.body.size()));
+
     pnana::core::Document* doc = editor.getCurrentDocument();
     size_t cursor_row = editor.cursor_row_;
     size_t cursor_col = editor.cursor_col_;
 
-    // 插入代码片段主体
-    doc->insertText(cursor_row, cursor_col, snippet.body);
+    struct Occ {
+        int index = 0;
+        size_t out_offset = 0;
+        size_t len = 0;
+    };
 
-    // 如果有占位符，设置第一个占位符为活动状态
-    if (!snippet.placeholders.empty()) {
-        // 这里可以实现占位符导航逻辑
-        // 暂时只插入代码片段主体
-        // TODO: 实现占位符跳转和编辑
+    // 0) 预处理：兼容 LSP snippet/newText 里常见的转义序列（\\n/\\t 等）
+    // 说明：内置 snippet 在 C++ 字符串里通常已经是实际 '\n'，这里也能安全处理。
+    auto unescapeSnippetText = [](const std::string& in) -> std::string {
+        std::string out;
+        out.reserve(in.size());
+        for (size_t i = 0; i < in.size(); ++i) {
+            char ch = in[i];
+            if (ch == '\\' && i + 1 < in.size()) {
+                char n = in[i + 1];
+                switch (n) {
+                    case 'n':
+                        out.push_back('\n');
+                        i++;
+                        continue;
+                    case 't':
+                        out.push_back('\t');
+                        i++;
+                        continue;
+                    case 'r':
+                        out.push_back('\r');
+                        i++;
+                        continue;
+                    case '\\':
+                        out.push_back('\\');
+                        i++;
+                        continue;
+                    default:
+                        // unknown escape, keep backslash as-is
+                        break;
+                }
+            }
+            out.push_back(ch);
+        }
+        return out;
+    };
+
+    const std::string pre_body = unescapeSnippetText(snippet.body);
+    if (pre_body != snippet.body) {
+        LOG("[SNIPPET] unescape applied (body had escape sequences)");
+    }
+
+    // 1) 将 ${n:default} / ${n} 转换为 default 文本，并记录占位符在展开后文本中的位置
+    std::string expanded;
+    expanded.reserve(pre_body.size());
+    std::vector<Occ> occs;
+
+    const std::string& body = pre_body;
+    size_t i = 0;
+    while (i < body.size()) {
+        if (i + 1 < body.size() && body[i] == '$' && body[i + 1] == '{') {
+            size_t end = body.find('}', i + 2);
+            if (end == std::string::npos) {
+                // malformed placeholder, copy as-is
+                expanded.push_back(body[i]);
+                i++;
+                continue;
+            }
+            std::string content = body.substr(i + 2, end - (i + 2));
+            size_t colon = content.find(':');
+            int idx = 0;
+            std::string def;
+            if (colon != std::string::npos) {
+                idx = std::atoi(content.substr(0, colon).c_str());
+                def = content.substr(colon + 1);
+            } else {
+                idx = std::atoi(content.c_str());
+                def = "";
+            }
+
+            Occ occ;
+            occ.index = idx;
+            occ.out_offset = expanded.size();
+            occ.len = def.size();
+            occs.push_back(occ);
+
+            expanded += def;
+            i = end + 1;
+        } else {
+            expanded.push_back(body[i]);
+            i++;
+        }
+    }
+
+    // 1.5) 基础“格式化”：按当前行缩进对齐 snippet 的多行内容
+    // 目标：插入 snippet 时不要把多行内容贴成“无缩进的裸文本”
+    if (doc && cursor_row < doc->lineCount()) {
+        const std::string& line = doc->getLine(cursor_row);
+        // 取当前行的前导空白作为缩进（支持 tab/space 混用）
+        std::string indent;
+        for (char ch : line) {
+            if (ch == ' ' || ch == '\t') {
+                indent.push_back(ch);
+            } else {
+                break;
+            }
+        }
+        if (!indent.empty()) {
+            std::string indented;
+            indented.reserve(expanded.size() + indent.size() * 4);
+            for (size_t k = 0; k < expanded.size(); ++k) {
+                char ch = expanded[k];
+                indented.push_back(ch);
+                if (ch == '\n' && k + 1 < expanded.size()) {
+                    indented += indent;
+                }
+            }
+            expanded.swap(indented);
+            LOG("[SNIPPET] applied indent prefix len=" + std::to_string(indent.size()));
+        }
+    }
+
+    // 2) 插入展开后的文本
+    doc->insertText(cursor_row, cursor_col, expanded);
+    LOG("[SNIPPET] inserted text len=" + std::to_string(expanded.size()));
+
+    // 3) 将 out_offset 转换为 (row,col)，按 index 排序并启动 snippet session
+    if (!occs.empty()) {
+        auto offsetToPos = [&](size_t off) -> std::pair<size_t, size_t> {
+            size_t r = cursor_row;
+            size_t c = cursor_col;
+            for (size_t k = 0; k < off && k < expanded.size(); ++k) {
+                if (expanded[k] == '\n') {
+                    r++;
+                    c = 0;
+                } else {
+                    c++;
+                }
+            }
+            return {r, c};
+        };
+
+        std::vector<core::Editor::SnippetPlaceholderRange> ranges;
+        ranges.reserve(occs.size());
+        for (const auto& occ : occs) {
+            auto [r, c] = offsetToPos(occ.out_offset);
+            core::Editor::SnippetPlaceholderRange range;
+            range.row = r;
+            range.col = c;
+            range.len = occ.len;
+            range.index = occ.index;
+            // ignore index 0 placeholders (commonly cursor-only)
+            if (range.index != 0) {
+                ranges.push_back(range);
+            }
+        }
+
+        std::sort(ranges.begin(), ranges.end(),
+                  [](const core::Editor::SnippetPlaceholderRange& a,
+                     const core::Editor::SnippetPlaceholderRange& b) {
+                      if (a.index != b.index)
+                          return a.index < b.index;
+                      if (a.row != b.row)
+                          return a.row < b.row;
+                      return a.col < b.col;
+                  });
+
+        if (!ranges.empty()) {
+            editor.startSnippetSession(std::move(ranges));
+        }
     }
 
     // 更新UI
