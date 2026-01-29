@@ -264,6 +264,7 @@ set(SOURCES
     src/ui/diagnostics_popup.cpp
     src/ui/format_dialog.cpp
     src/ui/git_panel.cpp
+    src/ui/move_file_dialog.cpp
     # 工具模块
     src/utils/logger.cpp
     src/utils/text_analyzer.cpp
@@ -271,6 +272,7 @@ set(SOURCES
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
     src/utils/file_type_icon_mapper.cpp
+    src/utils/version_detector.cpp
     src/features/recent_files_manager.cpp
     src/features/tui_config_manager.cpp
     src/ui/recent_files_popup.cpp
@@ -340,6 +342,15 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_completion_cache.cpp
         src/features/lsp/lsp_formatter.cpp
         src/features/lsp/snippet_manager.cpp
+        src/features/lsp/snippets/cpp_snippets.cpp
+        src/features/lsp/snippets/python_snippets.cpp
+        src/features/lsp/snippets/javascript_snippets.cpp
+        src/features/lsp/snippets/typescript_snippets.cpp
+        src/features/lsp/snippets/rust_snippets.cpp
+        src/features/lsp/snippets/go_snippets.cpp
+        src/features/lsp/snippets/java_snippets.cpp
+        src/features/lsp/snippets/ruby_snippets.cpp
+        src/features/lsp/snippets/php_snippets.cpp
     )
 endif()
 
@@ -414,6 +425,7 @@ set(HEADERS
     include/pnana/ui/completion_popup.h
     include/pnana/ui/command_palette_ui.h
     include/pnana/ui/format_dialog.h
+    include/pnana/ui/move_file_dialog.h
     # 功能模块头文件
     include/pnana/features/search.h
     include/pnana/features/file_browser.h
@@ -441,6 +453,7 @@ set(HEADERS
     include/pnana/utils/text_utils.h
     include/pnana/utils/clipboard.h
     include/pnana/utils/file_type_detector.h
+    include/pnana/utils/version_detector.h
     include/pnana/utils/assembly_analyzer.h
 )
 
