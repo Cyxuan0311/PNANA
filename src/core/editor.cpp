@@ -42,7 +42,7 @@ Editor::Editor()
       save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
       binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
       recent_files_popup_(theme_), tui_config_popup_(theme_), ai_assistant_panel_(theme_),
-      ai_config_dialog_(theme_),
+      ai_config_dialog_(theme_), todo_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -810,6 +810,24 @@ void Editor::toggleAIAssistant() {
         ai_assistant_panel_.show();
         setStatusMessage("AI Assistant opened - Type your message and press Enter");
     }
+}
+
+void Editor::toggleTodoPanel() {
+    if (todo_panel_.isVisible()) {
+        todo_panel_.hide();
+        setStatusMessage("Todo Panel closed");
+    } else {
+        todo_panel_.show();
+        region_manager_.setRegion(EditorRegion::GIT_PANEL); // 使用类似 git panel 的区域
+        setStatusMessage("Todo Panel opened - Space: Create | Delete: Remove | F1: Edit Priority");
+    }
+}
+
+bool Editor::handleTodoPanelInput(ftxui::Event event) {
+    if (todo_panel_.isVisible()) {
+        return todo_panel_.handleInput(event);
+    }
+    return false;
 }
 
 void Editor::initializeAIAssistant() {
@@ -1619,6 +1637,12 @@ void Editor::initializeCommandPalette() {
                 {"git", "vgit", "version", "control", "repository"}, [this]() {
                     toggleGitPanel();
                 }));
+
+    // 注册 Todo 命令
+    command_palette_.registerCommand(Command("todo.panel", "Todo Panel", "Open todo list panel",
+                                             {"todo", "task", "reminder", "schedule"}, [this]() {
+                                                 toggleTodoPanel();
+                                             }));
 }
 
 // 辅助方法

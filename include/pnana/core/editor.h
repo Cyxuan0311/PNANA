@@ -35,6 +35,7 @@
 #include "ui/tabbar.h"
 #include "ui/theme.h"
 #include "ui/theme_menu.h"
+#include "ui/todo_panel.h"
 #include "ui/tui_config_popup.h"
 #include "ui/welcome_screen.h"
 #ifdef BUILD_LUA_SUPPORT
@@ -386,6 +387,7 @@ class Editor {
     pnana::ui::TUIConfigPopup tui_config_popup_;
     pnana::ui::AIAssistantPanel ai_assistant_panel_;
     pnana::ui::AIConfigDialog ai_config_dialog_;
+    pnana::ui::TodoPanel todo_panel_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
@@ -730,6 +732,10 @@ class Editor {
     void insertCodeAtCursor(const std::string& code);
     void replaceSelectedCode(const std::string& code);
     std::string getSelectedText() const;
+
+    // Todo功能
+    void toggleTodoPanel();
+    bool handleTodoPanelInput(ftxui::Event event);
 
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
