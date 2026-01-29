@@ -119,8 +119,8 @@ void Editor::handleInput(Event event) {
 
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
-    bool in_dialog = show_save_as_ || show_create_folder_ || show_theme_menu_ || show_help_ ||
-                     split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
+    bool in_dialog = show_save_as_ || show_create_folder_ || show_move_file_ || show_theme_menu_ ||
+                     show_help_ || split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
                      cursor_config_dialog_.isVisible()
 #ifdef BUILD_LUA_SUPPORT
                      || plugin_manager_dialog_.isVisible()
@@ -246,6 +246,56 @@ void Editor::handleInput(Event event) {
                     std::string input = create_folder_dialog_.getInput();
                     input += c;
                     create_folder_dialog_.setInput(input);
+                }
+            }
+        }
+        return;
+    }
+
+    // 如果移动文件对话框打开，优先处理
+    if (show_move_file_) {
+        if (event == Event::Escape) {
+            show_move_file_ = false;
+            move_file_dialog_.setInput("");
+            setStatusMessage("File move cancelled");
+        } else if (event == Event::Return) {
+            std::string input = move_file_dialog_.getInput();
+            if (!input.empty()) {
+                // 移动文件/文件夹
+                try {
+                    bool success = file_browser_.moveSelected(input);
+                    if (success) {
+                        show_move_file_ = false;
+                        move_file_dialog_.setInput("");
+                        file_browser_.refresh();
+                        setStatusMessage(std::string(pnana::ui::icons::FILE_MOVE) +
+                                         " Moved: " + file_browser_.getSelectedName());
+                    } else {
+                        setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                         " Failed to move (target may exist or path invalid)");
+                    }
+                } catch (const std::exception& e) {
+                    setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                     " Error: " + std::string(e.what()));
+                }
+            } else {
+                setStatusMessage("Please enter a target path");
+            }
+        } else if (event == Event::Backspace) {
+            std::string input = move_file_dialog_.getInput();
+            if (!input.empty()) {
+                input.pop_back();
+                move_file_dialog_.setInput(input);
+            }
+        } else if (event.is_character()) {
+            std::string ch = event.character();
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // 接受可打印ASCII字符，包括路径分隔符
+                if (c >= 32 && c < 127) {
+                    std::string input = move_file_dialog_.getInput();
+                    input += c;
+                    move_file_dialog_.setInput(input);
                 }
             }
         }
@@ -515,6 +565,13 @@ void Editor::handleNormalMode(Event event) {
             event == Event::Tab || event == Event::Escape) {
             handleCompletionInput(event);
             return; // 补全弹窗打开时，这些键只用于补全导航，不继续处理
+        }
+    }
+
+    // Snippet placeholder navigation (Tab) after snippet expansion
+    if (snippet_session_active_ && event == Event::Tab) {
+        if (handleSnippetTabJump()) {
+            return;
         }
     }
 
@@ -1127,6 +1184,10 @@ void Editor::handleNormalMode(Event event) {
             // 只接受可打印ASCII字符（32-126），排除控制字符
             // 注意：补全弹窗的导航键（上下键、Return、Tab、Escape）已在函数开头优先处理
             if (c >= 32 && c < 127) {
+                // When in snippet session, typing should overwrite currently selected placeholder.
+                if (snippet_session_active_ && selection_active_) {
+                    backspace(); // deletes selection and clears selection mode
+                }
                 insertChar(c);
             }
         }
@@ -1471,7 +1532,31 @@ void Editor::handleFileBrowserInput(Event event) {
         region_manager_.setRegion(EditorRegion::CODE_AREA);
         setStatusMessage("File browser closed | Region: " + region_manager_.getRegionName());
     } else if (event == Event::Escape) {
-        // Escape also closes
+        // ESC: 优先清除选中和剪贴板，如果没有则关闭文件浏览器
+        size_t selected_count = file_browser_.getSelectedCount();
+        bool had_clipboard = file_browser_.hasClipboardFiles();
+        // bool has_current_selection = file_browser_.hasSelection(); // 当前光标位置是否有有效选择
+
+        // 如果有选中项（多选）或剪贴板数据，清除它们
+        // 注意：即使 selected_count 为 0，如果有剪贴板数据也应该清除
+        if (selected_count > 0 || had_clipboard) {
+            // 有选中或剪贴板数据，清除它们
+            file_browser_.clearSelection();
+            file_browser_.clearClipboard();
+
+            std::string msg = "Cleared";
+            if (selected_count > 0) {
+                msg += " " + std::to_string(selected_count) + " selection(s)";
+            }
+            if (had_clipboard) {
+                if (selected_count > 0)
+                    msg += " and";
+                msg += " clipboard";
+            }
+            setStatusMessage(msg);
+            return; // 不清除文件浏览器
+        }
+
         file_browser_.setVisible(false);
         region_manager_.setRegion(EditorRegion::CODE_AREA);
         setStatusMessage("File browser closed | Region: " + region_manager_.getRegionName());

@@ -365,6 +365,23 @@ void Editor::startSaveAs() {
     }
 }
 
+void Editor::startMoveFile() {
+    // 显示移动文件对话框
+    if (!file_browser_.hasSelection()) {
+        setStatusMessage("No file or folder selected");
+        return;
+    }
+
+    std::string selected_path = file_browser_.getSelectedPath();
+    std::string current_dir = file_browser_.getCurrentDirectory();
+
+    show_move_file_ = true;
+    move_file_dialog_.setSourcePath(selected_path);
+    move_file_dialog_.setTargetDirectory(current_dir);
+    move_file_dialog_.setInput(""); // 初始为空，用户输入目标路径
+    setStatusMessage("Enter target path to move: " + file_browser_.getSelectedName());
+}
+
 void Editor::quit() {
     Document* doc = getCurrentDocument();
     if (doc && doc->isModified()) {

@@ -214,6 +214,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderSaveAsCallback([this]() {
         return save_as_dialog_.render();
     });
+    overlay_manager_->setRenderMoveFileCallback([this]() {
+        return move_file_dialog_.render();
+    });
     overlay_manager_->setRenderCursorConfigCallback([this]() {
         return cursor_config_dialog_.render();
     });
@@ -305,6 +308,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsSaveAsVisibleCallback([this]() {
         return show_save_as_;
+    });
+    overlay_manager_->setIsMoveFileVisibleCallback([this]() {
+        return show_move_file_;
     });
     overlay_manager_->setIsCursorConfigVisibleCallback([this]() {
         return cursor_config_dialog_.isVisible();
@@ -697,7 +703,11 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
     cursor_config.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
     cursor_config.color = getCursorColor();
     cursor_config.smooth = getCursorSmooth();
+    // 闪烁开关：由光标配置面板控制
+    cursor_config.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
     cursor_renderer.setConfig(cursor_config);
+    // 闪烁频率：沿用现有的光标频率设置
+    cursor_renderer.setBlinkRate(getCursorBlinkRate());
 
     // 更新光标动画状态（轻量级，不会影响性能）
     cursor_renderer.updateCursorState();
@@ -1347,16 +1357,32 @@ Element Editor::renderStatusbar() {
             break;
     }
 
-    return statusbar_.render(
-        getCurrentDocument()->getFileName(), getCurrentDocument()->isModified(),
-        getCurrentDocument()->isReadOnly(), cursor_row_, cursor_col_,
-        getCurrentDocument()->lineCount(), getCurrentDocument()->getEncoding(), line_ending,
-        getFileType(), display_message, region_manager_.getRegionName(), syntax_highlighting_,
-        selection_active_,
-        selection_active_
-            ? (cursor_row_ != selection_start_row_ || cursor_col_ != selection_start_col_ ? 1 : 0)
-            : 0,
-        git_branch, git_uncommitted_count, current_ssh_config_.host, current_ssh_config_.user);
+    // 在文件浏览器区域时，使用文件浏览器的选中信息
+    bool has_selection = selection_active_;
+    size_t selection_length = 0;
+
+    if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER &&
+        file_browser_.isVisible()) {
+        // 文件浏览器区域：显示文件选中数量
+        size_t file_selection_count = file_browser_.getSelectedCount();
+        has_selection = file_selection_count > 0;
+        selection_length = file_selection_count;
+    } else {
+        // 代码编辑区域：显示文本选择长度
+        selection_length =
+            selection_active_
+                ? (cursor_row_ != selection_start_row_ || cursor_col_ != selection_start_col_ ? 1
+                                                                                              : 0)
+                : 0;
+    }
+
+    return statusbar_.render(getCurrentDocument()->getFileName(),
+                             getCurrentDocument()->isModified(), getCurrentDocument()->isReadOnly(),
+                             cursor_row_, cursor_col_, getCurrentDocument()->lineCount(),
+                             getCurrentDocument()->getEncoding(), line_ending, getFileType(),
+                             display_message, region_manager_.getRegionName(), syntax_highlighting_,
+                             has_selection, selection_length, git_branch, git_uncommitted_count,
+                             current_ssh_config_.host, current_ssh_config_.user);
 }
 
 Element Editor::renderHelpbar() {

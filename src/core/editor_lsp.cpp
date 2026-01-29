@@ -92,17 +92,17 @@ void Editor::initializeLsp() {
     // 设置诊断回调（应用到所有 LSP 客户端）
     lsp_manager_->setDiagnosticsCallback(
         [this](const std::string& uri, const std::vector<features::Diagnostic>& diagnostics) {
-            LOG("[LSP_DIAGNOSTICS_CALLBACK] ===== RECEIVED DIAGNOSTICS =====");
-            LOG("[LSP_DIAGNOSTICS_CALLBACK] URI: " + uri +
-                ", count=" + std::to_string(diagnostics.size()));
+            // LOG("[LSP_DIAGNOSTICS_CALLBACK] ===== RECEIVED DIAGNOSTICS =====");
+            // LOG("[LSP_DIAGNOSTICS_CALLBACK] URI: " + uri +
+            //     ", count=" + std::to_string(diagnostics.size()));
 
             // 打印前几个诊断的详细信息（用于调试）
             for (size_t i = 0; i < std::min(diagnostics.size(), size_t(3)); ++i) {
-                const auto& diag = diagnostics[i];
-                LOG("[LSP_DIAGNOSTICS_CALLBACK] Diagnostic " + std::to_string(i) +
-                    ": line=" + std::to_string(diag.range.start.line) +
-                    ", severity=" + std::to_string(diag.severity) + ", message='" +
-                    diag.message.substr(0, 50) + "'");
+                // Diagnostic variable intentionally unused when logging is disabled
+                // LOG("[LSP_DIAGNOSTICS_CALLBACK] Diagnostic " + std::to_string(i) +
+                //    ": line=" + std::to_string(diagnostics[i].range.start.line) +
+                //    ", severity=" + std::to_string(diagnostics[i].severity) + ", message='" +
+                //    diagnostics[i].message.substr(0, 50) + "'");
             }
 
             // 更新当前文件的诊断信息（内存更新 + 缓存）
@@ -113,27 +113,27 @@ void Editor::initializeLsp() {
 
                 // 更新缓存
                 diagnostics_cache_[uri] = diagnostics;
-                LOG("[LSP_DIAGNOSTICS_CALLBACK] Updated cache for " + uri + " with " +
-                    std::to_string(diagnostics.size()) + " diagnostics");
+                // LOG("[LSP_DIAGNOSTICS_CALLBACK] Updated cache for " + uri + " with " +
+                //     std::to_string(diagnostics.size()) + " diagnostics");
 
                 auto current_doc = getCurrentDocument();
                 std::string current_uri =
                     current_doc ? filepathToUri(current_doc->getFilePath()) : "";
-                LOG("[LSP_DIAGNOSTICS_CALLBACK] Current document URI: " + current_uri);
+                // LOG("[LSP_DIAGNOSTICS_CALLBACK] Current document URI: " + current_uri);
 
                 if (current_doc && uri == current_uri) {
                     current_file_diagnostics_ = diagnostics;
                     is_current_file = true;
-                    LOG("[LSP_DIAGNOSTICS_CALLBACK] Updated current file diagnostics: " +
-                        std::to_string(current_file_diagnostics_.size()));
+                    // LOG("[LSP_DIAGNOSTICS_CALLBACK] Updated current file diagnostics: " +
+                    //     std::to_string(current_file_diagnostics_.size()));
 
                     // 对于当前文件，立即触发UI重新渲染以显示诊断信息
                     force_ui_update_ = true;
                     last_render_source_ = "lsp_diagnostics_callback";
-                    LOG("[LSP_DIAGNOSTICS_CALLBACK] Set force_ui_update for current file "
-                        "diagnostics display");
+                    // LOG("[LSP_DIAGNOSTICS_CALLBACK] Set force_ui_update for current file "
+                    //     "diagnostics display");
                 } else {
-                    LOG("[LSP_DIAGNOSTICS_CALLBACK] Not current file, only updated cache");
+                    // LOG("[LSP_DIAGNOSTICS_CALLBACK] Not current file, only updated cache");
                 }
             }
 
@@ -216,9 +216,9 @@ void Editor::cleanupLocalCacheFiles() {
         // 强制删除本地 .cache 文件夹及其内容
         fs::remove_all(local_cache);
 
-        LOG("Migrated LSP cache files to: " + config_cache_dir);
+        // LOG("Migrated LSP cache files to: " + config_cache_dir);
     } catch (const std::exception& e) {
-        LOG_WARNING("Failed to migrate cache files: " + std::string(e.what()));
+        // LOG_WARNING("Failed to migrate cache files: " + std::string(e.what()));
     }
 }
 
@@ -235,13 +235,13 @@ std::string Editor::detectLanguageId(const std::string& filepath) {
     std::string ext = fs::path(filepath).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
-    LOG("[LSP DEBUG] Detecting language for file: " + filepath + ", extension: '" + ext + "'");
+    // LOG("[LSP DEBUG] Detecting language for file: " + filepath + ", extension: '" + ext + "'");
 
     if (ext == ".cpp" || ext == ".cxx" || ext == ".cc" || ext == ".hpp" || ext == ".hxx" ||
         ext == ".h" || ext == ".c") {
         return "cpp";
     } else if (ext == ".py") {
-        LOG("[LSP DEBUG] Detected Python file, returning language_id: python");
+        // LOG("[LSP DEBUG] Detected Python file, returning language_id: python");
         return "python";
     } else if (ext == ".go") {
         return "go";
@@ -276,8 +276,8 @@ std::string Editor::detectLanguageId(const std::string& filepath) {
 
 std::string Editor::filepathToUri(const std::string& filepath) {
 #ifdef LSP_DEBUG_LOGGING
-    LOG("filepathToUri() called with: " + filepath);
-    LOG("Filepath length: " + std::to_string(filepath.length()));
+    // LOG("filepathToUri() called with: " + filepath);
+    // LOG("Filepath length: " + std::to_string(filepath.length()));
 #endif
 
     // 检查 URI 缓存
@@ -1477,6 +1477,36 @@ void Editor::applyCompletion() {
     // 检查是否是代码片段
     const auto* selected_item = completion_popup_.getSelectedItem();
     if (selected_item && selected_item->isSnippet && snippet_manager_) {
+        LOG("[SNIPPET] applyCompletion(): picked snippet label='" + selected_item->label +
+            "' fmt=" + std::to_string(selected_item->insertTextFormat) +
+            " body.size=" + std::to_string(selected_item->snippet_body.size()));
+        pnana::core::Document* doc = getCurrentDocument();
+        if (!doc) {
+            completion_popup_.hide();
+            return;
+        }
+
+        // 像普通补全一样：先替换/删除触发代码片段的输入（通常是当前单词前缀）
+        const std::string& line = doc->getLine(cursor_row_);
+        if (cursor_col_ > line.length()) {
+            cursor_col_ = line.length();
+        }
+        size_t word_start = cursor_col_;
+        while (word_start > 0) {
+            char ch = line[word_start - 1];
+            if (!std::isalnum(ch) && ch != '_') {
+                break;
+            }
+            word_start--;
+        }
+        if (word_start < cursor_col_) {
+            // 删除 [word_start, cursor_col_) 这段触发文本，然后把光标移到 word_start
+            doc->deleteRange(cursor_row_, word_start, cursor_row_, cursor_col_);
+            cursor_col_ = word_start;
+            LOG("[SNIPPET] deleted trigger text, range=[" + std::to_string(word_start) + "," +
+                std::to_string(cursor_col_) + ")");
+        }
+
         // 展开代码片段
         features::Snippet snippet;
         snippet.prefix = selected_item->label;
@@ -1486,6 +1516,18 @@ void Editor::applyCompletion() {
 
         snippet_manager_->expandSnippet(snippet, *this);
         completion_popup_.hide();
+
+        // 同步 LSP 文档状态
+        updateLspDocument();
+
+        // 立刻刷新“格式/高亮”效果：
+        // SyntaxHighlighter 有多行状态，只在 openFile/setFileType 时重置；
+        // snippet 一次性插入多行会让状态滞后，导致需要重开文件才恢复。
+        syntax_highlighter_.resetMultiLineState();
+        needs_render_ = true;
+        last_render_source_ = "snippet_insert";
+        // 触发一次 UI render（避免等下一次输入事件）
+        screen_.PostEvent(ftxui::Event::Custom);
         return;
     }
 
@@ -1525,6 +1567,70 @@ void Editor::applyCompletion() {
     cursor_col_ = word_start + text.length();
 
     updateLspDocument();
+}
+
+void Editor::startSnippetSession(std::vector<SnippetPlaceholderRange> ranges) {
+    snippet_placeholder_ranges_ = std::move(ranges);
+    snippet_placeholder_index_ = 0;
+    snippet_session_active_ = !snippet_placeholder_ranges_.empty();
+    if (snippet_session_active_) {
+        handleSnippetTabJump(); // jump to first placeholder
+    }
+}
+
+void Editor::endSnippetSession() {
+    snippet_session_active_ = false;
+    snippet_placeholder_ranges_.clear();
+    snippet_placeholder_index_ = 0;
+    // keep user's selection state clean
+    if (selection_active_) {
+        endSelection();
+    }
+}
+
+bool Editor::handleSnippetTabJump() {
+    if (!snippet_session_active_ || snippet_placeholder_ranges_.empty()) {
+        return false;
+    }
+
+    // If cursor moved outside current placeholder and user edits freely, stop session.
+    if (snippet_placeholder_index_ >= snippet_placeholder_ranges_.size()) {
+        endSnippetSession();
+        return false;
+    }
+
+    const auto& r = snippet_placeholder_ranges_[snippet_placeholder_index_];
+    snippet_placeholder_index_++;
+
+    // If placeholder range is not valid anymore (user edited with newlines etc.), stop.
+    Document* doc = getCurrentDocument();
+    if (!doc || r.row >= doc->lineCount()) {
+        endSnippetSession();
+        return false;
+    }
+    const std::string& line = doc->getLine(r.row);
+    if (r.col > line.size()) {
+        endSnippetSession();
+        return false;
+    }
+
+    // Select placeholder text if len>0, otherwise just move cursor.
+    cursor_row_ = r.row;
+    cursor_col_ = r.col;
+    if (r.len > 0 && r.col + r.len <= line.size()) {
+        selection_active_ = true;
+        selection_start_row_ = r.row;
+        selection_start_col_ = r.col;
+        cursor_col_ = r.col + r.len;
+    } else {
+        if (selection_active_) {
+            endSelection();
+        }
+    }
+
+    adjustCursor();
+    adjustViewOffset();
+    return true;
 }
 
 ftxui::Element Editor::renderCompletionPopup() {
