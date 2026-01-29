@@ -28,7 +28,12 @@ void CursorRenderer::setSmoothIntensity(float intensity) {
 }
 
 void CursorRenderer::setBlinkRate(int rate_ms) {
-    blink_rate_ms_ = std::max(100, rate_ms); // 最小100ms
+    // rate_ms <= 0 表示不启用闪烁
+    if (rate_ms <= 0) {
+        blink_rate_ms_ = 0;
+    } else {
+        blink_rate_ms_ = std::max(50, rate_ms); // 限制一个较小的下限，避免过快闪烁
+    }
 }
 
 void CursorRenderer::setConfig(const CursorConfig& config) {
@@ -106,6 +111,24 @@ float CursorRenderer::getCurrentAnimationPhase() const {
 Element CursorRenderer::renderCursorElement(const std::string& cursor_char, size_t cursor_pos,
                                             size_t line_length, ftxui::Color foreground_color,
                                             ftxui::Color background_color) const {
+    // 先处理闪烁逻辑：如果开启闪烁且设置了有效的间隔，根据时间决定是否显示光标
+    bool show_cursor = true;
+    if (config_.blink_enabled && blink_rate_ms_ > 0) {
+        auto now = std::chrono::steady_clock::now();
+        auto ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        // 简单的开/关闪烁：每 blink_rate_ms_ 翻转一次
+        show_cursor = ((ms / blink_rate_ms_) % 2) == 0;
+    }
+
+    if (!show_cursor) {
+        // 闪烁“关”相位：渲染为普通字符/空白，不附加光标样式
+        if (cursor_pos < line_length) {
+            return text(cursor_char) | color(foreground_color);
+        }
+        return text(" ") | color(background_color);
+    }
+
     // 获取流动颜色（如果启用流动效果）
     ftxui::Color effective_color = config_.smooth ? calculateSmoothColor() : config_.color;
 
@@ -125,10 +148,11 @@ Element CursorRenderer::renderCursorElement(const std::string& cursor_char, size
             break;
         }
         case CursorStyle::UNDERLINE: {
-            // 下划线光标：使用流动颜色
+            // 下划线光标：
+            // - 覆盖文字时：保留字符本身，只添加下划线效果，避免看起来像块状背景
+            // - 行尾：使用下划线字符占位
             if (cursor_pos < line_length) {
-                cursor_elem =
-                    text(cursor_char) | bgcolor(effective_color) | color(background_color);
+                cursor_elem = text(cursor_char) | color(effective_color) | underlined;
             } else {
                 // 行尾：显示下划线字符，使用流动颜色
                 cursor_elem = text("▁") | color(effective_color) | bold;
@@ -136,8 +160,9 @@ Element CursorRenderer::renderCursorElement(const std::string& cursor_char, size
             break;
         }
         case CursorStyle::BAR: {
-            // 竖线光标：使用流动颜色
+            // 竖线光标：使用流动颜色，尽量减少对文字的“块状”遮挡
             if (cursor_pos < line_length) {
+                // 在字符左侧画一条细竖线，字符本身保持原有前景色
                 cursor_elem = hbox({text("│") | color(effective_color) | bold,
                                     text(cursor_char) | color(foreground_color)});
             } else {
@@ -146,10 +171,9 @@ Element CursorRenderer::renderCursorElement(const std::string& cursor_char, size
             break;
         }
         case CursorStyle::HOLLOW: {
-            // 空心块光标：使用流动颜色作为边框
+            // 空心块光标：使用边框效果包裹当前字符，避免实心块遮挡内容
             if (cursor_pos < line_length) {
-                cursor_elem =
-                    text(cursor_char) | color(effective_color) | bold | bgcolor(background_color);
+                cursor_elem = text(cursor_char) | frame | color(effective_color) | bold;
             } else {
                 // 行尾：显示带流动颜色的方块字符
                 cursor_elem = text("▯") | color(effective_color) | bold;

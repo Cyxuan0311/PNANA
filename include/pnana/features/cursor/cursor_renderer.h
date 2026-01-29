@@ -14,7 +14,8 @@ namespace ui {
 struct CursorConfig {
     CursorStyle style = CursorStyle::BLOCK;
     ftxui::Color color = ftxui::Color::White;
-    bool smooth = false; // 是否启用流动效果
+    bool smooth = false;        // 是否启用流动效果
+    bool blink_enabled = false; // 是否启用闪烁
 };
 
 // 光标渲染器类 - 负责渲染各种样式的光标
@@ -33,7 +34,7 @@ class CursorRenderer {
 
     // 设置流动效果参数
     void setSmoothIntensity(float intensity); // 0.0-1.0，流动强度
-    void setBlinkRate(int rate_ms);           // 闪烁间隔（毫秒）
+    void setBlinkRate(int rate_ms);           // 闪烁间隔（毫秒），<=0 表示不闪烁
 
     // 获取当前配置
     CursorStyle getCursorStyle() const;
