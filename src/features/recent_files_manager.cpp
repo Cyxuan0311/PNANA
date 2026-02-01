@@ -69,6 +69,26 @@ std::vector<std::string> RecentFilesManager::getRecentFiles() const {
     return files;
 }
 
+std::vector<ProjectItem> RecentFilesManager::getRecentFileItems() const {
+    std::vector<ProjectItem> files;
+    for (const auto& item : recent_projects_) {
+        if (item.type == ProjectType::FILE) {
+            files.push_back(item);
+        }
+    }
+    return files;
+}
+
+std::vector<ProjectItem> RecentFilesManager::getRecentFolderItems() const {
+    std::vector<ProjectItem> folders;
+    for (const auto& item : recent_projects_) {
+        if (item.type == ProjectType::FOLDER) {
+            folders.push_back(item);
+        }
+    }
+    return folders;
+}
+
 bool RecentFilesManager::isFileRecent(const std::string& filepath) const {
     ProjectItem target(ProjectType::FILE, filepath);
     return std::find(recent_projects_.begin(), recent_projects_.end(), target) !=

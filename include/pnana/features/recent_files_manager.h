@@ -43,6 +43,12 @@ class RecentFilesManager {
     // 获取最近文件的列表（为了向后兼容）
     std::vector<std::string> getRecentFiles() const;
 
+    // 获取最近文件项目列表（返回 ProjectItem）
+    std::vector<ProjectItem> getRecentFileItems() const;
+
+    // 获取最近文件夹项目列表
+    std::vector<ProjectItem> getRecentFolderItems() const;
+
     // 检查文件是否在最近项目列表中
     bool isFileRecent(const std::string& filepath) const;
 
