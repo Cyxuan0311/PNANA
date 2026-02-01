@@ -140,6 +140,11 @@ class AIAssistantPanel {
     int scroll_offset_;
     bool is_streaming_;
     std::string current_streaming_model_;
+
+    // 焦点管理
+    enum class FocusArea { MESSAGES, BUTTONS, INPUT };
+    FocusArea current_focus_;
+    int selected_button_index_; // 当前选中的按钮索引
 #ifdef BUILD_AI_CLIENT_SUPPORT
     std::vector<pnana::features::ai_client::ToolCall> current_tool_calls_;
 #else
@@ -171,6 +176,7 @@ class AIAssistantPanel {
     void scrollUp();
     void scrollDown();
     void submitMessage();
+    void executeSelectedButton(); // 执行选中的按钮操作
 
     // 预设提示词
     std::vector<std::string> getQuickActions() const;

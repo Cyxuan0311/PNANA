@@ -33,7 +33,7 @@ namespace ui {
 
 AIAssistantPanel::AIAssistantPanel(Theme& theme)
     : theme_(theme), visible_(false), selected_message_index_(0), scroll_offset_(0),
-      is_streaming_(false) {
+      is_streaming_(false), current_focus_(FocusArea::INPUT), selected_button_index_(0) {
     // 初始化组件
     input_component_ = Input(&current_input_, "Ask me anything about your code...");
     messages_component_ = Renderer([this] {
@@ -58,15 +58,14 @@ AIAssistantPanel::AIAssistantPanel(Theme& theme)
     });
 
     // 设置输入组件的回调
+    // 注意：ESC 键在 handleInput 中统一处理，这里只处理 Return
     input_component_ |= CatchEvent([this](Event event) {
         if (event == Event::Return) {
             submitMessage();
             return true;
         }
-        if (event == Event::Escape) {
-            hide();
-            return true;
-        }
+        // ESC 键在 handleInput 中统一处理，这里不拦截
+        // 让其他事件正常传递给输入组件
         return false;
     });
 }
@@ -97,6 +96,8 @@ Component AIAssistantPanel::getComponent() {
 void AIAssistantPanel::show() {
     visible_ = true;
     current_input_.clear();
+    current_focus_ = FocusArea::INPUT; // 默认焦点在输入框
+    selected_button_index_ = 0;
 }
 
 void AIAssistantPanel::hide() {
@@ -399,11 +400,21 @@ Element AIAssistantPanel::renderMessage(const ChatMessage& message) {
 Element AIAssistantPanel::renderInput() {
     auto& colors = theme_.getColors();
 
-    return vbox(
-        {text("Your message (or /help for commands):") | color(colors.comment),
-         input_component_->Render() | bgcolor(colors.current_line) | color(colors.foreground),
-         text("Enter: Send  •  /help: Commands  •  Esc: Close  •  ↑↓: Navigate") |
-             color(colors.comment) | dim});
+    // 根据焦点状态调整输入框样式
+    Element input_element = input_component_->Render();
+    if (current_focus_ == FocusArea::INPUT) {
+        input_element = input_element | bgcolor(colors.selection) | color(colors.foreground) |
+                        borderRoundedWithColor(colors.success);
+    } else {
+        input_element = input_element | bgcolor(colors.current_line) | color(colors.foreground) |
+                        borderRoundedWithColor(colors.comment);
+    }
+
+    return vbox({text("Your message (or /help for commands):") | color(colors.comment),
+                 input_element,
+                 text("Enter: Send  •  /help: Commands  •  Esc: Close  •  ↑↓: Navigate  •  ←→: "
+                      "Switch focus") |
+                     color(colors.comment) | dim});
 }
 
 Element AIAssistantPanel::renderActionButtons() {
@@ -414,15 +425,35 @@ Element AIAssistantPanel::renderActionButtons() {
 
     for (size_t i = 0; i < quick_actions.size(); ++i) {
         std::string action = quick_actions[i];
-        buttons.push_back(text(action) | color(colors.function) | bgcolor(colors.selection) |
-                          center);
+        bool is_selected =
+            (current_focus_ == FocusArea::BUTTONS && static_cast<int>(i) == selected_button_index_);
+
+        Element button_element = text(action);
+
+        if (is_selected) {
+            // 选中状态：高亮显示
+            button_element =
+                button_element | color(colors.foreground) | bold | bgcolor(colors.selection);
+        } else {
+            // 未选中状态：普通显示
+            button_element = button_element | color(colors.function) | bgcolor(colors.background);
+        }
+
+        buttons.push_back(button_element | center);
         if (i < quick_actions.size() - 1) {
             buttons.push_back(text(" "));
         }
     }
 
-    return hbox(std::move(buttons)) | bgcolor(colors.background) |
-           borderRoundedWithColor(colors.comment) | size(HEIGHT, EQUAL, 3);
+    // 如果焦点在按钮区域，添加边框提示
+    Element button_container = hbox(std::move(buttons));
+    if (current_focus_ == FocusArea::BUTTONS) {
+        button_container = button_container | borderRoundedWithColor(colors.success);
+    } else {
+        button_container = button_container | borderRoundedWithColor(colors.comment);
+    }
+
+    return button_container | bgcolor(colors.background) | size(HEIGHT, EQUAL, 3);
 }
 
 std::vector<std::string> AIAssistantPanel::getQuickActions() const {
@@ -1107,6 +1138,73 @@ bool AIAssistantPanel::handleInput(Event event) {
     if (!visible_)
         return false;
 
+    // 优先处理 ESC 键：无论焦点在哪里都可以退出
+    if (event == Event::Escape) {
+        hide();
+        return true;
+    }
+
+    // 处理方向键导航
+    if (event == Event::ArrowUp) {
+        // 向上导航：从输入框 -> 按钮 -> 消息
+        if (current_focus_ == FocusArea::INPUT) {
+            current_focus_ = FocusArea::BUTTONS;
+            selected_button_index_ = 0;
+            return true;
+        } else if (current_focus_ == FocusArea::BUTTONS) {
+            current_focus_ = FocusArea::MESSAGES;
+            return true;
+        } else if (current_focus_ == FocusArea::MESSAGES) {
+            // 在消息区域中滚动
+            scrollUp();
+            return true;
+        }
+    } else if (event == Event::ArrowDown) {
+        // 向下导航：从消息 -> 按钮 -> 输入框
+        if (current_focus_ == FocusArea::MESSAGES) {
+            current_focus_ = FocusArea::BUTTONS;
+            selected_button_index_ = 0;
+            return true;
+        } else if (current_focus_ == FocusArea::BUTTONS) {
+            current_focus_ = FocusArea::INPUT;
+            return true;
+        } else if (current_focus_ == FocusArea::INPUT) {
+            // 在输入框中，向下键不做特殊处理，让输入组件处理
+            return false;
+        }
+    } else if (event == Event::ArrowLeft) {
+        // 左键：在按钮区域中向左切换
+        if (current_focus_ == FocusArea::BUTTONS) {
+            auto quick_actions = getQuickActions();
+            if (selected_button_index_ > 0) {
+                selected_button_index_--;
+            } else {
+                selected_button_index_ = static_cast<int>(quick_actions.size()) - 1;
+            }
+            return true;
+        }
+    } else if (event == Event::ArrowRight) {
+        // 右键：在按钮区域中向右切换
+        if (current_focus_ == FocusArea::BUTTONS) {
+            auto quick_actions = getQuickActions();
+            if (selected_button_index_ < static_cast<int>(quick_actions.size()) - 1) {
+                selected_button_index_++;
+            } else {
+                selected_button_index_ = 0;
+            }
+            return true;
+        }
+    } else if (event == Event::Return) {
+        // Enter 键：根据当前焦点执行操作
+        if (current_focus_ == FocusArea::BUTTONS) {
+            executeSelectedButton();
+            return true;
+        } else if (current_focus_ == FocusArea::INPUT) {
+            submitMessage();
+            return true;
+        }
+    }
+
     // 处理快捷键
     if (event == Event::F1) {
         explainCode();
@@ -1121,8 +1219,30 @@ bool AIAssistantPanel::handleInput(Event event) {
         return true;
     }
 
-    // 让输入组件处理其他事件
-    return main_component_->OnEvent(event);
+    // 如果焦点在输入框，让输入组件处理所有输入相关事件
+    if (current_focus_ == FocusArea::INPUT) {
+        // 对于所有输入相关事件，直接传递给输入组件
+        // 包括：字符输入、退格、方向键（在输入框内移动光标）、编辑快捷键等
+        if (event.is_character() || event == Event::Backspace || event == Event::ArrowLeft ||
+            event == Event::ArrowRight || event == Event::Home || event == Event::End ||
+            event == Event::Delete || event == Event::CtrlA || event == Event::CtrlC ||
+            event == Event::CtrlV || event == Event::CtrlX || event == Event::CtrlZ ||
+            event == Event::Tab) {
+            return main_component_->OnEvent(event);
+        }
+        // 其他事件（如方向键导航、Enter等）已经在上面处理了
+        return false;
+    }
+
+    // 其他情况：如果焦点不在输入框，字符输入应该切换到输入框并输入
+    if (event.is_character()) {
+        current_focus_ = FocusArea::INPUT;
+        // 将字符传递给输入组件
+        return main_component_->OnEvent(event);
+    }
+
+    // 如果焦点不在输入框，其他输入事件不处理
+    return false;
 }
 
 void AIAssistantPanel::submitMessage() {
@@ -1313,6 +1433,43 @@ void AIAssistantPanel::fixErrors() {
     }
 }
 
+void AIAssistantPanel::executeSelectedButton() {
+    auto quick_actions = getQuickActions();
+    if (selected_button_index_ < 0 ||
+        selected_button_index_ >= static_cast<int>(quick_actions.size())) {
+        return;
+    }
+
+    std::string action = quick_actions[selected_button_index_];
+
+    // 根据按钮执行相应操作
+    if (action == "Explain Code") {
+        explainCode();
+    } else if (action == "Generate Function") {
+        generateCode("Generate a function");
+    } else if (action == "Refactor") {
+        refactorCode();
+    } else if (action == "Add Comments") {
+        addComments();
+    } else if (action == "Fix Errors") {
+        fixErrors();
+    } else if (action == "Optimize") {
+        std::string selected_code = getSelectedCode();
+        if (!selected_code.empty()) {
+            std::string prompt =
+                "Please optimize this code for better performance and efficiency:\n\n" +
+                selected_code;
+            addUserMessage("Optimize selected code");
+            sendMessage(prompt);
+        } else {
+            addSystemMessage("Please select some code first to optimize.");
+        }
+    }
+
+    // 执行后，焦点回到输入框
+    current_focus_ = FocusArea::INPUT;
+}
+
 // 代码操作辅助方法
 void AIAssistantPanel::insertCodeAtCursor(const std::string& code) {
     if (on_insert_code_) {
@@ -1353,6 +1510,19 @@ void AIAssistantPanel::setOnGetSelectedCode(std::function<std::string()> callbac
 
 void AIAssistantPanel::setOnGetCurrentFile(std::function<std::string()> callback) {
     on_get_current_file_ = callback;
+}
+
+void AIAssistantPanel::scrollUp() {
+    if (scroll_offset_ > 0) {
+        scroll_offset_--;
+    }
+}
+
+void AIAssistantPanel::scrollDown() {
+    size_t max_scroll = messages_.size() > 20 ? messages_.size() - 20 : 0;
+    if (scroll_offset_ < static_cast<int>(max_scroll)) {
+        scroll_offset_++;
+    }
 }
 
 } // namespace ui
