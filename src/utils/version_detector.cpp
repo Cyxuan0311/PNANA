@@ -23,11 +23,6 @@ namespace utils {
 VersionDetector::VersionDetector() {}
 
 std::string VersionDetector::getVersionForFileType(const std::string& file_type) {
-    // C/C++ 除外，不显示版本
-    if (file_type == "c" || file_type == "cpp" || file_type == "cc" || file_type == "cxx") {
-        return "";
-    }
-
     std::lock_guard<std::mutex> lock(cache_mutex_);
 
     auto now = std::chrono::steady_clock::now();
@@ -147,6 +142,20 @@ std::string VersionDetector::fetchVersionForFileType(const std::string& file_typ
     } else if (file_type == "powershell" || file_type == "ps1") {
         command = "pwsh --version 2>&1 || powershell --version 2>&1";
         version_prefix = "PowerShell ";
+    } else if (file_type == "c") {
+        // C 文件：优先检测 gcc，然后是 clang
+        command = "gcc --version 2>&1 | head -1 || clang --version 2>&1 | head -1";
+        version_prefix = "";
+    } else if (file_type == "cpp" || file_type == "cc" || file_type == "cxx" ||
+               file_type == "c++") {
+        // C++ 文件：优先检测 g++，然后是 clang++，最后是 gcc/clang
+        command = "g++ --version 2>&1 | head -1 || clang++ --version 2>&1 | head -1 || "
+                  "gcc --version 2>&1 | head -1 || clang --version 2>&1 | head -1";
+        version_prefix = "";
+    } else if (file_type == "cmake") {
+        // CMake 版本检测
+        command = "cmake --version 2>&1 | head -1";
+        version_prefix = "cmake version ";
     } else {
         return "";
     }
@@ -162,7 +171,7 @@ std::string VersionDetector::fetchVersionForFileType(const std::string& file_typ
 }
 
 std::string VersionDetector::parseVersionString(const std::string& raw_output,
-                                                const std::string& /* file_type */) {
+                                                const std::string& file_type) {
     if (raw_output.empty()) {
         return "";
     }
@@ -184,6 +193,90 @@ std::string VersionDetector::parseVersionString(const std::string& raw_output,
     size_t newline_pos = result.find('\n');
     if (newline_pos != std::string::npos) {
         result = result.substr(0, newline_pos);
+    }
+
+    // C/C++ 编译器特殊处理
+    if (file_type == "c" || file_type == "cpp" || file_type == "cc" || file_type == "cxx" ||
+        file_type == "c++") {
+        // 检测编译器类型并提取版本
+        std::string compiler_name;
+        std::string version;
+
+        // 检测 GCC
+        if (result.find("gcc") != std::string::npos || result.find("g++") != std::string::npos) {
+            if (result.find("g++") != std::string::npos) {
+                compiler_name = "g++";
+            } else {
+                compiler_name = "gcc";
+            }
+            // GCC 格式: "gcc (GCC) 11.2.0" 或 "g++ (GCC) 11.2.0"
+            size_t gcc_pos = result.find("(GCC)");
+            if (gcc_pos != std::string::npos) {
+                std::string after_gcc = result.substr(gcc_pos + 5);
+                version = extractVersionNumber(after_gcc);
+                if (!version.empty()) {
+                    return compiler_name + " " + version;
+                }
+            }
+        }
+        // 检测 Clang
+        else if (result.find("clang") != std::string::npos) {
+            if (result.find("clang++") != std::string::npos) {
+                compiler_name = "clang++";
+            } else {
+                compiler_name = "clang";
+            }
+            // Clang 格式: "clang version 14.0.0" 或 "Apple clang version 14.0.0"
+            size_t version_pos = result.find("version");
+            if (version_pos != std::string::npos) {
+                std::string after_version = result.substr(version_pos + 7);
+                version = extractVersionNumber(after_version);
+                if (!version.empty()) {
+                    return compiler_name + " " + version;
+                }
+            }
+        }
+        // 检测 MSVC (Windows)
+        else if (result.find("Microsoft") != std::string::npos ||
+                 result.find("MSVC") != std::string::npos ||
+                 result.find("cl.exe") != std::string::npos) {
+            compiler_name = "msvc";
+            version = extractVersionNumber(result);
+            if (!version.empty()) {
+                return compiler_name + " " + version;
+            }
+        }
+
+        // 如果无法识别编译器，尝试通用提取
+        version = extractVersionNumber(result);
+        if (!version.empty()) {
+            return version;
+        }
+
+        // 如果都失败，返回原始结果的前20个字符
+        if (result.length() > 20) {
+            return result.substr(0, 20);
+        }
+        return result;
+    }
+
+    // CMake 特殊处理
+    if (file_type == "cmake") {
+        // CMake 格式: "cmake version 3.25.0" 或 "cmake version 3.25.0\n..."
+        size_t version_pos = result.find("version");
+        if (version_pos != std::string::npos) {
+            std::string after_version = result.substr(version_pos + 7);
+            std::string version = extractVersionNumber(after_version);
+            if (!version.empty()) {
+                return "cmake " + version;
+            }
+        }
+        // 如果找不到 "version"，尝试直接提取版本号
+        std::string version = extractVersionNumber(result);
+        if (!version.empty()) {
+            return "cmake " + version;
+        }
+        return result;
     }
 
     // 使用智能版本号提取
@@ -215,7 +308,12 @@ std::string VersionDetector::parseVersionString(const std::string& raw_output,
             "Elixir ",
             "GNU bash, version ",
             "fish, version ",
-            "PowerShell "};
+            "PowerShell ",
+            "gcc (GCC) ",
+            "g++ (GCC) ",
+            "clang version ",
+            "Apple clang version ",
+            "cmake version "};
 
         for (const auto& prefix : prefixes) {
             if (result.find(prefix) == 0) {
