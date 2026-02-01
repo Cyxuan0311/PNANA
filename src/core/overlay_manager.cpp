@@ -38,6 +38,24 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox({main_ui | dim, render_move_file_callback_() | center});
     }
 
+    // 如果解压进度对话框打开，叠加显示（最高优先级）
+    if (is_extract_progress_visible_callback_ && is_extract_progress_visible_callback_() &&
+        render_extract_progress_callback_) {
+        return dbox({main_ui | dim, render_extract_progress_callback_() | center});
+    }
+
+    // 如果解压路径对话框打开，叠加显示（优先级高于解压对话框）
+    if (is_extract_path_visible_callback_ && is_extract_path_visible_callback_() &&
+        render_extract_path_callback_) {
+        return dbox({main_ui | dim, render_extract_path_callback_() | center});
+    }
+
+    // 如果解压对话框打开，叠加显示
+    if (is_extract_visible_callback_ && is_extract_visible_callback_() &&
+        render_extract_callback_) {
+        return dbox({main_ui | dim, render_extract_callback_() | center});
+    }
+
     // 光标配置对话框
     if (is_cursor_config_visible_callback_ && is_cursor_config_visible_callback_() &&
         render_cursor_config_callback_) {

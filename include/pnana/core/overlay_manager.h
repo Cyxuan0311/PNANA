@@ -29,6 +29,15 @@ class OverlayManager {
     void setRenderMoveFileCallback(std::function<ftxui::Element()> callback) {
         render_move_file_callback_ = callback;
     }
+    void setRenderExtractCallback(std::function<ftxui::Element()> callback) {
+        render_extract_callback_ = callback;
+    }
+    void setRenderExtractPathCallback(std::function<ftxui::Element()> callback) {
+        render_extract_path_callback_ = callback;
+    }
+    void setRenderExtractProgressCallback(std::function<ftxui::Element()> callback) {
+        render_extract_progress_callback_ = callback;
+    }
     void setRenderCursorConfigCallback(std::function<ftxui::Element()> callback) {
         render_cursor_config_callback_ = callback;
     }
@@ -100,6 +109,15 @@ class OverlayManager {
     void setIsMoveFileVisibleCallback(std::function<bool()> callback) {
         is_move_file_visible_callback_ = callback;
     }
+    void setIsExtractVisibleCallback(std::function<bool()> callback) {
+        is_extract_visible_callback_ = callback;
+    }
+    void setIsExtractPathVisibleCallback(std::function<bool()> callback) {
+        is_extract_path_visible_callback_ = callback;
+    }
+    void setIsExtractProgressVisibleCallback(std::function<bool()> callback) {
+        is_extract_progress_visible_callback_ = callback;
+    }
     void setIsCursorConfigVisibleCallback(std::function<bool()> callback) {
         is_cursor_config_visible_callback_ = callback;
     }
@@ -165,6 +183,9 @@ class OverlayManager {
     std::function<ftxui::Element()> render_create_folder_callback_;
     std::function<ftxui::Element()> render_save_as_callback_;
     std::function<ftxui::Element()> render_move_file_callback_;
+    std::function<ftxui::Element()> render_extract_callback_;
+    std::function<ftxui::Element()> render_extract_path_callback_;
+    std::function<ftxui::Element()> render_extract_progress_callback_;
     std::function<ftxui::Element()> render_cursor_config_callback_;
     std::function<ftxui::Element()> render_ai_config_callback_;
     std::function<ftxui::Element()> render_ai_assistant_callback_;
@@ -190,6 +211,9 @@ class OverlayManager {
     std::function<bool()> is_create_folder_visible_callback_;
     std::function<bool()> is_save_as_visible_callback_;
     std::function<bool()> is_move_file_visible_callback_;
+    std::function<bool()> is_extract_visible_callback_;
+    std::function<bool()> is_extract_path_visible_callback_;
+    std::function<bool()> is_extract_progress_visible_callback_;
     std::function<bool()> is_cursor_config_visible_callback_;
     std::function<bool()> is_ai_config_visible_callback_;
     std::function<bool()> is_ai_assistant_visible_callback_;
