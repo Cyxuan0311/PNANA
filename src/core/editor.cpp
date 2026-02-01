@@ -41,7 +41,8 @@ Editor::Editor()
       new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
       save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
       binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
-      recent_files_popup_(theme_), tui_config_popup_(theme_), ai_assistant_panel_(theme_),
+      recent_files_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
+      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
       ai_config_dialog_(theme_), todo_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
@@ -54,10 +55,11 @@ Editor::Editor()
       split_view_manager_(), diagnostics_popup_(theme_), mode_(EditorMode::NORMAL), cursor_row_(0),
       cursor_col_(0), view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false),
       show_help_(false), show_create_folder_(false), show_save_as_(false), show_move_file_(false),
-      selection_active_(false), selection_start_row_(0), selection_start_col_(0),
-      show_line_numbers_(true), relative_line_numbers_(false), syntax_highlighting_(true),
-      zoom_level_(0), file_browser_width_(35), // 默认宽度35列
-      terminal_height_(0),                     // 0 表示使用默认值（屏幕高度的1/3）
+      show_extract_dialog_(false), show_extract_path_dialog_(false),
+      show_extract_progress_dialog_(false), selection_active_(false), selection_start_row_(0),
+      selection_start_col_(0), show_line_numbers_(true), relative_line_numbers_(false),
+      syntax_highlighting_(true), zoom_level_(0), file_browser_width_(35), // 默认宽度35列
+      terminal_height_(0), // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""), search_input_(""), replace_input_(""), search_cursor_pos_(0),
       replace_cursor_pos_(0), current_search_match_(0), total_search_matches_(0),
       current_option_index_(0), search_options_{false, false, false, false},
@@ -864,6 +866,110 @@ void Editor::openRecentFilesDialog() {
     }
 }
 
+void Editor::openExtractDialog() {
+    std::string current_dir = file_browser_.getCurrentDirectory();
+    if (current_dir.empty()) {
+        current_dir = ".";
+    }
+
+    // 扫描压缩文件
+    auto archives = extract_manager_.scanArchiveFiles(current_dir);
+
+    if (archives.empty()) {
+        setStatusMessage("No archive files found in current directory");
+        return;
+    }
+
+    extract_dialog_.setArchiveFiles(archives);
+    extract_dialog_.show(
+        current_dir,
+        [this](const features::ArchiveFile& archive) {
+            // 选择文件后，显示路径输入对话框
+            std::string default_path = file_browser_.getCurrentDirectory();
+            if (default_path.empty()) {
+                default_path = ".";
+            }
+            // 默认解压到以压缩文件名命名的目录
+            std::filesystem::path archive_path(archive.name);
+            std::string default_extract_dir =
+                (std::filesystem::path(default_path) / archive_path.stem()).string();
+
+            show_extract_path_dialog_ = true;
+            extract_path_dialog_.show(
+                archive.name, default_extract_dir,
+                [this, archive](const std::string& extract_path, const std::string& extract_name) {
+                    // 组合路径和文件名
+                    std::filesystem::path final_path(extract_path);
+                    if (!extract_name.empty()) {
+                        final_path = final_path / extract_name;
+                    }
+                    std::string full_extract_path = final_path.string();
+
+                    // 显示进度对话框
+                    show_extract_path_dialog_ = false;
+                    show_extract_progress_dialog_ = true;
+                    extract_progress_dialog_.show(archive.name, full_extract_path);
+
+                    // 异步执行解压
+                    extract_manager_.extractArchiveAsync(
+                        archive.path, full_extract_path,
+                        [this](float progress) {
+                            // 更新进度
+                            extract_progress_dialog_.setProgress(progress);
+                            extract_progress_dialog_.setStatus(
+                                "Extracting... " +
+                                std::to_string(static_cast<int>(progress * 100)) + "%");
+                            // 触发UI更新
+                            screen_.PostEvent(ftxui::Event::Custom);
+                        },
+                        [this, archive, full_extract_path](bool success,
+                                                           const std::string& error_msg) {
+                            // 解压完成
+                            show_extract_progress_dialog_ = false;
+                            if (success) {
+                                setStatusMessage("Extracted " + archive.name + " to " +
+                                                 full_extract_path);
+                                file_browser_.refresh(); // 刷新文件浏览器
+                            } else {
+                                setStatusMessage("Failed to extract " + archive.name +
+                                                 (error_msg.empty() ? "" : ": " + error_msg));
+                            }
+                            // 触发UI更新
+                            screen_.PostEvent(ftxui::Event::Custom);
+                        });
+                },
+                [this]() {
+                    setStatusMessage("Extract cancelled");
+                    show_extract_path_dialog_ = false;
+                });
+            show_extract_dialog_ = false;
+        },
+        [this]() {
+            setStatusMessage("Extract cancelled");
+            show_extract_dialog_ = false;
+        });
+
+    show_extract_dialog_ = true;
+}
+
+void Editor::handleExtractDialogInput(ftxui::Event event) {
+    if (extract_dialog_.handleInput(event)) {
+        if (!extract_dialog_.isVisible()) {
+            show_extract_dialog_ = false;
+        }
+        return;
+    }
+}
+
+void Editor::handleExtractPathDialogInput(ftxui::Event event) {
+    if (extract_path_dialog_.handleInput(event)) {
+        if (!extract_path_dialog_.isVisible()) {
+            show_extract_path_dialog_ = false;
+        }
+        return;
+    }
+}
+
 void Editor::openTUIConfigDialog() {
     auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
     if (!available_configs.empty()) {
@@ -1546,6 +1652,13 @@ void Editor::initializeCommandPalette() {
     command_palette_.registerCommand(Command("search.replace", "Replace", "Find and replace",
                                              {"replace", "search", "find"}, [this]() {
                                                  startReplace();
+                                             }));
+
+    // 注册解压命令
+    command_palette_.registerCommand(Command("file.extract", "Extract Archive",
+                                             "Extract archive files",
+                                             {"extract", "unzip", "untar", "archive"}, [this]() {
+                                                 openExtractDialog();
                                              }));
 
     // 注册分屏命令

@@ -19,6 +19,9 @@
 #include "ui/cursor_config_dialog.h"
 #include "ui/dialog.h"
 #include "ui/encoding_dialog.h"
+#include "ui/extract_dialog.h"
+#include "ui/extract_path_dialog.h"
+#include "ui/extract_progress_dialog.h"
 #include "ui/file_picker.h"
 #include "ui/format_dialog.h"
 #include "ui/help.h"
@@ -41,6 +44,7 @@
 #ifdef BUILD_LUA_SUPPORT
 #include "ui/plugin_manager_dialog.h"
 #endif
+#include "features/extract.h"
 #include "features/file_browser.h"
 #include "features/search.h"
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
@@ -239,6 +243,11 @@ class Editor {
     void focusUpRegion();
     void focusDownRegion();
 
+    // 解压操作
+    void openExtractDialog();
+    void handleExtractDialogInput(ftxui::Event event);
+    void handleExtractPathDialogInput(ftxui::Event event);
+
     // 主题
     void setTheme(const std::string& theme_name);
     const pnana::ui::Theme& getTheme() const {
@@ -385,6 +394,9 @@ class Editor {
     pnana::ui::FormatDialog format_dialog_;
     pnana::ui::RecentFilesPopup recent_files_popup_;
     pnana::ui::TUIConfigPopup tui_config_popup_;
+    pnana::ui::ExtractDialog extract_dialog_;
+    pnana::ui::ExtractPathDialog extract_path_dialog_;
+    pnana::ui::ExtractProgressDialog extract_progress_dialog_;
     pnana::ui::AIAssistantPanel ai_assistant_panel_;
     pnana::ui::AIConfigDialog ai_config_dialog_;
     pnana::ui::TodoPanel todo_panel_;
@@ -396,6 +408,7 @@ class Editor {
     // 功能模块
     features::SearchEngine search_engine_;
     features::FileBrowser file_browser_;
+    features::ExtractManager extract_manager_;
 
     // 当前搜索状态
     bool search_highlight_active_;
@@ -537,6 +550,11 @@ class Editor {
     // 移动文件弹窗
     bool show_move_file_;
 
+    // 解压弹窗
+    bool show_extract_dialog_;
+    bool show_extract_path_dialog_;
+    bool show_extract_progress_dialog_;
+
     // 选择
     bool selection_active_;
     size_t selection_start_row_;
@@ -643,6 +661,9 @@ class Editor {
     std::string getFileType() const;
     void executeSearch(bool move_cursor = true);
     void executeReplace();
+
+    // 搜索辅助函数：从 search_options_ 数组构建 SearchOptions
+    features::SearchOptions buildSearchOptions() const;
 
     // 快捷键检查
     bool isCtrlKey(const ftxui::Event& event, char key) const;
