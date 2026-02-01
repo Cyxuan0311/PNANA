@@ -134,8 +134,25 @@ void Editor::handleInput(Event event) {
 #endif
         ;
 
+    // 如果当前在搜索模式或替换模式，优先处理 Tab 键（用于模式切换）
+    if ((mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) &&
+        (event == Event::Tab || event == Event::Character('\t'))) {
+        // Tab 键在搜索/替换模式中有特殊用途，直接交给模式处理函数
+        switch (mode_) {
+            case EditorMode::SEARCH:
+                handleSearchMode(event);
+                break;
+            case EditorMode::REPLACE:
+                handleReplaceMode(event);
+                break;
+            default:
+                break;
+        }
+        return;
+    }
+
     // 如果当前在搜索模式，优先处理输入（除了 Escape 和 Return）
-    bool in_search_mode = (mode_ == EditorMode::SEARCH);
+    bool in_search_mode = (mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE);
     bool should_skip_shortcuts =
         in_search_mode && (event != Event::Escape && event != Event::Return);
 
@@ -154,6 +171,18 @@ void Editor::handleInput(Event event) {
         if (action_executor_.execute(action)) {
             return;
         }
+    }
+
+    // 如果解压路径对话框打开，优先处理
+    if (show_extract_path_dialog_) {
+        handleExtractPathDialogInput(event);
+        return;
+    }
+
+    // 如果解压对话框打开，优先处理
+    if (show_extract_dialog_) {
+        handleExtractDialogInput(event);
+        return;
     }
 
     // 如果另存为对话框打开，优先处理
@@ -1219,11 +1248,7 @@ void Editor::handleSearchMode(Event event) {
     if (event == Event::Return) {
         // 执行搜索并跳转到下一个匹配
         if (!search_input_.empty()) {
-            features::SearchOptions options;
-            options.case_sensitive = search_options_[0];
-            options.whole_word = search_options_[1];
-            options.regex = search_options_[2];
-            options.wrap_around = search_options_[3];
+            features::SearchOptions options = buildSearchOptions();
             performSearch(search_input_, options);
             searchNext();
         }
@@ -1255,14 +1280,20 @@ void Editor::handleSearchMode(Event event) {
             std::string state = search_options_[current_option_index_] ? "ON" : "OFF";
             setStatusMessage("Search: " + std::string(option_names[current_option_index_]) + " " +
                              state);
+            // 切换选项后重新执行搜索（如果有输入）
+            if (!search_input_.empty()) {
+                features::SearchOptions options = buildSearchOptions();
+                performSearch(search_input_, options);
+            }
         }
     } else if (event == Event::Backspace) {
         if (search_cursor_pos_ > 0) {
             search_input_.erase(search_cursor_pos_ - 1, 1);
             search_cursor_pos_--;
-            // 实时执行搜索（如果还有输入）
+            // 实时执行搜索（如果还有输入），使用当前选择的选项
             if (!search_input_.empty()) {
-                performSearch(search_input_, features::SearchOptions{});
+                features::SearchOptions options = buildSearchOptions();
+                performSearch(search_input_, options);
             } else {
                 clearSearchHighlight();
             }
@@ -1288,8 +1319,9 @@ void Editor::handleSearchMode(Event event) {
                 if (search_cursor_pos_ <= search_input_.length()) {
                     search_input_.insert(search_cursor_pos_, 1, c);
                     search_cursor_pos_++;
-                    // 实时执行搜索（不移动光标，只高亮）
-                    performSearch(search_input_, features::SearchOptions{});
+                    // 实时执行搜索（不移动光标，只高亮），使用当前选择的选项
+                    features::SearchOptions options = buildSearchOptions();
+                    performSearch(search_input_, options);
                 }
             }
         }
@@ -1306,11 +1338,9 @@ void Editor::handleReplaceMode(Event event) {
     if (event == Event::Return) {
         // 执行替换（替换所有匹配项）
         if (!search_input_.empty()) {
-            features::SearchOptions options;
-            options.case_sensitive = search_options_[0];
-            options.whole_word = search_options_[1];
-            options.regex = search_options_[2];
-            options.wrap_around = search_options_[3];
+            // 确保搜索已执行（使用当前选项）
+            features::SearchOptions options = buildSearchOptions();
+            performSearch(search_input_, options);
             performReplaceAll(replace_input_);
         }
         mode_ = EditorMode::NORMAL;
@@ -1320,12 +1350,12 @@ void Editor::handleReplaceMode(Event event) {
         clearSearchHighlight();
         setStatusMessage("Replace cancelled");
     } else if (event == Event::Tab) {
-        // Tab 在搜索输入和替换输入之间切换
-        // 这里简化处理，Tab 用于在两个字段间切换，但当前实现中只处理替换输入
-        if (search_cursor_pos_ <= search_input_.length()) {
-            // 已经在搜索输入中，Tab 切换到替换输入
-            replace_cursor_pos_ = replace_input_.length();
-        }
+        // Tab 切换回搜索模式
+        mode_ = EditorMode::SEARCH;
+        // 将光标定位到搜索输入框的末尾
+        search_cursor_pos_ = search_input_.length();
+        setStatusMessage("Search: (type to search, ↑↓ select options, Space toggle, Tab to "
+                         "replace, Esc to cancel)");
     } else if (event == Event::ArrowUp) {
         // 向上选择选项
         current_option_index_ = (current_option_index_ - 1 + NUM_OPTIONS) % NUM_OPTIONS;
@@ -1343,6 +1373,11 @@ void Editor::handleReplaceMode(Event event) {
             std::string state = search_options_[current_option_index_] ? "ON" : "OFF";
             setStatusMessage("Replace: " + std::string(option_names[current_option_index_]) + " " +
                              state);
+            // 切换选项后重新执行搜索（如果有搜索输入）
+            if (!search_input_.empty()) {
+                features::SearchOptions options = buildSearchOptions();
+                performSearch(search_input_, options);
+            }
         }
     } else if (event == Event::Backspace) {
         if (replace_cursor_pos_ > 0) {
@@ -1696,8 +1731,19 @@ void Editor::startSearch() {
     total_search_matches_ = 0;
     current_option_index_ = 0; // 重置选项索引
     clearSearchHighlight();
-    setStatusMessage("Search: (type to search, ↑↓ select options, Space toggle, Esc to cancel)");
+    setStatusMessage(
+        "Search: (type to search, ↑↓ select options, Space toggle, Tab to replace, Esc to cancel)");
     force_ui_update_ = true;
+}
+
+// 辅助函数：从 search_options_ 数组构建 SearchOptions
+features::SearchOptions Editor::buildSearchOptions() const {
+    features::SearchOptions options;
+    options.case_sensitive = search_options_[0];
+    options.whole_word = search_options_[1];
+    options.regex = search_options_[2];
+    options.wrap_around = search_options_[3];
+    return options;
 }
 
 void Editor::performSearch(const std::string& pattern, const features::SearchOptions& options) {
@@ -1861,7 +1907,8 @@ void Editor::startReplace() {
     total_search_matches_ = 0;
     current_option_index_ = 0; // 重置选项索引
     clearSearchHighlight();
-    setStatusMessage("Replace: (type search pattern, Tab to replace, ↑↓ select options, Space "
+    setStatusMessage("Replace: (type replacement text, Tab to search, Enter to replace, ↑↓ select "
+                     "options, Space "
                      "toggle, Esc to cancel)");
     force_ui_update_ = true;
 }

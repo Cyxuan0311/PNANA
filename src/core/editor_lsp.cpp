@@ -1311,7 +1311,7 @@ void Editor::triggerCompletion() {
                 " items after " + std::to_string(request_duration.count()) + "ms");
 
             screen_.Post([this, items, cache_key, req_row, req_col, req_screen_w, req_screen_h,
-                          callback_start, prefix, filepath]() {
+                          prefix, filepath]() {
                 auto ui_update_start = std::chrono::steady_clock::now();
 
                 // 缓存结果
@@ -1363,7 +1363,7 @@ void Editor::triggerCompletion() {
                                                 const features::CompletionItem& b) {
                             // 计算评分：相关性、使用频率、上下文匹配、类型优先级、位置接近度
                             auto calculate_score =
-                                [this, prefix](const features::CompletionItem& item) -> int {
+                                [prefix](const features::CompletionItem& item) -> int {
                                 int score = 0;
 
                                 // 1. 前缀匹配评分 (最高权重)

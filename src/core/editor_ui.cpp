@@ -5,6 +5,9 @@
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
+#include "ui/extract_dialog.h"
+#include "ui/extract_path_dialog.h"
+#include "ui/extract_progress_dialog.h"
 #include "ui/icons.h"
 #include "ui/new_file_prompt.h"
 #include "ui/save_as_dialog.h"
@@ -217,6 +220,15 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderMoveFileCallback([this]() {
         return move_file_dialog_.render();
     });
+    overlay_manager_->setRenderExtractCallback([this]() {
+        return extract_dialog_.render();
+    });
+    overlay_manager_->setRenderExtractPathCallback([this]() {
+        return extract_path_dialog_.render();
+    });
+    overlay_manager_->setRenderExtractProgressCallback([this]() {
+        return extract_progress_dialog_.render();
+    });
     overlay_manager_->setRenderCursorConfigCallback([this]() {
         return cursor_config_dialog_.render();
     });
@@ -314,6 +326,15 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsMoveFileVisibleCallback([this]() {
         return show_move_file_;
+    });
+    overlay_manager_->setIsExtractVisibleCallback([this]() {
+        return show_extract_dialog_;
+    });
+    overlay_manager_->setIsExtractPathVisibleCallback([this]() {
+        return show_extract_path_dialog_;
+    });
+    overlay_manager_->setIsExtractProgressVisibleCallback([this]() {
+        return show_extract_progress_dialog_;
     });
     overlay_manager_->setIsCursorConfigVisibleCallback([this]() {
         return cursor_config_dialog_.isVisible();
