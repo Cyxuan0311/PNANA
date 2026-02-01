@@ -176,6 +176,32 @@ else()
     message(STATUS "  Requires: sudo apt install liblua5.4-dev (or liblua5.3-dev)")
 endif()
 
+# 配置 iconv 库支持（编码转换）
+# iconv 是可选的，如果找不到会使用内置的简化实现
+find_library(ICONV_LIBRARY
+    NAMES iconv
+    PATHS /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib
+)
+
+find_path(ICONV_INCLUDE_DIR
+    NAMES iconv.h
+    PATHS /usr/include /usr/local/include
+)
+
+if(ICONV_LIBRARY AND ICONV_INCLUDE_DIR)
+    set(ICONV_FOUND TRUE)
+    set(BUILD_ICONV_SUPPORT ON)
+    message(STATUS "✓ iconv found - enhanced encoding conversion enabled")
+    message(STATUS "  Library: ${ICONV_LIBRARY}")
+    message(STATUS "  Include dir: ${ICONV_INCLUDE_DIR}")
+else()
+    set(ICONV_FOUND FALSE)
+    set(BUILD_ICONV_SUPPORT OFF)
+    message(STATUS "iconv not found - using built-in encoding conversion")
+    message(STATUS "  For better encoding support, install: sudo apt install libiconv-dev")
+    message(STATUS "  (This is optional - built-in conversion will still work)")
+endif()
+
 # 配置 Tree-sitter（语法高亮）
 if(BUILD_TREE_SITTER)
     message(STATUS "Tree-sitter syntax highlighting enabled - checking dependencies...")
@@ -253,10 +279,8 @@ set(SOURCES
     src/ui/file_browser_view.cpp
     src/ui/split_dialog.cpp
     src/ui/terminal_ui.cpp
-    src/ui/search_dialog.cpp
     src/ui/ssh_dialog.cpp
     src/ui/ssh_transfer_dialog.cpp
-    src/ui/file_type_color_mapper.cpp
     src/ui/ai_config_dialog.cpp
     src/ui/ai_assistant_panel.cpp
     src/ui/completion_popup.cpp
@@ -266,6 +290,9 @@ set(SOURCES
     src/ui/git_panel.cpp
     src/ui/todo_panel.cpp
     src/ui/move_file_dialog.cpp
+    src/ui/extract_dialog.cpp
+    src/ui/extract_path_dialog.cpp
+    src/ui/extract_progress_dialog.cpp
     # 工具模块
     src/utils/logger.cpp
     src/utils/text_analyzer.cpp
@@ -273,6 +300,8 @@ set(SOURCES
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
     src/utils/file_type_icon_mapper.cpp
+    src/utils/file_type_color_mapper.cpp
+    src/utils/archive_validator.cpp
     src/utils/version_detector.cpp
     src/features/recent_files_manager.cpp
     src/features/tui_config_manager.cpp
@@ -284,6 +313,7 @@ set(SOURCES
     # 功能模块
     src/features/search.cpp
     src/features/file_browser.cpp
+    src/features/extract.cpp
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/todo/todo_manager.cpp
@@ -457,6 +487,8 @@ set(HEADERS
     include/pnana/utils/text_utils.h
     include/pnana/utils/clipboard.h
     include/pnana/utils/file_type_detector.h
+    include/pnana/utils/file_type_color_mapper.h
+    include/pnana/utils/archive_validator.h
     include/pnana/utils/version_detector.h
     include/pnana/utils/assembly_analyzer.h
 )
@@ -551,6 +583,14 @@ if(BUILD_AI_CLIENT_SUPPORT)
     target_link_libraries(pnana PRIVATE CURL::libcurl)
     target_compile_definitions(pnana PRIVATE BUILD_AI_CLIENT_SUPPORT)
     message(STATUS "AI client support configured with libcurl")
+endif()
+
+# iconv 库（如果找到）
+if(BUILD_ICONV_SUPPORT)
+    target_link_libraries(pnana PRIVATE ${ICONV_LIBRARY})
+    target_include_directories(pnana PRIVATE ${ICONV_INCLUDE_DIR})
+    target_compile_definitions(pnana PRIVATE BUILD_ICONV_SUPPORT)
+    message(STATUS "iconv library configured for enhanced encoding conversion")
 endif()
 
 # 包含第三方库
