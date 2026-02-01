@@ -24,6 +24,63 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
         return "tcl"; // MacPorts portfiles are TCL
     }
 
+    // Shell 配置文件（点文件）
+    if (filename_lower == ".zshrc" || filename_lower == ".zprofile" ||
+        filename_lower == ".zshenv" || filename_lower == ".zlogin" ||
+        filename_lower == ".zlogout" || filename_lower == ".zsh" || filename_lower == ".bashrc" ||
+        filename_lower == ".bash_profile" || filename_lower == ".bash_login" ||
+        filename_lower == ".profile" || filename_lower == ".bash_aliases" ||
+        filename_lower == ".bash_functions" || filename_lower == ".bash_completion" ||
+        filename_lower == ".inputrc" || filename_lower == ".tcshrc" || filename_lower == ".cshrc" ||
+        filename_lower == ".kshrc" || filename_lower == ".fish" ||
+        filename_lower.find(".zsh") != std::string::npos ||
+        filename_lower.find(".bash") != std::string::npos) {
+        return "shell";
+    }
+
+    // Vim 配置文件
+    if (filename_lower == ".vimrc" || filename_lower == ".gvimrc" || filename_lower == ".nvimrc" ||
+        filename_lower == ".exrc" || filename_lower.find("vimrc") != std::string::npos ||
+        filename_lower.find("nvim") != std::string::npos) {
+        return "vim";
+    }
+
+    // Git 配置文件
+    // .gitconfig 使用 INI 格式，但如果没有 INI 语法高亮，使用 text
+    // .gitignore, .gitattributes, .gitmodules 是文本文件
+    if (filename_lower == ".gitconfig") {
+        return "ini"; // Git config 使用 INI 格式
+    }
+    if (filename_lower == ".gitignore" || filename_lower == ".gitattributes" ||
+        filename_lower == ".gitmodules") {
+        return "text"; // 这些是简单的文本文件
+    }
+
+    // Docker 相关
+    if (filename_lower == "dockerfile" || filename_lower == ".dockerignore" ||
+        filename_lower.find("dockerfile") != std::string::npos) {
+        return "dockerfile";
+    }
+
+    // 其他常见配置文件
+    if (filename_lower == ".editorconfig") {
+        return "ini";
+    }
+    if (filename_lower == ".eslintrc" || filename_lower == ".eslintrc.json" ||
+        filename_lower == ".eslintrc.js" || filename_lower == ".eslintrc.yml" ||
+        filename_lower.find(".eslintrc") != std::string::npos) {
+        return "json"; // 大多数 ESLint 配置文件是 JSON
+    }
+    if (filename_lower == ".prettierrc" || filename_lower == ".prettierrc.json" ||
+        filename_lower == ".prettierrc.js" || filename_lower == ".prettierrc.yml" ||
+        filename_lower.find(".prettierrc") != std::string::npos) {
+        return "json";
+    }
+    if (filename_lower == ".babelrc" || filename_lower == ".babelrc.json" ||
+        filename_lower == ".babelrc.js" || filename_lower.find(".babelrc") != std::string::npos) {
+        return "json";
+    }
+
     // 文件扩展名检测（大小写不敏感）
     // C/C++
     if (ext_lower == "cpp" || ext_lower == "cc" || ext_lower == "cxx" || ext_lower == "h" ||
