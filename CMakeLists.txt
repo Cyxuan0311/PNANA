@@ -178,27 +178,90 @@ endif()
 
 # 配置 iconv 库支持（编码转换）
 # iconv 是可选的，如果找不到会使用内置的简化实现
-find_library(ICONV_LIBRARY
-    NAMES iconv
-    PATHS /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib
-)
+# 注意：在 GNU/Linux 系统上，iconv 通常是 glibc 的一部分，可能不需要单独链接库
 
+# 首先查找头文件
 find_path(ICONV_INCLUDE_DIR
     NAMES iconv.h
-    PATHS /usr/include /usr/local/include
+    PATHS 
+        /usr/include
+        /usr/local/include
+        /opt/local/include
+        /sw/include
+    NO_DEFAULT_PATH
 )
 
-if(ICONV_LIBRARY AND ICONV_INCLUDE_DIR)
-    set(ICONV_FOUND TRUE)
-    set(BUILD_ICONV_SUPPORT ON)
-    message(STATUS "✓ iconv found - enhanced encoding conversion enabled")
-    message(STATUS "  Library: ${ICONV_LIBRARY}")
-    message(STATUS "  Include dir: ${ICONV_INCLUDE_DIR}")
+# 如果没找到，尝试默认路径
+if(NOT ICONV_INCLUDE_DIR)
+    find_path(ICONV_INCLUDE_DIR NAMES iconv.h)
+endif()
+
+# 查找库文件（在某些系统上可能需要单独链接）
+# 在 GNU/Linux 上，iconv 通常在 libc 中，不需要单独链接
+# 但在 macOS 或其他系统上可能需要
+find_library(ICONV_LIBRARY
+    NAMES 
+        iconv
+        libiconv
+    PATHS 
+        /usr/lib
+        /usr/lib/x86_64-linux-gnu
+        /usr/lib64
+        /usr/local/lib
+        /opt/local/lib
+        /sw/lib
+    NO_DEFAULT_PATH
+)
+
+# 如果没找到，尝试默认路径
+if(NOT ICONV_LIBRARY)
+    find_library(ICONV_LIBRARY NAMES iconv libiconv)
+endif()
+
+# 检查 iconv 是否可用（通过测试编译）
+if(ICONV_INCLUDE_DIR)
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_INCLUDES ${ICONV_INCLUDE_DIR})
+    if(ICONV_LIBRARY)
+        set(CMAKE_REQUIRED_LIBRARIES ${ICONV_LIBRARY})
+    endif()
+    
+    check_cxx_source_compiles("
+        #include <iconv.h>
+        int main() {
+            iconv_t cd = iconv_open(\"UTF-8\", \"UTF-8\");
+            if (cd != (iconv_t)(-1)) {
+                iconv_close(cd);
+                return 0;
+            }
+            return 1;
+        }
+    " ICONV_COMPILES)
+    
+    unset(CMAKE_REQUIRED_INCLUDES)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    
+    if(ICONV_COMPILES)
+        set(ICONV_FOUND TRUE)
+        set(BUILD_ICONV_SUPPORT ON)
+        message(STATUS "✓ iconv found - enhanced encoding conversion enabled")
+        if(ICONV_LIBRARY)
+            message(STATUS "  Library: ${ICONV_LIBRARY}")
+        else()
+            message(STATUS "  Library: (built into libc)")
+        endif()
+        message(STATUS "  Include dir: ${ICONV_INCLUDE_DIR}")
+    else()
+        set(ICONV_FOUND FALSE)
+        set(BUILD_ICONV_SUPPORT OFF)
+        message(STATUS "iconv header found but compilation test failed")
+        message(STATUS "  Using built-in encoding conversion")
+    endif()
 else()
     set(ICONV_FOUND FALSE)
     set(BUILD_ICONV_SUPPORT OFF)
     message(STATUS "iconv not found - using built-in encoding conversion")
-    message(STATUS "  For better encoding support, install: sudo apt install libiconv-dev")
+    message(STATUS "  For better encoding support, install: sudo apt install libc6-dev")
     message(STATUS "  (This is optional - built-in conversion will still work)")
 endif()
 
@@ -587,10 +650,20 @@ endif()
 
 # iconv 库（如果找到）
 if(BUILD_ICONV_SUPPORT)
-    target_link_libraries(pnana PRIVATE ${ICONV_LIBRARY})
+    # 添加头文件目录
     target_include_directories(pnana PRIVATE ${ICONV_INCLUDE_DIR})
+    
+    # 只有在需要单独链接库时才链接（GNU/Linux 上通常不需要）
+    if(ICONV_LIBRARY)
+        target_link_libraries(pnana PRIVATE ${ICONV_LIBRARY})
+        message(STATUS "iconv library configured for enhanced encoding conversion")
+        message(STATUS "  Linked library: ${ICONV_LIBRARY}")
+    else()
+        message(STATUS "iconv configured for enhanced encoding conversion")
+        message(STATUS "  Using iconv from libc (no separate library needed)")
+    endif()
+    
     target_compile_definitions(pnana PRIVATE BUILD_ICONV_SUPPORT)
-    message(STATUS "iconv library configured for enhanced encoding conversion")
 endif()
 
 # 包含第三方库
