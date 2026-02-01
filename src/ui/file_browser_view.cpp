@@ -1,6 +1,7 @@
 #include "ui/file_browser_view.h"
 #include "features/file_browser.h"
 #include "ui/icons.h"
+#include "utils/file_type_color_mapper.h"
 #include "utils/file_type_detector.h"
 #include <algorithm>
 #include <cctype>

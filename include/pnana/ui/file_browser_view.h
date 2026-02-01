@@ -2,8 +2,8 @@
 #define PNANA_UI_FILE_BROWSER_VIEW_H
 
 #include "features/file_browser.h"
-#include "ui/file_type_color_mapper.h"
 #include "ui/theme.h"
+#include "utils/file_type_color_mapper.h"
 #include <ftxui/dom/elements.hpp>
 #include <string>
 #include <vector>
@@ -28,7 +28,7 @@ class FileBrowserView {
 
   private:
     Theme& theme_;
-    FileTypeColorMapper color_mapper_;
+    utils::FileTypeColorMapper color_mapper_;
     size_t scroll_offset_; // 当前滚动偏移量（显示的第一个项目的索引）
 
     // UI 辅助方法
