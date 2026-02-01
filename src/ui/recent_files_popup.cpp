@@ -18,7 +18,7 @@ namespace pnana {
 namespace ui {
 
 RecentFilesPopup::RecentFilesPopup(Theme& theme)
-    : theme_(theme), is_open_(false), selected_index_(0) {}
+    : theme_(theme), is_open_(false), selected_index_(0), current_tab_(TabType::FILES) {}
 
 void RecentFilesPopup::setData(bool is_open,
                                const std::vector<features::ProjectItem>& recent_projects,
@@ -41,6 +41,11 @@ ftxui::Element RecentFilesPopup::render() {
 
     dialog_content.push_back(separator());
 
+    // Tab 标签
+    dialog_content.push_back(renderTabs());
+
+    dialog_content.push_back(separator());
+
     // 文件列表
     dialog_content.push_back(renderFileList());
 
@@ -49,8 +54,9 @@ ftxui::Element RecentFilesPopup::render() {
     // 帮助栏
     dialog_content.push_back(renderHelpBar());
 
+    auto current_items = getCurrentTabItems();
     int height =
-        std::min(22, int(10 + static_cast<int>(std::min(recent_projects_.size(), size_t(8)))));
+        std::min(24, int(12 + static_cast<int>(std::min(current_items.size(), size_t(8)))));
 
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 80) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
@@ -65,21 +71,43 @@ bool RecentFilesPopup::handleInput(ftxui::Event event) {
     if (event == ftxui::Event::Escape) {
         close();
         return true;
+    } else if (event == ftxui::Event::Tab) {
+        // Tab 键切换 tab
+        current_tab_ = (current_tab_ == TabType::FILES) ? TabType::FOLDERS : TabType::FILES;
+        selected_index_ = 0; // 切换 tab 时重置选中索引
+        // 确保索引有效
+        auto current_items = getCurrentTabItems();
+        if (selected_index_ >= current_items.size() && !current_items.empty()) {
+            selected_index_ = current_items.size() - 1;
+        }
+        return true;
     } else if (event == ftxui::Event::Return) {
-        if (file_open_callback_ && selected_index_ < recent_projects_.size()) {
-            file_open_callback_(selected_index_);
+        auto current_items = getCurrentTabItems();
+        if (file_open_callback_ && selected_index_ < current_items.size()) {
+            // 需要找到原始项目列表中的索引
+            size_t original_index = 0;
+            for (size_t i = 0; i < recent_projects_.size(); ++i) {
+                if (recent_projects_[i].path == current_items[selected_index_].path &&
+                    recent_projects_[i].type == current_items[selected_index_].type) {
+                    original_index = i;
+                    break;
+                }
+            }
+            file_open_callback_(original_index);
         }
         close();
         return true;
     } else if (event == ftxui::Event::ArrowDown) {
-        if (!recent_projects_.empty()) {
-            selected_index_ = (selected_index_ + 1) % recent_projects_.size();
+        auto current_items = getCurrentTabItems();
+        if (!current_items.empty()) {
+            selected_index_ = (selected_index_ + 1) % current_items.size();
         }
         return true;
     } else if (event == ftxui::Event::ArrowUp) {
-        if (!recent_projects_.empty()) {
+        auto current_items = getCurrentTabItems();
+        if (!current_items.empty()) {
             if (selected_index_ == 0) {
-                selected_index_ = recent_projects_.size() - 1;
+                selected_index_ = current_items.size() - 1;
             } else {
                 selected_index_--;
             }
@@ -93,6 +121,7 @@ bool RecentFilesPopup::handleInput(ftxui::Event event) {
 void RecentFilesPopup::open() {
     is_open_ = true;
     selected_index_ = 0;
+    current_tab_ = TabType::FILES; // 默认显示文件 tab
 }
 
 void RecentFilesPopup::close() {
@@ -111,16 +140,59 @@ Element RecentFilesPopup::renderTitle() const {
            bold | bgcolor(colors.dialog_title_bg) | color(colors.dialog_title_fg) | center;
 }
 
+Element RecentFilesPopup::renderTabs() const {
+    const auto& colors = theme_.getColors();
+    Elements tab_elements;
+
+    // Files tab
+    Element files_tab =
+        hbox({text("  "), text(pnana::ui::icons::FILE) | color(colors.function), text(" Files ")});
+    if (current_tab_ == TabType::FILES) {
+        files_tab = files_tab | bgcolor(colors.selection) | bold | color(colors.foreground);
+    } else {
+        files_tab = files_tab | color(colors.comment) | dim;
+    }
+
+    // Folders tab
+    Element folders_tab = hbox(
+        {text("  "), text(pnana::ui::icons::FOLDER) | color(colors.function), text(" Folders ")});
+    if (current_tab_ == TabType::FOLDERS) {
+        folders_tab = folders_tab | bgcolor(colors.selection) | bold | color(colors.foreground);
+    } else {
+        folders_tab = folders_tab | color(colors.comment) | dim;
+    }
+
+    tab_elements.push_back(files_tab);
+    tab_elements.push_back(folders_tab);
+    tab_elements.push_back(filler());
+
+    return hbox(tab_elements) | bgcolor(colors.menubar_bg);
+}
+
+std::vector<features::ProjectItem> RecentFilesPopup::getCurrentTabItems() const {
+    std::vector<features::ProjectItem> items;
+    for (const auto& project : recent_projects_) {
+        if ((current_tab_ == TabType::FILES && project.type == features::ProjectType::FILE) ||
+            (current_tab_ == TabType::FOLDERS && project.type == features::ProjectType::FOLDER)) {
+            items.push_back(project);
+        }
+    }
+    return items;
+}
+
 Element RecentFilesPopup::renderFileList() const {
     const auto& colors = theme_.getColors();
     Elements list_elements;
 
-    if (recent_projects_.empty()) {
-        list_elements.push_back(
-            hbox({text("  "), text("No recent projects") | color(colors.comment) | dim}));
+    auto current_items = getCurrentTabItems();
+
+    if (current_items.empty()) {
+        std::string empty_msg =
+            (current_tab_ == TabType::FILES) ? "No recent files" : "No recent folders";
+        list_elements.push_back(hbox({text("  "), text(empty_msg) | color(colors.comment) | dim}));
     } else {
-        for (size_t i = 0; i < recent_projects_.size() && i < 8; ++i) {
-            const auto& project = recent_projects_[i];
+        for (size_t i = 0; i < current_items.size() && i < 8; ++i) {
+            const auto& project = current_items[i];
             bool is_selected = (i == selected_index_);
 
             Elements project_elements;
@@ -169,6 +241,7 @@ Element RecentFilesPopup::renderFileList() const {
 Element RecentFilesPopup::renderHelpBar() const {
     const auto& colors = theme_.getColors();
     return hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
+                 text("Tab") | color(colors.helpbar_key) | bold, text(": Switch Tab  "),
                  text("Enter") | color(colors.helpbar_key) | bold, text(": Open  "),
                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;

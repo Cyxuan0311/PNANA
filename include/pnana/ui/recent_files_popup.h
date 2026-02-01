@@ -46,10 +46,14 @@ class RecentFilesPopup {
     void setFileOpenCallback(std::function<void(size_t)> callback);
 
   private:
+    // Tab 类型枚举
+    enum class TabType { FILES, FOLDERS };
+
     Theme& theme_;
     bool is_open_;
     std::vector<features::ProjectItem> recent_projects_;
     size_t selected_index_;
+    TabType current_tab_; // 当前选中的 tab
     utils::FileTypeIconMapper icon_mapper_;
 
     // 文件打开回调
@@ -57,8 +61,12 @@ class RecentFilesPopup {
 
     // 渲染各个组件
     ftxui::Element renderTitle() const;
+    ftxui::Element renderTabs() const;
     ftxui::Element renderFileList() const;
     ftxui::Element renderHelpBar() const;
+
+    // 获取当前 tab 的项目列表
+    std::vector<features::ProjectItem> getCurrentTabItems() const;
 
     // 辅助方法
     std::string getFileName(const std::string& filepath) const;
