@@ -28,6 +28,7 @@
 #include "ui/helpbar.h"
 #include "ui/move_file_dialog.h"
 #include "ui/new_file_prompt.h"
+#include "ui/package_manager_panel.h"
 #include "ui/recent_files_popup.h"
 #include "ui/save_as_dialog.h"
 #include "ui/split_dialog.h"
@@ -400,6 +401,7 @@ class Editor {
     pnana::ui::AIAssistantPanel ai_assistant_panel_;
     pnana::ui::AIConfigDialog ai_config_dialog_;
     pnana::ui::TodoPanel todo_panel_;
+    pnana::ui::PackageManagerPanel package_manager_panel_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
@@ -413,6 +415,13 @@ class Editor {
     // 当前搜索状态
     bool search_highlight_active_;
     features::SearchOptions current_search_options_;
+
+    // 单词高亮状态（类似VSCode/Neovim的occurrence highlighting）
+    bool word_highlight_active_;
+    std::string current_word_;                        // 当前高亮的单词
+    std::vector<features::SearchMatch> word_matches_; // 单词匹配位置
+    size_t word_highlight_row_;                       // 单词所在行
+    size_t word_highlight_col_;                       // 单词起始列
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
     features::ImagePreview image_preview_;
 #endif
@@ -662,6 +671,11 @@ class Editor {
     void executeSearch(bool move_cursor = true);
     void executeReplace();
 
+    // 单词高亮相关方法
+    void updateWordHighlight();          // 更新单词高亮
+    void clearWordHighlight();           // 清除单词高亮
+    std::string getWordAtCursor() const; // 获取光标位置的单词
+
     // 搜索辅助函数：从 search_options_ 数组构建 SearchOptions
     features::SearchOptions buildSearchOptions() const;
 
@@ -757,6 +771,11 @@ class Editor {
     // Todo功能
     void toggleTodoPanel();
     bool handleTodoPanelInput(ftxui::Event event);
+    void togglePackageManagerPanel();
+    bool handlePackageManagerPanelInput(ftxui::Event event);
+    bool isPackageManagerPanelVisible() const {
+        return package_manager_panel_.isVisible();
+    }
 
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
