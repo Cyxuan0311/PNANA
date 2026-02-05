@@ -195,7 +195,11 @@ Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t i
                                         const features::FileBrowser& browser) const {
     auto& colors = theme_.getColors();
 
+    // 根据文件夹展开状态选择图标
     std::string icon = getFileIcon(*item);
+    if (item->is_directory && item->expanded && item->name != "..") {
+        icon = icons::FOLDER_OPEN; // 展开的文件夹使用打开的文件夹图标
+    }
     Color item_color = color_mapper_.getFileColor(item->name, item->is_directory);
 
     // 构建树形结构连接线
