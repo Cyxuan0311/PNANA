@@ -110,33 +110,6 @@ static std::string buildSCPBase(SSHConfig_C* config, bool use_password) {
     return cmd.str();
 }
 
-// 辅助函数：执行命令并获取输出
-static std::string executeCommand(const std::string& command) {
-    std::array<char, 4096> buffer;
-    std::string result;
-
-    FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) {
-        return "";
-    }
-
-    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        result += buffer.data();
-    }
-
-    int status = pclose(pipe);
-    if (status != 0 && result.empty()) {
-        return ""; // 命令失败且无输出
-    }
-
-    // 移除末尾的换行符
-    if (!result.empty() && result.back() == '\n') {
-        result.pop_back();
-    }
-
-    return result;
-}
-
 // 辅助函数：执行命令并获取错误信息
 static std::string executeCommandWithError(const std::string& command) {
     std::array<char, 4096> buffer;
