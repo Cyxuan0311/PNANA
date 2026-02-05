@@ -309,10 +309,12 @@ set(SOURCES
     src/core/document.cpp
     src/core/document_manager.cpp
     src/core/editor.cpp
+    src/core/editor_commands.cpp
     src/core/editor_file_ops.cpp
     src/core/editor_cursor.cpp
     src/core/editor_edit.cpp
     src/core/editor_ui.cpp
+    src/core/editor_word_highlight.cpp
     src/core/overlay_manager.cpp
     src/core/editor_input.cpp
     src/core/region_manager.cpp
@@ -352,6 +354,9 @@ set(SOURCES
     src/ui/format_dialog.cpp
     src/ui/git_panel.cpp
     src/ui/todo_panel.cpp
+    src/ui/package_manager_panel.cpp
+    src/ui/package_detail_dialog.cpp
+    src/ui/package_install_dialog.cpp
     src/ui/move_file_dialog.cpp
     src/ui/extract_dialog.cpp
     src/ui/extract_path_dialog.cpp
@@ -381,6 +386,16 @@ set(SOURCES
     src/features/command_palette.cpp
     src/features/todo/todo_manager.cpp
     src/features/vgit/git_manager.cpp
+    src/features/package_manager/package_manager_registry.cpp
+    src/features/package_manager/pip_manager.cpp
+    src/features/package_manager/apt_manager.cpp
+    src/features/package_manager/cargo_manager.cpp
+    src/features/package_manager/npm_manager.cpp
+    src/features/package_manager/yarn_manager.cpp
+    src/features/package_manager/conda_manager.cpp
+    src/features/package_manager/pacman_manager.cpp
+    src/features/package_manager/yum_manager.cpp
+    src/features/package_manager/brew_manager.cpp
     src/features/terminal/terminal.cpp
     src/features/terminal/terminal_color.cpp
     src/features/terminal/terminal_parser.cpp
