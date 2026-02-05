@@ -134,6 +134,9 @@ void Editor::moveCursorDown() {
 
     // 清除搜索高亮
     clearSearchHighlight();
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorLeft() {
@@ -210,6 +213,9 @@ void Editor::moveCursorRight() {
         // 跨行移动时调整视图
         adjustViewOffset();
     }
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorPageUp() {
@@ -343,6 +349,9 @@ void Editor::moveCursorLineStart() {
     cursor_col_ = 0;
     // 行首/行尾移动时也检查视图，确保光标可见
     adjustViewOffset();
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorLineEnd() {
@@ -354,6 +363,9 @@ void Editor::moveCursorLineEnd() {
     cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
     // 行首/行尾移动时也检查视图，确保光标可见
     adjustViewOffset();
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorFileStart() {
@@ -365,6 +377,9 @@ void Editor::moveCursorFileStart() {
     cursor_row_ = 0;
     cursor_col_ = 0;
     adjustViewOffset();
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorFileEnd() {
@@ -376,6 +391,9 @@ void Editor::moveCursorFileEnd() {
     cursor_row_ = getCurrentDocument()->lineCount() - 1;
     cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
     adjustViewOffset();
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorWordForward() {
@@ -404,6 +422,9 @@ void Editor::moveCursorWordForward() {
     if (cursor_row_ != old_row) {
         adjustViewOffset();
     }
+
+    // 更新单词高亮
+    updateWordHighlight();
 }
 
 void Editor::moveCursorWordBackward() {

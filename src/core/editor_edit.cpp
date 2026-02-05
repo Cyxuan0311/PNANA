@@ -46,6 +46,9 @@ void Editor::insertChar(char ch) {
         // 不立即设置 force_ui_update_，而是等待延迟更新
     }
 
+    // 更新单词高亮（光标位置变化）
+    updateWordHighlight();
+
 #ifdef BUILD_LSP_SUPPORT
     // 智能LSP文档更新策略
     // 只有在以下情况下才更新LSP文档：

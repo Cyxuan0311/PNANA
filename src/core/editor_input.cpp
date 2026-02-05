@@ -124,6 +124,13 @@ void Editor::handleInput(Event event) {
         }
     }
 
+    // 如果包管理器面板打开，优先处理
+    if (package_manager_panel_.isVisible()) {
+        if (handlePackageManagerPanelInput(event)) {
+            return;
+        }
+    }
+
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
     bool in_dialog = show_save_as_ || show_create_folder_ || show_move_file_ || show_theme_menu_ ||
@@ -1787,6 +1794,8 @@ void Editor::clearSearchHighlight() {
         search_highlight_active_ = false;
         search_engine_.clearSearch();
     }
+    // 清除搜索高亮后，恢复单词高亮
+    updateWordHighlight();
 }
 
 void Editor::performReplace(const std::string& replacement) {
