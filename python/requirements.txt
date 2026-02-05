@@ -31,3 +31,6 @@ pyyaml>=6.0
 # Optional: for logging and monitoring
 wandb>=0.15.0
 tensorboard>=2.13.0
+
+# TensorFlow compatibility (required by transformers when TensorFlow is installed)
+tf-keras>=2.20.0
