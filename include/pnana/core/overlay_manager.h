@@ -62,6 +62,9 @@ class OverlayManager {
     void setRenderTodoPanelCallback(std::function<ftxui::Element()> callback) {
         render_todo_panel_callback_ = callback;
     }
+    void setRenderPackageManagerPanelCallback(std::function<ftxui::Element()> callback) {
+        render_package_manager_panel_callback_ = callback;
+    }
     void setRenderCompletionPopupCallback(std::function<ftxui::Element()> callback) {
         render_completion_popup_callback_ = callback;
     }
@@ -142,6 +145,9 @@ class OverlayManager {
     void setIsTodoPanelVisibleCallback(std::function<bool()> callback) {
         is_todo_panel_visible_callback_ = callback;
     }
+    void setIsPackageManagerPanelVisibleCallback(std::function<bool()> callback) {
+        is_package_manager_panel_visible_callback_ = callback;
+    }
     void setIsCompletionPopupVisibleCallback(std::function<bool()> callback) {
         is_completion_popup_visible_callback_ = callback;
     }
@@ -194,6 +200,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_format_callback_;
     std::function<ftxui::Element()> render_git_panel_callback_;
     std::function<ftxui::Element()> render_todo_panel_callback_;
+    std::function<ftxui::Element()> render_package_manager_panel_callback_;
     std::function<ftxui::Element()> render_completion_popup_callback_;
     std::function<ftxui::Element()> render_diagnostics_popup_callback_;
     std::function<ftxui::Element()> render_file_picker_callback_;
@@ -222,6 +229,7 @@ class OverlayManager {
     std::function<bool()> is_format_visible_callback_;
     std::function<bool()> is_git_panel_visible_callback_;
     std::function<bool()> is_todo_panel_visible_callback_;
+    std::function<bool()> is_package_manager_panel_visible_callback_;
     std::function<bool()> is_completion_popup_visible_callback_;
     std::function<bool()> is_diagnostics_popup_visible_callback_;
     std::function<bool()> is_file_picker_visible_callback_;
