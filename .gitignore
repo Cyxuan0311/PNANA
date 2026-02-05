@@ -3,6 +3,7 @@ lib/
 logs/
 .cache/
 __pycache__/
+data/
 
 优化.md
 pnana.log
