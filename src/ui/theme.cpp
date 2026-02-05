@@ -486,6 +486,7 @@ ThemeColors Theme::Ayu() {
 
 ThemeColors Theme::GitHub() {
     ThemeColors colors;
+    // Optimized GitHub Light theme with improved contrast
     colors.background = Color::RGB(255, 255, 255);       // #ffffff
     colors.foreground = Color::RGB(36, 41, 46);          // #24292e
     colors.current_line = Color::RGB(246, 248, 250);     // #f6f8fa
@@ -522,6 +523,94 @@ ThemeColors Theme::GitHub() {
     colors.dialog_title_bg = Color::RGB(250, 250, 250); // #fafafa - 比背景稍亮
     colors.dialog_title_fg = Color::RGB(45, 50, 55);    // #2d3237 - 与前景色一致
     colors.dialog_border = Color::RGB(110, 120, 130);   // #6e7882 - 与行号颜色协调
+
+    return colors;
+}
+
+ThemeColors Theme::GitHubDark() {
+    ThemeColors colors;
+    // Optimized GitHub Dark theme with improved contrast and readability
+    colors.background = Color::RGB(13, 17, 23);             // #0d1117 - GitHub dark background
+    colors.foreground = Color::RGB(230, 237, 243);          // #e6edf3 - GitHub dark foreground
+    colors.current_line = Color::RGB(22, 27, 34);           // #161b22 - Current line highlight
+    colors.selection = Color::RGB(33, 38, 45);              // #21262d - Selection background
+    colors.line_number = Color::RGB(139, 148, 158);         // #8b949e - Line numbers
+    colors.line_number_current = Color::RGB(230, 237, 243); // #e6edf3 - Current line number
+
+    colors.statusbar_bg = Color::RGB(22, 27, 34);    // #161b22
+    colors.statusbar_fg = Color::RGB(230, 237, 243); // #e6edf3
+
+    colors.menubar_bg = Color::RGB(13, 17, 23);    // #0d1117
+    colors.menubar_fg = Color::RGB(230, 237, 243); // #e6edf3
+
+    colors.helpbar_bg = Color::RGB(22, 27, 34);    // #161b22
+    colors.helpbar_fg = Color::RGB(139, 148, 158); // #8b949e
+    colors.helpbar_key = Color::RGB(56, 178, 172); // #38b2ac - Teal accent
+
+    colors.keyword = Color::RGB(255, 123, 172);        // #ff7bac - Pink for keywords
+    colors.string = Color::RGB(163, 186, 202);         // #a3bac8 - Light blue for strings
+    colors.comment = Color::RGB(139, 148, 158);        // #8b949e - Gray for comments
+    colors.number = Color::RGB(121, 192, 255);         // #79c0ff - Blue for numbers
+    colors.function = Color::RGB(210, 168, 255);       // #d2a8ff - Purple for functions
+    colors.type = Color::RGB(56, 178, 172);            // #38b2ac - Teal for types
+    colors.operator_color = Color::RGB(255, 123, 172); // #ff7bac - Pink for operators
+
+    colors.error = Color::RGB(248, 81, 73);    // #f85149 - GitHub red
+    colors.warning = Color::RGB(255, 188, 33); // #ffbc21 - GitHub yellow
+    colors.info = Color::RGB(121, 192, 255);   // #79c0ff - GitHub blue
+    colors.success = Color::RGB(56, 178, 172); // #38b2ac - GitHub teal
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(22, 27, 34);          // #161b22 - 比背景稍亮的深灰
+    colors.dialog_fg = Color::RGB(230, 237, 243);       // #e6edf3 - 与前景色协调
+    colors.dialog_title_bg = Color::RGB(13, 17, 23);    // #0d1117 - 比背景稍深
+    colors.dialog_title_fg = Color::RGB(230, 237, 243); // #e6edf3 - 与前景色一致
+    colors.dialog_border = Color::RGB(139, 148, 158);   // #8b949e - 与行号颜色协调
+
+    return colors;
+}
+
+ThemeColors Theme::MarkdownDark() {
+    ThemeColors colors;
+    // Markdown Dark theme optimized with gray tones and colors matching code editor style
+    // Deep dark gray background for comfortable viewing
+    colors.background = Color::RGB(25, 25, 28);     // #19191c - Deep dark gray background
+    colors.foreground = Color::RGB(220, 220, 220);  // #dcdcdc - Soft white foreground
+    colors.current_line = Color::RGB(35, 35, 38);   // #232326 - Subtle current line highlight
+    colors.selection = Color::RGB(45, 50, 55);      // #2d3237 - Selection highlight
+    colors.line_number = Color::RGB(100, 105, 110); // #64696e - Muted gray line numbers
+    colors.line_number_current = Color::RGB(220, 220, 220); // #dcdcdc - Current line number
+
+    colors.statusbar_bg = Color::RGB(30, 30, 33);    // #1e1e21
+    colors.statusbar_fg = Color::RGB(220, 220, 220); // #dcdcdc
+
+    colors.menubar_bg = Color::RGB(25, 25, 28);    // #19191c
+    colors.menubar_fg = Color::RGB(220, 220, 220); // #dcdcdc
+
+    colors.helpbar_bg = Color::RGB(30, 30, 33);     // #1e1e21
+    colors.helpbar_fg = Color::RGB(140, 150, 160);  // #8c96a0 - Light grayish
+    colors.helpbar_key = Color::RGB(220, 180, 120); // #dcb478 - Yellow/orange accent
+
+    // Color scheme matching code editor style from image
+    colors.keyword = Color::RGB(200, 120, 220);        // #c878dc - Purple for keywords/headers
+    colors.string = Color::RGB(150, 200, 150);         // #96c896 - Green for strings/links
+    colors.comment = Color::RGB(140, 150, 160);        // #8c96a0 - Light greenish-gray for comments
+    colors.number = Color::RGB(120, 180, 220);         // #78b4dc - Light blue for numbers
+    colors.function = Color::RGB(220, 180, 120);       // #dcb478 - Yellow/orange for functions
+    colors.type = Color::RGB(120, 180, 220);           // #78b4dc - Light blue for types
+    colors.operator_color = Color::RGB(200, 120, 220); // #c878dc - Purple for operators
+
+    colors.error = Color::RGB(240, 100, 100);   // #f06464 - Soft red
+    colors.warning = Color::RGB(240, 200, 100); // #f0c864 - Soft yellow
+    colors.info = Color::RGB(120, 180, 220);    // #78b4dc - Light blue
+    colors.success = Color::RGB(150, 200, 150); // #96c896 - Green
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(35, 35, 38);          // #232326 - 比背景稍亮的深灰
+    colors.dialog_fg = Color::RGB(220, 220, 220);       // #dcdcdc - 与前景色协调
+    colors.dialog_title_bg = Color::RGB(25, 25, 28);    // #19191c - 比背景稍深
+    colors.dialog_title_fg = Color::RGB(220, 220, 220); // #dcdcdc - 与前景色一致
+    colors.dialog_border = Color::RGB(100, 105, 110);   // #64696e - 与行号颜色协调
 
     return colors;
 }
@@ -1248,6 +1337,10 @@ void Theme::setTheme(const std::string& name) {
         colors_ = Ayu();
     } else if (name == "github") {
         colors_ = GitHub();
+    } else if (name == "github-dark") {
+        colors_ = GitHubDark();
+    } else if (name == "markdown-dark") {
+        colors_ = MarkdownDark();
     } else if (name == "vscode-dark") {
         colors_ = VSCodeDark();
     } else if (name == "night-owl") {
@@ -1393,12 +1486,36 @@ ftxui::Color Theme::rgbToColor(const std::vector<int>& rgb) {
 }
 
 std::vector<std::string> Theme::getAvailableThemes() {
-    return {"monokai",      "dracula",     "solarized-dark", "solarized-light",     "onedark",
-            "nord",         "gruvbox",     "tokyo-night",    "catppuccin",          "material",
-            "ayu",          "github",      "vscode-dark",    "night-owl",           "palenight",
-            "oceanic-next", "kanagawa",    "tomorrow-night", "tomorrow-night-blue", "cobalt",
-            "zenburn",      "base16-dark", "papercolor",     "rose-pine",           "everforest",
-            "jellybeans",   "desert",      "slate"};
+    return {"monokai",
+            "dracula",
+            "solarized-dark",
+            "solarized-light",
+            "onedark",
+            "nord",
+            "gruvbox",
+            "tokyo-night",
+            "catppuccin",
+            "material",
+            "ayu",
+            "github",
+            "github-dark",
+            "markdown-dark",
+            "vscode-dark",
+            "night-owl",
+            "palenight",
+            "oceanic-next",
+            "kanagawa",
+            "tomorrow-night",
+            "tomorrow-night-blue",
+            "cobalt",
+            "zenburn",
+            "base16-dark",
+            "papercolor",
+            "rose-pine",
+            "everforest",
+            "jellybeans",
+            "desert",
+            "slate"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {

@@ -69,7 +69,9 @@ class Theme {
     static ThemeColors Catppuccin();        // Catppuccin
     static ThemeColors Material();          // Material
     static ThemeColors Ayu();               // Ayu
-    static ThemeColors GitHub();            // GitHub
+    static ThemeColors GitHub();            // GitHub Light
+    static ThemeColors GitHubDark();        // GitHub Dark
+    static ThemeColors MarkdownDark();      // Markdown Dark
     static ThemeColors VSCodeDark();        // VS Code Dark+
     static ThemeColors NightOwl();          // Night Owl
     static ThemeColors Palenight();         // Material Palenight
