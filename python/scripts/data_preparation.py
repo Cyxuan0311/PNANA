@@ -18,15 +18,25 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import re
 
+# Configure Hugging Face Hub to use domestic mirror for better connectivity
+# Must be set before importing huggingface_hub or datasets
+MIRROR_ENDPOINT = 'https://hf-mirror.com'
+if not os.environ.get('HF_ENDPOINT'):
+    os.environ['HF_ENDPOINT'] = MIRROR_ENDPOINT
+# Also set for huggingface_hub if needed
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'  # Disable hf_transfer for better compatibility
+
 try:
     import git
     from datasets import load_dataset, Dataset
     from tqdm import tqdm
-    # Configure Hugging Face Hub to use domestic mirror for better connectivity
-    import os
-    if not os.environ.get('HF_ENDPOINT'):
-        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-        # logger.info("Using Hugging Face mirror: https://hf-mirror.com")
+    # Try to configure huggingface_hub to use mirror
+    try:
+        from huggingface_hub import snapshot_download
+        # The HF_ENDPOINT environment variable should be enough
+        # But we can also try to set it programmatically if needed
+    except ImportError:
+        pass
 except ImportError as e:
     print(f"Missing required dependencies. Please install them: {e}")
     exit(1)
@@ -34,6 +44,12 @@ except ImportError as e:
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Log the mirror configuration
+if os.environ.get('HF_ENDPOINT'):
+    logger.info(f"Using Hugging Face mirror: {os.environ.get('HF_ENDPOINT')}")
+else:
+    logger.info("Using default Hugging Face endpoint")
 
 
 class GitDiffExtractor:
@@ -198,23 +214,60 @@ class HuggingFaceDatasetLoader:
             List of dictionaries containing diff and commit_message
         """
         logger.info(f"Loading dataset: {dataset_name}")
+        logger.info(f"HF_ENDPOINT: {os.environ.get('HF_ENDPOINT', 'default')}")
 
         try:
-            dataset = load_dataset(dataset_name, split='train')
+            # Ensure HF_ENDPOINT is set before loading
+            if not os.environ.get('HF_ENDPOINT'):
+                os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+                logger.info("Set HF_ENDPOINT to https://hf-mirror.com")
+            
+            # Try to configure download settings for mirror
+            try:
+                from datasets import DownloadConfig
+                download_config = DownloadConfig()
+                # The HF_ENDPOINT env var should be automatically used
+                dataset = load_dataset(dataset_name, split='train', download_config=download_config)
+            except (ImportError, Exception) as e:
+                # Fallback to simple load_dataset if DownloadConfig fails
+                logger.debug(f"Using simple load_dataset (DownloadConfig not available: {e})")
+                dataset = load_dataset(dataset_name, split='train')
+            
             logger.info(f"Loaded {len(dataset)} samples from {dataset_name}")
+            
+            # Debug: Check the first item's structure
+            if len(dataset) > 0:
+                first_item = dataset[0]
+                logger.info(f"Dataset columns: {list(first_item.keys())}")
+                logger.debug(f"First item sample: {first_item}")
 
             data = []
+            skipped_count = 0
             for item in tqdm(dataset, desc="Processing dataset"):
-                # Handle different dataset formats
-                diff = item.get('diff', item.get('patch', ''))
-                commit_message = item.get('message', item.get('commit_message', ''))
+                # Handle different dataset formats - try multiple possible field names
+                diff = (item.get('diff') or item.get('patch') or 
+                       item.get('code_diff') or item.get('code') or 
+                       item.get('input') or '')
+                commit_message = (item.get('message') or item.get('commit_message') or 
+                                item.get('msg') or item.get('output') or 
+                                item.get('summary') or '')
+
+                # Convert to string and strip whitespace
+                diff = str(diff).strip() if diff else ''
+                commit_message = str(commit_message).strip() if commit_message else ''
 
                 if diff and commit_message:
                     data.append({
-                        "diff": str(diff),
-                        "commit_message": str(commit_message)
+                        "diff": diff,
+                        "commit_message": commit_message
                     })
+                else:
+                    skipped_count += 1
+                    if skipped_count <= 5:  # Log first 5 skipped items for debugging
+                        logger.debug(f"Skipped item - diff: {bool(diff)}, message: {bool(commit_message)}")
+                        logger.debug(f"Item keys: {list(item.keys())}")
 
+            logger.info(f"Extracted {len(data)} valid samples, skipped {skipped_count} invalid samples")
             return data
 
         except Exception as e:
@@ -258,6 +311,10 @@ class DatasetFormatter:
     def save_to_jsonl(data: List[Dict[str, str]], output_file: str):
         """Save data to JSONL format."""
         logger.info(f"Saving {len(data)} samples to {output_file}")
+
+        # Create output directory if it doesn't exist
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_file, 'w', encoding='utf-8') as f:
             for item in data:

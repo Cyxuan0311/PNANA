@@ -16,6 +16,14 @@ import argparse
 from typing import Optional, Dict, Any
 from pathlib import Path
 
+# Configure Hugging Face Hub to use domestic mirror for better connectivity
+# Must be set before importing huggingface_hub or transformers
+MIRROR_ENDPOINT = 'https://hf-mirror.com'
+if not os.environ.get('HF_ENDPOINT'):
+    os.environ['HF_ENDPOINT'] = MIRROR_ENDPOINT
+# Also set for huggingface_hub if needed
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'  # Disable hf_transfer for better compatibility
+
 try:
     from transformers import (
         AutoModelForCausalLM,
@@ -35,6 +43,12 @@ except ImportError as e:
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Log the mirror configuration
+if os.environ.get('HF_ENDPOINT'):
+    logger.info(f"Using Hugging Face mirror: {os.environ.get('HF_ENDPOINT')}")
+else:
+    logger.info("Using default Hugging Face endpoint")
 
 
 class CommitMessageTrainer:
@@ -74,6 +88,12 @@ class CommitMessageTrainer:
     def load_model_and_tokenizer(self):
         """Load model and tokenizer with quantization."""
         logger.info(f"Loading model: {self.model_name}")
+        logger.info(f"HF_ENDPOINT: {os.environ.get('HF_ENDPOINT', 'default')}")
+
+        # Ensure HF_ENDPOINT is set before loading
+        if not os.environ.get('HF_ENDPOINT'):
+            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+            logger.info("Set HF_ENDPOINT to https://hf-mirror.com")
 
         # Configure quantization
         if self.quantization_bits == 4:
