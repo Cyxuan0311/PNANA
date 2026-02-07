@@ -3,6 +3,7 @@
 
 #include "features/vgit/git_manager.h"
 #include "ui/theme.h"
+#include "utils/file_type_icon_mapper.h"
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
 #include <memory>
@@ -13,7 +14,7 @@
 namespace pnana {
 namespace vgit {
 
-enum class GitPanelMode { STATUS, COMMIT, BRANCH, REMOTE };
+enum class GitPanelMode { STATUS, COMMIT, BRANCH, REMOTE, CLONE, DIFF, GRAPH };
 
 class GitPanel {
   public:
@@ -35,12 +36,29 @@ class GitPanel {
         visible_ = !visible_;
     }
 
+    // Diff viewer state getters
+    bool isDiffViewerVisible() const {
+        return diff_viewer_visible_;
+    }
+
+    // Diff viewer content access (for input handler)
+    const std::vector<std::string>& getDiffContent() const {
+        return diff_content_;
+    }
+    size_t getDiffScrollOffset() const {
+        return diff_scroll_offset_;
+    }
+    void setDiffScrollOffset(size_t offset) {
+        diff_scroll_offset_ = offset;
+    }
+
     // Event handlers
     void onShow();
     void onHide();
 
     // Data management
     void refreshData();
+    void performClone();
 
     // Key handlers
     bool onKeyPress(ftxui::Event event);
@@ -53,15 +71,27 @@ class GitPanel {
     bool data_loading_ = false; // 标记数据是否正在加载
     std::mutex data_mutex_;     // 保护数据访问的互斥锁
 
+    utils::FileTypeIconMapper icon_mapper_; // 文件类型图标映射器
+
     // UI state
     GitPanelMode current_mode_ = GitPanelMode::STATUS;
     std::vector<GitFile> files_;
     std::vector<GitBranch> branches_;
+    std::vector<GitCommit> graph_commits_;
     size_t selected_index_ = 0;
     size_t scroll_offset_ = 0;
     std::string commit_message_;
     std::string branch_name_;
+    std::string clone_url_;
+    std::string clone_path_;
+    bool clone_focus_on_url_ = true; // true for URL, false for path
     std::string error_message_;
+
+    // Diff viewer state
+    bool diff_viewer_visible_ = false;
+    std::vector<std::string> diff_content_;
+    size_t diff_scroll_offset_ = 0;
+    std::string current_diff_file_;
 
     // UI components
     ftxui::Component main_component_;
@@ -83,6 +113,7 @@ class GitPanel {
     size_t cached_staged_count_ = 0;
     size_t cached_unstaged_count_ = 0;
     bool stats_cache_valid_ = false;
+    bool show_detailed_stats_ = false; // Whether to show staged/unstaged breakdown
 
     // Cached repository display info to avoid frequent git calls during rendering
     std::string cached_repo_path_display_;
@@ -93,6 +124,10 @@ class GitPanel {
     std::string cached_current_branch_;
     std::chrono::steady_clock::time_point last_branch_update_;
     std::chrono::milliseconds branch_cache_timeout_{15000}; // 15 seconds for branch info
+
+    GitBranchStatus cached_branch_status_;
+    std::chrono::steady_clock::time_point last_branch_status_update_;
+    std::chrono::milliseconds branch_status_cache_timeout_{10000}; // 10 seconds for branch status
 
     // Private methods
     void switchMode(GitPanelMode mode);
@@ -111,6 +146,11 @@ class GitPanel {
     void performSwitchBranch();
     void refreshStatusOnly();
     void updateCachedStats(); // Update cached statistics for performance
+    void showDiffViewer(const std::string& file_path);
+    void hideDiffViewer();
+
+  public:
+    void handleDiffViewerEscape();
 
     // UI rendering
     ftxui::Element renderHeader();
@@ -119,9 +159,16 @@ class GitPanel {
     ftxui::Element renderCommitPanel();
     ftxui::Element renderBranchPanel();
     ftxui::Element renderRemotePanel();
+    ftxui::Element renderClonePanel();
+    ftxui::Element renderDiffPanel();
+    ftxui::Element renderGraphPanel();
+    ftxui::Element renderDiffViewer();
+    ftxui::Element renderDiffFileItem(const GitFile& file, size_t index, bool is_highlighted);
     ftxui::Element renderFileItem(const GitFile& file, size_t index, bool is_selected,
                                   bool is_highlighted);
     ftxui::Element renderBranchItem(const GitBranch& branch, size_t index, bool is_selected);
+    ftxui::Element renderGraphCommitItem(const GitCommit& commit, size_t index,
+                                         bool is_highlighted);
     ftxui::Element renderFooter();
     ftxui::Element renderError();
     ftxui::Element separatorLight();
@@ -137,17 +184,23 @@ class GitPanel {
     bool handleCommitModeKey(ftxui::Event event);
     bool handleBranchModeKey(ftxui::Event event);
     bool handleRemoteModeKey(ftxui::Event event);
+    bool handleCloneModeKey(ftxui::Event event);
+    bool handleDiffModeKey(ftxui::Event event);
+    bool handleGraphModeKey(ftxui::Event event);
 
     // Utility methods
     std::string getStatusIcon(GitFileStatus status) const;
     std::string getStatusText(GitFileStatus status) const;
     std::string getModeTitle(GitPanelMode mode) const;
     ftxui::Color getStatusColor(GitFileStatus status) const;
+    ftxui::Color getDiffLineColor(const std::string& line);
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;
     bool isNavigationKey(ftxui::Event event) const;
     std::string getCachedRepoPathDisplay();
     std::string getCachedCurrentBranch();
+    GitBranchStatus getCachedBranchStatus();
+    std::string getFileExtension(const std::string& filename) const;
     void ensureValidIndices();
 };
 

@@ -7,6 +7,45 @@
 namespace pnana {
 namespace features {
 
+// Helper: wrap a single paragraph into lines by words, respecting max_width.
+static std::vector<std::string> wrap_into_lines(const std::string& text, int max_width) {
+    std::vector<std::string> out_lines;
+    if (max_width <= 0) {
+        out_lines.push_back(text);
+        return out_lines;
+    }
+
+    std::istringstream iss(text);
+    std::string paragraph_line;
+    // Split original text by newline and wrap each separately
+    while (std::getline(iss, paragraph_line)) {
+        if (paragraph_line.empty()) {
+            out_lines.emplace_back("");
+            continue;
+        }
+        std::istringstream wss(paragraph_line);
+        std::string word;
+        std::string current;
+        while (wss >> word) {
+            if (current.empty()) {
+                current = word;
+            } else {
+                if ((int)current.length() + 1 + (int)word.length() <= max_width) {
+                    current += " " + word;
+                } else {
+                    out_lines.push_back(current);
+                    current = word;
+                }
+            }
+        }
+        if (!current.empty()) {
+            out_lines.push_back(current);
+        }
+    }
+
+    return out_lines;
+}
+
 MarkdownRenderer::MarkdownRenderer(const MarkdownRenderConfig& config) : config_(config) {}
 
 ftxui::Element MarkdownRenderer::render(const std::string& markdown) {
@@ -70,40 +109,37 @@ ftxui::Element MarkdownRenderer::render_heading(const std::shared_ptr<MarkdownEl
     using namespace ftxui;
 
     Elements content_elements;
-
-    // 渲染标题内容（解析器已经处理了#前缀，这里直接渲染内容）
+    // render child spans if any
     for (const auto& child : element->children) {
         content_elements.push_back(render_element(child));
     }
 
-    Element heading_content;
-    if (content_elements.empty()) {
-        heading_content = text(element->content);
-    } else {
-        heading_content = hbox(std::move(content_elements));
-    }
+    std::string text_content = element->content;
+    // Trim trailing newlines
+    while (!text_content.empty() && (text_content.back() == '\n' || text_content.back() == '\r'))
+        text_content.pop_back();
 
-    // 根据标题级别应用不同的样式，模拟 glow 的效果
+    Element heading_el = text(text_content);
     switch (element->level) {
         case 1:
-            // H1: 居中、反白、加粗，模拟 glow 的醒目效果
-            return heading_content | inverted | bold | center;
+            // H1: centered, bold, bright white
+            if (config_.max_width > 0) {
+                // center by padding
+                int pad = std::max(0, (config_.max_width - (int)text_content.length()) / 2);
+                heading_el = text(std::string(pad, ' ') + text_content);
+            }
+            return heading_el | bold | ftxui::color(Color::White);
         case 2:
-            // H2: 更大的字体，鲜艳的颜色
-            return heading_content | ftxui::color(Color::Cyan) | bold;
+            return heading_el | bold | ftxui::color(Color::Cyan);
         case 3:
-            // H3: 中等大小，蓝色
-            return heading_content | ftxui::color(Color::Blue) | bold;
+            return heading_el | bold | ftxui::color(Color::Blue);
         case 4:
-            // H4: 标准大小，绿色
-            return heading_content | ftxui::color(Color::Green) | bold;
+            return heading_el | bold | ftxui::color(Color::Green);
         case 5:
-            // H5: 稍小，黄色
-            return heading_content | ftxui::color(Color::Yellow) | bold;
+            return heading_el | bold | ftxui::color(Color::Yellow);
         case 6:
         default:
-            // H6: 最小，灰色
-            return heading_content | ftxui::color(Color::GrayLight) | bold;
+            return heading_el | bold | ftxui::color(Color::Magenta);
     }
 }
 
@@ -116,215 +152,182 @@ ftxui::Element MarkdownRenderer::render_paragraph(const std::shared_ptr<Markdown
     }
 
     if (content_elements.empty()) {
-        // 处理多行文本
-        std::istringstream iss(element->content);
-        std::string line;
+        // 处理多行文本：按源换行拆分并按单词换行，保留空行，使用单个 text 元素
+        auto wrapped_lines = wrap_into_lines(element->content, config_.max_width);
         Elements lines;
-        while (std::getline(iss, line)) {
-            if (!line.empty()) {
-                lines.push_back(wrap_text(line, config_.max_width));
-            }
-        }
-        if (lines.empty()) {
-            return text(""); // 空段落
+        for (const auto& ln : wrapped_lines) {
+            lines.push_back(text(ln));
         }
         return vbox(std::move(lines));
     }
 
     // 如果有子元素，水平排列并限制宽度
-    return hbox(std::move(content_elements)) | size(WIDTH, LESS_THAN, config_.max_width);
+    // fall back to content string
+    return text(element->content);
 }
 
 ftxui::Element MarkdownRenderer::render_code_block(
     const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
 
-    auto code_color = get_code_color();
+    // Render code block as raw ANSI/Unicode text inside a single text element.
+    // Do not use FTXUI layout/decorators here; produce a plain string with
+    // optional ANSI color codes so it looks similar to neovim MD preview.
 
-    // 分行并渲染每一行，支持宽度约束
-    Elements lines;
+    // Render code block using FTXUI color/bg decorators so escapes render correctly.
+    Elements rendered;
+    int total_width = std::max(0, config_.max_width);
+    std::string lang = element->lang;
+
+    std::string header;
+    if (!lang.empty())
+        header = "-----" + lang + "-----";
+    else
+        header = std::string(5, '-') + "code" + std::string(5, '-');
+    if ((int)header.length() < total_width)
+        header += std::string(total_width - (int)header.length(), '-');
+    if ((int)header.length() > total_width)
+        header = header.substr(0, total_width);
+
+    Element header_el = text(header) | ftxui::color(Color::GrayLight);
+    rendered.push_back(header_el);
+
+    Elements body_lines;
     auto raw_lines = split_lines(element->content);
+    // Wrap each source line by words to avoid mid-word truncation
     for (auto& ln : raw_lines) {
-        lines.push_back(text(ln) | ftxui::color(code_color));
+        auto wrapped = wrap_into_lines(ln, total_width);
+        if (wrapped.empty()) {
+            body_lines.push_back(text("") | ftxui::color(get_code_color()));
+        } else {
+            for (const auto& wln : wrapped) {
+                body_lines.push_back(text(wln) | ftxui::color(get_code_color()));
+            }
+        }
     }
+    if (body_lines.empty())
+        body_lines.push_back(text(""));
+    rendered.push_back(vbox(std::move(body_lines)) | bgcolor(Color::GrayDark));
 
-    // 创建顶部和底部的边框线
-    std::string border_line(config_.max_width - 4, u8"─"[0]);
-    Element top_border = text("┌" + border_line + "┐") | ftxui::color(Color::GrayLight);
-    Element bottom_border = text("└" + border_line + "┘") | ftxui::color(Color::GrayLight);
-
-    // 代码块主体，带背景色和内边距
-    Element code_content = vbox(std::move(lines)) | bgcolor(Color::GrayDark) |
-                           size(WIDTH, LESS_THAN, config_.max_width - 4) |
-                           size(HEIGHT, GREATER_THAN, 1);
-
-    // 添加左右边框的竖线
-    Elements bordered_lines;
-    for (const auto& line : lines) {
-        bordered_lines.push_back(
-            hbox({text("│") | ftxui::color(Color::GrayLight), text(" "), line, text(" ")}));
+    // Footer: short separator (do not necessarily fill entire width)
+    std::string footer = std::string(10, '-');
+    if ((int)footer.length() < total_width) {
+        // center footer
+        int pad = (total_width - (int)footer.length()) / 2;
+        footer = std::string(pad, ' ') + footer;
     }
+    Element footer_el = text(footer) | ftxui::color(Color::GrayLight);
+    rendered.push_back(footer_el);
 
-    if (bordered_lines.empty()) {
-        bordered_lines.push_back(
-            hbox({text("│") | ftxui::color(Color::GrayLight), text(" "), text(""), text(" ")}));
-    }
-
-    Element code_box = vbox(std::move(bordered_lines)) | bgcolor(Color::GrayDark);
-
-    // 组合整个代码块：顶部边框 + 代码内容 + 底部边框
-    return vbox({top_border, code_box, bottom_border});
+    return vbox(std::move(rendered));
 }
 
 ftxui::Element MarkdownRenderer::render_inline_code(
     const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
 
-    auto code_color = get_code_color();
-    return text(element->content) | ftxui::color(code_color) | bgcolor(Color::GrayDark) |
-           underlined;
+    // Inline code: green text on dark background, underlined
+    std::string content = element->content;
+    std::string out;
+    if (config_.use_color) {
+        out = std::string("\033[32m") + content + std::string("\033[0m");
+    } else {
+        out = content;
+    }
+    return text(out);
 }
 
 ftxui::Element MarkdownRenderer::render_bold(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    Elements content_elements;
-    for (const auto& child : element->children) {
-        content_elements.push_back(render_element(child));
+    std::string out = element->content;
+    if (config_.use_color) {
+        out = std::string("\033[1m") + out + std::string("\033[0m");
     }
-
-    Element content;
-    if (content_elements.empty()) {
-        content = text(element->content);
-    } else {
-        content = hbox(std::move(content_elements));
-    }
-
-    return content | get_bold_decorator();
+    return text(out);
 }
 
 ftxui::Element MarkdownRenderer::render_italic(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    Elements content_elements;
-    for (const auto& child : element->children) {
-        content_elements.push_back(render_element(child));
+    std::string out = element->content;
+    if (config_.use_color) {
+        out = std::string("\033[2m") + out + std::string("\033[0m"); // dim
     }
-
-    Element content;
-    if (content_elements.empty()) {
-        content = text(element->content);
-    } else {
-        content = hbox(std::move(content_elements));
-    }
-
-    return content | get_italic_decorator();
+    return text(out);
 }
 
 ftxui::Element MarkdownRenderer::render_link(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    Elements content_elements;
-
-    for (const auto& child : element->children) {
-        content_elements.push_back(render_element(child));
-    }
-
-    Element link_text;
-    if (content_elements.empty()) {
-        link_text = text(element->content);
-    } else {
-        link_text = hbox(std::move(content_elements));
-    }
-
-    // 显示链接文本，glow 风格：只显示链接文本，不显示URL
     std::string display_text = element->content;
-    if (display_text.empty() && !content_elements.empty()) {
-        // 如果没有显示文本，使用URL作为显示文本
+    if (display_text.empty())
         display_text = element->url;
+    if (display_text.empty())
+        display_text = "[Link]";
+    if (config_.use_color) {
+        display_text = std::string("\033[94m") + display_text + "\033[0m";
     }
-
-    // 如果没有内容，尝试从子元素构建
-    if (display_text.empty() && content_elements.empty()) {
-        display_text = "[Link]"; // 兜底显示
-    }
-
-    Element result;
-    if (!content_elements.empty()) {
-        result = hbox(std::move(content_elements));
-    } else {
-        result = text(display_text);
-    }
-
-    // 应用链接样式：亮蓝色 + 下划线
-    return result | ftxui::color(Color::BlueLight) | underlined;
+    return text(display_text);
 }
 
 ftxui::Element MarkdownRenderer::render_image(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    // 对于终端环境，显示图片的替代文本或标题
     std::string display_text = element->title.empty() ? element->content : element->title;
-    if (display_text.empty()) {
+    if (display_text.empty())
         display_text = "[Image]";
+    if (config_.use_color) {
+        display_text = std::string("\033[2m") + display_text + "\033[0m";
     }
-
-    return text(display_text) | dim;
+    return text(display_text);
 }
 
 ftxui::Element MarkdownRenderer::render_list_item(const std::shared_ptr<MarkdownElement>& element,
                                                   int indent) {
     using namespace ftxui;
-
     std::string indent_str(indent * 2, ' ');
-    std::string marker = "• "; // 使用 bullet point
-
-    Elements content_elements;
-
-    // 如果有子元素，垂直排列
-    if (!element->children.empty()) {
-        Elements item_lines;
-        item_lines.push_back(text(indent_str + marker));
-
-        for (const auto& child : element->children) {
-            auto rendered_child = render_element(child, indent + 1);
-            item_lines.push_back(hbox({text(indent_str + "  "), rendered_child}));
+    std::string marker = "• ";
+    int available_width =
+        config_.max_width - static_cast<int>(indent_str.size()) - static_cast<int>(marker.size());
+    if (available_width <= 0)
+        available_width = config_.max_width;
+    auto wrapped = wrap_into_lines(element->content, available_width);
+    std::ostringstream oss;
+    if (!wrapped.empty()) {
+        oss << indent_str << marker << wrapped[0];
+        for (size_t i = 1; i < wrapped.size(); ++i) {
+            oss << "\n" << indent_str << std::string(marker.size(), ' ') << wrapped[i];
         }
-
-        return vbox(std::move(item_lines));
     } else {
-        // 简单列表项：标记 + 内容
-        content_elements.push_back(text(indent_str + marker));
-        content_elements.push_back(text(element->content));
-        return hbox(std::move(content_elements));
+        oss << indent_str << marker;
     }
+    return text(oss.str());
 }
 
 ftxui::Element MarkdownRenderer::render_blockquote(
     const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    auto blockquote_color = get_blockquote_color();
-    Elements content_elements;
-
-    for (const auto& child : element->children) {
-        auto child_element = render_element(child, 1);
-        content_elements.push_back(text("│ ") | ftxui::color(blockquote_color));
-        content_elements.push_back(child_element);
+    auto lines = wrap_into_lines(element->content, config_.max_width);
+    std::ostringstream oss;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        oss << "│ " << lines[i];
+        if (i + 1 < lines.size())
+            oss << "\n";
     }
-
-    if (content_elements.empty()) {
-        return text("│ " + element->content) | ftxui::color(blockquote_color);
+    std::string out = oss.str();
+    if (config_.use_color) {
+        out = std::string("\033[90m") + out + "\033[0m";
     }
-
-    return vbox(std::move(content_elements));
+    return text(out);
 }
 
 ftxui::Element MarkdownRenderer::render_horizontal_rule() {
     using namespace ftxui;
-
-    std::string rule(config_.max_width, '-');
-    return text(rule) | dim;
+    std::string rule;
+    rule.reserve(config_.max_width * 3); // Reserve space for UTF-8 encoded characters
+    for (size_t i = 0; i < static_cast<size_t>(config_.max_width); ++i) {
+        rule += "─";
+    }
+    if (config_.use_color)
+        rule = std::string("\033[90m") + rule + "\033[0m";
+    return text(rule);
 }
 
 ftxui::Element MarkdownRenderer::render_text(const std::string& text) {
@@ -334,13 +337,10 @@ ftxui::Element MarkdownRenderer::render_text(const std::string& text) {
 
 ftxui::Element MarkdownRenderer::render_table(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    Elements row_elements;
-    // 计算列数与列宽（扫描整个表格）
+    // Build a textual table using Unicode box drawing, return as single text element.
     table_col_widths_.clear();
     table_num_cols_ = 0;
-
-    // 先统计最大列数
+    // count cols
     for (const auto& child : element->children) {
         if (child->type != MarkdownElementType::TABLE_ROW)
             continue;
@@ -353,10 +353,7 @@ ftxui::Element MarkdownRenderer::render_table(const std::shared_ptr<MarkdownElem
     }
     if (table_num_cols_ <= 0)
         return text("");
-
     table_col_widths_.assign(table_num_cols_, 0);
-
-    // 计算每列最大宽度（基于 cell->content 长度）
     for (const auto& child : element->children) {
         if (child->type != MarkdownElementType::TABLE_ROW)
             continue;
@@ -371,116 +368,98 @@ ftxui::Element MarkdownRenderer::render_table(const std::shared_ptr<MarkdownElem
         }
     }
 
-    // 渲染行时使用计算好的列宽
+    std::ostringstream oss;
+    bool header_emitted = false;
     for (const auto& child : element->children) {
-        if (child->type == MarkdownElementType::TABLE_ROW) {
-            // 渲染行
-            row_elements.push_back(render_table_row(child));
-
-            // 如果该行是表头（任何单元格 is_header == true），则在其后插入分隔线
-            bool has_header = false;
-            for (const auto& cell : child->children) {
-                if (cell->type == MarkdownElementType::TABLE_CELL && cell->is_header) {
-                    has_header = true;
-                    break;
-                }
-            }
-            if (has_header) {
-                // 生成分隔线字符串，使用更好的Unicode边框字符
-                std::string sep = "├";
-                for (int i = 0; i < table_num_cols_; ++i) {
-                    if (i > 0) {
-                        sep += "┼";
-                    }
-                    int w = table_col_widths_[i] + 2; // 加上左右 padding
-                    for (int k = 0; k < w; ++k) {
-                        sep += "─";
-                    }
-                }
-                sep += "┤";
-                row_elements.push_back(text(sep) | color(Color::GrayLight));
+        if (child->type != MarkdownElementType::TABLE_ROW)
+            continue;
+        // render row
+        // build line
+        oss << "│";
+        int col = 0;
+        for (const auto& cell : child->children) {
+            if (cell->type != MarkdownElementType::TABLE_CELL)
+                continue;
+            std::string cell_text = cell->content;
+            int target = table_col_widths_[col];
+            if ((int)cell_text.length() < target)
+                cell_text += std::string(target - (int)cell_text.length(), ' ');
+            oss << " " << cell_text << " │";
+            col++;
+        }
+        oss << "\n";
+        // check header separator
+        bool has_header = false;
+        for (const auto& cell : child->children) {
+            if (cell->type == MarkdownElementType::TABLE_CELL && cell->is_header) {
+                has_header = true;
+                break;
             }
         }
+        if (has_header && !header_emitted) {
+            // separator line
+            oss << "├";
+            for (int i = 0; i < table_num_cols_; ++i) {
+                if (i > 0)
+                    oss << "┼";
+                int w = table_col_widths_[i] + 2;
+                for (int k = 0; k < w; ++k)
+                    oss << "─";
+            }
+            oss << "┤\n";
+            header_emitted = true;
+        }
     }
-
-    return vbox(std::move(row_elements));
+    std::string out = oss.str();
+    if (config_.use_color)
+        out = std::string("\033[90m") + out + "\033[0m";
+    return text(out);
 }
 
 ftxui::Element MarkdownRenderer::render_table_row(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    Elements cell_elements;
+    // Not used anymore: table rows rendered by render_table
+    std::ostringstream oss;
+    oss << "│";
     int col = 0;
-
-    // 添加行开始的边框
-    cell_elements.push_back(text("│") | color(Color::GrayLight));
-
     for (const auto& child : element->children) {
         if (child->type != MarkdownElementType::TABLE_CELL)
             continue;
-
         std::string cell_text = child->content;
-        // 填充至列宽，并添加左右 padding
         if (col < table_num_cols_) {
             int target = table_col_widths_[col];
-            if ((int)cell_text.length() < target) {
+            if ((int)cell_text.length() < target)
                 cell_text += std::string(target - (int)cell_text.length(), ' ');
-            }
         }
-        // 左右空格填充以提高可读性
-        std::string padded = " " + cell_text + " ";
-        cell_elements.push_back(text(padded));
-        // 添加列分隔（灰色）
-        cell_elements.push_back(text("│") | color(Color::GrayLight));
+        oss << " " << cell_text << " │";
         col++;
     }
-
-    return hbox(std::move(cell_elements));
+    return text(oss.str());
 }
 
 ftxui::Element MarkdownRenderer::render_table_cell(
     const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-
-    Elements content_elements;
-    for (const auto& child : element->children) {
-        content_elements.push_back(render_element(child));
+    std::string out = element->content;
+    if (element->is_header && config_.use_color) {
+        out = std::string("\033[1m") + out + "\033[0m";
     }
-
-    Element content;
-    if (content_elements.empty()) {
-        content = text(element->content);
-    } else {
-        content = hbox(std::move(content_elements));
-    }
-
-    if (element->is_header) {
-        return content | bold;
-    }
-
-    return content;
+    return text(out);
 }
 
 ftxui::Element MarkdownRenderer::wrap_text(const std::string& text, int max_width) {
     using namespace ftxui;
-
     if (max_width <= 0 || text.length() <= size_t(max_width)) {
         return ftxui::text(text);
     }
-
-    Elements lines;
-    std::istringstream iss(text);
-    std::string line;
-    while (std::getline(iss, line)) {
-        if (line.length() <= size_t(max_width)) {
-            lines.push_back(ftxui::text(line));
-        } else {
-            // 简单地截断长行（实际应用中可能需要更复杂的换行逻辑）
-            lines.push_back(ftxui::text(line.substr(0, max_width)));
-        }
+    auto wrapped = wrap_into_lines(text, max_width);
+    std::ostringstream oss;
+    for (size_t i = 0; i < wrapped.size(); ++i) {
+        oss << wrapped[i];
+        if (i + 1 < wrapped.size())
+            oss << "\n";
     }
-
-    return vbox(std::move(lines));
+    return ftxui::text(oss.str());
 }
 
 std::string MarkdownRenderer::indent_text(const std::string& text, int indent) {

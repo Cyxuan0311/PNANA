@@ -26,8 +26,8 @@ std::vector<LspServerConfig> LspServerConfigManager::getDefaultConfigs() {
 
     // Python - pylsp (Python Language Server Protocol)
     // pylsp 使用 PYTHONPATH 和缓存目录
-    configs.emplace_back("pylsp", "pylsp", "python", std::set<std::string>{".py", ".pyw", ".pyi"},
-                         std::vector<std::string>{},
+    configs.emplace_back("pylsp", "python3", "python", std::set<std::string>{".py", ".pyw", ".pyi"},
+                         std::vector<std::string>{"-m", "pylsp"},
                          std::map<std::string, std::string>{{"XDG_CACHE_HOME", cache_dir},
                                                             {"TMPDIR", cache_dir + "/tmp"}});
 

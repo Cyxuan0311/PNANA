@@ -24,8 +24,6 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::FILE_PICKER:
             return executeFileOperation(action);
 
-        case KeyAction::UNDO:
-        case KeyAction::REDO:
         case KeyAction::CUT:
         case KeyAction::COPY:
         case KeyAction::PASTE:
@@ -43,6 +41,8 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::INDENT_LINE:
         case KeyAction::UNINDENT_LINE:
         case KeyAction::TOGGLE_COMMENT:
+        case KeyAction::UNDO:
+        case KeyAction::REDO:
             return executeEditOperation(action);
 #ifdef BUILD_LSP_SUPPORT
         case KeyAction::TRIGGER_COMPLETION:
@@ -52,13 +52,8 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::FOLD_ALL:
         case KeyAction::UNFOLD_ALL:
             // 折叠动作只在代码区中有效
-            LOG("[DEBUG] ActionExecutor: Processing fold action, current region: " +
-                std::to_string(static_cast<int>(editor_->getRegionManager().getCurrentRegion())));
             if (editor_->getRegionManager().getCurrentRegion() == core::EditorRegion::CODE_AREA) {
-                LOG("[DEBUG] ActionExecutor: In CODE_AREA, executing fold action");
                 return executeEditOperation(action);
-            } else {
-                LOG("[DEBUG] ActionExecutor: Not in CODE_AREA, ignoring fold action");
             }
             return false;
 #endif
@@ -79,6 +74,7 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::TOGGLE_HELP:
         case KeyAction::TOGGLE_LINE_NUMBERS:
         case KeyAction::COMMAND_PALETTE:
+        case KeyAction::AI_ASSISTANT:
         case KeyAction::SPLIT_VIEW:
         case KeyAction::SSH_CONNECT:
         case KeyAction::TOGGLE_MARKDOWN_PREVIEW:
@@ -297,6 +293,9 @@ bool ActionExecutor::executeViewOperation(KeyAction action) {
             return true;
         case KeyAction::COMMAND_PALETTE:
             editor_->openCommandPalette();
+            return true;
+        case KeyAction::AI_ASSISTANT:
+            editor_->toggleAIAssistant();
             return true;
         case KeyAction::SPLIT_VIEW:
             editor_->showSplitDialog();

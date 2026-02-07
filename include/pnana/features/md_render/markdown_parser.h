@@ -39,6 +39,7 @@ struct MarkdownElement {
     int level = 0;          // 用于标题级别
     std::string url;        // 用于链接和图片
     std::string title;      // 用于链接和图片
+    std::string lang;       // 用于代码块的语言信息
     bool is_header = false; // 用于表格单元格
     std::vector<std::shared_ptr<MarkdownElement>> children;
 

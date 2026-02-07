@@ -29,15 +29,10 @@ std::vector<std::string> LspFormatter::getSupportedFilesInDirectory(
             return supported_files;
         }
 
-        int total_files = 0;
-        int skipped_files = 0;
-        int unsupported_type_files = 0;
-
         // 遍历目录中的所有文件（递归）
         for (const auto& entry : fs::recursive_directory_iterator(
                  directory_path, fs::directory_options::skip_permission_denied)) {
             if (entry.is_regular_file()) {
-                total_files++;
                 std::string file_path = entry.path().string();
 
                 // 跳过不应扫描的目录
@@ -53,7 +48,6 @@ std::vector<std::string> LspFormatter::getSupportedFilesInDirectory(
                 }
 
                 if (should_skip) {
-                    skipped_files++;
                     // Skip excluded directories
                     continue;
                 }
@@ -71,8 +65,6 @@ std::vector<std::string> LspFormatter::getSupportedFilesInDirectory(
                 // 检查文件类型是否被 LSP 服务器支持
                 if (isFileTypeSupported(file_type)) {
                     supported_files.push_back(file_path);
-                } else {
-                    unsupported_type_files++;
                 }
             }
         }

@@ -29,10 +29,15 @@ namespace features {
 
 // 检查命令是否存在（在 PATH 中）
 static bool checkCommandExists(const std::string& command) {
+    // 解析命令，获取第一个参数（可执行文件名）
+    std::istringstream iss(command);
+    std::string executable;
+    iss >> executable;
+
     // 如果命令包含路径分隔符，直接检查文件是否存在
-    if (command.find('/') != std::string::npos) {
+    if (executable.find('/') != std::string::npos) {
         struct stat st;
-        return stat(command.c_str(), &st) == 0 && (st.st_mode & S_IXUSR);
+        return stat(executable.c_str(), &st) == 0 && (st.st_mode & S_IXUSR);
     }
 
     // 否则，在 PATH 中查找
@@ -48,7 +53,7 @@ static bool checkCommandExists(const std::string& command) {
         if (path_dir.empty()) {
             continue;
         }
-        std::string full_path = path_dir + "/" + command;
+        std::string full_path = path_dir + "/" + executable;
         struct stat st;
         if (stat(full_path.c_str(), &st) == 0 && (st.st_mode & S_IXUSR)) {
             return true;
@@ -153,10 +158,29 @@ bool LspStdioConnector::start() {
                 setenv(key.c_str(), value.c_str(), 1); // 1 = overwrite existing
             }
 
+            // 解析命令字符串为参数数组
+            std::vector<std::string> args;
+            std::istringstream iss(server_command_);
+            std::string arg;
+            while (iss >> arg) {
+                args.push_back(arg);
+            }
+
+            if (args.empty()) {
+                _exit(1);
+            }
+
+            // 转换为 char* 数组，用于 execvp
+            std::vector<char*> argv;
+            for (auto& a : args) {
+                argv.push_back(const_cast<char*>(a.c_str()));
+            }
+            argv.push_back(nullptr); // NULL 终止符
+
             // 执行语言服务器
-            // 如果 execlp 成功，不会返回；如果失败，会继续执行
-            execlp(server_command_.c_str(), server_command_.c_str(), (char*)nullptr);
-            // 如果执行到这里，说明 execlp 失败了
+            // 如果 execvp 成功，不会返回；如果失败，会继续执行
+            execvp(argv[0], argv.data());
+            // 如果执行到这里，说明 execvp 失败了
             // 在子进程中，我们不能使用 Logger（因为文件描述符已关闭）
             // 直接退出
             _exit(1);

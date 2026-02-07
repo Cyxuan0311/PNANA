@@ -1,0 +1,86 @@
+# Git Diff to Commit Message Generator Configuration
+# This file contains default configuration for training and inference
+
+# Model Configuration
+model:
+  name: "codellama/CodeLlama-7b-hf"
+  quantization_bits: 4  # 4 or 8 bit quantization
+  lora_r: 8  # LoRA rank
+  lora_alpha: 32  # LoRA alpha parameter
+  max_length: 1024  # Maximum sequence length
+
+# Training Configuration
+training:
+  batch_size: 1  # Per device batch size (keep 1 for RTX 4050)
+  gradient_accumulation_steps: 4  # Gradient accumulation
+  learning_rate: 0.0002  # 2e-4
+  num_epochs: 3  # Number of training epochs
+  save_steps: 500  # Save checkpoint every N steps
+  logging_steps: 10  # Log every N steps
+  evaluation_strategy: "steps"
+  eval_steps: 500  # Evaluate every N steps
+  fp16: true  # Mixed precision training
+  optim: "paged_adamw_8bit"  # Optimizer for memory efficiency
+  report_to: "none"  # "wandb" to use Weights & Biases
+
+# Data Configuration
+data:
+  train_file: "data/train_data.jsonl"
+  test_file: "data/test_data.jsonl"
+  validation_split: 0.1  # 10% for validation
+  max_samples: 10000  # Maximum samples to load (null for all)
+
+# Inference Configuration
+inference:
+  temperature: 0.7  # Sampling temperature
+  top_p: 0.9  # Top-p sampling
+  top_k: 50  # Top-k sampling
+  max_new_tokens: 100  # Maximum new tokens to generate
+  num_beams: 1  # Beam search (1 = greedy)
+  do_sample: true  # Use sampling
+  repetition_penalty: 1.1  # Repetition penalty
+  length_penalty: 1.0  # Length penalty
+
+# Data Preparation Configuration
+data_prep:
+  repo_path: null  # Git repository path (null to use HF dataset)
+  use_huggingface_dataset: true
+  hf_dataset_name: "codeparrot/git-commit-diffs"
+  max_commits: 5000  # Maximum commits to extract
+  branch: "main"  # Branch to extract from
+  output_format: "instruction"  # "instruction" or "simple"
+
+# Paths
+paths:
+  output_dir: "models/git-commit-model"
+  data_dir: "data"
+  logs_dir: "logs"
+  cache_dir: ".cache"
+
+# Hardware Configuration
+hardware:
+  device: "auto"  # "auto", "cuda", "cpu"
+  num_workers: 0  # Data loading workers (0 for stability)
+  pin_memory: false  # Pin memory for data loading
+
+# Experiment Tracking
+tracking:
+  use_wandb: false
+  wandb_project: "git-commit-model"
+  wandb_entity: null
+  run_name: null
+
+# Advanced Options
+advanced:
+  seed: 42  # Random seed
+  debug: false  # Debug mode
+  compile_model: false  # Use torch.compile (experimental)
+  use_flash_attention: false  # Use flash attention (if available)
+
+# Quality Assurance
+qa:
+  validate_data: true  # Validate dataset before training
+  min_diff_length: 10  # Minimum diff length
+  max_diff_length: 50000  # Maximum diff length
+  min_commit_length: 5  # Minimum commit message length
+  max_commit_length: 300  # Maximum commit message length

@@ -52,6 +52,9 @@ class CursorConfigDialog {
     bool getSmoothCursor() const {
         return smooth_cursor_;
     }
+    bool getBlinkEnabled() const {
+        return blink_enabled_;
+    }
 
     // 设置配置
     void setCursorStyle(CursorStyle style) {
@@ -65,6 +68,9 @@ class CursorConfigDialog {
     }
     void setSmoothCursor(bool smooth) {
         smooth_cursor_ = smooth;
+    }
+    void setBlinkEnabled(bool enabled) {
+        blink_enabled_ = enabled;
     }
 
     // 应用配置回调
@@ -83,10 +89,12 @@ class CursorConfigDialog {
     std::string cursor_color_;
     int blink_rate_;
     bool smooth_cursor_; // 流动光标效果
+    bool blink_enabled_; // 是否启用闪烁
 
     size_t selected_option_;     // 当前选中的选项索引
     size_t color_input_index_;   // 颜色输入框索引
     size_t rate_input_index_;    // 频率输入框索引
+    size_t blink_enabled_index_; // 闪烁开关索引
     size_t smooth_cursor_index_; // 流动光标选项索引
 
     std::string color_input_; // 颜色输入值（RGB格式，如 "255,255,255"）
@@ -105,6 +113,9 @@ class CursorConfigDialog {
 
     // 渲染频率选择
     ftxui::Element renderRateSelector();
+
+    // 渲染闪烁开关
+    ftxui::Element renderBlinkEnabledSelector();
 
     // 渲染流动光标选项
     ftxui::Element renderSmoothCursorSelector();

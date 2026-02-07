@@ -12,6 +12,7 @@ namespace pnana {
 namespace features {
 
 LspClient::LspClient(const std::string& server_command) {
+    LOG("[LSP DEBUG] Creating LspClient with command: " + server_command);
     connector_ = std::make_unique<LspStdioConnector>(server_command);
     rpc_client_ = std::make_unique<jsonrpccxx::JsonRpcClient>(*connector_, jsonrpccxx::version::v2);
 
@@ -19,10 +20,12 @@ LspClient::LspClient(const std::string& server_command) {
     connector_->setNotificationCallback([this](const std::string& notification) {
         handleNotification(notification);
     });
+    LOG("[LSP DEBUG] LspClient created successfully");
 }
 
 LspClient::LspClient(const std::string& server_command,
                      const std::map<std::string, std::string>& env_vars) {
+    LOG("[LSP DEBUG] Creating LspClient with command: " + server_command + " and env vars");
     connector_ = std::make_unique<LspStdioConnector>(server_command, env_vars);
     rpc_client_ = std::make_unique<jsonrpccxx::JsonRpcClient>(*connector_, jsonrpccxx::version::v2);
 
@@ -30,6 +33,7 @@ LspClient::LspClient(const std::string& server_command,
     connector_->setNotificationCallback([this](const std::string& notification) {
         handleNotification(notification);
     });
+    LOG("[LSP DEBUG] LspClient created successfully with env vars");
 }
 
 LspClient::~LspClient() {
@@ -37,10 +41,15 @@ LspClient::~LspClient() {
 }
 
 bool LspClient::initialize(const std::string& root_path) {
+    LOG("[LSP DEBUG] Initializing LSP client with root_path: " + root_path);
+
     if (!connector_->start()) {
         LOG_WARNING("Failed to start LSP connector (server may not be installed)");
+        LOG("[LSP DEBUG] Connector start failed - server may not be available");
         return false;
     }
+
+    LOG("[LSP DEBUG] LSP connector started successfully, waiting for server readiness");
 
     // 等待一小段时间，确保服务器已准备好
     usleep(50000); // 50ms
@@ -71,33 +80,44 @@ bool LspClient::initialize(const std::string& root_path) {
         }
 
         // 调用 initialize 方法
+        LOG("[LSP DEBUG] Sending initialize request to server");
         jsonrpccxx::json result =
             rpc_client_->CallMethodNamed<jsonrpccxx::json>(request_id, "initialize", named_params);
+
+        LOG("[LSP DEBUG] Received initialize response from server");
 
         // 保存服务器能力
         if (result.contains("capabilities")) {
             server_capabilities_ = result["capabilities"];
+            LOG("[LSP DEBUG] Server capabilities saved successfully");
         } else {
             LOG_WARNING("Initialize response missing capabilities");
         }
 
         // 发送 initialized 通知
+        LOG("[LSP DEBUG] Sending initialized notification");
         rpc_client_->CallNotificationNamed("initialized", jsonrpccxx::named_parameter());
 
         // 启动通知监听线程
+        LOG("[LSP DEBUG] Starting notification listener");
         connector_->startNotificationListener();
 
+        LOG("[LSP DEBUG] LSP client initialization completed successfully");
         return true;
     } catch (const jsonrpccxx::JsonRpcException& e) {
         LOG_ERROR("LspClient::initialize() JsonRpcException: " + std::string(e.what()) +
                   " (code: " + std::to_string(e.Code()) + ")");
+        LOG("[LSP DEBUG] JsonRpcException during initialization - connection may be kept for "
+            "debugging");
         // 不立即关闭连接，让用户知道问题
         return false;
     } catch (const std::exception& e) {
         LOG_ERROR("LspClient::initialize() exception: " + std::string(e.what()));
+        LOG("[LSP DEBUG] Standard exception during initialization");
         return false;
     } catch (...) {
         LOG_ERROR("LspClient::initialize() unknown exception");
+        LOG("[LSP DEBUG] Unknown exception during initialization");
         return false;
     }
 }
@@ -129,12 +149,17 @@ void LspClient::shutdown() {
 
 void LspClient::didOpen(const std::string& uri, const std::string& language_id,
                         const std::string& content, int version) {
+    LOG("[LSP DEBUG] didOpen called for URI: " + uri + ", language: " + language_id +
+        ", version: " + std::to_string(version));
+
     if (!isConnected()) {
+        LOG("[LSP DEBUG] Client not connected, skipping didOpen for: " + uri);
         return;
     }
 
     try {
         document_versions_[uri] = version;
+        LOG("[LSP DEBUG] Document version set to " + std::to_string(version) + " for: " + uri);
 
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
@@ -146,8 +171,11 @@ void LspClient::didOpen(const std::string& uri, const std::string& language_id,
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
         }
+        LOG("[LSP DEBUG] Sending textDocument/didOpen notification");
         rpc_client_->CallNotificationNamed("textDocument/didOpen", named_params);
+        LOG("[LSP DEBUG] textDocument/didOpen notification sent successfully");
     } catch (const std::exception& e) {
+        LOG("[LSP DEBUG] Exception in didOpen for URI: " + uri + ", error: " + e.what());
         // 静默处理错误
     }
 }
@@ -524,12 +552,16 @@ std::string LspClient::formatDocument(const std::string& uri, const std::string&
 }
 
 std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
+    LOG("[LSP DEBUG] foldingRange called for URI: " + uri);
     std::vector<FoldingRange> ranges;
     if (!isConnected()) {
+        LOG("[LSP DEBUG] Client not connected, returning empty folding ranges for: " + uri);
         return ranges;
     }
 
     try {
+        auto start_time = std::chrono::steady_clock::now();
+        LOG("[LSP] foldingRange request start for URI: " + uri);
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
 
@@ -543,15 +575,35 @@ std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
             request_id, "textDocument/foldingRange", named_params);
 
         if (result.is_array()) {
+            LOG("[LSP DEBUG] Processing " + std::to_string(result.size()) +
+                " folding range items from server");
             for (const auto& item : result) {
                 FoldingRange range = jsonToFoldingRange(item);
                 if (range.isValid()) {
                     ranges.push_back(range);
+                } else {
+                    LOG("[LSP DEBUG] Invalid folding range received, skipping");
                 }
             }
+            LOG("[LSP DEBUG] Valid folding ranges extracted: " + std::to_string(ranges.size()));
+        } else {
+            LOG("[LSP DEBUG] Server returned non-array result for folding ranges");
         }
+        auto end_time = std::chrono::steady_clock::now();
+        auto ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        LOG("[LSP] foldingRange request completed for URI: " + uri + " - returned " +
+            std::to_string(ranges.size()) + " ranges in " + std::to_string(ms) + "ms");
     } catch (const std::exception& e) {
-        std::cerr << "foldingRange failed: " << e.what() << std::endl;
+        std::string err = e.what();
+        // For known "non-added document" errors we silently ignore to avoid noisy logs
+        if (err.find("non-added document") != std::string::npos ||
+            err.find("trying to compute folding ranges") != std::string::npos ||
+            err.find("-32602") != std::string::npos) {
+            LOG("[LSP DEBUG] foldingRange skipped for URI: " + uri + " - " + err);
+        } else {
+            LOG_WARNING("[LSP] foldingRange failed for URI: " + uri + " - " + err);
+        }
     }
 
     return ranges;
@@ -639,6 +691,22 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
     CompletionItem item;
     item.label = json.value("label", std::string(""));
 
+    // insertTextFormat: 1=PlainText, 2=Snippet
+    int insert_text_format = 1;
+    bool has_insert_text_format = json.contains("insertTextFormat");
+    if (json.contains("insertTextFormat")) {
+        try {
+            if (json["insertTextFormat"].is_number()) {
+                insert_text_format = json["insertTextFormat"].get<int>();
+            } else if (json["insertTextFormat"].is_string()) {
+                insert_text_format = std::stoi(json["insertTextFormat"].get<std::string>());
+            }
+        } catch (...) {
+            insert_text_format = 1;
+        }
+    }
+    item.insertTextFormat = insert_text_format;
+
     // 处理kind（可能是数字或字符串）
     if (json.contains("kind")) {
         if (json["kind"].is_number()) {
@@ -657,17 +725,42 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
         }
     }
 
-    // 处理insertText（优先使用insertText，否则使用label）
-    if (json.contains("insertText") && json["insertText"].is_string()) {
-        item.insertText = json["insertText"].get<std::string>();
-    } else if (json.contains("textEdit") && json["textEdit"].is_object()) {
-        // 如果有textEdit，使用newText
+    // 处理insertText / textEdit.newText（优先 textEdit.newText）
+    std::string new_text;
+    bool has_text_edit = false;
+    if (json.contains("textEdit") && json["textEdit"].is_object()) {
         if (json["textEdit"].contains("newText") && json["textEdit"]["newText"].is_string()) {
-            item.insertText = json["textEdit"]["newText"].get<std::string>();
+            new_text = json["textEdit"]["newText"].get<std::string>();
+            has_text_edit = true;
         }
-    } else {
-        item.insertText = item.label;
     }
+    if (json.contains("insertText") && json["insertText"].is_string()) {
+        // insertText 覆盖 textEdit 的 newText 仅当 new_text 为空
+        if (new_text.empty()) {
+            new_text = json["insertText"].get<std::string>();
+        }
+    }
+    if (new_text.empty()) {
+        new_text = item.label;
+    }
+    item.insertText = new_text;
+
+    // 如果 insertTextFormat=Snippet，标记为 snippet 以走本地 snippet 展开逻辑
+    if (item.insertTextFormat == 2) {
+        item.isSnippet = true;
+        item.snippet_body = new_text;
+    }
+
+    // 调试日志：记录从服务器解析出的 completion 关键信息（截断以防过长）
+    auto truncate = [](const std::string& s, size_t max_len = 120) {
+        if (s.size() <= max_len)
+            return s;
+        return s.substr(0, max_len) + "...";
+    };
+    LOG("[LSP COMPLETION PARSE] label='" + truncate(item.label) + "' fmt=" +
+        std::to_string(item.insertTextFormat) + " hasTextEdit=" + (has_text_edit ? "1" : "0") +
+        " hasInsertTextFormat=" + (has_insert_text_format ? "1" : "0") +
+        " isSnippet=" + (item.isSnippet ? "1" : "0") + " newText='" + truncate(new_text) + "'");
 
     // 处理documentation（支持多种格式）
     if (json.contains("documentation")) {
@@ -790,26 +883,39 @@ void LspClient::handleNotification(const std::string& notification) {
 
         if (json.contains("method") && json["method"].is_string()) {
             std::string method = json["method"].get<std::string>();
+            LOG("[LSP DEBUG] Received notification: " + method);
 
             if (method == "textDocument/publishDiagnostics") {
+                LOG("[LSP DEBUG] Processing diagnostics notification");
                 if (json.contains("params")) {
                     jsonrpccxx::json params = json["params"];
                     std::string uri = params.value("uri", std::string(""));
+                    LOG("[LSP DEBUG] Diagnostics for URI: " + uri);
 
                     std::vector<Diagnostic> diagnostics;
                     if (params.contains("diagnostics") && params["diagnostics"].is_array()) {
+                        size_t diag_count = params["diagnostics"].size();
+                        LOG("[LSP DEBUG] Found " + std::to_string(diag_count) + " diagnostics");
+
                         for (const auto& diag : params["diagnostics"]) {
                             diagnostics.push_back(jsonToDiagnostic(diag));
                         }
                     }
 
                     if (diagnostics_callback_) {
+                        LOG("[LSP DEBUG] Calling diagnostics callback for URI: " + uri);
                         diagnostics_callback_(uri, diagnostics);
+                        LOG("[LSP DEBUG] Diagnostics callback completed");
+                    } else {
+                        LOG("[LSP DEBUG] No diagnostics callback set");
                     }
+                } else {
+                    LOG("[LSP DEBUG] Diagnostics notification missing params");
                 }
             }
         }
     } catch (const std::exception& e) {
+        LOG("[LSP DEBUG] Exception in handleNotification: " + std::string(e.what()));
         // 静默处理通知错误，避免影响界面
     }
 }

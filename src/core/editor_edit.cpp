@@ -46,6 +46,9 @@ void Editor::insertChar(char ch) {
         // 不立即设置 force_ui_update_，而是等待延迟更新
     }
 
+    // 更新单词高亮（光标位置变化）
+    updateWordHighlight();
+
 #ifdef BUILD_LSP_SUPPORT
     // 智能LSP文档更新策略
     // 只有在以下情况下才更新LSP文档：
@@ -445,6 +448,12 @@ void Editor::cut() {
             setStatusMessage("Line is empty");
             return;
         }
+
+        // 记录删除行的撤销操作
+        Document* doc = getCurrentDocument();
+        doc->pushChange(
+            DocumentChange(DocumentChange::Type::DELETE, cursor_row_, 0, content + "\n", ""));
+
         deleteLine();
     } else {
         // 剪切选中内容
@@ -464,6 +473,11 @@ void Editor::cut() {
         }
 
         Document* doc = getCurrentDocument();
+
+        // 记录删除操作到撤销栈
+        doc->pushChange(
+            DocumentChange(DocumentChange::Type::DELETE, start_row, start_col, content, ""));
+
         if (start_row == end_row) {
             // 同一行内的选择
             std::string& line = doc->getLines()[start_row];
@@ -506,72 +520,46 @@ void Editor::cut() {
 }
 
 void Editor::copy() {
-    LOG("[DEBUG COPY] copy() called");
-    LOG("[DEBUG COPY] selection_active_: " + std::string(selection_active_ ? "true" : "false"));
-
     std::string content;
 
     if (!selection_active_) {
-        LOG("[DEBUG COPY] No selection, copying current line");
-        LOG("[DEBUG COPY] cursor_row_: " + std::to_string(cursor_row_));
-
         // 复制当前行
         Document* doc = getCurrentDocument();
         if (!doc) {
-            LOG_ERROR("[DEBUG COPY] ERROR: No document available!");
             return;
         }
         content = doc->getLine(cursor_row_);
-        LOG("[DEBUG COPY] Line content length: " + std::to_string(content.length()));
 
         if (content.empty()) {
-            LOG("[DEBUG COPY] Line is empty, returning");
             setStatusMessage("Line is empty");
             return;
         }
     } else {
-        LOG("[DEBUG COPY] Selection active, copying selection");
-        LOG("[DEBUG COPY] Selection: row " + std::to_string(selection_start_row_) + ":" +
-            std::to_string(selection_start_col_) + " to " + std::to_string(cursor_row_) + ":" +
-            std::to_string(cursor_col_));
-
         // 复制选中内容
         Document* doc = getCurrentDocument();
         if (!doc) {
-            LOG_ERROR("[DEBUG COPY] ERROR: No document available for selection!");
             return;
         }
         content =
             doc->getSelection(selection_start_row_, selection_start_col_, cursor_row_, cursor_col_);
-        LOG("[DEBUG COPY] Selection content length: " + std::to_string(content.length()));
 
         if (content.empty()) {
-            LOG("[DEBUG COPY] Selection is empty, returning");
             setStatusMessage("Selection is empty");
             return;
         }
     }
 
-    std::string preview = content.substr(0, std::min(50UL, content.length()));
-    if (content.length() > 50)
-        preview += "...";
-    LOG("[DEBUG COPY] Content to copy: '" + preview + "'");
-
     // 复制到系统剪贴板
     if (utils::Clipboard::copyToSystem(content)) {
-        LOG("[DEBUG COPY] Successfully copied to system clipboard");
         // 同时保存到内部剪贴板（作为备份）
         getCurrentDocument()->setClipboard(content);
         setStatusMessage(selection_active_ ? "Selection copied to clipboard"
                                            : "Line copied to clipboard");
     } else {
-        LOG("[DEBUG COPY] System clipboard failed, using internal clipboard");
         // 如果系统剪贴板不可用，使用内部剪贴板
         getCurrentDocument()->setClipboard(content);
         setStatusMessage("Copied to internal clipboard (system clipboard unavailable)");
     }
-
-    LOG("[DEBUG COPY] Copy operation completed");
 
     // 复制后不取消选中（保持选中状态，方便用户继续操作）
     // endSelection(); // 注释掉，保持选中状态
@@ -729,50 +717,39 @@ void Editor::undo() {
 
 void Editor::redo() {
     Document* doc = getCurrentDocument();
-    if (!doc)
+    if (!doc) {
+        setStatusMessage("No document to redo");
         return;
+    }
 
-    size_t change_row, change_col;
+    // 保存重做前的光标位置，用于可能的视图调整
+    size_t original_cursor_row = cursor_row_;
+    size_t original_cursor_col = cursor_col_;
+
+    size_t change_row = 0, change_col = 0;
+
     if (doc->redo(&change_row, &change_col)) {
-        // 恢复光标位置到修改发生的位置（VSCode 行为）
+        // VSCode 风格的光标定位：精确恢复到操作结束的位置
         cursor_row_ = change_row;
         cursor_col_ = change_col;
 
-        // 确保光标位置有效
+        // 确保光标位置在有效范围内
         adjustCursor();
 
-        // VSCode 风格的视图调整：平滑滚动到光标位置
-        int screen_height = screen_.dimy() - 4;
-        if (screen_height > 0) {
-            // 计算光标在屏幕上的位置
-            int cursor_screen_pos =
-                static_cast<int>(cursor_row_) - static_cast<int>(view_offset_row_);
+        // 使用与撤销相同的保守视图调整策略，避免不必要的视图跳跃
+        adjustViewOffsetForUndoConservative(cursor_row_, cursor_col_);
 
-            // 如果光标不在可见范围内，立即调整视图
-            if (cursor_screen_pos < 0 || cursor_screen_pos >= screen_height) {
-                // VSCode 行为：将光标行放在屏幕中央
-                view_offset_row_ = (cursor_row_ >= static_cast<size_t>(screen_height / 2))
-                                       ? cursor_row_ - screen_height / 2
-                                       : 0;
-            } else {
-                // 光标在可见范围内，但如果太靠近边缘，微调视图
-                int margin = 3; // 边缘边距
-                if (cursor_screen_pos < margin) {
-                    view_offset_row_ =
-                        (cursor_row_ >= static_cast<size_t>(margin)) ? cursor_row_ - margin : 0;
-                } else if (cursor_screen_pos >= screen_height - margin) {
-                    size_t target_offset = cursor_row_ - (screen_height - margin - 1);
-                    view_offset_row_ = (target_offset > cursor_row_) ? 0 : target_offset;
-                }
-            }
-        }
-
-        // 清除选择（VSCode 行为：重做后清除选择）
+        // 重做操作后清除选择状态（VSCode 行为）
         selection_active_ = false;
 
-        // 使用简洁的状态消息（VSCode 风格：不显示状态消息）
+        LOG("[REDO] Editor redo completed: moved cursor from (" +
+            std::to_string(original_cursor_row) + "," + std::to_string(original_cursor_col) +
+            ") to (" + std::to_string(cursor_row_) + "," + std::to_string(cursor_col_) + ")");
+
+        // 不显示成功消息，避免UI干扰（VSCode 行为）
     } else {
         setStatusMessage("Nothing to redo");
+        LOG("[REDO] Editor redo failed: no operations in redo stack");
     }
 }
 

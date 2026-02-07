@@ -1,8 +1,9 @@
-#include "features/split_view.h"
+#include "features/split_view/split_view.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <map>
 
 namespace pnana {
 namespace features {
@@ -678,6 +679,127 @@ bool SplitViewManager::isPointOnSplitLine(int x, int y, const SplitLine& line) c
         // 横向分屏线：检查 y 是否在线上，x 是否在线范围内
         return std::abs(y - line.position) <= 1 && x >= line.start_pos && x < line.end_pos;
     }
+}
+
+ftxui::Element SplitViewManager::renderSplitEditor(
+    std::function<void*(size_t)> get_document_func,
+    std::function<void(size_t)> switch_document_func,
+    std::function<size_t()> get_document_count_func,
+    std::function<ftxui::Element(const ViewRegion&, void*, size_t)> render_region_func,
+    int screen_width, int screen_height) {
+    // 更新分屏视图的尺寸
+    updateRegionSizes(screen_width, screen_height);
+
+    if (regions_.empty()) {
+        return ftxui::text(""); // 如果没有区域，返回空元素
+    }
+
+    using namespace ftxui;
+
+    // 如果只有一个区域，检查是否需要特殊处理
+    if (regions_.size() == 1) {
+        const auto& region = regions_[0];
+        // 如果区域尺寸无效，返回空元素（让调用者处理）
+        if (region.width == 0 || region.height == 0) {
+            return text("");
+        }
+
+        // 获取该区域关联的文档
+        void* doc = nullptr;
+        if (region.current_document_index != SIZE_MAX &&
+            region.current_document_index < get_document_count_func()) {
+            doc = get_document_func(region.current_document_index);
+        }
+
+        // 如果区域是激活的且有文档，更新当前文档
+        if (region.is_active && region.current_document_index != SIZE_MAX && doc) {
+            switch_document_func(region.current_document_index);
+        }
+
+        // 渲染该区域的编辑器内容
+        return render_region_func(region, doc, 0) | size(WIDTH, EQUAL, region.width) |
+               size(HEIGHT, EQUAL, region.height);
+    }
+
+    // 多个区域：构建布局
+    // 按 y 坐标分组（行）
+    std::map<int, std::vector<const ViewRegion*>> rows;
+    for (const auto& region : regions_) {
+        rows[region.y].push_back(&region);
+    }
+
+    Elements row_elements;
+    for (auto& [y, row_regions] : rows) {
+        // 按 x 坐标排序
+        std::sort(row_regions.begin(), row_regions.end(),
+                  [](const ViewRegion* a, const ViewRegion* b) {
+                      return a->x < b->x;
+                  });
+
+        Elements col_elements;
+        for (size_t i = 0; i < row_regions.size(); ++i) {
+            const auto* region = row_regions[i];
+
+            // 找到该区域在 regions_ 向量中的索引
+            size_t region_index = 0;
+            for (size_t j = 0; j < regions_.size(); ++j) {
+                if (&regions_[j] == region) {
+                    region_index = j;
+                    break;
+                }
+            }
+
+            // 获取该区域关联的文档
+            void* doc = nullptr;
+            if (region->current_document_index != SIZE_MAX &&
+                region->current_document_index < get_document_count_func()) {
+                doc = get_document_func(region->current_document_index);
+            }
+
+            // 如果区域是激活的且有文档，更新当前文档
+            if (region->is_active && region->current_document_index != SIZE_MAX && doc) {
+                switch_document_func(region->current_document_index);
+            }
+
+            // 渲染该区域的编辑器内容
+            Element region_content = render_region_func(*region, doc, region_index);
+            region_content = region_content | size(WIDTH, EQUAL, region->width) |
+                             size(HEIGHT, EQUAL, region->height);
+
+            col_elements.push_back(region_content);
+
+            // 如果不是最后一个，添加竖直分屏线
+            if (i < row_regions.size() - 1) {
+                Elements line_chars;
+                for (int j = 0; j < region->height; ++j) {
+                    line_chars.push_back(text("│") | color(Color::GrayDark));
+                }
+                col_elements.push_back(vbox(line_chars) | size(WIDTH, EQUAL, 1));
+            }
+        }
+
+        row_elements.push_back(hbox(col_elements));
+
+        // 如果不是最后一行，添加横向分屏线
+        auto next_row = rows.upper_bound(y);
+        if (next_row != rows.end()) {
+            // 找到所有区域的边界来确定线长度
+            int min_x = INT_MAX, max_x = 0;
+            for (const auto& region : regions_) {
+                min_x = std::min(min_x, region.x);
+                max_x = std::max(max_x, region.x + region.width);
+            }
+
+            Elements line_chars;
+            int line_width = max_x - min_x;
+            for (int j = 0; j < line_width; ++j) {
+                line_chars.push_back(text("─") | color(Color::GrayDark));
+            }
+            row_elements.push_back(hbox(line_chars) | size(HEIGHT, EQUAL, 1));
+        }
+    }
+
+    return vbox(row_elements);
 }
 
 } // namespace features

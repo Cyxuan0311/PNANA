@@ -59,6 +59,10 @@ class FoldingManager {
     // 清空折叠状态
     void clear();
 
+    // 直接设置状态（不触发回调，避免死锁）
+    void setFoldingRangesDirectly(const std::vector<FoldingRange>& ranges);
+    void setFoldedLinesDirectly(const std::set<int>& folded_lines);
+
     // 检查是否已初始化
     bool isInitialized() const {
         return !folding_ranges_.empty();

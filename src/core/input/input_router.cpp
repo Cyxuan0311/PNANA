@@ -64,6 +64,17 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
 
     // global shortcut action: action
 
+    // 检查当前区域，如果是终端区域且按键是F1或F2，优先让区域处理器处理
+    EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
+    if (current_region == EditorRegion::TERMINAL) {
+        if (action == pnana::input::KeyAction::TOGGLE_HELP && event == ftxui::Event::F1) {
+            // F1在终端区域用于增加终端高度，不执行全局的TOGGLE_HELP
+            LOG("[INPUT] Skipping TOGGLE_HELP in terminal region (F1 used for height adjustment)");
+            return false;
+        }
+        // F2在终端区域用于减少终端高度，但F2没有被绑定为全局快捷键，所以不需要特殊处理
+    }
+
     // 全局快捷键：文件操作、视图操作等
     if (action == pnana::input::KeyAction::SAVE_AS ||
         action == pnana::input::KeyAction::CREATE_FOLDER ||
@@ -89,11 +100,30 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
 }
 
 bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
-    // 对话框优先级：命令面板 > SSH对话框 > 其他对话框
-    // 这里需要访问 Editor 的对话框状态
-    // 暂时返回 false，具体实现将在后续完善
-    (void)event;
-    (void)editor;
+    // 对话框优先级：命令面板 > 最近文件弹窗 > TUI配置弹窗
+
+    // 1. 命令面板
+    if (editor->command_palette_.isOpen()) {
+        editor->handleCommandPaletteInput(event);
+        return true;
+    }
+
+    // 2. 最近文件弹窗
+    if (editor->recent_files_popup_.isOpen()) {
+        if (editor->recent_files_popup_.handleInput(event)) {
+            return true;
+        }
+    }
+
+    // 3. TUI配置弹窗
+    if (editor->tui_config_popup_.isOpen()) {
+        if (editor->tui_config_popup_.handleInput(event)) {
+            return true;
+        }
+    }
+
+    // TODO: 添加其他对话框的处理
+
     return false;
 }
 

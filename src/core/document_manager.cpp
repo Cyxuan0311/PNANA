@@ -78,8 +78,14 @@ bool DocumentManager::closeAllDocuments() {
 }
 
 void DocumentManager::switchToDocument(size_t index) {
-    if (index < documents_.size()) {
+    if (index < documents_.size() && index != current_index_) {
+        size_t old_index = current_index_;
         current_index_ = index;
+
+        // 通知文档切换回调
+        if (document_switched_callback_) {
+            document_switched_callback_(old_index, index);
+        }
     }
 }
 

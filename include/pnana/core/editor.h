@@ -4,24 +4,33 @@
 #include "core/config_manager.h"
 #include "core/document.h"
 #include "core/document_manager.h"
+#include "core/overlay_manager.h"
 #include "core/region_manager.h"
 #include "input/action_executor.h"
 #include "input/key_binding_manager.h"
 // 前向声明（避免循环依赖，但需要完整类型用于 unique_ptr）
 #include "core/input/input_router.h"
 #include "core/ui/ui_router.h"
+#include "features/ai_client/ai_client.h"
+#include "ui/ai_assistant_panel.h"
+#include "ui/ai_config_dialog.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
 #include "ui/dialog.h"
 #include "ui/encoding_dialog.h"
+#include "ui/extract_dialog.h"
+#include "ui/extract_path_dialog.h"
+#include "ui/extract_progress_dialog.h"
 #include "ui/file_picker.h"
 #include "ui/format_dialog.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
+#include "ui/move_file_dialog.h"
 #include "ui/new_file_prompt.h"
+#include "ui/package_manager_panel.h"
+#include "ui/recent_files_popup.h"
 #include "ui/save_as_dialog.h"
-#include "ui/search_dialog.h"
 #include "ui/split_dialog.h"
 #include "ui/split_welcome_screen.h"
 #include "ui/ssh_dialog.h"
@@ -30,10 +39,13 @@
 #include "ui/tabbar.h"
 #include "ui/theme.h"
 #include "ui/theme_menu.h"
+#include "ui/todo_panel.h"
+#include "ui/tui_config_popup.h"
 #include "ui/welcome_screen.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "ui/plugin_manager_dialog.h"
 #endif
+#include "features/extract.h"
 #include "features/file_browser.h"
 #include "features/search.h"
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
@@ -41,7 +53,9 @@
 #endif
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/command_palette.h"
-#include "features/split_view.h"
+#include "features/recent_files_manager.h"
+#include "features/split_view/split_view.h"
+#include "features/tui_config_manager.h"
 // #include "features/markdown_preview.h"  // removed during preview refactor; backup stored as .bak
 #include "features/terminal.h"
 #include "ui/git_panel.h"
@@ -125,7 +139,8 @@ class Editor {
     bool openFile(const std::string& filepath);
     bool saveFile();
     bool saveFileAs(const std::string& filepath);
-    void startSaveAs(); // 启动另存为对话框
+    void startSaveAs();   // 启动另存为对话框
+    void startMoveFile(); // 启动移动文件对话框
     bool closeFile();
     void newFile();
     void createFolder();   // 创建新文件夹
@@ -229,6 +244,11 @@ class Editor {
     void focusUpRegion();
     void focusDownRegion();
 
+    // 解压操作
+    void openExtractDialog();
+    void handleExtractDialogInput(ftxui::Event event);
+    void handleExtractPathDialogInput(ftxui::Event event);
+
     // 主题
     void setTheme(const std::string& theme_name);
     const pnana::ui::Theme& getTheme() const {
@@ -293,6 +313,18 @@ class Editor {
     const features::Terminal& getTerminal() const {
         return terminal_;
     }
+    features::RecentFilesManager& getRecentFilesManager() {
+        return recent_files_manager_;
+    }
+    const features::RecentFilesManager& getRecentFilesManager() const {
+        return recent_files_manager_;
+    }
+    features::CommandPalette& getCommandPalette() {
+        return command_palette_;
+    }
+    const features::CommandPalette& getCommandPalette() const {
+        return command_palette_;
+    }
     EditorMode getMode() const {
         return mode_;
     }
@@ -335,6 +367,9 @@ class Editor {
     std::unique_ptr<pnana::core::input::InputRouter> input_router_;
     std::unique_ptr<pnana::core::ui::UIRouter> ui_router_;
 
+    // 叠加窗口管理器（解耦优化）
+    std::unique_ptr<pnana::core::OverlayManager> overlay_manager_;
+
     // UI组件
     pnana::ui::Theme theme_;
     core::ConfigManager config_manager_;
@@ -344,7 +379,6 @@ class Editor {
     pnana::ui::Help help_;
     pnana::ui::Dialog dialog_;
     pnana::ui::FilePicker file_picker_;
-    pnana::ui::SearchDialog search_dialog_;
     pnana::ui::SplitDialog split_dialog_;
     pnana::ui::SSHDialog ssh_dialog_;
     pnana::ui::SSHTransferDialog ssh_transfer_dialog_;
@@ -354,10 +388,20 @@ class Editor {
     pnana::ui::ThemeMenu theme_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
+    pnana::ui::MoveFileDialog move_file_dialog_;
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
     pnana::ui::BinaryFileView binary_file_view_;
     pnana::ui::EncodingDialog encoding_dialog_;
     pnana::ui::FormatDialog format_dialog_;
+    pnana::ui::RecentFilesPopup recent_files_popup_;
+    pnana::ui::TUIConfigPopup tui_config_popup_;
+    pnana::ui::ExtractDialog extract_dialog_;
+    pnana::ui::ExtractPathDialog extract_path_dialog_;
+    pnana::ui::ExtractProgressDialog extract_progress_dialog_;
+    pnana::ui::AIAssistantPanel ai_assistant_panel_;
+    pnana::ui::AIConfigDialog ai_config_dialog_;
+    pnana::ui::TodoPanel todo_panel_;
+    pnana::ui::PackageManagerPanel package_manager_panel_;
 #ifdef BUILD_LUA_SUPPORT
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
@@ -366,15 +410,25 @@ class Editor {
     // 功能模块
     features::SearchEngine search_engine_;
     features::FileBrowser file_browser_;
+    features::ExtractManager extract_manager_;
 
     // 当前搜索状态
     bool search_highlight_active_;
     features::SearchOptions current_search_options_;
+
+    // 单词高亮状态（类似VSCode/Neovim的occurrence highlighting）
+    bool word_highlight_active_;
+    std::string current_word_;                        // 当前高亮的单词
+    std::vector<features::SearchMatch> word_matches_; // 单词匹配位置
+    size_t word_highlight_row_;                       // 单词所在行
+    size_t word_highlight_col_;                       // 单词起始列
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
     features::ImagePreview image_preview_;
 #endif
     features::SyntaxHighlighter syntax_highlighter_;
     features::CommandPalette command_palette_;
+    features::RecentFilesManager recent_files_manager_;
+    features::TUIConfigManager tui_config_manager_;
     features::Terminal terminal_;
     features::SplitViewManager split_view_manager_;
     // markdown_preview_ removed
@@ -431,6 +485,17 @@ class Editor {
     // 代码片段管理器
     std::unique_ptr<features::SnippetManager> snippet_manager_;
 
+    // snippet 占位符会话状态（用于 Tab 跳转）
+    struct SnippetPlaceholderRange {
+        size_t row = 0;
+        size_t col = 0;
+        size_t len = 0;
+        int index = 0;
+    };
+    bool snippet_session_active_ = false;
+    std::vector<SnippetPlaceholderRange> snippet_placeholder_ranges_;
+    size_t snippet_placeholder_index_ = 0;
+
     // 文档变更跟踪器（阶段2优化）
     std::unique_ptr<features::DocumentChangeTracker> document_change_tracker_;
 
@@ -442,6 +507,20 @@ class Editor {
     bool show_diagnostics_popup_;
     std::vector<features::Diagnostic> current_file_diagnostics_;
     std::mutex diagnostics_mutex_;
+
+    // 诊断缓存（文件级缓存，提升切换响应速度）
+    std::map<std::string, std::vector<features::Diagnostic>> diagnostics_cache_;
+    std::mutex diagnostics_cache_mutex_;
+
+    // 折叠状态缓存（文件级缓存，提升切换响应速度）
+    struct FoldingCacheEntry {
+        std::vector<features::FoldingRange> ranges;
+        std::set<int> folded_lines;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+    std::map<std::string, FoldingCacheEntry> folding_cache_;
+    std::mutex folding_cache_mutex_;
+    static const std::chrono::minutes FOLDING_CACHE_DURATION; // 缓存有效期
 #ifdef BUILD_LSP_SUPPORT
     // Completion popup last shown state (用于防抖/去抖动显示)
     std::chrono::steady_clock::time_point last_popup_shown_time_;
@@ -477,6 +556,14 @@ class Editor {
     // 另存为弹窗
     bool show_save_as_;
 
+    // 移动文件弹窗
+    bool show_move_file_;
+
+    // 解压弹窗
+    bool show_extract_dialog_;
+    bool show_extract_path_dialog_;
+    bool show_extract_progress_dialog_;
+
     // 选择
     bool selection_active_;
     size_t selection_start_row_;
@@ -492,6 +579,16 @@ class Editor {
 
     // 输入缓冲区（用于搜索、跳转等）
     std::string input_buffer_;
+
+    // 搜索和替换输入缓冲区
+    std::string search_input_;
+    std::string replace_input_;
+    size_t search_cursor_pos_;
+    size_t replace_cursor_pos_;
+    size_t current_search_match_;
+    size_t total_search_matches_;
+    int current_option_index_; // 当前选中的搜索选项索引
+    bool search_options_[4]; // 搜索选项状态：0=case sensitive, 1=whole word, 2=regex, 3=wrap around
 
     // 状态消息
     std::string status_message_;
@@ -555,6 +652,8 @@ class Editor {
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();
     ftxui::Element renderInputBox();
+    ftxui::Element renderSearchInputBox();
+    ftxui::Element renderReplaceInputBox();
     ftxui::Element renderFileBrowser();
     ftxui::Element renderHelp();
     ftxui::Element renderCommandPalette(); // 命令面板
@@ -571,6 +670,14 @@ class Editor {
     std::string getFileType() const;
     void executeSearch(bool move_cursor = true);
     void executeReplace();
+
+    // 单词高亮相关方法
+    void updateWordHighlight();          // 更新单词高亮
+    void clearWordHighlight();           // 清除单词高亮
+    std::string getWordAtCursor() const; // 获取光标位置的单词
+
+    // 搜索辅助函数：从 search_options_ 数组构建 SearchOptions
+    features::SearchOptions buildSearchOptions() const;
 
     // 快捷键检查
     bool isCtrlKey(const ftxui::Event& event, char key) const;
@@ -650,6 +757,25 @@ class Editor {
     void openCommandPalette();
     void handleCommandPaletteInput(ftxui::Event event);
     void initializeCommandPalette();
+    void openRecentFilesDialog();
+    void openTUIConfigDialog();
+
+    // AI助手
+    void toggleAIAssistant();
+    void initializeAIAssistant();
+    void handleAIMessage(const std::string& message);
+    void insertCodeAtCursor(const std::string& code);
+    void replaceSelectedCode(const std::string& code);
+    std::string getSelectedText() const;
+
+    // Todo功能
+    void toggleTodoPanel();
+    bool handleTodoPanelInput(ftxui::Event event);
+    void togglePackageManagerPanel();
+    bool handlePackageManagerPanelInput(ftxui::Event event);
+    bool isPackageManagerPanelVisible() const {
+        return package_manager_panel_.isVisible();
+    }
 
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
@@ -669,6 +795,10 @@ class Editor {
     void handleCompletionInput(ftxui::Event event);
     void applyCompletion();
     void updateLspDocument();
+    void updateCurrentFileDiagnostics();
+    void updateCurrentFileFolding();
+    void preloadAdjacentDocuments(size_t current_index);
+    void cleanupExpiredCaches();
     ftxui::Element renderCompletionPopup();
     void showCompletionPopupIfChanged(const std::vector<features::CompletionItem>& items, int row,
                                       int col, int screen_w, int screen_h,
@@ -691,6 +821,11 @@ class Editor {
     void copySelectedDiagnostic();
     void jumpToDiagnostic(const features::Diagnostic& diagnostic);
     ftxui::Element renderDiagnosticsPopup();
+
+    // Snippet placeholders (Tab jump after snippet expansion)
+    void startSnippetSession(std::vector<SnippetPlaceholderRange> ranges);
+    void endSnippetSession();
+    bool handleSnippetTabJump();
 #endif
 
     // 获取当前文档（便捷方法）
@@ -724,6 +859,16 @@ class Editor {
 
     // 调试辅助
     std::string getCallStackInfo();
+
+    // AI增强上下文
+#ifdef BUILD_AI_CLIENT_SUPPORT
+    void buildEnhancedContext(pnana::features::ai_client::AIRequest& request) const;
+    void addProjectStructureContext(pnana::features::ai_client::AIRequest& request) const;
+    void addRecentFilesContext(pnana::features::ai_client::AIRequest& request) const;
+    void addSessionStateContext(pnana::features::ai_client::AIRequest& request) const;
+#endif
+    std::string joinStrings(const std::vector<std::string>& strings,
+                            const std::string& delimiter) const;
 
 #ifdef BUILD_LUA_SUPPORT
     // 插件系统

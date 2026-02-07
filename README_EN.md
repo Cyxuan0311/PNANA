@@ -42,11 +42,11 @@ Abandoning the learning curve of traditional Vim, pnana adopts intuitive shortcu
 #### Multi-File Support
 - **Tab System**: Open multiple files simultaneously
 - **Split Editing**: Horizontal/vertical split screens （planned）
-- **Quick Switching**: Fast file switching with keyboard and mouse
+- **Quick Switching**: Fast file switching with keyboard 
 
 #### Smart Editing
-- **Auto Indent**: Intelligent indentation based on file type
-- **Bracket Matching**: Auto-complete brackets and quotes
+- **Auto Indent**: Intelligent indentation based on file type (planned)
+- **Bracket Matching**: Auto-complete brackets and quotes (planned)
 - **Multi-Cursor Editing**: Edit multiple positions simultaneously (planned)
 - **Column Selection**: Hold Alt for column selection
 - **Smart Undo/Redo**: Unlimited undo/redo
@@ -69,7 +69,7 @@ Supports multiple programming languages: C/C++, Python, JavaScript/TypeScript, J
 
 **Detailed LSP Guide**: See [Plugin Documentation](docs/PLUGINS.md)
 
-#### Lua Plugin System
+#### Lua Plugin System （Planed）
 - **Powerful Extensibility**: Write plugins in Lua to easily extend editor functionality
 - **Rich API**: Complete editor API supporting file operations, cursor control, event listening, and more
 - **Easy to Use**: Inspired by Neovim's design, plugin development is simple and intuitive
@@ -157,7 +157,7 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 |---------|-------|------|-------|------------|
 | Learning Curve | Low | Low | Low | High |
 | Modern UI | ✅ | ❌ | ✅ | Requires config |
-| Mouse Support | ✅ | ⚠️ | ✅ | Requires config |
+| Mouse Support | ❌ | ⚠️ | ✅ | Requires config |
 | Syntax Highlighting | ✅ | ⚠️ | ✅ | ✅ |
 | Multi-File | ✅ | ❌ | ✅ | ✅ |
 | Plugin System | ✅ | ❌ | ✅ | ✅ |

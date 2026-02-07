@@ -4,9 +4,15 @@
 #include "ui/theme.h"
 #include "utils/file_type_icon_mapper.h"
 #include "utils/logger.h"
+#include "utils/version_detector.h"
+#include <algorithm>
+#include <chrono>
 #include <ftxui/dom/elements.hpp>
+#include <future>
+#include <mutex>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 
 namespace pnana {
 namespace ui {
@@ -35,6 +41,9 @@ struct StatusbarBeautifyConfig {
     std::map<std::string, std::string> region_icons;
     std::map<std::string, std::string> status_icons;
     std::map<std::string, std::vector<int>> element_colors;
+
+    // 平台图标（持久化缓存）
+    std::string platform_icon;
 };
 
 // 状态栏组件
@@ -81,6 +90,7 @@ class Statusbar {
     Theme& theme_;
     StatusbarBeautifyConfig beautify_config_;
     utils::FileTypeIconMapper icon_mapper_;
+    utils::VersionDetector version_detector_;
 
     // 获取文件类型图标
     std::string getFileTypeIcon(const std::string& file_type);
@@ -93,6 +103,12 @@ class Statusbar {
 
     // 获取区域图标
     std::string getRegionIcon(const std::string& region_name);
+
+    // 获取平台图标
+    std::string getPlatformIcon();
+
+    // 获取操作系统信息
+    std::string getOperatingSystem();
 
     // 创建状态指示器
     ftxui::Element createIndicator(const std::string& icon, const std::string& label,

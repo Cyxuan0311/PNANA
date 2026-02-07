@@ -1,4 +1,5 @@
 #include "features/image_preview.h"
+#include "ui/icons.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <chrono>
@@ -436,6 +437,47 @@ void ImagePreview::clear() {
     image_path_.clear();
     render_width_ = 0;
     render_height_ = 0;
+}
+
+ftxui::Element ImagePreview::render() const {
+    using namespace ftxui;
+
+    if (!loaded_ || preview_pixels_.empty()) {
+        return text("Failed to load image preview") | color(Color::Red);
+    }
+
+    Elements preview_lines;
+
+    // 添加图片信息
+    preview_lines.push_back(hbox({text(std::string(pnana::ui::icons::IMAGE) + " Image Preview: ") |
+                                      color(Color::Blue) | bold,
+                                  text(image_path_) | color(Color::White)}));
+
+    preview_lines.push_back(
+        hbox({text("  Size: ") | color(Color::GrayDark),
+              text(std::to_string(image_width_) + "x" + std::to_string(image_height_)) |
+                  color(Color::White)}));
+
+    preview_lines.push_back(separator());
+
+    // 使用像素数据直接渲染，使用 FTXUI 颜色 API（确保颜色正确显示）
+    for (size_t i = 0; i < preview_pixels_.size(); ++i) {
+        Elements pixel_elements;
+        const auto& row = preview_pixels_[i];
+
+        // 渲染所有像素
+        for (size_t j = 0; j < row.size(); ++j) {
+            const auto& pixel = row[j];
+            // 使用 FTXUI 的颜色 API 直接设置颜色，不受主题影响
+            ftxui::Color pixel_color = Color::RGB(pixel.r, pixel.g, pixel.b);
+            pixel_elements.push_back(text(pixel.ch) | color(pixel_color));
+        }
+
+        preview_lines.push_back(hbox(pixel_elements));
+    }
+
+    // 使用黑色背景以确保图片颜色正确显示，不受主题影响
+    return vbox(preview_lines) | bgcolor(Color::Black);
 }
 
 } // namespace features

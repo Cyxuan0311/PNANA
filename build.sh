@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PNANA 一键编译脚本
+# PNANA 一键编译脚本(基础编译)
 # 支持清理、编译、安装等功能
 
 set -e  # 遇到错误立即退出
@@ -79,7 +79,36 @@ configure_cmake() {
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
     
-    cmake .. -DCMAKE_BUILD_TYPE=Release
+    # 构建 CMake 参数
+    local cmake_args=(-DCMAKE_BUILD_TYPE=Release)
+    
+    # 添加用户指定的 CMake 选项
+    if [ "$BUILD_IMAGE_PREVIEW" = "ON" ]; then
+        cmake_args+=(-DBUILD_IMAGE_PREVIEW=ON)
+        print_info "  - Image preview support: ENABLED"
+    fi
+    
+    if [ "$BUILD_TREE_SITTER" = "ON" ]; then
+        cmake_args+=(-DBUILD_TREE_SITTER=ON)
+        print_info "  - Tree-sitter syntax highlighting: ENABLED"
+    fi
+    
+    if [ "$BUILD_LUA" = "ON" ]; then
+        cmake_args+=(-DBUILD_LUA=ON)
+        print_info "  - Lua plugin system: ENABLED"
+    fi
+    
+    if [ "$BUILD_GO" = "ON" ]; then
+        cmake_args+=(-DBUILD_GO=ON)
+        print_info "  - Go SSH module: ENABLED"
+    fi
+    
+    if [ "$BUILD_AI_CLIENT" = "ON" ]; then
+        cmake_args+=(-DBUILD_AI_CLIENT=ON)
+        print_info "  - AI client support: ENABLED"
+    fi
+    
+    cmake .. "${cmake_args[@]}"
     
     if [ $? -eq 0 ]; then
         print_success "CMake configuration completed."
@@ -128,24 +157,41 @@ install_project() {
 show_help() {
     echo "PNANA Build Script"
     echo ""
-    echo "Usage: $0 [OPTIONS]"
+    echo "Usage: $0 [OPTIONS] [CMAKE_OPTIONS]"
     echo ""
     echo "Options:"
     echo "  --clean          Clean build directory before building"
     echo "  --install        Install the project after building"
     echo "  --help           Show this help message"
     echo ""
+    echo "CMake Options (enable features):"
+    echo "  BUILD_IMAGE_PREVIEW=ON    Enable image preview support (requires FFmpeg)"
+    echo "  BUILD_TREE_SITTER=ON      Enable Tree-sitter syntax highlighting"
+    echo "  BUILD_LUA=ON              Enable Lua plugin system"
+    echo "  BUILD_GO=ON              Enable Go SSH module"
+    echo "  BUILD_AI_CLIENT=ON       Enable AI client support (requires libcurl)"
+    echo ""
     echo "Examples:"
-    echo "  $0                # Build the project"
-    echo "  $0 --clean        # Clean and build"
-    echo "  $0 --install      # Build and install"
-    echo "  $0 --clean --install  # Clean, build, and install"
+    echo "  $0                                    # Build the project"
+    echo "  $0 --clean                            # Clean and build"
+    echo "  $0 --install                          # Build and install"
+    echo "  $0 BUILD_IMAGE_PREVIEW=ON             # Build with image preview"
+    echo "  $0 BUILD_LUA=ON BUILD_GO=ON           # Build with Lua and Go support"
+    echo "  $0 --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
+    echo "  $0 --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
 }
 
 # 主函数
 main() {
     local clean_flag=false
     local install_flag=false
+    
+    # 初始化 CMake 选项变量
+    BUILD_IMAGE_PREVIEW=""
+    BUILD_TREE_SITTER=""
+    BUILD_LUA=""
+    BUILD_GO=""
+    BUILD_AI_CLIENT=""
     
     # 解析命令行参数
     while [[ $# -gt 0 ]]; do
@@ -161,6 +207,26 @@ main() {
             --help|-h)
                 show_help
                 exit 0
+                ;;
+            BUILD_IMAGE_PREVIEW=*)
+                BUILD_IMAGE_PREVIEW="${1#*=}"
+                shift
+                ;;
+            BUILD_TREE_SITTER=*)
+                BUILD_TREE_SITTER="${1#*=}"
+                shift
+                ;;
+            BUILD_LUA=*)
+                BUILD_LUA="${1#*=}"
+                shift
+                ;;
+            BUILD_GO=*)
+                BUILD_GO="${1#*=}"
+                shift
+                ;;
+            BUILD_AI_CLIENT=*)
+                BUILD_AI_CLIENT="${1#*=}"
+                shift
                 ;;
             *)
                 print_error "Unknown option: $1"

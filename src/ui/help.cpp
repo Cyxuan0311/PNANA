@@ -3,6 +3,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -182,9 +189,6 @@ Element Help::render(int width, int height) {
 
     // 底部提示
     help_content.push_back(separator());
-    help_content.push_back(
-        hbox({text(" "), text(icons::BULB), text(" Tip: Most shortcuts work in any mode!")}) |
-        color(colors.success));
 
     // 应用滚动偏移
     size_t visible_height = static_cast<size_t>(height - 8); // 减去标题、分隔符、状态栏等
@@ -212,7 +216,8 @@ Element Help::render(int width, int height) {
         color(colors.success));
 
     return vbox(content) | size(WIDTH, LESS_THAN, width - 10) |
-           size(HEIGHT, LESS_THAN, height - 4) | bgcolor(colors.background) | border;
+           size(HEIGHT, LESS_THAN, height - 4) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 Element Help::renderCategory(const std::string& category, const std::vector<HelpEntry>& entries) {

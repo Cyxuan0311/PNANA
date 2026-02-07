@@ -1,6 +1,8 @@
 #include "ui/file_browser_view.h"
 #include "features/file_browser.h"
 #include "ui/icons.h"
+#include "utils/file_type_color_mapper.h"
+#include "utils/file_type_detector.h"
 #include <algorithm>
 #include <cctype>
 #include <ftxui/dom/elements.hpp>
@@ -108,7 +110,8 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     for (size_t i = visible_start; i < visible_end; ++i) {
         const features::FileItem* item = flat_items[i];
         if (item) {
-            file_list_elements.push_back(renderFileItem(item, i, selected_index, flat_items));
+            file_list_elements.push_back(
+                renderFileItem(item, i, selected_index, flat_items, browser));
         }
     }
 
@@ -147,7 +150,9 @@ Element FileBrowserView::renderFileList(const features::FileBrowser& browser, si
          ++i) {
         const features::FileItem* item = flat_items[i];
         if (item) {
-            content.push_back(renderFileItem(item, i, selected_index, flat_items));
+            // 注意：这里需要 browser 参数，但 renderFileList 没有，需要修改方法签名
+            // 暂时使用简化版本
+            content.push_back(renderFileItem(item, i, selected_index, flat_items, browser));
         }
     }
 
@@ -160,22 +165,41 @@ Element FileBrowserView::renderStatusBar(const features::FileBrowser& browser) c
     std::string selected_path_display = "";
     if (browser.hasSelection()) {
         std::string full_path = browser.getSelectedPath();
-        selected_path_display = truncateMiddle(full_path, 40);
+        selected_path_display = truncateMiddle(full_path, 30);
     } else {
         selected_path_display = "No selection";
     }
 
-    return hbox({text(" "), text(icons::LOCATION) | color(colors.keyword), text(" "),
-                 text(selected_path_display) | color(colors.comment)}) |
+    // 显示多选状态
+    std::string selection_info = "";
+    size_t selected_count = browser.getSelectedCount();
+    if (selected_count > 1) {
+        selection_info = " [" + std::to_string(selected_count) + " selected]";
+    }
+
+    // 显示当前选中路径以及隐藏文件显示状态提示
+    std::string hidden_indicator =
+        browser.getShowHidden() ? "[Hidden: ON | . to hide]" : "[Hidden: OFF | . to show]";
+
+    return hbox({text(" "), //
+                 text(icons::LOCATION) | color(colors.keyword), text(" "),
+                 text(selected_path_display) | color(colors.comment),
+                 text(selection_info) | color(colors.keyword) | bold, filler(),
+                 text(hidden_indicator) | color(colors.comment)}) |
            bgcolor(colors.menubar_bg);
 }
 
 Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t index,
                                         size_t selected_index,
-                                        const std::vector<features::FileItem*>& flat_items) const {
+                                        const std::vector<features::FileItem*>& flat_items,
+                                        const features::FileBrowser& browser) const {
     auto& colors = theme_.getColors();
 
+    // 根据文件夹展开状态选择图标
     std::string icon = getFileIcon(*item);
+    if (item->is_directory && item->expanded && item->name != "..") {
+        icon = icons::FOLDER_OPEN; // 展开的文件夹使用打开的文件夹图标
+    }
     Color item_color = color_mapper_.getFileColor(item->name, item->is_directory);
 
     // 构建树形结构连接线
@@ -193,12 +217,17 @@ Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t i
 
     std::string display_name = item->name;
 
+    // 多选标记（如果被选中但不是当前焦点）
+    std::string selection_marker = "";
+    bool is_multi_selected = browser.isSelected(index) && index != selected_index;
+
     // 构建行元素
     Elements row_elements = {text(" "),
                              text(tree_prefix) | color(colors.comment),
                              text(expand_prefix) | color(colors.comment),
                              text(expand_icon) | color(item_color),
                              text(" "),
+                             text(selection_marker) | color(colors.keyword),
                              text(icon) | color(item_color),
                              text(" "),
                              text(display_name) | color(item_color)};
@@ -207,7 +236,11 @@ Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t i
 
     // 选中项高亮
     if (index == selected_index) {
+        // 当前焦点项：使用 selection 背景色
         item_text = item_text | bgcolor(colors.selection) | bold;
+    } else if (is_multi_selected) {
+        // 多选中的项：使用稍微不同的背景色（使用 comment 颜色的半透明效果）
+        item_text = item_text | bgcolor(colors.comment) | dim;
     } else {
         item_text = item_text | bgcolor(colors.background);
     }
@@ -262,6 +295,7 @@ std::string FileBrowserView::buildExpandPrefix(
 }
 
 std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
+    // 处理目录
     if (item.is_directory) {
         if (item.name == "..") {
             return icons::FOLDER_UP; // 上级目录
@@ -269,55 +303,15 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         return icons::FOLDER; // 文件夹图标
     }
 
+    // 使用 FileTypeDetector 获取文件类型
     std::string ext = getFileExtension(item.name);
+    std::string file_type_for_icon = utils::FileTypeDetector::getFileTypeForIcon(item.name, ext);
     std::string name_lower = item.name;
     std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
 
-    // 根据扩展名返回图标（使用 JetBrains Nerd Font 图标）
-
-    // C/C++ 文件
-    if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "c++")
-        return icons::CPP;
-    if (ext == "h" || ext == "hpp" || ext == "hxx" || ext == "hh")
-        return icons::CPP;
-    if (ext == "c")
-        return icons::C;
-
-    // 脚本语言
-    if (ext == "py" || ext == "pyw" || ext == "pyi")
-        return icons::PYTHON;
-    if (ext == "js" || ext == "jsx" || ext == "mjs")
-        return icons::JAVASCRIPT;
-    if (ext == "ts" || ext == "tsx")
-        return icons::TYPESCRIPT;
-    if (ext == "rb" || ext == "rbw")
-        return icons::RUBY;
-    if (ext == "php" || ext == "php3" || ext == "php4" || ext == "php5" || ext == "phtml")
-        return icons::PHP;
-    if (ext == "lua")
-        return icons::LUA;
-    if (ext == "sh" || ext == "bash" || ext == "zsh" || ext == "fish")
-        return icons::SHELL;
-    if (name_lower == "makefile" || name_lower == "makefile.am" || name_lower == "makefile.in")
-        return icons::MAKEFILE;
-
-    // 编译语言
-    if (ext == "java" || ext == "class" || ext == "jar")
-        return icons::JAVA;
-    if (ext == "go")
-        return icons::GO;
-    if (ext == "rs")
-        return icons::RUST;
-
-    // Web 技术
-    if (ext == "html" || ext == "htm" || ext == "xhtml")
-        return icons::HTML;
-    if (ext == "css" || ext == "scss" || ext == "sass" || ext == "less")
-        return icons::CSS;
-
-    // 数据格式
+    // 特殊文件名处理（这些在 FileTypeDetector 中已经处理，但需要特殊图标）
+    // JSON 特殊文件
     if (ext == "json" || ext == "jsonc") {
-        // 特殊 JSON 文件
         if (name_lower == "package.json")
             return icons::PACKAGE_JSON;
         if (name_lower == "package-lock.json")
@@ -333,36 +327,41 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
             return icons::ESLINT;
         if (name_lower == ".babelrc" || name_lower == ".babelrc.json")
             return icons::BABEL;
-        return icons::JSON;
     }
+
+    // XML 特殊文件
     if (ext == "xml" || ext == "xsd" || ext == "xsl") {
         if (name_lower == "pom.xml")
             return icons::MAVEN;
-        return icons::XML;
     }
+
+    // YAML 特殊文件
     if (ext == "yml" || ext == "yaml") {
         if (name_lower == ".travis.yml")
             return icons::TRAVIS;
         if (name_lower == "docker-compose.yml" || name_lower == "docker-compose.yaml")
             return icons::DOCKER_COMPOSE;
-        if (name_lower == ".github/workflows" || name_lower.find(".github") != std::string::npos)
+        if (name_lower.find(".github/workflows") != std::string::npos ||
+            name_lower.find("workflows") != std::string::npos) {
             return icons::GITHUB_ACTIONS;
-        return icons::YAML;
+        }
     }
+
+    // TOML 特殊文件
     if (ext == "toml") {
         if (name_lower == "cargo.toml")
             return icons::CARGO;
         if (name_lower == "pyproject.toml")
             return icons::POETRY;
-        return icons::CONFIG;
     }
-    // Cargo 和 Poetry lock 文件（无扩展名或不同扩展名）
+
+    // 特殊 lock 文件
     if (name_lower == "cargo.lock")
         return icons::CARGO;
     if (name_lower == "poetry.lock")
         return icons::POETRY;
 
-    // 文档
+    // Markdown 特殊文件
     if (ext == "md" || ext == "markdown") {
         if (name_lower == "readme.md" || name_lower == "readme")
             return icons::README;
@@ -370,8 +369,9 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
             return icons::CHANGELOG;
         if (name_lower == "contributing.md" || name_lower == "contributing")
             return icons::CONTRIBUTING;
-        return icons::MARKDOWN;
     }
+
+    // 文本文件特殊处理
     if (ext == "txt") {
         if (name_lower == "license" || name_lower == "license.txt")
             return icons::LICENSE;
@@ -380,40 +380,6 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         if (name_lower == "todo" || name_lower == "todo.txt")
             return icons::TODO;
         return icons::FILE_TEXT;
-    }
-    if (ext == "log")
-        return icons::LOG;
-    if (ext == "pdf")
-        return icons::PDF;
-
-    // 数据库
-    if (ext == "sql")
-        return icons::SQL;
-    if (ext == "db" || ext == "sqlite" || ext == "sqlite3" || ext == "db3")
-        return icons::DATABASE;
-
-    // 图片
-    if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "gif" || ext == "bmp" ||
-        ext == "svg" || ext == "ico" || ext == "webp") {
-        return icons::IMAGE;
-    }
-
-    // 视频
-    if (ext == "mp4" || ext == "avi" || ext == "mov" || ext == "wmv" || ext == "flv" ||
-        ext == "mkv" || ext == "webm") {
-        return icons::VIDEO;
-    }
-
-    // 音频
-    if (ext == "mp3" || ext == "wav" || ext == "flac" || ext == "aac" || ext == "ogg" ||
-        ext == "m4a") {
-        return icons::AUDIO;
-    }
-
-    // 压缩包
-    if (ext == "zip" || ext == "tar" || ext == "gz" || ext == "bz2" || ext == "xz" || ext == "7z" ||
-        ext == "rar" || ext == "z") {
-        return icons::ARCHIVE;
     }
 
     // 环境配置文件
@@ -424,8 +390,7 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
     }
 
     // 配置文件
-    if (ext == "conf" || ext == "config" || ext == "ini" || ext == "cfg" || ext == "properties" ||
-        name_lower == ".editorconfig") {
+    if (ext == "conf" || ext == "config" || ext == "ini" || ext == "cfg" || ext == "properties") {
         if (name_lower == ".editorconfig")
             return icons::EDITORCONFIG;
         return icons::CONFIG;
@@ -436,10 +401,6 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         name_lower == ".gitmodules" || name_lower == ".gitconfig" || name_lower == ".gitkeep") {
         return icons::GITIGNORE;
     }
-
-    // CMake
-    if (ext == "cmake" || name_lower == "cmakelists.txt")
-        return icons::CMAKE;
 
     // Docker
     if (name_lower == "dockerfile" ||
@@ -511,14 +472,6 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         return icons::FONT;
     }
 
-    // 样式文件扩展
-    if (ext == "styl" || ext == "stylus")
-        return icons::STYLUS;
-    if (ext == "sass" ||
-        (name_lower.length() > 5 && name_lower.substr(name_lower.length() - 5) == ".sass")) {
-        return icons::SASS;
-    }
-
     // 临时和缓存文件
     if (ext == "tmp" || ext == "temp" || (name_lower.length() > 0 && name_lower[0] == '~') ||
         (name_lower.length() > 4 && name_lower.substr(0, 4) == ".swp")) {
@@ -528,211 +481,40 @@ std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {
         return icons::CACHE;
     }
 
-    // 特殊目录（通过名称判断，但这里只处理文件）
-    // 如果是目录，会在上面的 is_directory 判断中处理
-
-    // 可执行文件（Unix）
+    // 可执行文件
     if (ext == "exe" || ext == "bin" || ext == "out" || ext == "app") {
         return icons::EXECUTABLE;
     }
 
-    // 更多编程语言支持
-    if (ext == "swift")
-        return icons::SWIFT;
-    if (ext == "kt" || ext == "kts")
-        return icons::KOTLIN;
-    if (ext == "scala" || ext == "sc")
-        return icons::SCALA;
-    if (ext == "r" || ext == "R")
-        return icons::R;
-    if (ext == "pl" || ext == "pm" || ext == "t")
-        return icons::PERL;
-    if (ext == "hs" || ext == "lhs")
-        return icons::HASKELL;
-    if (ext == "tcl")
-        return icons::TCL;
-    if (ext == "f" || ext == "f90" || ext == "f95" || ext == "for")
-        return icons::FORTRAN;
-    if (ext == "vim")
-        return icons::VIM;
-    if (ext == "ps1" || ext == "psm1" || ext == "psd1")
-        return icons::POWERSHELL;
-
-    // 函数式编程语言
-    if (ext == "ex" || ext == "exs")
-        return icons::ELIXIR;
-    if (ext == "clj" || ext == "cljs" || ext == "cljc" || ext == "edn")
-        return icons::CLOJURE;
-    if (ext == "erl" || ext == "hrl")
-        return icons::ERLANG;
-    if (ext == "sml" || ext == "sig" || ext == "fun")
-        return icons::SML;
-    if (ext == "ml" || ext == "mli")
-        return icons::OCAML;
-    if (ext == "fs" || ext == "fsi" || ext == "fsx")
-        return icons::F_SHARP;
-    if (ext == "dart")
-        return icons::DART;
-    if (ext == "nim" || ext == "nims")
-        return icons::NIM;
-    if (ext == "cr")
-        return icons::CRYSTAL;
-    if (ext == "zig")
-        return icons::ZIG;
-    if (ext == "jl")
-        return icons::JULIA;
-    if (ext == "purs")
-        return icons::PURESCRIPT;
-    if (ext == "elm")
-        return icons::ELIXIR; // 暂时使用 Elixir 图标
-
-    // Web 框架和工具
-    if (ext == "vue")
-        return icons::VUE;
-    if (ext == "svelte")
-        return icons::SVELTE;
-    if (ext == "pug" || ext == "jade")
-        return icons::PUG;
-    if (ext == "styl")
-        return icons::STYLUS;
-    if (ext == "sass")
-        return icons::SASS;
-    if (ext == "less")
-        return icons::LESS;
-    if (ext == "postcss")
-        return icons::POSTCSS;
-    if (ext == "graphql" || ext == "gql")
-        return icons::GRAPHQL;
-    if (ext == "coffee")
-        return icons::COFFEESCRIPT;
-
-    // .NET 相关
-    if (ext == "cs" || ext == "csx")
-        return icons::CSHARP;
-    if (ext == "vb")
-        return icons::VB;
-    if (ext == "fsproj" || ext == "csproj" || ext == "vbproj")
-        return icons::DOTNET;
-
-    // 系统编程
-    if (ext == "rs")
-        return icons::RUST;
-    if (ext == "go")
-        return icons::GO;
-    if (ext == "d")
-        return icons::D;
-    if (ext == "vala" || ext == "vapi")
-        return icons::VALA;
-    if (ext == "pony")
-        return icons::PONY;
-    if (ext == "v")
-        return icons::V_LANG;
-    if (ext == "odin")
-        return icons::ODIN;
-    if (ext == "jai")
-        return icons::JAI;
-    if (ext == "nelua")
-        return icons::NELUA;
-    if (ext == "wren")
-        return icons::WREN;
-    if (ext == "moon")
-        return icons::MOONSCRIPT;
-
-    // 学术和研究语言
-    if (ext == "m") {
-        if (name_lower.find("octave") != std::string::npos)
-            return icons::OCTAVE;
-        return icons::MATLAB;
+    // 使用 icons::getFileTypeIcon 将文件类型映射到图标
+    // 这个方法会处理大部分文件类型
+    std::string icon = icons::getFileTypeIcon(file_type_for_icon);
+    if (icon != icons::FILE) {
+        return icon;
     }
-    if (ext == "nb" || ext == "cdf")
-        return icons::MATLAB; // Mathematica
-    if (ext == "ipynb")
-        return icons::PYTHON; // Jupyter notebook
 
-    // Lisp 家族
-    if (ext == "lisp")
-        return icons::COMMON_LISP;
-    if (ext == "scm" || ext == "ss")
-        return icons::SCHEME;
-    if (ext == "lsp" || ext == "cl")
-        return icons::COMMON_LISP;
-    if (ext == "el" || ext == "elc")
-        return icons::EMACS_LISP;
+    // 如果 getFileTypeIcon 返回默认图标，尝试使用基础文件类型
+    std::string base_file_type = utils::FileTypeDetector::detectFileType(item.name, ext);
+    icon = icons::getFileTypeIcon(base_file_type);
+    if (icon != icons::FILE) {
+        return icon;
+    }
 
-    // 逻辑编程
-    if (ext == "pro" || ext == "pl")
-        return icons::PROLOG;
-    if (ext == "asp")
-        return icons::PROLOG; // Answer Set Programming
-
-    // 证明助手
-    if (ext == "v")
-        return icons::COQ;
-    if (ext == "thy")
-        return icons::COQ; // Isabelle
-    if (ext == "lean")
-        return icons::LEAN;
-    if (ext == "agda")
-        return icons::AGDA;
-    if (ext == "idr")
-        return icons::IDRIS;
-
-    // 建模和规范语言
-    if (ext == "als")
-        return icons::ALLOY;
-    if (ext == "dfy")
-        return icons::DAFNY;
-    if (ext == "tla")
-        return icons::TLA;
-
-    // 区块链和智能合约
-    if (ext == "sol")
-        return icons::SOLIDITY;
-    if (ext == "vy")
-        return icons::VYPER;
-    if (ext == "clar")
-        return icons::CLARITY;
-    if (ext == "move")
-        return icons::MOVE;
-
-    // 移动开发
-    if (ext == "bal")
-        return icons::BALLERINA;
-    if (ext == "kt" || ext == "kts")
-        return icons::KOTLIN;
-    if (ext == "swift")
-        return icons::SWIFT;
-
-    // 硬件描述语言
-    if (ext == "v" || ext == "vh")
-        return icons::VERILOG;
-    if (ext == "vhd" || ext == "vhdl")
-        return icons::VHDL;
-
-    // 编译器相关语言
-    if (ext == "ll" || ext == "llvm")
-        return icons::LLVM;
-
-    // 汇编和底层
-    if (ext == "asm" || ext == "s" || ext == "S")
+    // 处理一些 FileTypeDetector 返回的特殊类型
+    if (file_type_for_icon == "x86" || file_type_for_icon == "arm" ||
+        file_type_for_icon == "riscv" || file_type_for_icon == "mips" ||
+        file_type_for_icon == "asm") {
         return icons::ASSEMBLY;
-    // RISC-V 和 MIPS 汇编文件
-    if (ext == "riscv" || ext == "mips")
+    }
+    if (file_type_for_icon == "spirv") {
         return icons::ASSEMBLY;
-    if (ext == "wat")
-        return icons::WEBASSEMBLY;
+    }
+    if (file_type_for_icon == "text") {
+        return icons::FILE_TEXT;
+    }
 
-    // 其他脚本语言
-    if (ext == "awk")
-        return icons::SHELL;
-    if (ext == "sed")
-        return icons::SHELL;
-    if (ext == "groovy")
-        return icons::GROOVY;
-    if (ext == "gradle")
-        return icons::GRADLE;
-
-    return icons::FILE; // 默认文件图标
+    // 默认文件图标
+    return icons::FILE;
 }
 
 std::string FileBrowserView::getFileExtension(const std::string& filename) const {

@@ -1,9 +1,13 @@
 // UI渲染相关实现
 #include "core/editor.h"
 #include "core/ui/ui_router.h"
+#include "features/cursor/cursor_renderer.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
+#include "ui/extract_dialog.h"
+#include "ui/extract_path_dialog.h"
+#include "ui/extract_progress_dialog.h"
 #include "ui/icons.h"
 #include "ui/new_file_prompt.h"
 #include "ui/save_as_dialog.h"
@@ -11,6 +15,7 @@
 #include "ui/terminal_ui.h"
 #include "ui/theme_menu.h"
 #include "ui/welcome_screen.h"
+#include "utils/text_utils.h"
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
 #include "features/image_preview.h"
 #endif
@@ -100,22 +105,45 @@ Element Editor::renderUI() {
     // 增量渲染优化：抑制快速的光标移动渲染
     auto time_since_last_render = current_time - last_render_time_;
 
-    // 如果强制更新或距离上次渲染足够久，允许渲染
-    if (force_ui_update_ || time_since_last_render >= MIN_RENDER_INTERVAL ||
-        (last_render_source_.find("resumeRendering") != std::string::npos ||
-         last_render_source_.find("Event::Custom") != std::string::npos)) {
-        LOG("[DEBUG UI] Force UI update triggered - force_ui_update_=" +
-            std::to_string(force_ui_update_) + ", last_render_source='" + last_render_source_ +
-            "'");
+    // 检查是否是高优先级更新（诊断、折叠状态变化等）
+    bool is_high_priority_update = last_render_source_.find("diagnostic") != std::string::npos ||
+                                   last_render_source_.find("folding") != std::string::npos ||
+                                   last_render_source_.find("lsp") != std::string::npos;
+
+    // 优化渲染逻辑：对LSP状态变化更敏感
+    bool is_lsp_state_change = last_render_source_.find("diagnostic") != std::string::npos ||
+                               last_render_source_.find("folding") != std::string::npos ||
+                               last_render_source_.find("lsp") != std::string::npos;
+
+    // 渲染去抖机制：合并短时间内的多个渲染请求（轻量实现，无额外调试日志）
+    static auto last_needs_render_time = std::chrono::steady_clock::now();
+    const auto RENDER_DEBOUNCE_INTERVAL = std::chrono::milliseconds(50); // 50ms去抖间隔
+
+    // 检查是否需要渲染
+    bool should_render = force_ui_update_ || is_high_priority_update || is_lsp_state_change ||
+                         time_since_last_render >= MIN_RENDER_INTERVAL ||
+                         (last_render_source_.find("resumeRendering") != std::string::npos ||
+                          last_render_source_.find("Event::Custom") != std::string::npos);
+
+    // 如果有needs_render_请求，应用去抖（无日志）
+    if (!should_render && needs_render_) {
+        auto now = std::chrono::steady_clock::now();
+        auto time_since_last_needs_render = now - last_needs_render_time;
+
+        if (time_since_last_needs_render >= RENDER_DEBOUNCE_INTERVAL || is_high_priority_update) {
+            should_render = true;
+            needs_render_ = false; // 重置标志
+            last_needs_render_time = now;
+        }
+    }
+
+    if (should_render) {
         // 允许渲染，更新时间戳
         last_render_time_ = current_time;
         last_render_source_ = "";
         pending_cursor_update_ = false;
         force_ui_update_ = false; // 重置强制更新标志
     } else {
-        LOG("[DEBUG UI] Skipping render - force_ui_update_=" + std::to_string(force_ui_update_) +
-            ", time_since_last_render=" + std::to_string(time_since_last_render.count()) +
-            ", last_render_source='" + last_render_source_ + "'");
         // 标记有待处理的更新，稍后会通过定时器或事件触发
         pending_cursor_update_ = true;
         // 返回上次渲染结果，避免闪烁
@@ -172,144 +200,202 @@ Element Editor::renderUILegacy() {
 
 // 叠加对话框
 Element Editor::overlayDialogs(Element main_ui) {
-    // 如果帮助窗口打开，叠加显示
-    if (show_help_) {
-        return dbox({main_ui, renderHelp() | center});
+    if (!overlay_manager_) {
+        return main_ui;
     }
 
-    // 如果主题菜单打开，叠加显示
-    if (show_theme_menu_) {
-        return dbox({main_ui, theme_menu_.render() | center});
-    }
-
-    // 如果创建文件夹对话框打开，叠加显示
-    if (show_create_folder_) {
-        return dbox({main_ui, create_folder_dialog_.render() | center});
-    }
-
-    // 如果另存为对话框打开，叠加显示
-    if (show_save_as_) {
-        return dbox({main_ui, save_as_dialog_.render() | center});
-    }
-
-    // 光标配置对话框
-    if (cursor_config_dialog_.isVisible()) {
-        Elements dialog_elements = {main_ui, cursor_config_dialog_.render() | center};
-        return dbox(dialog_elements);
-    }
+    // 设置渲染回调函数
+    overlay_manager_->setRenderHelpCallback([this]() {
+        return renderHelp();
+    });
+    overlay_manager_->setRenderThemeMenuCallback([this]() {
+        return theme_menu_.render();
+    });
+    overlay_manager_->setRenderCreateFolderCallback([this]() {
+        return create_folder_dialog_.render();
+    });
+    overlay_manager_->setRenderSaveAsCallback([this]() {
+        return save_as_dialog_.render();
+    });
+    overlay_manager_->setRenderMoveFileCallback([this]() {
+        return move_file_dialog_.render();
+    });
+    overlay_manager_->setRenderExtractCallback([this]() {
+        return extract_dialog_.render();
+    });
+    overlay_manager_->setRenderExtractPathCallback([this]() {
+        return extract_path_dialog_.render();
+    });
+    overlay_manager_->setRenderExtractProgressCallback([this]() {
+        return extract_progress_dialog_.render();
+    });
+    overlay_manager_->setRenderCursorConfigCallback([this]() {
+        return cursor_config_dialog_.render();
+    });
+    overlay_manager_->setRenderAIConfigCallback([this]() {
+        return ai_config_dialog_.render();
+    });
+    overlay_manager_->setRenderAIAssistantCallback([this]() {
+        return ai_assistant_panel_.render();
+    });
+    overlay_manager_->setRenderCommandPaletteCallback([this]() {
+        return renderCommandPalette();
+    });
+    overlay_manager_->setRenderRecentFilesCallback([this]() {
+        auto recent_projects = recent_files_manager_.getRecentProjects();
+        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_projects,
+                                    recent_files_popup_.getSelectedIndex());
+        return recent_files_popup_.render();
+    });
+    overlay_manager_->setRenderFormatCallback([this]() {
+        return format_dialog_.render();
+    });
+    overlay_manager_->setRenderGitPanelCallback([this]() {
+        return renderGitPanel();
+    });
+    overlay_manager_->setRenderTodoPanelCallback([this]() {
+        return todo_panel_.render();
+    });
+    overlay_manager_->setRenderPackageManagerPanelCallback([this]() {
+        return package_manager_panel_.render();
+    });
+    overlay_manager_->setRenderFilePickerCallback([this]() {
+        return file_picker_.render();
+    });
+    overlay_manager_->setRenderSplitDialogCallback([this]() {
+        return split_dialog_.render();
+    });
+    overlay_manager_->setRenderSSHTansferCallback([this]() {
+        return ssh_transfer_dialog_.render();
+    });
+    overlay_manager_->setRenderSSHDialogCallback([this]() {
+        return ssh_dialog_.render();
+    });
+    overlay_manager_->setRenderEncodingDialogCallback([this]() {
+        return encoding_dialog_.render();
+    });
+    overlay_manager_->setRenderRecentFilesCallback([this]() {
+        auto recent_projects = recent_files_manager_.getRecentProjects();
+        recent_files_popup_.setData(recent_files_popup_.isOpen(), recent_projects,
+                                    recent_files_popup_.getSelectedIndex());
+        return recent_files_popup_.render();
+    });
+    overlay_manager_->setIsRecentFilesVisibleCallback([this]() {
+        return recent_files_popup_.isOpen();
+    });
+    overlay_manager_->setRenderTUIConfigCallback([this]() {
+        auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
+        tui_config_popup_.setData(tui_config_popup_.isOpen(), available_configs,
+                                  tui_config_popup_.getSelectedIndex());
+        return tui_config_popup_.render();
+    });
+    overlay_manager_->setIsTUIConfigVisibleCallback([this]() {
+        return tui_config_popup_.isOpen();
+    });
+    overlay_manager_->setRenderDialogCallback([this]() {
+        return dialog_.render();
+    });
+    overlay_manager_->setIsDialogVisibleCallback([this]() {
+        return dialog_.isVisible();
+    });
 
 #ifdef BUILD_LUA_SUPPORT
-    // 插件管理对话框
-    if (plugin_manager_dialog_.isVisible()) {
-        Elements dialog_elements = {main_ui, plugin_manager_dialog_.render() | center};
-        return dbox(dialog_elements);
-    }
+    overlay_manager_->setRenderPluginManagerCallback([this]() {
+        return plugin_manager_dialog_.render();
+    });
 #endif
-
-    // 如果命令面板打开，叠加显示
-    if (command_palette_.isOpen()) {
-        return dbox({main_ui, renderCommandPalette() | center});
-    }
-
-    // 如果格式化对话框打开，叠加显示
-    if (format_dialog_.isOpen()) {
-        return dbox({main_ui, format_dialog_.render() | center});
-    }
-
-    // 如果Git面板打开，叠加显示
-    if (isGitPanelVisible()) {
-        Elements dialog_elements = {main_ui | dim, renderGitPanel() | center};
-        return dbox(dialog_elements);
-    }
-
-    // 如果对话框打开，叠加显示
-    if (dialog_.isVisible()) {
-        Elements dialog_elements = {main_ui | dim, dialog_.render() | center};
-        return dbox(dialog_elements);
-    }
 
 #ifdef BUILD_LSP_SUPPORT
-    // 如果补全弹窗打开，叠加显示
-    if (completion_popup_.isVisible()) {
-        LOG("[UI] Rendering completion popup");
-
-        // 计算补全弹窗的位置（在光标下方）
-        int popup_x = completion_popup_.getPopupX();
-        int popup_y = completion_popup_.getPopupY();
-
-        // 补全弹窗已经计算了绝对屏幕坐标，无需额外偏移
-        int actual_popup_y = popup_y;
-
-        LOG("[UI] Completion popup position: x=" + std::to_string(popup_x) + ", y=" +
-            std::to_string(popup_y) + " (actual_y=" + std::to_string(actual_popup_y) + ")");
-
-        // 使用dbox叠加显示弹窗
-        auto render_start = std::chrono::steady_clock::now();
-        Element popup = renderCompletionPopup();
-        auto render_end = std::chrono::steady_clock::now();
-        auto render_duration =
-            std::chrono::duration_cast<std::chrono::microseconds>(render_end - render_start);
-
-        LOG("[UI] Completion popup render took " + std::to_string(render_duration.count()) + "us");
-
-        // 创建定位容器：左侧空白 + 弹窗 + 右侧空白
-        Element horizontal_layout = hbox({filler() | size(WIDTH, EQUAL, popup_x), popup, filler()});
-
-        // 创建垂直布局：上方空白 + 弹窗 + 下方空白
-        Element vertical_layout =
-            vbox({filler() | size(HEIGHT, EQUAL, actual_popup_y), horizontal_layout, filler()});
-
-        Elements completion_elements = {main_ui, vertical_layout};
-        return dbox(completion_elements);
-    }
-
-    // 如果诊断弹窗打开，叠加显示（要求弹窗对象也显示，以避免残留遮罩）
-    // 注意：如果补全弹窗正在显示，诊断弹窗会被隐藏，避免重叠
-    if (show_diagnostics_popup_ && diagnostics_popup_.isVisible() &&
-        !completion_popup_.isVisible()) {
-        Elements diagnostics_elements = {main_ui | dim, renderDiagnosticsPopup() | center};
-        return dbox(diagnostics_elements);
-    }
+    overlay_manager_->setRenderCompletionPopupCallback([this]() {
+        return renderCompletionPopup();
+    });
+    overlay_manager_->setRenderDiagnosticsPopupCallback([this]() {
+        return renderDiagnosticsPopup();
+    });
 #endif
 
-    // 如果文件选择器打开，叠加显示
-    if (file_picker_.isVisible()) {
-        Elements picker_elements = {main_ui | dim, file_picker_.render() | center};
-        return dbox(picker_elements);
-    }
+    // 设置可见性检查回调函数
+    overlay_manager_->setIsHelpVisibleCallback([this]() {
+        return show_help_;
+    });
+    overlay_manager_->setIsThemeMenuVisibleCallback([this]() {
+        return show_theme_menu_;
+    });
+    overlay_manager_->setIsCreateFolderVisibleCallback([this]() {
+        return show_create_folder_;
+    });
+    overlay_manager_->setIsSaveAsVisibleCallback([this]() {
+        return show_save_as_;
+    });
+    overlay_manager_->setIsMoveFileVisibleCallback([this]() {
+        return show_move_file_;
+    });
+    overlay_manager_->setIsExtractVisibleCallback([this]() {
+        return show_extract_dialog_;
+    });
+    overlay_manager_->setIsExtractPathVisibleCallback([this]() {
+        return show_extract_path_dialog_;
+    });
+    overlay_manager_->setIsExtractProgressVisibleCallback([this]() {
+        return show_extract_progress_dialog_;
+    });
+    overlay_manager_->setIsCursorConfigVisibleCallback([this]() {
+        return cursor_config_dialog_.isVisible();
+    });
+    overlay_manager_->setIsAIConfigVisibleCallback([this]() {
+        return ai_config_dialog_.isVisible();
+    });
+    overlay_manager_->setIsAIAssistantVisibleCallback([this]() {
+        return ai_assistant_panel_.isVisible();
+    });
+    overlay_manager_->setIsCommandPaletteVisibleCallback([this]() {
+        return command_palette_.isOpen();
+    });
+    overlay_manager_->setIsFormatVisibleCallback([this]() {
+        return format_dialog_.isOpen();
+    });
+    overlay_manager_->setIsGitPanelVisibleCallback([this]() {
+        return isGitPanelVisible();
+    });
+    overlay_manager_->setIsTodoPanelVisibleCallback([this]() {
+        return todo_panel_.isVisible();
+    });
+    overlay_manager_->setIsPackageManagerPanelVisibleCallback([this]() {
+        return package_manager_panel_.isVisible();
+    });
+    overlay_manager_->setIsFilePickerVisibleCallback([this]() {
+        return file_picker_.isVisible();
+    });
+    overlay_manager_->setIsSplitDialogVisibleCallback([this]() {
+        return split_dialog_.isVisible();
+    });
+    overlay_manager_->setIsSSHTansferVisibleCallback([this]() {
+        return ssh_transfer_dialog_.isVisible();
+    });
+    overlay_manager_->setIsSSHDialogVisibleCallback([this]() {
+        return ssh_dialog_.isVisible();
+    });
+    overlay_manager_->setIsEncodingDialogVisibleCallback([this]() {
+        return encoding_dialog_.isVisible();
+    });
 
-    // 如果分屏对话框打开，叠加显示
-    if (split_dialog_.isVisible()) {
-        Elements split_elements = {main_ui | dim, split_dialog_.render() | center};
-        return dbox(split_elements);
-    }
+#ifdef BUILD_LUA_SUPPORT
+    overlay_manager_->setIsPluginManagerVisibleCallback([this]() {
+        return plugin_manager_dialog_.isVisible();
+    });
+#endif
 
-    // 如果搜索对话框打开，叠加显示
-    if (search_dialog_.isVisible()) {
-        Elements search_elements = {main_ui | dim, search_dialog_.render() | center};
-        return dbox(search_elements);
-    }
+#ifdef BUILD_LSP_SUPPORT
+    overlay_manager_->setIsCompletionPopupVisibleCallback([this]() {
+        return completion_popup_.isVisible();
+    });
+    overlay_manager_->setIsDiagnosticsPopupVisibleCallback([this]() {
+        return show_diagnostics_popup_;
+    });
+#endif
 
-    // 如果 SSH 传输对话框打开，叠加显示
-    if (ssh_transfer_dialog_.isVisible()) {
-        Elements ssh_transfer_elements = {main_ui | dim, ssh_transfer_dialog_.render() | center};
-        return dbox(ssh_transfer_elements);
-    }
-
-    // 如果 SSH 对话框打开，叠加显示
-    if (ssh_dialog_.isVisible()) {
-        Elements ssh_elements = {main_ui | dim, ssh_dialog_.render() | center};
-        return dbox(ssh_elements);
-    }
-
-    // 如果编码对话框打开，叠加显示
-    if (encoding_dialog_.isVisible()) {
-        Elements encoding_elements = {main_ui | dim, encoding_dialog_.render() | center};
-        return dbox(encoding_elements);
-    }
-
-    // 没有对话框打开，返回主UI
-    return main_ui;
+    // 使用 OverlayManager 渲染叠加窗口
+    return overlay_manager_->renderOverlays(main_ui);
 }
 
 Element Editor::renderTabbar() {
@@ -418,45 +504,8 @@ Element Editor::renderEditor() {
             }
 
             if (image_preview_.isLoaded()) {
-                Elements preview_lines;
-                auto& colors = theme_.getColors();
-
-                // 添加图片信息
-                preview_lines.push_back(hbox(
-                    {text(std::string(IMAGE) + " Image Preview: ") | color(colors.function) | bold,
-                     text(image_preview_.getImagePath()) | color(colors.foreground)}));
-                preview_lines.push_back(
-                    hbox({text("  Size: ") | color(colors.comment),
-                          text(std::to_string(image_preview_.getImageWidth()) + "x" +
-                               std::to_string(image_preview_.getImageHeight())) |
-                              color(colors.foreground)}));
-                preview_lines.push_back(separator());
-
-                // 使用像素数据直接渲染，使用 FTXUI 颜色 API（确保颜色正确显示）
-                auto preview_pixels = image_preview_.getPreviewPixels();
-                if (!preview_pixels.empty()) {
-                    // 渲染所有行（因为已经在 loadImage 时根据代码区尺寸计算好了）
-                    for (size_t i = 0; i < preview_pixels.size(); ++i) {
-                        Elements pixel_elements;
-                        const auto& row = preview_pixels[i];
-
-                        // 渲染所有像素（因为已经在 loadImage 时根据代码区宽度计算好了）
-                        for (size_t j = 0; j < row.size(); ++j) {
-                            const auto& pixel = row[j];
-                            // 使用 FTXUI 的颜色 API 直接设置颜色，不受主题影响
-                            ftxui::Color pixel_color = Color::RGB(pixel.r, pixel.g, pixel.b);
-                            pixel_elements.push_back(text(pixel.ch) | color(pixel_color));
-                        }
-
-                        preview_lines.push_back(hbox(pixel_elements));
-                    }
-                } else {
-                    preview_lines.push_back(text("Failed to load image preview") |
-                                            color(colors.error));
-                }
-
-                // 使用黑色背景以确保图片颜色正确显示，不受主题影响
-                return vbox(preview_lines) | bgcolor(Color::Black);
+                // 使用 ImagePreview 的渲染方法
+                return image_preview_.render();
             }
         } else {
             // 如果不是图片，清空预览
@@ -566,7 +615,6 @@ Element Editor::renderEditor() {
         }
         lines.push_back(hbox(empty_line));
     }
-
     return vbox(lines);
 }
 
@@ -574,129 +622,45 @@ Element Editor::renderSplitEditor() {
     int screen_width = screen_.dimx();
     int screen_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
 
-    // 更新分屏视图的尺寸
-    split_view_manager_.updateRegionSizes(screen_width, screen_height);
-
-    // 获取所有区域
-    const auto& regions = split_view_manager_.getRegions();
-
-    if (regions.empty()) {
-        return renderEditor(); // 如果没有区域，回退到单视图
+    // 检查是否有分屏，如果没有则回退到单视图
+    if (!split_view_manager_.hasSplits()) {
+        return renderEditor();
     }
 
-    using namespace ftxui;
+    // 使用分屏管理器的渲染方法
+    auto get_document = [this](size_t index) -> void* {
+        return static_cast<void*>(document_manager_.getDocument(index));
+    };
 
-    // 如果只有一个区域，检查是否需要重置
-    if (regions.size() == 1) {
-        const auto& region = regions[0];
-        // 如果区域尺寸无效，重置分屏管理器
-        if (region.width == 0 || region.height == 0) {
-            split_view_manager_.reset();
-            // 回退到正常渲染
-            Document* doc = getCurrentDocument();
-            if (!doc) {
-                return welcome_screen_.render();
-            }
-            // 继续正常渲染流程（会回到 renderEditor，但 hasSplits() 会返回 false）
-        } else {
-            // 区域有效，正常渲染该区域
-            Document* doc = nullptr;
-            if (region.current_document_index != SIZE_MAX &&
-                region.current_document_index < document_manager_.getDocumentCount()) {
-                doc = document_manager_.getDocument(region.current_document_index);
-            }
-            // 激活区域且有文档时才更新全局文档管理器
-            if (region.is_active && region.current_document_index != SIZE_MAX && doc) {
-                document_manager_.switchToDocument(region.current_document_index);
-            }
-            return renderEditorRegion(region, doc, 0) | size(WIDTH, EQUAL, region.width) |
-                   size(HEIGHT, EQUAL, region.height);
+    auto switch_document = [this](size_t index) {
+        document_manager_.switchToDocument(index);
+    };
+
+    auto get_document_count = [this]() -> size_t {
+        return document_manager_.getDocumentCount();
+    };
+
+    auto render_region = [this](const features::ViewRegion& region, void* doc_ptr,
+                                size_t region_index) -> ftxui::Element {
+        Document* doc = static_cast<Document*>(doc_ptr);
+        return renderEditorRegion(region, doc, region_index);
+    };
+
+    ftxui::Element result =
+        split_view_manager_.renderSplitEditor(get_document, switch_document, get_document_count,
+                                              render_region, screen_width, screen_height);
+
+    // 如果渲染结果为空（表示单区域尺寸无效），重置分屏管理器并回退
+    if (result == ftxui::text("")) {
+        split_view_manager_.reset();
+        Document* doc = getCurrentDocument();
+        if (!doc) {
+            return welcome_screen_.render();
         }
+        return renderEditor();
     }
 
-    // 多个区域：构建布局
-    // 找到所有区域的边界
-    int min_x = INT_MAX, min_y = INT_MAX;
-    int max_x = 0, max_y = 0;
-    for (const auto& region : regions) {
-        min_x = std::min(min_x, region.x);
-        min_y = std::min(min_y, region.y);
-        max_x = std::max(max_x, region.x + region.width);
-        max_y = std::max(max_y, region.y + region.height);
-    }
-
-    // 创建布局网格（简化：使用固定布局）
-    // 按 y 坐标分组（行）
-    std::map<int, std::vector<const features::ViewRegion*>> rows;
-    for (const auto& region : regions) {
-        rows[region.y].push_back(&region);
-    }
-
-    Elements row_elements;
-    for (auto& [y, row_regions] : rows) {
-        // 按 x 坐标排序
-        std::sort(row_regions.begin(), row_regions.end(),
-                  [](const features::ViewRegion* a, const features::ViewRegion* b) {
-                      return a->x < b->x;
-                  });
-
-        Elements col_elements;
-        for (size_t i = 0; i < row_regions.size(); ++i) {
-            const auto* region = row_regions[i];
-
-            // 找到该区域在 regions 向量中的索引
-            size_t region_index = 0;
-            for (size_t j = 0; j < regions.size(); ++j) {
-                if (&regions[j] == region) {
-                    region_index = j;
-                    break;
-                }
-            }
-
-            // 获取该区域关联的文档
-            Document* doc = nullptr;
-            if (region->current_document_index != SIZE_MAX &&
-                region->current_document_index < document_manager_.getDocumentCount()) {
-                doc = document_manager_.getDocument(region->current_document_index);
-            }
-
-            // 如果区域是激活的且有文档，更新当前文档（只有激活区域才影响全局状态）
-            if (region->is_active && region->current_document_index != SIZE_MAX && doc) {
-                document_manager_.switchToDocument(region->current_document_index);
-            }
-
-            // 渲染该区域的编辑器内容
-            Element region_content = renderEditorRegion(*region, doc, region_index);
-            region_content = region_content | size(WIDTH, EQUAL, region->width) |
-                             size(HEIGHT, EQUAL, region->height);
-
-            col_elements.push_back(region_content);
-
-            // 如果不是最后一个，添加竖直分屏线
-            if (i < row_regions.size() - 1) {
-                Elements line_chars;
-                for (int j = 0; j < region->height; ++j) {
-                    line_chars.push_back(text("│") | color(Color::GrayDark));
-                }
-                col_elements.push_back(vbox(line_chars) | size(WIDTH, EQUAL, 1));
-            }
-        }
-
-        row_elements.push_back(hbox(col_elements));
-
-        // 如果不是最后一行，添加横向分屏线
-        auto next_row = rows.upper_bound(y);
-        if (next_row != rows.end()) {
-            Elements line_chars;
-            int line_width = max_x - min_x;
-            for (int j = 0; j < line_width; ++j) {
-                line_chars.push_back(text("─") | color(Color::GrayDark));
-            }
-            row_elements.push_back(hbox(line_chars) | size(HEIGHT, EQUAL, 1));
-        }
-    }
-
-    return vbox(row_elements);
+    return result;
 }
 
 Element Editor::renderEditorRegion(const features::ViewRegion& region, Document* doc,
@@ -763,175 +727,66 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     return vbox(lines);
 }
 
-// 获取UTF-8字符的辅助函数
-std::string getUtf8CharAt(const std::string& str, size_t pos) {
-    if (pos >= str.length()) {
-        return " ";
-    }
-
-    unsigned char first_byte = static_cast<unsigned char>(str[pos]);
-
-    // 单字节ASCII字符
-    if ((first_byte & 0x80) == 0) {
-        return str.substr(pos, 1);
-    }
-
-    // 多字节UTF-8字符
-    int bytes_needed;
-    if ((first_byte & 0xE0) == 0xC0) {
-        bytes_needed = 2;
-    } else if ((first_byte & 0xF0) == 0xE0) {
-        bytes_needed = 3;
-    } else if ((first_byte & 0xF8) == 0xF0) {
-        bytes_needed = 4;
-    } else {
-        // 无效的UTF-8，退回到单字节
-        return str.substr(pos, 1);
-    }
-
-    // 确保有足够的字节
-    if (pos + bytes_needed > str.length()) {
-        return str.substr(pos, 1);
-    }
-
-    return str.substr(pos, bytes_needed);
-}
-
-// 检查字符是否为中文字符（保留用于可能的未来功能）
-bool isChineseChar(const std::string& ch) {
-    if (ch.length() < 3) {
-        return false;
-    }
-
-    // 中文UTF-8范围：E4-B8-80 到 E9-BF-BF (基本汉字)
-    if (ch.length() == 3) {
-        unsigned char b1 = static_cast<unsigned char>(ch[0]);
-        unsigned char b2 = static_cast<unsigned char>(ch[1]);
-        unsigned char b3 = static_cast<unsigned char>(ch[2]);
-
-        // 基本检查：是否为3字节UTF-8且在中文范围内
-        return (b1 >= 0xE4 && b1 <= 0xE9) && (b2 >= 0x80 && b2 <= 0xBF) &&
-               (b3 >= 0x80 && b3 <= 0xBF);
-    }
-
-    return false;
-}
-
-// 渲染光标元素的辅助函数
-Element Editor::renderCursorElement(const std::string& cursor_char, size_t cursor_pos,
-                                    size_t line_length) const {
-    auto& colors = theme_.getColors();
-    ::pnana::ui::CursorStyle style = getCursorStyle();
-    ftxui::Color cursor_color = getCursorColor();
-    bool smooth = getCursorSmooth();
-    // Nano风格：所有字符使用相同的光标样式，不区分中文和其他字符
-    // 根据样式渲染光标
-    Element cursor_elem;
-
-    switch (style) {
-        case ::pnana::ui::CursorStyle::BLOCK: {
-            // 块状光标：背景色填充
-            if (cursor_pos < line_length) {
-                cursor_elem =
-                    text(cursor_char) | bgcolor(cursor_color) | color(colors.background) | bold;
-            } else {
-                cursor_elem = text(" ") | bgcolor(cursor_color) | color(colors.background) | bold;
-            }
-            break;
-        }
-        case ::pnana::ui::CursorStyle::UNDERLINE: {
-            // 下划线光标：使用反转颜色，但使用稍微暗的背景来模拟下划线效果
-            // 在终端中，我们使用反转颜色来模拟下划线
-            if (cursor_pos < line_length) {
-                // 使用反转颜色（前景色作为背景）
-                cursor_elem = text(cursor_char) | bgcolor(cursor_color) | color(colors.background);
-            } else {
-                // 行尾：显示下划线字符
-                cursor_elem = text("▁") | color(cursor_color) | bold;
-            }
-            break;
-        }
-        case ::pnana::ui::CursorStyle::BAR: {
-            // 竖线光标：字符前显示竖线
-            if (cursor_pos < line_length) {
-                cursor_elem = hbox({text("│") | color(cursor_color) | bold,
-                                    text(cursor_char) | color(colors.foreground)});
-            } else {
-                cursor_elem = text("│") | color(cursor_color) | bold;
-            }
-            break;
-        }
-        case ::pnana::ui::CursorStyle::HOLLOW: {
-            // 空心块光标：使用反转颜色（前景色作为边框效果）
-            if (cursor_pos < line_length) {
-                // 使用反转颜色模拟空心效果
-                cursor_elem =
-                    text(cursor_char) | color(cursor_color) | bold | bgcolor(colors.background);
-            } else {
-                // 行尾：显示一个带颜色的空格
-                cursor_elem = text("▯") | color(cursor_color) | bold;
-            }
-            break;
-        }
-        default: {
-            // 默认块状
-            if (cursor_pos < line_length) {
-                cursor_elem =
-                    text(cursor_char) | bgcolor(cursor_color) | color(colors.background) | bold;
-            } else {
-                cursor_elem = text(" ") | bgcolor(cursor_color) | color(colors.background) | bold;
-            }
-            break;
-        }
-    }
-
-    // 如果启用流动效果，可以添加额外的视觉效果
-    // 注意：FTXUI 不支持动画，流动效果可以通过其他方式实现（如渐变颜色）
-    if (smooth) {
-        // 流动效果：使用稍微不同的颜色或样式
-        // 这里简化处理，使用稍微亮一点的颜色
-        // 实际流动效果需要时间相关的状态，这里先实现基础版本
-    }
-
-    return cursor_elem;
-}
-
 Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
     Elements line_elements;
+
+    // 创建光标渲染器并配置
+    pnana::ui::CursorRenderer cursor_renderer;
+    pnana::ui::CursorConfig cursor_config;
+    cursor_config.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
+    cursor_config.color = getCursorColor();
+    cursor_config.smooth = getCursorSmooth();
+    // 闪烁开关：由光标配置面板控制
+    cursor_config.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+    cursor_renderer.setConfig(cursor_config);
+    // 闪烁频率：沿用现有的光标频率设置
+    cursor_renderer.setBlinkRate(getCursorBlinkRate());
+
+    // 更新光标动画状态（轻量级，不会影响性能）
+    cursor_renderer.updateCursorState();
 
     // 行内容
     // Document* doc is passed in
 
     // 折叠指示器
 #ifdef BUILD_LSP_SUPPORT
-    if (lsp_enabled_ && folding_manager_ && doc) {
+    if (doc) {
         std::string fold_indicator = " ";
         bool can_fold = false;
 
-        // 检查这一行是否可以折叠
-        const auto& foldable_lines = folding_manager_->getFoldableLines();
-        bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
-                                     static_cast<int>(line_num)) != foldable_lines.end();
+        // 首先检查文档是否有折叠状态（从缓存恢复的）
+        bool is_folded_in_doc = doc->isFolded(static_cast<int>(line_num));
 
-        if (is_foldable) {
+        if (lsp_enabled_ && folding_manager_ && folding_manager_->isInitialized()) {
+            try {
+                // 如果折叠管理器已初始化，使用管理器的状态
+                const auto& foldable_lines = folding_manager_->getFoldableLines();
+                bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
+                                             static_cast<int>(line_num)) != foldable_lines.end();
+
+                if (is_foldable) {
+                    can_fold = true;
+                    bool is_folded = folding_manager_->isFolded(static_cast<int>(line_num));
+
+                    if (is_folded) {
+                        fold_indicator = "▶";
+                    } else {
+                        fold_indicator = "▼";
+                    }
+                }
+            } catch (const std::exception& e) {
+                LOG_WARNING("[UI_RENDER] Exception in folding manager access: " +
+                            std::string(e.what()));
+                // 如果出现异常，回退到文档状态
+                if (is_folded_in_doc) {
+                    can_fold = true;
+                    fold_indicator = "▶";
+                }
+            }
+        } else if (is_folded_in_doc) {
+            // 如果折叠管理器未初始化，但文档中有折叠状态，显示折叠指示器
             can_fold = true;
-            // 直接检查FoldingManager的状态，这是权威来源
-            bool is_folded = folding_manager_->isFolded(static_cast<int>(line_num));
-
-            if (is_folded) {
-                // Show compact fold indicator only; range shown in line number column.
-                fold_indicator = "▶";
-            } else {
-                fold_indicator = "▼"; // 展开状态
-            }
-
-            // 临时调试：每行都打印状态（仅用于调试）
-            static size_t last_line = static_cast<size_t>(-1);
-            if (line_num != last_line && line_num < 20) { // 只打印前20行
-                last_line = line_num;
-                LOG("[DEBUG] UI Line " + std::to_string(line_num) + " is_folded=" +
-                    (is_folded ? "true" : "false") + ", fold_indicator='" + fold_indicator + "'");
-            }
+            fold_indicator = "▶"; // 显示为折叠状态
         }
 
         if (can_fold) {
@@ -973,6 +828,16 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
         for (const auto& match : all_matches) {
             if (match.line == line_num) {
                 line_matches.push_back(match);
+            }
+        }
+    }
+
+    // 获取当前行的单词高亮匹配（优先级低于搜索高亮）
+    std::vector<features::SearchMatch> word_line_matches;
+    if (!search_highlight_active_ && word_highlight_active_ && !word_matches_.empty()) {
+        for (const auto& match : word_matches_) {
+            if (match.line == line_num) {
+                word_line_matches.push_back(match);
             }
         }
     }
@@ -1071,7 +936,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                         std::string before = before_selection.substr(0, before_cursor);
                         std::string cursor_char =
                             before_cursor < before_selection.length()
-                                ? getUtf8CharAt(before_selection, before_cursor)
+                                ? pnana::utils::getUtf8CharAt(before_selection, before_cursor)
                                 : " ";
                         std::string after = before_cursor < before_selection.length()
                                                 ? before_selection.substr(before_cursor + 1)
@@ -1080,8 +945,9 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                         if (!before.empty()) {
                             parts.push_back(renderSegment(before, pos, false));
                         }
-                        parts.push_back(
-                            renderCursorElement(cursor_char, cursor_pos, line_content.length()));
+                        parts.push_back(cursor_renderer.renderCursorElement(
+                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                            colors.background));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(after, cursor_pos + 1, false));
                         }
@@ -1097,9 +963,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                         // 光标在选中部分内
                         size_t before_cursor = cursor_pos - pos;
                         std::string before = selected.substr(0, before_cursor);
-                        std::string cursor_char = before_cursor < selected.length()
-                                                      ? getUtf8CharAt(selected, before_cursor)
-                                                      : " ";
+                        std::string cursor_char =
+                            before_cursor < selected.length()
+                                ? pnana::utils::getUtf8CharAt(selected, before_cursor)
+                                : " ";
                         std::string after = before_cursor < selected.length()
                                                 ? selected.substr(before_cursor + 1)
                                                 : "";
@@ -1109,8 +976,9 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                             parts.push_back(before_elem);
                         }
                         // 光标在选中部分，也需要选中背景色
-                        Element cursor_elem =
-                            renderCursorElement(cursor_char, cursor_pos, line_content.length());
+                        Element cursor_elem = cursor_renderer.renderCursorElement(
+                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                            colors.background);
                         cursor_elem = cursor_elem | bgcolor(colors.selection);
                         parts.push_back(cursor_elem);
                         if (!after.empty()) {
@@ -1131,7 +999,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                         std::string before = after_selection.substr(0, before_cursor);
                         std::string cursor_char =
                             before_cursor < after_selection.length()
-                                ? getUtf8CharAt(after_selection, before_cursor)
+                                ? pnana::utils::getUtf8CharAt(after_selection, before_cursor)
                                 : " ";
                         std::string after = before_cursor < after_selection.length()
                                                 ? after_selection.substr(before_cursor + 1)
@@ -1140,8 +1008,9 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                         if (!before.empty()) {
                             parts.push_back(renderSegment(before, pos, false));
                         }
-                        parts.push_back(
-                            renderCursorElement(cursor_char, cursor_pos, line_content.length()));
+                        parts.push_back(cursor_renderer.renderCursorElement(
+                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                            colors.background));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(after, cursor_pos + 1, false));
                         }
@@ -1151,13 +1020,150 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                     break;
                 }
             }
+        } else if (!word_line_matches.empty()) {
+            // 有单词高亮匹配，需要同时处理单词高亮和选中高亮
+            size_t pos = 0;
+            size_t match_idx = 0;
+
+            while (pos < line_content.length()) {
+                // 检查是否有匹配从当前位置开始
+                bool found_match = false;
+                for (size_t i = match_idx; i < word_line_matches.size(); ++i) {
+                    if (word_line_matches[i].column == pos) {
+                        // 找到匹配，高亮显示
+                        size_t match_len = word_line_matches[i].length;
+                        size_t match_end = pos + match_len;
+
+                        // 检查光标是否在匹配范围内
+                        bool cursor_in_match =
+                            has_cursor && cursor_pos >= pos && cursor_pos < match_end;
+
+                        // 检查匹配是否在选中范围内
+                        bool match_in_selection = line_in_selection && pos < selection_end_col &&
+                                                  match_end > selection_start_col;
+
+                        if (cursor_in_match) {
+                            // 光标在匹配内，需要分割匹配文本
+                            size_t before_cursor = cursor_pos - pos;
+                            size_t after_cursor = match_end - cursor_pos;
+
+                            if (before_cursor > 0) {
+                                std::string before = line_content.substr(pos, before_cursor);
+                                bool is_selected = match_in_selection && pos >= selection_start_col;
+                                Element before_elem = renderSegment(before, pos, is_selected);
+                                // 如果不在选中范围内，应用单词高亮（灰色背景）
+                                if (!is_selected) {
+                                    before_elem = before_elem | bgcolor(Color::GrayDark);
+                                }
+                                parts.push_back(before_elem);
+                            }
+
+                            // 光标位置的字符
+                            std::string cursor_char =
+                                pnana::utils::getUtf8CharAt(line_content, cursor_pos);
+                            Element cursor_elem = cursor_renderer.renderCursorElement(
+                                cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                                colors.background);
+                            // 选中高亮优先于单词高亮
+                            if (match_in_selection && cursor_pos >= selection_start_col &&
+                                cursor_pos < selection_end_col) {
+                                cursor_elem = cursor_elem | bgcolor(colors.selection);
+                            } else {
+                                cursor_elem = cursor_elem | bgcolor(Color::GrayDark);
+                            }
+                            parts.push_back(cursor_elem);
+
+                            if (after_cursor > 1) {
+                                std::string after =
+                                    line_content.substr(cursor_pos + 1, after_cursor - 1);
+                                bool is_selected =
+                                    match_in_selection && cursor_pos + 1 >= selection_start_col;
+                                Element after_elem =
+                                    renderSegment(after, cursor_pos + 1, is_selected);
+                                // 如果不在选中范围内，应用单词高亮
+                                if (!is_selected) {
+                                    after_elem = after_elem | bgcolor(Color::GrayDark);
+                                }
+                                parts.push_back(after_elem);
+                            }
+                        } else {
+                            // 光标不在匹配内，正常高亮匹配
+                            std::string match_text = line_content.substr(pos, match_len);
+                            Element match_elem = renderSegment(match_text, pos, match_in_selection);
+                            // 如果不在选中范围内，应用单词高亮
+                            if (!match_in_selection) {
+                                match_elem = match_elem | bgcolor(Color::GrayDark);
+                            }
+                            parts.push_back(match_elem);
+                        }
+
+                        pos = match_end;
+                        match_idx = i + 1;
+                        found_match = true;
+                        break;
+                    }
+                }
+
+                if (!found_match) {
+                    // 没有匹配，找到下一个匹配的位置
+                    size_t next_match_pos = line_content.length();
+                    for (size_t i = match_idx; i < word_line_matches.size(); ++i) {
+                        if (word_line_matches[i].column > pos &&
+                            word_line_matches[i].column < next_match_pos) {
+                            next_match_pos = word_line_matches[i].column;
+                        }
+                    }
+
+                    std::string segment = line_content.substr(pos, next_match_pos - pos);
+
+                    // 检查这段是否在选中范围内
+                    bool segment_in_selection = line_in_selection && pos < selection_end_col &&
+                                                next_match_pos > selection_start_col;
+
+                    // 检查光标是否在这个段内
+                    if (has_cursor && cursor_pos >= pos && cursor_pos < next_match_pos) {
+                        size_t before_cursor = cursor_pos - pos;
+                        std::string before = segment.substr(0, before_cursor);
+                        std::string cursor_char = before_cursor < segment.length()
+                                                      ? segment.substr(before_cursor, 1)
+                                                      : " ";
+                        std::string after = before_cursor < segment.length()
+                                                ? segment.substr(before_cursor + 1)
+                                                : "";
+
+                        if (!before.empty()) {
+                            parts.push_back(renderSegment(
+                                before, pos, segment_in_selection && pos >= selection_start_col));
+                        }
+                        Element cursor_elem = cursor_renderer.renderCursorElement(
+                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                            colors.background);
+                        if (segment_in_selection && cursor_pos >= selection_start_col &&
+                            cursor_pos < selection_end_col) {
+                            cursor_elem = cursor_elem | bgcolor(colors.selection);
+                        }
+                        parts.push_back(cursor_elem);
+                        if (!after.empty()) {
+                            parts.push_back(renderSegment(
+                                after, cursor_pos + 1,
+                                segment_in_selection && cursor_pos + 1 >= selection_start_col));
+                        }
+                    } else {
+                        // 没有光标，正常渲染
+                        parts.push_back(renderSegment(segment, pos, segment_in_selection));
+                    }
+
+                    pos = next_match_pos;
+                }
+            }
         } else if (line_matches.empty()) {
             // 没有搜索匹配和选中，正常渲染
             if (has_cursor && cursor_pos <= line_content.length()) {
                 std::string before = line_content.substr(0, cursor_pos);
-                std::string cursor_char = cursor_pos < line_content.length()
-                                              ? getUtf8CharAt(line_content, cursor_pos)
-                                              : " ";
+                std::string cursor_char =
+                    cursor_pos < line_content.length()
+                        ? pnana::utils::getUtf8CharAt(line_content, cursor_pos)
+                        : " ";
                 std::string after =
                     cursor_pos < line_content.length() ? line_content.substr(cursor_pos + 1) : "";
 
@@ -1165,8 +1171,9 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                     parts.push_back(renderSegment(before, 0, false));
                 }
                 // 使用配置的光标样式渲染
-                parts.push_back(
-                    renderCursorElement(cursor_char, cursor_pos, line_content.length()));
+                parts.push_back(cursor_renderer.renderCursorElement(
+                    cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                    colors.background));
                 if (!after.empty()) {
                     parts.push_back(renderSegment(after, cursor_pos + 1, false));
                 }
@@ -1213,9 +1220,11 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                             }
 
                             // 光标位置的字符
-                            std::string cursor_char = getUtf8CharAt(line_content, cursor_pos);
-                            Element cursor_elem =
-                                renderCursorElement(cursor_char, cursor_pos, line_content.length());
+                            std::string cursor_char =
+                                pnana::utils::getUtf8CharAt(line_content, cursor_pos);
+                            Element cursor_elem = cursor_renderer.renderCursorElement(
+                                cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                                colors.background);
                             // 选中高亮优先于搜索高亮
                             if (match_in_selection && cursor_pos >= selection_start_col &&
                                 cursor_pos < selection_end_col) {
@@ -1287,8 +1296,9 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                             parts.push_back(renderSegment(
                                 before, pos, segment_in_selection && pos >= selection_start_col));
                         }
-                        Element cursor_elem =
-                            renderCursorElement(cursor_char, cursor_pos, line_content.length());
+                        Element cursor_elem = cursor_renderer.renderCursorElement(
+                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
+                            colors.background);
                         if (segment_in_selection && cursor_pos >= selection_start_col &&
                             cursor_pos < selection_end_col) {
                             cursor_elem = cursor_elem | bgcolor(colors.selection);
@@ -1483,8 +1493,30 @@ Element Editor::renderStatusbar() {
         git_uncommitted_count = cached_git_uncommitted_count;
     }
 
-    // 构建状态消息，包含SSH连接信息
+    // 检查到期的 todo 并添加闪烁提醒
+    auto due_todos = todo_panel_.getTodoManager().getDueTodos();
+    std::string todo_reminder = "";
+    bool has_todo_reminder = false;
+    if (!due_todos.empty()) {
+        // 始终显示提醒，但使用特殊标记以便状态栏识别并应用颜色变化
+        todo_reminder = "⚠ TODO: " + due_todos[0].content;
+        if (due_todos.size() > 1) {
+            todo_reminder += " (+" + std::to_string(due_todos.size() - 1) + " more)";
+        }
+        has_todo_reminder = true;
+    }
+
+    // 构建状态消息，包含SSH连接信息和Todo提醒
+    // 使用特殊标记分隔 todo 提醒和普通消息，以便状态栏能够分别渲染
     std::string display_message = status_message_;
+    if (has_todo_reminder) {
+        if (!display_message.empty()) {
+            display_message =
+                "[[TODO_REMINDER]]" + todo_reminder + "[[/TODO_REMINDER]] | " + display_message;
+        } else {
+            display_message = "[[TODO_REMINDER]]" + todo_reminder + "[[/TODO_REMINDER]]";
+        }
+    }
     if (!current_ssh_config_.host.empty()) {
         std::string ssh_info = "SSH: " + current_ssh_config_.user + "@" + current_ssh_config_.host;
         if (!display_message.empty()) {
@@ -1526,16 +1558,32 @@ Element Editor::renderStatusbar() {
             break;
     }
 
-    return statusbar_.render(
-        getCurrentDocument()->getFileName(), getCurrentDocument()->isModified(),
-        getCurrentDocument()->isReadOnly(), cursor_row_, cursor_col_,
-        getCurrentDocument()->lineCount(), getCurrentDocument()->getEncoding(), line_ending,
-        getFileType(), display_message, region_manager_.getRegionName(), syntax_highlighting_,
-        selection_active_,
-        selection_active_
-            ? (cursor_row_ != selection_start_row_ || cursor_col_ != selection_start_col_ ? 1 : 0)
-            : 0,
-        git_branch, git_uncommitted_count, current_ssh_config_.host, current_ssh_config_.user);
+    // 在文件浏览器区域时，使用文件浏览器的选中信息
+    bool has_selection = selection_active_;
+    size_t selection_length = 0;
+
+    if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER &&
+        file_browser_.isVisible()) {
+        // 文件浏览器区域：显示文件选中数量
+        size_t file_selection_count = file_browser_.getSelectedCount();
+        has_selection = file_selection_count > 0;
+        selection_length = file_selection_count;
+    } else {
+        // 代码编辑区域：显示文本选择长度
+        selection_length =
+            selection_active_
+                ? (cursor_row_ != selection_start_row_ || cursor_col_ != selection_start_col_ ? 1
+                                                                                              : 0)
+                : 0;
+    }
+
+    return statusbar_.render(getCurrentDocument()->getFileName(),
+                             getCurrentDocument()->isModified(), getCurrentDocument()->isReadOnly(),
+                             cursor_row_, cursor_col_, getCurrentDocument()->lineCount(),
+                             getCurrentDocument()->getEncoding(), line_ending, getFileType(),
+                             display_message, region_manager_.getRegionName(), syntax_highlighting_,
+                             has_selection, selection_length, git_branch, git_uncommitted_count,
+                             current_ssh_config_.host, current_ssh_config_.user);
 }
 
 Element Editor::renderHelpbar() {
@@ -1543,11 +1591,141 @@ Element Editor::renderHelpbar() {
 }
 
 Element Editor::renderInputBox() {
-    if (mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) {
-        return text(status_message_ + input_buffer_) | bgcolor(theme_.getColors().menubar_bg) |
-               color(theme_.getColors().menubar_fg);
+    if (mode_ == EditorMode::SEARCH) {
+        return renderSearchInputBox();
+    } else if (mode_ == EditorMode::REPLACE) {
+        return renderReplaceInputBox();
     }
     return text("");
+}
+
+Element Editor::renderSearchInputBox() {
+    auto& colors = theme_.getColors();
+    Elements elements;
+
+    // 搜索提示
+    elements.push_back(text("Search: ") | color(colors.comment));
+
+    // 搜索输入区域
+    if (search_input_.empty()) {
+        elements.push_back(text("(type to search...)") | color(colors.comment) | dim);
+    } else {
+        // 渲染带光标的搜索输入
+        if (search_cursor_pos_ <= search_input_.length()) {
+            std::string before = search_input_.substr(0, search_cursor_pos_);
+            std::string cursor_char = search_cursor_pos_ < search_input_.length()
+                                          ? search_input_.substr(search_cursor_pos_, 1)
+                                          : " ";
+            std::string after = search_cursor_pos_ < search_input_.length()
+                                    ? search_input_.substr(search_cursor_pos_ + 1)
+                                    : "";
+
+            if (!before.empty()) {
+                elements.push_back(text(before) | color(colors.foreground));
+            }
+            elements.push_back(text(cursor_char) | bgcolor(colors.foreground) |
+                               color(colors.background) | bold);
+            if (!after.empty()) {
+                elements.push_back(text(after) | color(colors.foreground));
+            }
+        } else {
+            elements.push_back(text(search_input_) | color(colors.foreground));
+        }
+    }
+
+    // 显示搜索选项
+    Elements options;
+    const char* option_names[] = {"Case", "Word", "Regex", "Wrap"};
+
+    for (int i = 0; i < 4; ++i) {
+        Color option_color = (i == current_option_index_) ? colors.function : colors.comment;
+        std::string indicator = search_options_[i] ? "●" : "○";
+        options.push_back(text(std::string(" ") + indicator + option_names[i]) |
+                          color(option_color));
+    }
+
+    elements.push_back(hbox(std::move(options)));
+
+    // 匹配计数
+    if (total_search_matches_ > 0) {
+        std::string count_str = " [" + std::to_string(current_search_match_ + 1) + "/" +
+                                std::to_string(total_search_matches_) + "]";
+        elements.push_back(text(count_str) | color(colors.info));
+    }
+
+    // 快捷键提示
+    elements.push_back(
+        text("  [↑↓: options, Space: toggle, Tab: replace, Enter: next, Esc: cancel]") |
+        color(colors.comment) | dim);
+
+    return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
+}
+
+Element Editor::renderReplaceInputBox() {
+    auto& colors = theme_.getColors();
+    Elements elements;
+
+    // 替换提示
+    elements.push_back(text("Replace: ") | color(colors.comment));
+
+    // 搜索模式显示
+    if (!search_input_.empty()) {
+        elements.push_back(text(search_input_) | color(colors.foreground));
+        elements.push_back(text(" → ") | color(colors.comment));
+    }
+
+    // 替换输入区域
+    if (replace_input_.empty()) {
+        elements.push_back(text("(type replacement...)") | color(colors.comment) | dim);
+    } else {
+        // 渲染带光标的替换输入
+        if (replace_cursor_pos_ <= replace_input_.length()) {
+            std::string before = replace_input_.substr(0, replace_cursor_pos_);
+            std::string cursor_char = replace_cursor_pos_ < replace_input_.length()
+                                          ? replace_input_.substr(replace_cursor_pos_, 1)
+                                          : " ";
+            std::string after = replace_cursor_pos_ < replace_input_.length()
+                                    ? replace_input_.substr(replace_cursor_pos_ + 1)
+                                    : "";
+
+            if (!before.empty()) {
+                elements.push_back(text(before) | color(colors.foreground));
+            }
+            elements.push_back(text(cursor_char) | bgcolor(colors.foreground) |
+                               color(colors.background) | bold);
+            if (!after.empty()) {
+                elements.push_back(text(after) | color(colors.foreground));
+            }
+        } else {
+            elements.push_back(text(replace_input_) | color(colors.foreground));
+        }
+    }
+
+    // 显示搜索选项
+    Elements options;
+    const char* option_names[] = {"Case", "Word", "Regex", "Wrap"};
+
+    for (int i = 0; i < 4; ++i) {
+        Color option_color = (i == current_option_index_) ? colors.function : colors.comment;
+        std::string indicator = search_options_[i] ? "●" : "○";
+        options.push_back(text(std::string(" ") + indicator + option_names[i]) |
+                          color(option_color));
+    }
+
+    elements.push_back(hbox(std::move(options)));
+
+    // 匹配计数
+    if (total_search_matches_ > 0) {
+        std::string count_str = " [" + std::to_string(current_search_match_ + 1) + "/" +
+                                std::to_string(total_search_matches_) + "]";
+        elements.push_back(text(count_str) | color(colors.info));
+    }
+
+    // 快捷键提示
+    elements.push_back(text("  [↑↓: options, Space: toggle, Enter: replace, Esc: cancel]") |
+                       color(colors.comment) | dim);
+
+    return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
 }
 
 Element Editor::renderFileBrowser() {

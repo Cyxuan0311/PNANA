@@ -88,6 +88,22 @@ bool Editor::openFile(const std::string& filepath) {
         // 通知 LSP 服务器文件已打开
         // 注意：如果 LSP 初始化失败或文件类型不支持，不应该阻塞文件打开
         try {
+            // 定期清理过期缓存
+            static int file_open_count = 0;
+            if (++file_open_count % 10 == 0) { // 每打开10个文件清理一次缓存
+                cleanupExpiredCaches();
+                LOG("Expired caches cleaned (file_open_count: " + std::to_string(file_open_count) +
+                    ")");
+            }
+
+            // 先从缓存加载诊断信息，提升响应速度
+            updateCurrentFileDiagnostics();
+            LOG("Current file diagnostics updated from cache");
+
+            // 立即开始折叠初始化，提升响应速度
+            updateCurrentFileFolding();
+            LOG("Current file folding updated from cache");
+
             updateLspDocument();
             LOG("LSP document updated");
         } catch (const std::exception& e) {
@@ -113,6 +129,9 @@ bool Editor::openFile(const std::string& filepath) {
             LOG_ERROR("getCurrentDocument() returned null after openFile()!");
             setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + filepath);
         }
+
+        // 添加到最近文件列表
+        recent_files_manager_.addFile(filepath);
 
         // 如果在分屏模式下，将新文档设置为当前激活区域的文档
         if (split_view_manager_.hasSplits()) {
@@ -344,6 +363,23 @@ void Editor::startSaveAs() {
         setStatusMessage("Enter file name to save (in: " + file_browser_.getCurrentDirectory() +
                          ")");
     }
+}
+
+void Editor::startMoveFile() {
+    // 显示移动文件对话框
+    if (!file_browser_.hasSelection()) {
+        setStatusMessage("No file or folder selected");
+        return;
+    }
+
+    std::string selected_path = file_browser_.getSelectedPath();
+    std::string current_dir = file_browser_.getCurrentDirectory();
+
+    show_move_file_ = true;
+    move_file_dialog_.setSourcePath(selected_path);
+    move_file_dialog_.setTargetDirectory(current_dir);
+    move_file_dialog_.setInput(""); // 初始为空，用户输入目标路径
+    setStatusMessage("Enter target path to move: " + file_browser_.getSelectedName());
 }
 
 void Editor::quit() {

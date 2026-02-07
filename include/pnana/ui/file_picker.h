@@ -2,6 +2,7 @@
 #define PNANA_UI_FILE_PICKER_H
 
 #include "ui/theme.h"
+#include "utils/file_type_icon_mapper.h"
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -60,6 +61,8 @@ class FilePicker {
     bool type_filter_active_;            // 类型筛选是否激活
     FilePickerType current_type_filter_; // 当前类型筛选
 
+    utils::FileTypeIconMapper icon_mapper_; // 文件类型图标映射器
+
     std::function<void(const std::string&)> on_select_;
     std::function<void()> on_cancel_;
 
@@ -71,6 +74,7 @@ class FilePicker {
     void cancel();
     bool isDirectory(const std::string& path) const;
     std::string getItemName(const std::string& path) const;
+    std::string getFileExtension(const std::string& filename) const;
     std::vector<std::string> filterItems(const std::vector<std::string>& items,
                                          const std::string& filter) const;
     void updatePathFromInput(); // 从路径输入更新当前路径

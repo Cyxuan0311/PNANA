@@ -4,6 +4,13 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
@@ -109,8 +116,9 @@ Element ThemeMenu::render() {
               text("Esc: Cancel") | color(current_colors.comment), filler()}) |
         bgcolor(current_colors.menubar_bg));
 
-    return vbox(theme_items) | border | bgcolor(current_colors.background) |
-           size(WIDTH, GREATER_THAN, 50) | size(HEIGHT, GREATER_THAN, 16);
+    return vbox(theme_items) | borderWithColor(current_colors.dialog_border) |
+           bgcolor(current_colors.background) | size(WIDTH, GREATER_THAN, 50) |
+           size(HEIGHT, GREATER_THAN, 16);
 }
 
 } // namespace ui

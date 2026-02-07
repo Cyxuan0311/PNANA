@@ -10,6 +10,8 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <sys/wait.h>
+#include <thread>
 
 namespace fs = std::filesystem;
 
@@ -83,6 +85,90 @@ bool GitManager::initRepository() {
     repo_root_ = repo_path_;
     // Repository state has changed, invalidate cache
     invalidateRepoStatusCache();
+    return true;
+}
+
+bool GitManager::clone(const std::string& url, const std::string& path) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    pnana::utils::Logger::getInstance().log("GitManager::clone - Starting clone operation");
+    pnana::utils::Logger::getInstance().log("URL: " + url);
+    pnana::utils::Logger::getInstance().log("Path: " + path);
+
+    if (url.empty()) {
+        last_error_ = "Repository URL cannot be empty";
+        return false;
+    }
+
+    if (path.empty()) {
+        last_error_ = "Clone path cannot be empty";
+        return false;
+    }
+
+    // Check if target directory already exists and is not empty
+    if (fs::exists(path) && !fs::is_empty(path)) {
+        last_error_ = "Target directory is not empty: " + path;
+        return false;
+    }
+
+    clearError();
+
+    // Construct git clone command
+    std::string escaped_url = escapePath(url);
+    std::string escaped_path = escapePath(path);
+    std::string cmd = "git clone \"" + escaped_url + "\" \"" + escaped_path + "\"";
+
+    pnana::utils::Logger::getInstance().log("Executing: " + cmd);
+
+    // Execute clone command
+    auto exec_start = std::chrono::high_resolution_clock::now();
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        last_error_ = "Failed to execute git clone command";
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        pnana::utils::Logger::getInstance().log("GitManager::clone - END (failed to execute) - " +
+                                                std::to_string(duration.count()) + "ms");
+        return false;
+    }
+
+    // Read any error output
+    std::array<char, 256> buffer;
+    std::string error_output;
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        error_output += buffer.data();
+    }
+
+    int status = pclose(pipe);
+    auto exec_end = std::chrono::high_resolution_clock::now();
+    auto exec_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
+
+    pnana::utils::Logger::getInstance().log("Git clone command execution took " +
+                                            std::to_string(exec_duration.count()) +
+                                            "ms (exit code: " + std::to_string(status) + ")");
+
+    if (status != 0) {
+        if (!error_output.empty()) {
+            last_error_ = "Clone failed: " + error_output;
+        } else {
+            last_error_ = "Clone failed with exit code: " + std::to_string(status);
+        }
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        pnana::utils::Logger::getInstance().log("GitManager::clone - END (failed) - " +
+                                                std::to_string(duration.count()) + "ms");
+        return false;
+    }
+
+    // Clone successful
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    pnana::utils::Logger::getInstance().log("GitManager::clone - END (success) - " +
+                                            std::to_string(duration.count()) + "ms");
+
     return true;
 }
 
@@ -267,31 +353,51 @@ bool GitManager::stageFile(const std::string& path) {
     pnana::utils::Logger::getInstance().log("Command preparation took " +
                                             std::to_string(cmd_prep_duration.count()) + "ms");
 
-    // 对于单个文件操作，使用更快的同步执行
+    // 对于单个文件操作，尝试在遇到 index.lock 时重试几次（处理并发 git 进程的短暂冲突）
     auto exec_start = std::chrono::high_resolution_clock::now();
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        last_error_ = "Failed to execute git add command";
+    const int max_attempts = 6;
+    std::string last_output;
+    bool ok = false;
+    for (int attempt = 0; attempt < max_attempts; ++attempt) {
+        std::string cmd_with_err = cmd + " 2>&1";
+        last_output = executeGitCommand(cmd_with_err);
+        auto exec_now = std::chrono::high_resolution_clock::now();
+        auto exec_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(exec_now - exec_start);
+        pnana::utils::Logger::getInstance().log("Git add attempt " + std::to_string(attempt + 1) +
+                                                " took " + std::to_string(exec_duration.count()) +
+                                                "ms");
+
+        if (last_output.empty()) {
+            ok = true;
+            break;
+        }
+
+        std::string lower = last_output;
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+
+        // If index.lock or unable to create lockfile, wait and retry (transient)
+        if (lower.find("index.lock") != std::string::npos ||
+            lower.find("unable to create") != std::string::npos ||
+            lower.find("another git process") != std::string::npos) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(150 * (attempt + 1)));
+            continue;
+        }
+
+        // Other errors - do not retry
+        last_error_ = "Failed to stage file: " + last_output;
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log(
-            "GitManager::stageFile - END (failed to execute) - " +
-            std::to_string(duration.count()) + "ms");
+        pnana::utils::Logger::getInstance().log("GitManager::stageFile - END (failed) - " +
+                                                std::to_string(duration.count()) + "ms");
         return false;
     }
 
-    // 简单等待命令完成，不读取输出（add命令通常没有输出）
-    int status = pclose(pipe);
-    auto exec_end = std::chrono::high_resolution_clock::now();
-    auto exec_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
-    pnana::utils::Logger::getInstance().log("Git add command execution took " +
-                                            std::to_string(exec_duration.count()) +
-                                            "ms (exit code: " + std::to_string(status) + ")");
-
-    if (status != 0) {
-        last_error_ = "Failed to stage file (exit code: " + std::to_string(status) + ")";
+    if (!ok) {
+        last_error_ = "Failed to stage file after retries: " + last_output;
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -334,35 +440,35 @@ bool GitManager::unstageFile(const std::string& path) {
 
     // 使用更快的同步执行
     auto exec_start = std::chrono::high_resolution_clock::now();
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        last_error_ = "Failed to execute git reset command";
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log(
-            "GitManager::unstageFile - END (failed to execute) - " +
-            std::to_string(duration.count()) + "ms");
-        return false;
-    }
-
-    // 简单等待命令完成
-    int status = pclose(pipe);
-    auto exec_end = std::chrono::high_resolution_clock::now();
-    auto exec_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
-    pnana::utils::Logger::getInstance().log("Git reset command execution took " +
-                                            std::to_string(exec_duration.count()) +
-                                            "ms (exit code: " + std::to_string(status) + ")");
-
-    if (status != 0) {
-        last_error_ = "Failed to unstage file (exit code: " + std::to_string(status) + ")";
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitManager::unstageFile - END (failed) - " +
-                                                std::to_string(duration.count()) + "ms");
-        return false;
+    {
+        // Run command and capture both stdout and stderr to diagnose failures
+        std::string cmd_with_err = cmd + " 2>&1";
+        std::string output = executeGitCommand(cmd_with_err);
+        auto exec_end = std::chrono::high_resolution_clock::now();
+        auto exec_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(exec_end - exec_start);
+        pnana::utils::Logger::getInstance().log("Git reset command execution took " +
+                                                std::to_string(exec_duration.count()) + "ms");
+        if (!output.empty()) {
+            // Some git commands print warnings to stdout/stderr but still succeed.
+            // Attempt to detect common success messages; otherwise treat as error.
+            // If output contains 'fatal' or 'error', consider it a failure.
+            std::string lower = output;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+                return std::tolower(c);
+            });
+            if (lower.find("fatal") != std::string::npos ||
+                lower.find("error") != std::string::npos) {
+                last_error_ = "Failed to unstage file: " + output;
+                auto end_time = std::chrono::high_resolution_clock::now();
+                auto duration =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+                pnana::utils::Logger::getInstance().log(
+                    "GitManager::unstageFile - END (failed) - " + std::to_string(duration.count()) +
+                    "ms");
+                return false;
+            }
+        }
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -487,13 +593,21 @@ bool GitManager::commit(const std::string& message) {
     }
 
     std::string cmd = "git -C \"" + repo_root_ + "\" commit -m '" + escaped_message + "'";
-    std::string result = executeGitCommand(cmd);
+    // Capture output (stdout/stderr) to decide success: git prints summary on success.
+    std::string output = executeGitCommand(cmd + " 2>&1");
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
 
-    if (!result.empty()) {
-        last_error_ = "Failed to commit: " + result;
+    // If output contains fatal or error, treat as failure
+    if (lower.find("fatal") != std::string::npos || lower.find("error") != std::string::npos ||
+        lower.find("aborting") != std::string::npos) {
+        last_error_ = "Failed to commit: " + output;
         return false;
     }
 
+    // Success - refresh status and return true. Keep output (summary) in logs if needed.
     refreshStatus();
     return true;
 }
@@ -510,6 +624,49 @@ std::vector<GitCommit> GitManager::getRecentCommits(int count) {
     std::vector<GitCommit> commits;
 
     for (const auto& line : lines) {
+        size_t pos1 = line.find('|');
+        if (pos1 == std::string::npos)
+            continue;
+
+        size_t pos2 = line.find('|', pos1 + 1);
+        if (pos2 == std::string::npos)
+            continue;
+
+        size_t pos3 = line.find('|', pos2 + 1);
+        if (pos3 == std::string::npos)
+            continue;
+
+        std::string hash = line.substr(0, pos1);
+        std::string message = line.substr(pos1 + 1, pos2 - pos1 - 1);
+        std::string author = line.substr(pos2 + 1, pos3 - pos2 - 1);
+        std::string date = line.substr(pos3 + 1);
+
+        commits.emplace_back(hash, message, author, date);
+    }
+
+    return commits;
+}
+
+std::vector<GitCommit> GitManager::getGraphCommits(int count) {
+    if (!isGitRepository()) {
+        return {};
+    }
+
+    // Use git log with graph format to get commit history
+    // We'll use a simpler format that's easier to parse
+    std::string cmd = "git -C \"" + repo_root_ + "\" log --oneline --all --decorate -n " +
+                      std::to_string(count) + " --pretty=format:\"%H|%s|%an|%ad\" --date=short";
+    auto lines = executeGitCommandLines(cmd);
+
+    std::vector<GitCommit> commits;
+
+    for (const auto& line : lines) {
+        // Skip empty lines
+        if (line.empty()) {
+            continue;
+        }
+
+        // Parse format: hash|message|author|date
         size_t pos1 = line.find('|');
         if (pos1 == std::string::npos)
             continue;
@@ -650,13 +807,16 @@ bool GitManager::push(const std::string& remote, const std::string& branch) {
 
     std::string cmd =
         "git -C \"" + repo_root_ + "\" push \"" + target_remote + "\" \"" + target_branch + "\"";
-    std::string result = executeGitCommand(cmd);
-
-    if (!result.empty()) {
-        last_error_ = "Failed to push: " + result;
+    std::string output = executeGitCommand(cmd + " 2>&1");
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+    if (lower.find("fatal") != std::string::npos || lower.find("error") != std::string::npos ||
+        lower.find("aborting") != std::string::npos) {
+        last_error_ = "Failed to push: " + output;
         return false;
     }
-
     return true;
 }
 
@@ -672,15 +832,29 @@ bool GitManager::pull(const std::string& remote, const std::string& branch) {
 
     std::string cmd =
         "git -C \"" + repo_root_ + "\" pull \"" + target_remote + "\" \"" + target_branch + "\"";
-    std::string result = executeGitCommand(cmd);
-
-    if (!result.empty()) {
-        last_error_ = "Failed to pull: " + result;
+    std::string output = executeGitCommand(cmd + " 2>&1");
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+    if (lower.find("fatal") != std::string::npos || lower.find("error") != std::string::npos ||
+        lower.find("aborting") != std::string::npos) {
+        last_error_ = "Failed to pull: " + output;
         return false;
     }
-
     refreshStatus();
     return true;
+}
+
+size_t GitManager::getStagedCount() const {
+    if (!isGitRepository()) {
+        return 0;
+    }
+
+    // Use git diff --cached --name-only to list staged files and count lines
+    std::string cmd = "git -C \"" + repo_root_ + "\" diff --cached --name-only";
+    auto lines = executeGitCommandLines(cmd);
+    return lines.size();
 }
 
 bool GitManager::fetch(const std::string& remote) {
@@ -691,13 +865,16 @@ bool GitManager::fetch(const std::string& remote) {
 
     std::string target_remote = remote.empty() ? "origin" : remote;
     std::string cmd = "git -C \"" + repo_root_ + "\" fetch \"" + target_remote + "\"";
-    std::string result = executeGitCommand(cmd);
-
-    if (!result.empty()) {
-        last_error_ = "Failed to fetch: " + result;
+    std::string output = executeGitCommand(cmd + " 2>&1");
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+    if (lower.find("fatal") != std::string::npos || lower.find("error") != std::string::npos ||
+        lower.find("aborting") != std::string::npos) {
+        last_error_ = "Failed to fetch: " + output;
         return false;
     }
-
     return true;
 }
 
@@ -708,6 +885,43 @@ std::vector<std::string> GitManager::getRemotes() {
 
     std::string cmd = "git -C \"" + repo_root_ + "\" remote";
     auto lines = executeGitCommandLines(cmd);
+
+    return lines;
+}
+
+std::vector<std::string> GitManager::getDiff(const std::string& path) {
+    if (!isGitRepository()) {
+        last_error_ = "Not a git repository";
+        return {};
+    }
+
+    clearError();
+
+    std::string escaped_path = escapePath(path);
+
+    // Try unstaged changes first
+    std::string cmd = "git -C \"" + repo_root_ + "\" diff \"" + escaped_path + "\"";
+    auto lines = executeGitCommandLines(cmd);
+
+    // If no unstaged diff, try staged changes
+    if (lines.empty()) {
+        std::string staged_cmd =
+            "git -C \"" + repo_root_ + "\" diff --cached \"" + escaped_path + "\"";
+        lines = executeGitCommandLines(staged_cmd);
+    }
+
+    // If still no output, set error message
+    if (lines.empty()) {
+        std::string status_cmd =
+            "git -C \"" + repo_root_ + "\" status --porcelain \"" + escaped_path + "\"";
+        auto status_lines = executeGitCommandLines(status_cmd);
+
+        if (!status_lines.empty()) {
+            last_error_ = "File has changes but no diff output. Status: " + status_lines[0];
+        } else {
+            last_error_ = "File not found in git status";
+        }
+    }
 
     return lines;
 }
@@ -723,7 +937,7 @@ std::string GitManager::executeGitCommand(const std::string& command) const {
 
     std::array<char, 128> buffer;
     std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, int (*)(FILE*)> pipe(popen(command.c_str(), "r"), pclose);
 
     if (!pipe) {
         auto cmd_end = std::chrono::high_resolution_clock::now();
@@ -764,7 +978,7 @@ std::vector<std::string> GitManager::executeGitCommandLines(const std::string& c
 
     std::array<char, 128> buffer;
     std::vector<std::string> lines;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, int (*)(FILE*)> pipe(popen(command.c_str(), "r"), pclose);
 
     if (!pipe) {
         auto cmd_end = std::chrono::high_resolution_clock::now();
@@ -814,6 +1028,8 @@ GitFileStatus GitManager::parseStatusChar(char status_char) const {
     switch (status_char) {
         case ' ':
             return GitFileStatus::UNMODIFIED;
+        case '.':
+            return GitFileStatus::UNMODIFIED;
         case 'M':
             return GitFileStatus::MODIFIED;
         case 'A':
@@ -836,17 +1052,71 @@ GitFileStatus GitManager::parseStatusChar(char status_char) const {
 }
 
 void GitManager::parseStatusLine(const std::string& line, std::vector<GitFile>& files) {
-    if (line.length() < 3)
+    if (line.empty())
         return;
 
-    char index_status = line[0];
-    char worktree_status = line[1];
-    std::string path = line.substr(2);
+    // Support both porcelain v1 (two-column XY at positions 0/1) and porcelain v2 formats.
+    // Porcelain v2 common prefixes:
+    //  - '1' entries: "1 XY SUB M H I W path"
+    //  - '2' entries: "2 XY SCORE path orig-path"
+    //  - 'u' entries: unmerged entries start with 'u' then space then XY...
+    //  - '?' and '!' entries: "? path" or "! path"
+    char index_status = ' ';
+    char worktree_status = ' ';
+    std::string remaining;
 
-    // Skip leading spaces in path
-    size_t path_start = path.find_first_not_of(" \t");
-    if (path_start != std::string::npos) {
-        path = path.substr(path_start);
+    if (line[0] == '1' || line[0] == '2' || line[0] == 'u') {
+        // porcelain v2 style: "1 XY ...", extract XY at positions 2 and 3
+        if (line.size() < 4)
+            return;
+        index_status = line[2];
+        worktree_status = line[3];
+        // remaining content starts after "1 XY " (5 chars)
+        if (line.size() > 5)
+            remaining = line.substr(5);
+        else
+            remaining.clear();
+    } else if (line[0] == '?' || line[0] == '!') {
+        // untracked or ignored (porcelain v2 or v1 style)
+        index_status = line[0];
+        worktree_status = ' ';
+        if (line.size() > 2)
+            remaining = line.substr(2);
+        else
+            remaining.clear();
+    } else {
+        // Assume porcelain v1 style "XY path..."
+        if (line.length() < 3)
+            return;
+        index_status = line[0];
+        worktree_status = line[1];
+        remaining = line.substr(2);
+    }
+
+    // Skip leading spaces
+    size_t content_start = remaining.find_first_not_of(" \t");
+    if (content_start != std::string::npos) {
+        remaining = remaining.substr(content_start);
+    }
+
+    // Extract the actual file path - for porcelain format, the file path is the last token
+    // Format can be: "XY file_path" or "XY ...metadata... file_path"
+    std::string path;
+    std::string::size_type last_space = remaining.find_last_of(" \t");
+    if (last_space != std::string::npos) {
+        // Check if this looks like a file path (contains directory separators or common file
+        // extensions)
+        std::string potential_path = remaining.substr(last_space + 1);
+        if (potential_path.find('/') != std::string::npos ||
+            potential_path.find('\\') != std::string::npos ||
+            potential_path.find('.') != std::string::npos) {
+            path = potential_path;
+        } else {
+            // Fallback to the whole remaining string
+            path = remaining;
+        }
+    } else {
+        path = remaining;
     }
 
     // Handle renamed files (format: "R  old_name -> new_name")
@@ -858,13 +1128,20 @@ void GitManager::parseStatusLine(const std::string& line, std::vector<GitFile>& 
     }
 
     // Determine if file is staged
-    bool staged = (index_status != ' ' && index_status != '?');
+    // In porcelain v2, index_status '.' means no index change -> not staged.
+    bool staged = (index_status != ' ' && index_status != '?' && index_status != '.');
 
     GitFileStatus status;
     if (index_status != ' ' && worktree_status != ' ') {
-        // Both staged and unstaged changes
-        status =
-            (worktree_status == 'M') ? GitFileStatus::MODIFIED : parseStatusChar(worktree_status);
+        // Both staged and unstaged indicators present.
+        // Favor the index (staged) status when it indicates a real change (not '.'),
+        // otherwise fall back to worktree status.
+        if (index_status != '.' && index_status != ' ') {
+            status = parseStatusChar(index_status);
+        } else {
+            status = (worktree_status == 'M') ? GitFileStatus::MODIFIED
+                                              : parseStatusChar(worktree_status);
+        }
     } else if (index_status != ' ') {
         // Only staged changes
         status = parseStatusChar(index_status);
@@ -877,6 +1154,56 @@ void GitManager::parseStatusLine(const std::string& line, std::vector<GitFile>& 
         files.emplace_back(path, old_path, status, staged);
     } else {
         files.emplace_back(path, status, staged);
+    }
+}
+
+GitBranchStatus GitManager::getBranchStatus(const std::string& branch) {
+    std::string branch_name = branch.empty() ? getCurrentBranch() : branch;
+
+    if (branch_name.empty()) {
+        last_error_ = "No current branch";
+        return GitBranchStatus();
+    }
+
+    // Get remote tracking branch
+    std::string remote_cmd = "git -C \"" + repo_path_ + "\" rev-parse --abbrev-ref " + branch_name +
+                             "@{upstream} 2>/dev/null";
+    std::string remote_branch = executeGitCommand(remote_cmd);
+
+    if (remote_branch.empty() || remote_branch.find("fatal") != std::string::npos) {
+        // No remote tracking branch
+        return GitBranchStatus(0, 0, "", false);
+    }
+
+    // Remove trailing newline
+    if (!remote_branch.empty() && remote_branch.back() == '\n') {
+        remote_branch.pop_back();
+    }
+
+    // Get ahead/behind count using rev-list
+    std::string count_cmd = "git -C \"" + repo_path_ + "\" rev-list --left-right --count " +
+                            branch_name + "..." + remote_branch + " 2>/dev/null";
+    std::string count_output = executeGitCommand(count_cmd);
+
+    if (count_output.empty() || count_output.find("fatal") != std::string::npos) {
+        // Cannot determine ahead/behind status
+        return GitBranchStatus(0, 0, remote_branch, true);
+    }
+
+    // Parse the output (format: "ahead\tbehind")
+    size_t tab_pos = count_output.find('\t');
+    if (tab_pos == std::string::npos) {
+        return GitBranchStatus(0, 0, remote_branch, true);
+    }
+
+    try {
+        int ahead = std::stoi(count_output.substr(0, tab_pos));
+        int behind = std::stoi(count_output.substr(tab_pos + 1));
+
+        return GitBranchStatus(ahead, behind, remote_branch, true);
+    } catch (const std::exception&) {
+        // Parse error
+        return GitBranchStatus(0, 0, remote_branch, true);
     }
 }
 

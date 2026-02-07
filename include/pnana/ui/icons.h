@@ -512,6 +512,28 @@ constexpr const char* HDD = "\uf0a0";      // nf-fa-hdd-o (硬盘)
 constexpr const char* DOWNLOAD = "\uf019"; // nf-fa-download (下载)
 constexpr const char* UPLOAD = "\uf093";   // nf-fa-upload (上传)
 
+// 平台图标
+constexpr const char* LINUX = "\uf17c";      // nf-fa-linux (Linux)
+constexpr const char* UBUNTU = "\uf31b";     // nf-fa-ubuntu (Ubuntu)
+constexpr const char* FEDORA = "\uf30a";     // nf-fa-fedora (Fedora)
+constexpr const char* CENTOS = "\uf304";     // nf-fa-centos (CentOS)
+constexpr const char* DEBIAN = "\uf306";     // nf-fa-debian (Debian)
+constexpr const char* ARCHLINUX = "\uf303";  // nf-fa-archlinux (Arch Linux)
+constexpr const char* MANJARO = "\uf312";    // nf-fa-manjaro (Manjaro)
+constexpr const char* WINDOWS = "\uf17a";    // nf-fa-windows (Windows)
+constexpr const char* APPLE = "\uf179";      // nf-fa-apple (macOS)
+constexpr const char* MACOS = "\uf179";      // nf-fa-apple (macOS)
+constexpr const char* FREEBSD = "\uf30c";    // nf-fa-freebsd (FreeBSD)
+constexpr const char* OPENBSD = "\uf30d";    // nf-fa-openbsd (OpenBSD)
+constexpr const char* NETBSD = "\uf30e";     // nf-fa-netbsd (NetBSD)
+constexpr const char* SOLARIS = "\uf185";    // nf-fa-sun-o (Solaris)
+constexpr const char* REDHAT = "\uf316";     // nf-fa-redhat (Red Hat)
+constexpr const char* SUSE = "\uf314";       // nf-fa-suse (SUSE)
+constexpr const char* GENTOO = "\uf30f";     // nf-fa-gentoo (Gentoo)
+constexpr const char* MINT = "\uf30f";       // nf-fa-linux (Linux Mint)
+constexpr const char* POP_OS = "\uf304";     // nf-fa-centos (Pop!_OS)
+constexpr const char* ELEMENTARY = "\uf309"; // nf-fa-elementor (Elementary OS)
+
 // 欢迎界面
 constexpr const char* ROCKET = "\uf135"; // nf-fa-rocket (快速开始)
 constexpr const char* STAR = "\uf005";   // nf-fa-star (特性)
@@ -520,6 +542,27 @@ constexpr const char* BOOK = "\uf02d";   // nf-fa-book (文档)
 
 // 终端
 constexpr const char* TERMINAL = "\uf120"; // nf-fa-terminal (终端)
+
+// 包管理和容器
+constexpr const char* PACKAGE = "\uf187";   // nf-fa-archive (包)
+constexpr const char* CONTAINER = "\ue7b0"; // nf-dev-docker (容器)
+
+// 任务和列表
+constexpr const char* CHECKLIST = "\uf046"; // nf-fa-check-square-o (检查列表)
+constexpr const char* TASK = "\uf0ae";      // nf-fa-tasks (任务)
+constexpr const char* LIST = "\uf03a";      // nf-fa-list-ul (列表)
+
+// 通信
+constexpr const char* MAIL = "\uf0e0";  // nf-fa-envelope (邮件)
+constexpr const char* EMAIL = "\uf0e0"; // nf-fa-envelope (电子邮件)
+constexpr const char* RSS = "\uf143";   // nf-fa-rss (RSS订阅)
+constexpr const char* CHAT = "\uf086";  // nf-fa-comments (聊天)
+
+// 更多实用工具图标
+constexpr const char* CALENDAR_ALT = "\uf073"; // nf-fa-calendar (日历替代)
+constexpr const char* CLOCK_ALT = "\uf017";    // nf-fa-clock-o (时钟替代)
+constexpr const char* FOLDER_ALT = "\uf07b";   // nf-fa-folder (文件夹替代)
+constexpr const char* FILE_ALT = "\uf15b";     // nf-fa-file (文件替代)
 
 // 文件类型图标映射函数
 inline std::string getFileTypeIcon(const std::string& file_type) {

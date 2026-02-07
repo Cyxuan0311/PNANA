@@ -54,6 +54,17 @@ struct GitCommit {
         : hash(h), message(msg), author(auth), date(dt) {}
 };
 
+struct GitBranchStatus {
+    int ahead = 0;                    // Number of commits ahead of remote
+    int behind = 0;                   // Number of commits behind remote
+    std::string remote_branch;        // Remote branch name (e.g., "origin/main")
+    bool has_remote_tracking = false; // Whether this branch has a remote tracking branch
+
+    GitBranchStatus() = default;
+    GitBranchStatus(int a, int b, const std::string& remote, bool has_tracking)
+        : ahead(a), behind(b), remote_branch(remote), has_remote_tracking(has_tracking) {}
+};
+
 class GitManager {
   public:
     GitManager(const std::string& repo_path = ".");
@@ -70,6 +81,9 @@ class GitManager {
     bool refreshStatus();
     bool refreshStatusForced(); // Force refresh, ignore cache
 
+    // Diff operations
+    std::vector<std::string> getDiff(const std::string& path);
+
     // Staging operations
     bool stageFile(const std::string& path);
     bool unstageFile(const std::string& path);
@@ -79,6 +93,7 @@ class GitManager {
     // Commit operations
     bool commit(const std::string& message);
     std::vector<GitCommit> getRecentCommits(int count = 10);
+    std::vector<GitCommit> getGraphCommits(int count = 50); // Get commits for graph view
 
     // Branch operations
     std::vector<GitBranch> getBranches();
@@ -86,12 +101,16 @@ class GitManager {
     bool switchBranch(const std::string& name);
     bool deleteBranch(const std::string& name, bool force = false);
     std::string getCurrentBranch();
+    GitBranchStatus getBranchStatus(const std::string& branch = "");
 
     // Remote operations
     bool push(const std::string& remote = "origin", const std::string& branch = "");
     bool pull(const std::string& remote = "origin", const std::string& branch = "");
     bool fetch(const std::string& remote = "origin");
     std::vector<std::string> getRemotes();
+
+    // Clone operations
+    bool clone(const std::string& url, const std::string& path);
 
     // Utility functions
     std::string getLastError() const {
@@ -100,6 +119,9 @@ class GitManager {
     void clearError() {
         last_error_.clear();
     }
+
+    // Get number of files currently staged (cached index)
+    size_t getStagedCount() const;
 
   private:
     std::string repo_path_;

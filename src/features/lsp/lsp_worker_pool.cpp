@@ -12,7 +12,8 @@ LspWorkerPool::LspWorkerPool(size_t num_threads) : running_(true) {
     }
     workers_.reserve(num_threads);
     for (size_t i = 0; i < num_threads; ++i) {
-        workers_.emplace_back([this, i]() {
+        (void)i; // 未使用的循环变量，保留用于未来可能的用途
+        workers_.emplace_back([this]() {
             this->workerLoop();
         });
     }

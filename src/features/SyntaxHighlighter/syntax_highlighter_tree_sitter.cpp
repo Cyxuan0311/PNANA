@@ -291,6 +291,24 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["bash"] = bash_lang;
         language_map_["shell"] = bash_lang;
         language_map_["zsh"] = bash_lang;
+        // Shell 配置文件（点文件）
+        language_map_[".zshrc"] = bash_lang;
+        language_map_[".zprofile"] = bash_lang;
+        language_map_[".zshenv"] = bash_lang;
+        language_map_[".zlogin"] = bash_lang;
+        language_map_[".zlogout"] = bash_lang;
+        language_map_[".bashrc"] = bash_lang;
+        language_map_[".bash_profile"] = bash_lang;
+        language_map_[".bash_login"] = bash_lang;
+        language_map_[".profile"] = bash_lang;
+        language_map_[".bash_aliases"] = bash_lang;
+        language_map_[".bash_functions"] = bash_lang;
+        language_map_[".bash_completion"] = bash_lang;
+        language_map_[".inputrc"] = bash_lang;
+        language_map_[".tcshrc"] = bash_lang;
+        language_map_[".cshrc"] = bash_lang;
+        language_map_[".kshrc"] = bash_lang;
+        language_map_[".fish"] = bash_lang;
     }
 #endif
 
@@ -514,6 +532,11 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["vimrc"] = vim_lang;
         language_map_["nvim"] = vim_lang;
         language_map_["vimscript"] = vim_lang;
+        // Vim 配置文件（点文件）
+        language_map_[".vimrc"] = vim_lang;
+        language_map_[".gvimrc"] = vim_lang;
+        language_map_[".nvimrc"] = vim_lang;
+        language_map_[".exrc"] = vim_lang;
     }
 #endif
 

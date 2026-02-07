@@ -94,6 +94,8 @@ static void initializeActionInfos() {
                                "Previous match", std::vector<std::string>{"ctrl_shift_f3"});
     action_infos_.emplace_back(KeyAction::COMMAND_PALETTE, ActionGroup::VIEW_OPS, "command_palette",
                                "Command Palette", std::vector<std::string>{"f3"});
+    action_infos_.emplace_back(KeyAction::AI_ASSISTANT, ActionGroup::VIEW_OPS, "ai_assistant",
+                               "AI Assistant", std::vector<std::string>{"ctrl_shift_a"});
     action_infos_.emplace_back(KeyAction::GOTO_FILE_START, ActionGroup::SEARCH_NAV,
                                "goto_file_start", "Go to file start",
                                std::vector<std::string>{"ctrl_home"});

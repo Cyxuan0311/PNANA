@@ -79,6 +79,7 @@ void KeyBindingManager::initializeViewOperationBindings() {
     bindKey("f1", KeyAction::TOGGLE_HELP);
     bindKey("ctrl_shift_l", KeyAction::TOGGLE_LINE_NUMBERS);
     bindKey("f3", KeyAction::COMMAND_PALETTE);
+    bindKey("ctrl_shift_a", KeyAction::AI_ASSISTANT);
     bindKey("f4", KeyAction::SSH_CONNECT);
     bindKey("alt_w", KeyAction::TOGGLE_MARKDOWN_PREVIEW);
 #ifdef BUILD_LUA_SUPPORT

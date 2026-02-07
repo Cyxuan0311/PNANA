@@ -27,8 +27,46 @@ bool GitPanelHandler::handleInput(ftxui::Event event, Editor* editor) {
         return false;
     }
 
-    // 将事件传递给GitPanel处理
-    bool handled = editor->getGitPanel().onKeyPress(event);
+    bool handled = false;
+
+    // 如果diff viewer打开，优先处理diff viewer的事件
+    if (editor->getGitPanel().isDiffViewerVisible()) {
+        if (event == Event::Escape) {
+            editor->getGitPanel().handleDiffViewerEscape();
+            handled = true;
+        } else if (event == Event::PageUp) {
+            auto& git_panel = editor->getGitPanel();
+            const size_t VISIBLE_LINES = 25; // Must match renderDiffViewer
+            size_t current_offset = git_panel.getDiffScrollOffset();
+            if (current_offset > 0) {
+                current_offset =
+                    (current_offset > VISIBLE_LINES) ? current_offset - VISIBLE_LINES : 0;
+                git_panel.setDiffScrollOffset(current_offset);
+            }
+            handled = true;
+        } else if (event == Event::PageDown) {
+            auto& git_panel = editor->getGitPanel();
+            const size_t VISIBLE_LINES = 25; // Must match renderDiffViewer
+            const auto& diff_content = git_panel.getDiffContent();
+            size_t max_offset =
+                diff_content.size() > VISIBLE_LINES ? diff_content.size() - VISIBLE_LINES : 0;
+            size_t current_offset = git_panel.getDiffScrollOffset();
+            if (current_offset < max_offset) {
+                current_offset += VISIBLE_LINES;
+                if (current_offset > max_offset) {
+                    current_offset = max_offset;
+                }
+                git_panel.setDiffScrollOffset(current_offset);
+            }
+            handled = true;
+        } else {
+            // 对于diff viewer打开时的其他事件，直接消费掉，不传递给GitPanel
+            handled = true;
+        }
+    } else {
+        // 将事件传递给GitPanel处理
+        handled = editor->getGitPanel().onKeyPress(event);
+    }
 
     // 如果GitPanel没有处理Tab键，则将其作为区域切换
     if (!handled && event == Event::Tab) {
@@ -81,8 +119,28 @@ bool GitPanelHandler::handleNavigation(ftxui::Event event, Editor* editor) {
         return false;
     }
 
-    // Git面板的导航：Esc关闭面板
+    // Git面板的导航：Esc关闭面板，但如果diff viewer打开，则让GitPanel处理
     if (event == Event::Escape) {
+        pnana::utils::Logger::getInstance().log(
+            "GitPanelHandler::handleNavigation - ESC pressed, diff viewer visible: " +
+            std::string(editor->getGitPanel().isDiffViewerVisible() ? "true" : "false"));
+
+        // 如果diff viewer打开，让GitPanel处理ESC
+        if (editor->getGitPanel().isDiffViewerVisible()) {
+            pnana::utils::Logger::getInstance().log(
+                "GitPanelHandler::handleNavigation - Diff viewer is visible, letting GitPanel "
+                "handle ESC");
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            pnana::utils::Logger::getInstance().log("GitPanelHandler::handleNavigation - END (diff "
+                                                    "viewer open, let GitPanel handle) - " +
+                                                    std::to_string(duration.count()) + "ms");
+            return false; // 不处理，让GitPanel处理
+        }
+
+        pnana::utils::Logger::getInstance().log(
+            "GitPanelHandler::handleNavigation - No diff viewer, closing git panel");
         editor->toggleGitPanel();
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =

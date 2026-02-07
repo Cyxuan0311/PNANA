@@ -6,14 +6,21 @@
 
 using namespace ftxui;
 
+// Custom border decorator with theme color
+static inline Decorator borderWithColor(Color border_color) {
+    return [=](Element child) -> Element {
+        return child | border | ftxui::color(border_color);
+    };
+}
+
 namespace pnana {
 namespace ui {
 
 CursorConfigDialog::CursorConfigDialog(Theme& theme)
     : theme_(theme), visible_(false), cursor_style_(CursorStyle::BLOCK),
-      cursor_color_("255,255,255"), blink_rate_(500), smooth_cursor_(false), selected_option_(0),
-      color_input_index_(1), rate_input_index_(2), smooth_cursor_index_(3),
-      color_input_("255,255,255"), rate_input_("500") {
+      cursor_color_("255,255,255"), blink_rate_(500), smooth_cursor_(false), blink_enabled_(false),
+      selected_option_(0), color_input_index_(1), rate_input_index_(2), blink_enabled_index_(3),
+      smooth_cursor_index_(4), color_input_("255,255,255"), rate_input_("500") {
     style_options_ = {"Block", "Underline", "Bar", "Hollow"};
 }
 
@@ -108,6 +115,16 @@ bool CursorConfigDialog::handleInput(ftxui::Event event) {
         }
     }
 
+    // 处理闪烁开关选项切换
+    if (selected_option_ == blink_enabled_index_) {
+        if (event == Event::Return || event == Event::ArrowLeft || event == Event::ArrowRight ||
+            (event.is_character() &&
+             (event.character() == " " || event.character() == "t" || event.character() == "T"))) {
+            blink_enabled_ = !blink_enabled_;
+            return true;
+        }
+    }
+
     // 处理流动光标选项切换
     if (selected_option_ == smooth_cursor_index_) {
         if (event == Event::Return || event == Event::ArrowLeft || event == Event::ArrowRight ||
@@ -146,6 +163,10 @@ Element CursorConfigDialog::render() {
     content.push_back(renderRateSelector());
     content.push_back(text(""));
 
+    // 闪烁开关
+    content.push_back(renderBlinkEnabledSelector());
+    content.push_back(text(""));
+
     // 流动光标选项
     content.push_back(renderSmoothCursorSelector());
     content.push_back(text(""));
@@ -164,7 +185,7 @@ Element CursorConfigDialog::render() {
         bgcolor(colors.menubar_bg) | dim);
 
     return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 70) | size(HEIGHT, EQUAL, 21) |
-           bgcolor(colors.background) | border | center;
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
 }
 
 Element CursorConfigDialog::renderStyleSelector() {
@@ -241,6 +262,20 @@ Element CursorConfigDialog::renderRateSelector() {
            (is_selected ? bgcolor(colors.selection) : bgcolor(colors.background));
 }
 
+Element CursorConfigDialog::renderBlinkEnabledSelector() {
+    auto& colors = theme_.getColors();
+    bool is_selected = (selected_option_ == blink_enabled_index_);
+
+    std::string status = blink_enabled_ ? "[ON]" : "[OFF]";
+    Color status_color = blink_enabled_ ? colors.success : colors.comment;
+
+    return hbox({text("  "), (is_selected ? text("► ") | color(colors.function) : text("  ")),
+                 text("Blink: ") | color(is_selected ? colors.foreground : colors.comment),
+                 text(" ") | color(status_color), text(status) | bold | color(status_color),
+                 text(" (Space/T: toggle)") | color(colors.comment) | dim, filler()}) |
+           (is_selected ? bgcolor(colors.selection) : bgcolor(colors.background));
+}
+
 Element CursorConfigDialog::renderSmoothCursorSelector() {
     auto& colors = theme_.getColors();
     bool is_selected = (selected_option_ == smooth_cursor_index_);
@@ -294,7 +329,7 @@ std::string CursorConfigDialog::formatColor(int r, int g, int b) {
 }
 
 void CursorConfigDialog::selectNext() {
-    if (selected_option_ < 3) {
+    if (selected_option_ < smooth_cursor_index_) {
         selected_option_++;
     } else {
         selected_option_ = 0;
@@ -305,7 +340,7 @@ void CursorConfigDialog::selectPrevious() {
     if (selected_option_ > 0) {
         selected_option_--;
     } else {
-        selected_option_ = 3;
+        selected_option_ = smooth_cursor_index_;
     }
 }
 
@@ -334,6 +369,7 @@ void CursorConfigDialog::resetToDefaults() {
     cursor_color_ = "255,255,255";
     blink_rate_ = 500;
     smooth_cursor_ = false;
+    blink_enabled_ = false;
     color_input_ = cursor_color_;
     rate_input_ = std::to_string(blink_rate_);
 }
