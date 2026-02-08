@@ -62,6 +62,9 @@ class TodoManager {
     // 获取需要提醒的 todo（当前时间已到达）
     std::vector<TodoItem> getDueTodos() const;
 
+    // 格式化剩余时间或过期时间（辅助方法）
+    static std::string formatTimeRemaining(const std::chrono::system_clock::time_point& due_time);
+
     // 排序 todo（按优先级）
     void sortByPriority();
 

@@ -82,6 +82,77 @@ std::vector<TodoItem> TodoManager::getDueTodos() const {
     return due;
 }
 
+std::string TodoManager::formatTimeRemaining(
+    const std::chrono::system_clock::time_point& due_time) {
+    auto now = std::chrono::system_clock::now();
+    auto diff = due_time - now;
+    auto total_seconds = std::chrono::duration_cast<std::chrono::seconds>(diff).count();
+
+    if (total_seconds < 0) {
+        // Overdue
+        auto overdue_seconds = -total_seconds;
+
+        if (overdue_seconds < 60) {
+            // Less than 1 minute: show seconds
+            return "Overdue " + std::to_string(overdue_seconds) + "s";
+        } else if (overdue_seconds < 3600) {
+            // Less than 1 hour: show minutes and seconds
+            auto minutes = overdue_seconds / 60;
+            auto seconds = overdue_seconds % 60;
+            if (seconds == 0) {
+                return "Overdue " + std::to_string(minutes) + "m";
+            } else {
+                return "Overdue " + std::to_string(minutes) + "m" + std::to_string(seconds) + "s";
+            }
+        } else {
+            // 1 hour or more: show hours, minutes, and seconds
+            auto hours = overdue_seconds / 3600;
+            auto remaining_seconds = overdue_seconds % 3600;
+            auto minutes = remaining_seconds / 60;
+            auto seconds = remaining_seconds % 60;
+
+            std::string result = "Overdue " + std::to_string(hours) + "h";
+            if (minutes > 0 || seconds > 0) {
+                result += std::to_string(minutes) + "m";
+                if (seconds > 0) {
+                    result += std::to_string(seconds) + "s";
+                }
+            }
+            return result;
+        }
+    } else {
+        // Not yet due
+        if (total_seconds < 60) {
+            // Less than 1 minute: show seconds
+            return "In " + std::to_string(total_seconds) + "s";
+        } else if (total_seconds < 3600) {
+            // Less than 1 hour: show minutes and seconds
+            auto minutes = total_seconds / 60;
+            auto seconds = total_seconds % 60;
+            if (seconds == 0) {
+                return "In " + std::to_string(minutes) + "m";
+            } else {
+                return "In " + std::to_string(minutes) + "m" + std::to_string(seconds) + "s";
+            }
+        } else {
+            // 1 hour or more: show hours, minutes, and seconds
+            auto hours = total_seconds / 3600;
+            auto remaining_seconds = total_seconds % 3600;
+            auto minutes = remaining_seconds / 60;
+            auto seconds = remaining_seconds % 60;
+
+            std::string result = "In " + std::to_string(hours) + "h";
+            if (minutes > 0 || seconds > 0) {
+                result += std::to_string(minutes) + "m";
+                if (seconds > 0) {
+                    result += std::to_string(seconds) + "s";
+                }
+            }
+            return result;
+        }
+    }
+}
+
 void TodoManager::sortByPriority() {
     std::sort(todos_.begin(), todos_.end(), [](const TodoItem& a, const TodoItem& b) {
         return a.priority < b.priority;
@@ -98,7 +169,7 @@ size_t TodoManager::findTodoIndex(const std::string& id) const {
             return i;
         }
     }
-    return todos_.size(); // 未找到
+    return todos_.size(); // Not found
 }
 
 } // namespace todo
