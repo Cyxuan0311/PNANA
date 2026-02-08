@@ -3,6 +3,7 @@
 #include "utils/logger.h"
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -166,19 +167,40 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
                 std::string after_todo = message.substr(todo_end + todo_marker_end.length());
                 std::string normal_message = before_todo + after_todo;
 
-                // 使用时间戳实现颜色闪烁效果（每500ms切换一次）
+                // Extract priority from todo text (format: P1, P2, ..., P5)
+                int priority = 5; // Default priority
+                size_t priority_pos = todo_text.find("P");
+                if (priority_pos != std::string::npos && priority_pos + 1 < todo_text.length()) {
+                    char priority_char = todo_text[priority_pos + 1];
+                    if (priority_char >= '1' && priority_char <= '5') {
+                        priority = priority_char - '0';
+                    }
+                }
+
+                // Use sine wave for smooth color transition effect (300ms period)
                 auto now = std::chrono::steady_clock::now();
                 auto ms =
                     std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
                         .count();
-                int blink_phase = (ms / 500) % 4; // 4个阶段：红->黄->红->黄
 
+                // 300ms period, use sine wave for smooth transition
+                const int blink_period_ms = 300;
+                double phase =
+                    (static_cast<double>(ms % blink_period_ms) / blink_period_ms) * 2.0 * M_PI;
+                double intensity = (std::sin(phase) + 1.0) / 2.0; // 0-1 range
+
+                // Adjust color intensity based on priority (higher priority = more intense)
+                // Priority 1-5 maps to intensity threshold adjustment: P1 more red (more
+                // noticeable), P5 more yellow
+                double priority_threshold = 0.3 + (priority - 1) * 0.1; // P1=0.3, P5=0.7
+
+                // Determine color based on sine wave intensity and priority
                 Color todo_color;
-                if (blink_phase == 0 || blink_phase == 2) {
-                    // 红色闪烁
+                if (intensity < priority_threshold) {
+                    // Red blink (more noticeable)
                     todo_color = colors.error;
                 } else {
-                    // 黄色闪烁
+                    // Yellow blink
                     todo_color = colors.warning;
                 }
 
