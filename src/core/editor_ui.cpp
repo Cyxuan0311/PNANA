@@ -575,8 +575,9 @@ Element Editor::renderEditor() {
                                           color(theme_.getColors().foreground));
                     lines.push_back(hbox(simple_line));
                 } else {
-                    lines.push_back(
-                        renderLine(doc, actual_line_index, actual_line_index == cursor_row_));
+                    lines.push_back(renderLine(doc, actual_line_index,
+                                               actual_line_index == cursor_row_, false, false,
+                                               nullptr));
                 }
             } catch (const std::exception& e) {
                 // 如果渲染某一行失败，使用空行替代
@@ -706,11 +707,21 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     size_t start_line = region_view_offset_row;
     size_t max_lines = std::min(start_line + region_height, total_visible_lines);
 
+    // 获取该区域的单词高亮状态
+    bool region_word_highlight_active = false;
+    const std::vector<features::SearchMatch>* region_word_matches = nullptr;
+
+    if (region_index < region_states_.size()) {
+        region_word_highlight_active = region_states_[region_index].word_highlight_active_;
+        region_word_matches = &region_states_[region_index].word_matches_;
+    }
+
     // 渲染可见行
     for (size_t i = start_line; i < max_lines && i < start_line + region_height; ++i) {
         size_t actual_line_index = visible_lines[i];
         bool is_current = (region.is_active && actual_line_index == region_cursor_row);
-        lines.push_back(renderLine(doc, actual_line_index, is_current));
+        lines.push_back(renderLine(doc, actual_line_index, is_current, true,
+                                   region_word_highlight_active, region_word_matches));
     }
 
     // 填充空行
@@ -727,7 +738,9 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     return vbox(lines);
 }
 
-Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
+Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
+                           bool use_region_word_highlight, bool region_word_highlight_active,
+                           const std::vector<features::SearchMatch>* region_word_matches) {
     Elements line_elements;
 
     // 创建光标渲染器并配置
@@ -834,10 +847,19 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
 
     // 获取当前行的单词高亮匹配（优先级低于搜索高亮）
     std::vector<features::SearchMatch> word_line_matches;
-    if (!search_highlight_active_ && word_highlight_active_ && !word_matches_.empty()) {
-        for (const auto& match : word_matches_) {
-            if (match.line == line_num) {
-                word_line_matches.push_back(match);
+    if (!search_highlight_active_) {
+        // 如果提供了区域特定的单词匹配，使用它；否则使用全局的
+        if (use_region_word_highlight && region_word_highlight_active && region_word_matches) {
+            for (const auto& match : *region_word_matches) {
+                if (match.line == line_num) {
+                    word_line_matches.push_back(match);
+                }
+            }
+        } else if (word_highlight_active_ && !word_matches_.empty()) {
+            for (const auto& match : word_matches_) {
+                if (match.line == line_num) {
+                    word_line_matches.push_back(match);
+                }
             }
         }
     }
@@ -1493,15 +1515,28 @@ Element Editor::renderStatusbar() {
         git_uncommitted_count = cached_git_uncommitted_count;
     }
 
-    // 检查到期的 todo 并添加闪烁提醒
+    // Check for due todos and add blinking reminder
     auto due_todos = todo_panel_.getTodoManager().getDueTodos();
     std::string todo_reminder = "";
     bool has_todo_reminder = false;
     if (!due_todos.empty()) {
-        // 始终显示提醒，但使用特殊标记以便状态栏识别并应用颜色变化
-        todo_reminder = "⚠ TODO: " + due_todos[0].content;
-        if (due_todos.size() > 1) {
-            todo_reminder += " (+" + std::to_string(due_todos.size() - 1) + " more)";
+        // Sort by priority, show highest priority todo first
+        std::vector<features::todo::TodoItem> sorted_todos = due_todos;
+        std::sort(sorted_todos.begin(), sorted_todos.end(),
+                  [](const features::todo::TodoItem& a, const features::todo::TodoItem& b) {
+                      return a.priority < b.priority; // Lower number = higher priority
+                  });
+
+        const auto& first_todo = sorted_todos[0];
+        std::string time_str =
+            features::todo::TodoManager::formatTimeRemaining(first_todo.due_time);
+
+        // Build reminder text: ⚠ P1 content (Overdue Xm)
+        todo_reminder = "⚠ P" + std::to_string(first_todo.priority) + " " + first_todo.content +
+                        " (" + time_str + ")";
+
+        if (sorted_todos.size() > 1) {
+            todo_reminder += " (+" + std::to_string(sorted_todos.size() - 1) + " more)";
         }
         has_todo_reminder = true;
     }

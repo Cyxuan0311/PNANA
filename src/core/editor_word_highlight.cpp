@@ -69,7 +69,33 @@ void Editor::updateWordHighlight() {
         return;
     }
 
+    // 检查是否在分屏模式下
+    bool in_split_mode = split_view_manager_.hasSplits();
+    RegionState* region_state = nullptr;
+
+    if (in_split_mode) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            // 找到激活区域的索引
+            size_t region_index = 0;
+            for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                if (&split_view_manager_.getRegions()[i] == active_region) {
+                    region_index = i;
+                    break;
+                }
+            }
+
+            // 确保 region_states_ 有足够的容量
+            if (region_states_.size() <= region_index) {
+                region_states_.resize(region_index + 1);
+            }
+            region_state = &region_states_[region_index];
+        }
+    }
+
     // 获取光标位置的单词
+    // 注意：在分屏模式下，全局的 cursor_row_ 和 cursor_col_ 已经被更新为当前激活区域的光标位置
+    // 因为 updateWordHighlight() 是在移动光标之后被调用的
     std::string word = getWordAtCursor();
 
     // 如果光标不在单词上，清除高亮
@@ -79,14 +105,18 @@ void Editor::updateWordHighlight() {
     }
 
     // 如果单词没有变化，不需要重新搜索
-    if (word_highlight_active_ && current_word_ == word && word_highlight_row_ == cursor_row_ &&
-        word_highlight_col_ == cursor_col_) {
-        return;
+    if (in_split_mode && region_state) {
+        if (region_state->word_highlight_active_ && region_state->current_word_ == word &&
+            region_state->word_highlight_row_ == cursor_row_ &&
+            region_state->word_highlight_col_ == cursor_col_) {
+            return;
+        }
+    } else {
+        if (word_highlight_active_ && current_word_ == word && word_highlight_row_ == cursor_row_ &&
+            word_highlight_col_ == cursor_col_) {
+            return;
+        }
     }
-
-    // 更新当前单词信息
-    current_word_ = word;
-    word_highlight_row_ = cursor_row_;
 
     // 找到单词的起始列
     const std::string& line = doc->getLine(cursor_row_);
@@ -99,10 +129,9 @@ void Editor::updateWordHighlight() {
             break;
         }
     }
-    word_highlight_col_ = start_col;
 
     // 搜索文件中所有相同的单词（大小写敏感，整词匹配）
-    word_matches_.clear();
+    std::vector<features::SearchMatch> matches;
     const auto& lines = doc->getLines();
 
     for (size_t line_idx = 0; line_idx < lines.size(); ++line_idx) {
@@ -132,24 +161,66 @@ void Editor::updateWordHighlight() {
             }
 
             if (is_whole_word) {
-                word_matches_.emplace_back(line_idx, word_start, word.length());
+                matches.emplace_back(line_idx, word_start, word.length());
             }
 
             pos = word_start + 1; // 继续搜索
         }
     }
 
-    // 激活单词高亮
-    word_highlight_active_ = !word_matches_.empty();
+    // 更新状态（分屏模式更新区域状态，否则更新全局状态）
+    if (in_split_mode && region_state) {
+        region_state->word_highlight_active_ = !matches.empty();
+        region_state->current_word_ = word;
+        region_state->word_highlight_row_ = cursor_row_;
+        region_state->word_highlight_col_ = start_col;
+        region_state->word_matches_ = matches;
+    } else {
+        word_highlight_active_ = !matches.empty();
+        current_word_ = word;
+        word_highlight_row_ = cursor_row_;
+        word_highlight_col_ = start_col;
+        word_matches_ = matches;
+    }
 }
 
 // 清除单词高亮
 void Editor::clearWordHighlight() {
-    word_highlight_active_ = false;
-    current_word_.clear();
-    word_matches_.clear();
-    word_highlight_row_ = 0;
-    word_highlight_col_ = 0;
+    // 检查是否在分屏模式下
+    bool in_split_mode = split_view_manager_.hasSplits();
+
+    if (in_split_mode) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            // 找到激活区域的索引
+            size_t region_index = 0;
+            for (size_t i = 0; i < split_view_manager_.getRegions().size(); ++i) {
+                if (&split_view_manager_.getRegions()[i] == active_region) {
+                    region_index = i;
+                    break;
+                }
+            }
+
+            // 确保 region_states_ 有足够的容量
+            if (region_states_.size() <= region_index) {
+                region_states_.resize(region_index + 1);
+            }
+
+            // 清除当前区域的单词高亮状态
+            region_states_[region_index].word_highlight_active_ = false;
+            region_states_[region_index].current_word_.clear();
+            region_states_[region_index].word_matches_.clear();
+            region_states_[region_index].word_highlight_row_ = 0;
+            region_states_[region_index].word_highlight_col_ = 0;
+        }
+    } else {
+        // 清除全局状态
+        word_highlight_active_ = false;
+        current_word_.clear();
+        word_matches_.clear();
+        word_highlight_row_ = 0;
+        word_highlight_col_ = 0;
+    }
 }
 
 } // namespace core

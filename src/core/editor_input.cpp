@@ -362,14 +362,16 @@ void Editor::handleInput(Event event) {
 
     // 如果主题菜单打开，优先处理
     if (show_theme_menu_) {
+        // 使用 ThemeMenu 的 handleInput 处理搜索等功能
+        if (theme_menu_.handleInput(event)) {
+            return;
+        }
+
+        // 处理主题菜单的特定操作
         if (event == Event::Escape) {
             show_theme_menu_ = false;
             setStatusMessage("Theme selection cancelled | Region: " +
                              region_manager_.getRegionName());
-        } else if (event == Event::ArrowUp || event == Event::Character('k')) {
-            selectPreviousTheme();
-        } else if (event == Event::ArrowDown || event == Event::Character('j')) {
-            selectNextTheme();
         } else if (event == Event::Return) {
             applySelectedTheme();
             show_theme_menu_ = false;
