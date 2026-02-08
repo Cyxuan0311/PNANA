@@ -439,6 +439,13 @@ class Editor {
         size_t cursor_col = 0;
         size_t view_offset_row = 0;
         size_t view_offset_col = 0;
+
+        // 单词高亮状态（每个区域独立）
+        bool word_highlight_active_ = false;
+        std::string current_word_;
+        std::vector<features::SearchMatch> word_matches_;
+        size_t word_highlight_row_ = 0;
+        size_t word_highlight_col_ = 0;
     };
     std::vector<RegionState> region_states_;
 
@@ -647,7 +654,10 @@ class Editor {
     ftxui::Element renderSplitEditor(); // 分屏编辑器渲染
     ftxui::Element renderEditorRegion(const features::ViewRegion& region, Document* doc,
                                       size_t region_index); // 渲染单个区域
-    ftxui::Element renderLine(Document* doc, size_t line_num, bool is_current);
+    ftxui::Element renderLine(
+        Document* doc, size_t line_num, bool is_current, bool use_region_word_highlight = false,
+        bool region_word_highlight_active = false,
+        const std::vector<features::SearchMatch>* region_word_matches = nullptr);
     ftxui::Element renderLineNumber(Document* doc, size_t line_num, bool is_current);
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();

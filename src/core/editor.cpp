@@ -248,6 +248,28 @@ Editor::Editor()
             }
         }
     }).detach();
+
+    // Start todo reminder detection thread (periodically check for due todos and trigger UI updates
+    // to ensure blinking effect is visible)
+    std::thread([this]() {
+        using namespace std::chrono_literals;
+        while (!should_quit_) {
+            std::this_thread::sleep_for(
+                250ms); // 250ms check interval, coordinated with blink frequency (300ms)
+
+            try {
+                // Check if there are any due todos
+                auto due_todos = todo_panel_.getTodoManager().getDueTodos();
+                if (!due_todos.empty() && !rendering_paused_) {
+                    // There are due todos, trigger UI update to show blinking effect
+                    screen_.PostEvent(ftxui::Event::Custom);
+                }
+            } catch (...) {
+                // Avoid exceptions interrupting the thread
+                continue;
+            }
+        }
+    }).detach();
 }
 
 Document* Editor::getCurrentDocument() {
@@ -549,12 +571,10 @@ void Editor::selectPreviousTheme() {
 }
 
 void Editor::applySelectedTheme() {
-    const auto& themes = theme_menu_.getAvailableThemes();
-    size_t selected_index = theme_menu_.getSelectedIndex();
+    // 使用 getSelectedThemeName() 获取当前选中的主题名称（支持过滤后的列表）
+    std::string theme_name = theme_menu_.getSelectedThemeName();
 
-    if (selected_index < themes.size()) {
-        std::string theme_name = themes[selected_index];
-
+    if (!theme_name.empty()) {
         // 检查主题是否真的可用（预设主题或当前加载插件提供的主题）
         std::vector<std::string> available_themes = ::pnana::ui::Theme::getAvailableThemes();
         std::vector<std::string> custom_themes = theme_.getCustomThemeNames();
@@ -1957,6 +1977,12 @@ void Editor::saveCurrentRegionState() {
         region_states_[region_index].cursor_col = 0;
         region_states_[region_index].view_offset_row = 0;
         region_states_[region_index].view_offset_col = 0;
+        // 初始化单词高亮状态
+        region_states_[region_index].word_highlight_active_ = false;
+        region_states_[region_index].current_word_.clear();
+        region_states_[region_index].word_matches_.clear();
+        region_states_[region_index].word_highlight_row_ = 0;
+        region_states_[region_index].word_highlight_col_ = 0;
     }
 
     // 保存当前状态
@@ -1964,6 +1990,9 @@ void Editor::saveCurrentRegionState() {
     region_states_[region_index].cursor_col = cursor_col_;
     region_states_[region_index].view_offset_row = view_offset_row_;
     region_states_[region_index].view_offset_col = view_offset_col_;
+
+    // 注意：单词高亮状态不需要在这里保存，因为 updateWordHighlight() 会直接更新区域状态
+    // 如果在这里保存全局状态，可能会覆盖区域状态中的正确值（因为全局状态在分屏模式下可能是空的）
 }
 
 void Editor::restoreRegionState(size_t region_index) {
@@ -1973,6 +2002,16 @@ void Editor::restoreRegionState(size_t region_index) {
         cursor_col_ = 0;
         view_offset_row_ = 0;
         view_offset_col_ = 0;
+        // 清除单词高亮
+        if (split_view_manager_.hasSplits()) {
+            // 分屏模式下，单词高亮由区域状态管理，不需要恢复全局状态
+        } else {
+            word_highlight_active_ = false;
+            current_word_.clear();
+            word_matches_.clear();
+            word_highlight_row_ = 0;
+            word_highlight_col_ = 0;
+        }
         return;
     }
 
@@ -1982,9 +2021,34 @@ void Editor::restoreRegionState(size_t region_index) {
     view_offset_row_ = region_states_[region_index].view_offset_row;
     view_offset_col_ = region_states_[region_index].view_offset_col;
 
+    // 恢复单词高亮状态（仅在分屏模式下）
+    if (split_view_manager_.hasSplits()) {
+        // 分屏模式下，切换区域时清除单词高亮状态，避免显示之前区域的高亮
+        // 用户移动光标时会自动触发 updateWordHighlight() 重新计算
+        region_states_[region_index].word_highlight_active_ = false;
+        region_states_[region_index].current_word_.clear();
+        region_states_[region_index].word_matches_.clear();
+        region_states_[region_index].word_highlight_row_ = 0;
+        region_states_[region_index].word_highlight_col_ = 0;
+        // 全局状态保持为空，避免影响其他区域
+    } else {
+        // 单视图模式下，恢复全局状态
+        word_highlight_active_ = region_states_[region_index].word_highlight_active_;
+        current_word_ = region_states_[region_index].current_word_;
+        word_matches_ = region_states_[region_index].word_matches_;
+        word_highlight_row_ = region_states_[region_index].word_highlight_row_;
+        word_highlight_col_ = region_states_[region_index].word_highlight_col_;
+    }
+
     // 调整光标位置以确保有效
     adjustCursor();
     adjustViewOffset();
+
+    // 在分屏模式下，切换区域后重新计算单词高亮（基于新区域的光标位置）
+    // 这样可以确保如果光标正好在单词上，会立即显示高亮
+    if (split_view_manager_.hasSplits()) {
+        updateWordHighlight();
+    }
 }
 
 bool Editor::resizeActiveSplitRegion(int delta) {
