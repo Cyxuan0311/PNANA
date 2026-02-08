@@ -1,6 +1,6 @@
 #include "ui/file_picker.h"
 #include "ui/icons.h"
-#include "utils/logger.h"
+#include "utils/file_type_detector.h"
 #include <algorithm>
 #include <cctype>
 #include <ftxui/dom/elements.hpp>
@@ -22,7 +22,8 @@ namespace fs = std::filesystem;
 FilePicker::FilePicker(Theme& theme)
     : theme_(theme), visible_(false), picker_type_(FilePickerType::BOTH), selected_index_(0),
       show_filter_(false), show_path_input_(false), type_filter_active_(false),
-      current_type_filter_(FilePickerType::BOTH) {}
+      current_type_filter_(FilePickerType::BOTH), icon_mapper_(), color_mapper_(theme),
+      cached_path_("") {}
 
 void FilePicker::show(const std::string& start_path, FilePickerType type,
                       std::function<void(const std::string&)> on_select,
@@ -242,23 +243,32 @@ Element FilePicker::render() {
     for (size_t i = visible_start; i < items_.size() && i < visible_start + visible_count; ++i) {
         std::string item_path = items_[i];
         std::string item_name = getItemName(item_path);
-        bool is_dir = isDirectory(item_path);
 
-        std::string icon =
-            is_dir ? ui::icons::FOLDER : icon_mapper_.getIcon(getFileExtension(item_name));
-        Color item_color = is_dir ? colors.function : colors.foreground;
+        // 使用缓存获取元数据
+        FileItemMetadata metadata = getItemMetadata(item_path, item_name);
+
+        std::string icon = metadata.icon;
+        Color item_color = metadata.color;
+        bool is_dir = metadata.is_dir;
 
         if (is_dir) {
             item_name += "/";
         }
 
-        Elements row_elements = {text(" "), text(icon) | color(item_color), text(" "),
-                                 text(item_name) | color(item_color), filler()};
+        // Icon and name color (use white when selected, otherwise use file type color)
+        Color icon_color = (i == selected_index_) ? Color::White : item_color;
+        Color name_color = (i == selected_index_) ? Color::White : item_color;
+
+        Elements row_elements = {
+            text(" "), text(icon) | color(icon_color) | ((i == selected_index_) ? bold : nothing),
+            text(" "),
+            text(item_name) | color(name_color) | ((i == selected_index_) ? bold : nothing),
+            filler()};
 
         auto item_text = hbox(row_elements);
 
         if (i == selected_index_) {
-            item_text = item_text | bgcolor(colors.selection) | bold;
+            item_text = item_text | bgcolor(colors.selection);
         } else {
             item_text = item_text | bgcolor(colors.background);
         }
@@ -297,12 +307,19 @@ void FilePicker::reset() {
     show_path_input_ = false;
     type_filter_active_ = false;
     current_type_filter_ = FilePickerType::BOTH;
+    clearMetadataCache();
     on_select_ = nullptr;
     on_cancel_ = nullptr;
 }
 
 void FilePicker::loadDirectory() {
     items_.clear();
+
+    // 如果路径改变，清除缓存
+    if (current_path_ != cached_path_) {
+        clearMetadataCache();
+        cached_path_ = current_path_;
+    }
 
     try {
         if (!fs::exists(current_path_) || !fs::is_directory(current_path_)) {
@@ -685,6 +702,39 @@ void FilePicker::completePath() {
     } catch (...) {
         // 补全失败，不做任何操作
     }
+}
+
+FilePicker::FileItemMetadata FilePicker::getItemMetadata(const std::string& item_path,
+                                                         const std::string& item_name) {
+    // 检查缓存
+    auto it = item_metadata_cache_.find(item_path);
+    if (it != item_metadata_cache_.end()) {
+        return it->second;
+    }
+
+    // 缓存未命中，计算元数据
+    FileItemMetadata metadata;
+    metadata.is_dir = isDirectory(item_path);
+
+    if (metadata.is_dir) {
+        metadata.icon = ui::icons::FOLDER;
+        metadata.color = theme_.getColors().function;
+        metadata.file_type = "directory";
+    } else {
+        std::string ext = getFileExtension(item_name);
+        metadata.file_type = pnana::utils::FileTypeDetector::detectFileType(item_name, ext);
+        metadata.icon = ui::icons::getFileTypeIcon(metadata.file_type);
+        metadata.color = color_mapper_.getFileColor(item_name, false);
+    }
+
+    // 存入缓存
+    item_metadata_cache_[item_path] = metadata;
+    return metadata;
+}
+
+void FilePicker::clearMetadataCache() {
+    item_metadata_cache_.clear();
+    cached_path_ = "";
 }
 
 } // namespace ui
