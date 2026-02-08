@@ -88,6 +88,8 @@ class Theme {
     static ThemeColors Jellybeans();        // Jellybeans
     static ThemeColors Desert();            // Desert
     static ThemeColors Slate();             // Slate
+    static ThemeColors AtomOneLight();      // Atom One Light
+    static ThemeColors TokyoNightDay();     // Tokyo Night Day
 
     void setTheme(const std::string& name);
 

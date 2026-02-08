@@ -1303,6 +1303,92 @@ ThemeColors Theme::Slate() {
     return colors;
 }
 
+ThemeColors Theme::AtomOneLight() {
+    ThemeColors colors;
+    // Atom One Light: clean light theme with vibrant, readable accents
+    colors.background = Color::RGB(250, 250, 250);       // #fafafa - Clean white background
+    colors.foreground = Color::RGB(56, 58, 66);          // #383a42 - Dark gray foreground
+    colors.current_line = Color::RGB(245, 245, 245);     // #f5f5f5 - Subtle current line
+    colors.selection = Color::RGB(230, 240, 255);        // #e6f0ff - Light blue selection
+    colors.line_number = Color::RGB(160, 160, 170);      // #a0a0aa - Muted line numbers
+    colors.line_number_current = Color::RGB(56, 58, 66); // #383a42 - Current line number
+
+    colors.statusbar_bg = Color::RGB(245, 245, 245); // #f5f5f5
+    colors.statusbar_fg = Color::RGB(56, 58, 66);    // #383a42
+
+    colors.menubar_bg = Color::RGB(250, 250, 250); // #fafafa
+    colors.menubar_fg = Color::RGB(56, 58, 66);    // #383a42
+
+    colors.helpbar_bg = Color::RGB(245, 245, 245); // #f5f5f5
+    colors.helpbar_fg = Color::RGB(160, 160, 170); // #a0a0aa
+    colors.helpbar_key = Color::RGB(50, 150, 255); // #3296ff - Blue accent
+
+    colors.keyword = Color::RGB(166, 38, 164);      // #a626a4 - Purple for keywords
+    colors.string = Color::RGB(80, 161, 79);        // #50a14f - Green for strings
+    colors.comment = Color::RGB(160, 160, 170);     // #a0a0aa - Gray for comments
+    colors.number = Color::RGB(152, 104, 1);        // #986801 - Brown for numbers
+    colors.function = Color::RGB(97, 175, 239);     // #61afef - Blue for functions
+    colors.type = Color::RGB(184, 187, 38);         // #b8bb26 - Yellow-green for types
+    colors.operator_color = Color::RGB(56, 58, 66); // #383a42 - Dark for operators
+
+    colors.error = Color::RGB(225, 53, 47);    // #e1352f - Red for errors
+    colors.warning = Color::RGB(209, 154, 12); // #d19a0c - Orange for warnings
+    colors.info = Color::RGB(97, 175, 239);    // #61afef - Blue for info
+    colors.success = Color::RGB(80, 161, 79);  // #50a14f - Green for success
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(240, 240, 240);       // #f0f0f0 - 比背景稍深的浅灰
+    colors.dialog_fg = Color::RGB(56, 58, 66);          // #383a42 - 与前景色协调
+    colors.dialog_title_bg = Color::RGB(250, 250, 250); // #fafafa - 比背景稍亮
+    colors.dialog_title_fg = Color::RGB(56, 58, 66);    // #383a42 - 与前景色一致
+    colors.dialog_border = Color::RGB(200, 200, 210);   // #c8c8d2 - 与行号颜色协调
+
+    return colors;
+}
+
+ThemeColors Theme::TokyoNightDay() {
+    ThemeColors colors;
+    // Tokyo Night Day: bright, clean light theme with cool blue accents
+    colors.background = Color::RGB(250, 248, 245);       // #faf8f5 - Warm off-white
+    colors.foreground = Color::RGB(45, 52, 70);          // #2d3446 - Dark blue-gray
+    colors.current_line = Color::RGB(245, 243, 240);     // #f5f3f0 - Subtle highlight
+    colors.selection = Color::RGB(220, 230, 245);        // #dce6f5 - Light blue selection
+    colors.line_number = Color::RGB(160, 170, 190);      // #a0aabe - Muted line numbers
+    colors.line_number_current = Color::RGB(45, 52, 70); // #2d3446 - Current line number
+
+    colors.statusbar_bg = Color::RGB(240, 238, 235); // #f0eeeb
+    colors.statusbar_fg = Color::RGB(45, 52, 70);    // #2d3446
+
+    colors.menubar_bg = Color::RGB(250, 248, 245); // #faf8f5
+    colors.menubar_fg = Color::RGB(45, 52, 70);    // #2d3446
+
+    colors.helpbar_bg = Color::RGB(240, 238, 235); // #f0eeeb
+    colors.helpbar_fg = Color::RGB(160, 170, 190); // #a0aabe
+    colors.helpbar_key = Color::RGB(20, 132, 200); // #1484c8 - Blue accent
+
+    colors.keyword = Color::RGB(180, 100, 220);        // #b464dc - Purple for keywords
+    colors.string = Color::RGB(100, 180, 100);         // #64b464 - Green for strings
+    colors.comment = Color::RGB(140, 150, 170);        // #8c96aa - Gray-blue for comments
+    colors.number = Color::RGB(240, 150, 80);          // #f09650 - Orange for numbers
+    colors.function = Color::RGB(20, 132, 200);        // #1484c8 - Blue for functions
+    colors.type = Color::RGB(100, 150, 200);           // #6496c8 - Light blue for types
+    colors.operator_color = Color::RGB(180, 100, 220); // #b464dc - Purple for operators
+
+    colors.error = Color::RGB(220, 80, 100);    // #dc5064 - Red for errors
+    colors.warning = Color::RGB(240, 150, 80);  // #f09650 - Orange for warnings
+    colors.info = Color::RGB(20, 132, 200);     // #1484c8 - Blue for info
+    colors.success = Color::RGB(100, 180, 100); // #64b464 - Green for success
+
+    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    colors.dialog_bg = Color::RGB(240, 238, 235);       // #f0eeeb - 比背景稍深的暖白
+    colors.dialog_fg = Color::RGB(45, 52, 70);          // #2d3446 - 与前景色协调
+    colors.dialog_title_bg = Color::RGB(250, 248, 245); // #faf8f5 - 比背景稍亮
+    colors.dialog_title_fg = Color::RGB(45, 52, 70);    // #2d3446 - 与前景色一致
+    colors.dialog_border = Color::RGB(200, 210, 220);   // #c8d2dc - 与行号颜色协调
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -1373,6 +1459,10 @@ void Theme::setTheme(const std::string& name) {
         colors_ = Desert();
     } else if (name == "slate") {
         colors_ = Slate();
+    } else if (name == "atom-one-light") {
+        colors_ = AtomOneLight();
+    } else if (name == "tokyo-night-day") {
+        colors_ = TokyoNightDay();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -1515,7 +1605,9 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "everforest",
             "jellybeans",
             "desert",
-            "slate"};
+            "slate",
+            "atom-one-light",
+            "tokyo-night-day"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {
