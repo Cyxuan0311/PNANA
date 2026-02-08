@@ -1,6 +1,8 @@
 #include "ui/format_dialog.h"
 #include "ui/icons.h"
 #include "ui/theme.h"
+#include "utils/file_type_color_mapper.h"
+#include "utils/file_type_detector.h"
 #include <algorithm>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
@@ -19,7 +21,8 @@ static inline Decorator borderWithColor(Color border_color) {
 }
 
 FormatDialog::FormatDialog(Theme& theme)
-    : theme_(theme), is_open_(false), selected_index_(0), scroll_offset_(0), max_visible_items_(10),
+    : theme_(theme), color_mapper_(std::make_unique<pnana::utils::FileTypeColorMapper>(theme)),
+      is_open_(false), selected_index_(0), scroll_offset_(0), max_visible_items_(10),
       search_query_(""), search_focused_(false) {}
 
 void FormatDialog::open(const std::vector<std::string>& files, const std::string& directory_path) {
@@ -321,6 +324,13 @@ Element FormatDialog::render() {
                 }
             }
 
+            // 检测文件类型并获取图标和颜色
+            std::string filename = getFileName(file_path);
+            std::string ext = getFileExtension(filename);
+            std::string file_type = pnana::utils::FileTypeDetector::detectFileType(filename, ext);
+            std::string file_icon = icons::getFileTypeIcon(file_type);
+            ftxui::Color file_type_color = color_mapper_->getFileColor(filename, false);
+
             Elements file_elements;
             file_elements.push_back(text("  "));
 
@@ -338,9 +348,19 @@ Element FormatDialog::render() {
                 file_elements.push_back(text("  "));
             }
 
-            // 文件名
-            Color file_color = is_current ? Color::White : Color::GrayLight;
-            file_elements.push_back(text(display_path) | color(file_color) |
+            // 文件图标和文件名颜色
+            // 当前选中时使用白色，否则使用文件类型颜色
+            Color icon_color = is_current ? Color::White : file_type_color;
+            Color name_color = is_current ? Color::White : file_type_color;
+
+            // 文件图标
+            if (!file_icon.empty()) {
+                file_elements.push_back(text(file_icon + " ") | color(icon_color) |
+                                        (is_current ? bold : nothing));
+            }
+
+            // 文件名（使用文件类型颜色）
+            file_elements.push_back(text(display_path) | color(name_color) |
                                     (is_current ? bold : nothing));
 
             Element file_line = hbox(file_elements);
@@ -439,6 +459,17 @@ std::string FormatDialog::getFileName(const std::string& file_path) const {
         return file_path.substr(last_slash + 1);
     }
     return file_path;
+}
+
+std::string FormatDialog::getFileExtension(const std::string& filename) const {
+    size_t dot_pos = filename.find_last_of('.');
+    if (dot_pos == std::string::npos || dot_pos == 0) {
+        return "";
+    }
+    std::string ext = filename.substr(dot_pos + 1);
+    // Convert to lowercase
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    return ext;
 }
 
 } // namespace ui

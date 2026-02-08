@@ -1,9 +1,11 @@
 #ifndef PNANA_UI_FORMAT_DIALOG_H
 #define PNANA_UI_FORMAT_DIALOG_H
 
+#include "utils/file_type_color_mapper.h"
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <functional>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -97,7 +99,15 @@ class FormatDialog {
      */
     void toggleSelection(size_t index);
 
+    /**
+     * 获取文件扩展名
+     * @param filename 文件名
+     * @return 扩展名
+     */
+    std::string getFileExtension(const std::string& filename) const;
+
     Theme& theme_;
+    std::unique_ptr<pnana::utils::FileTypeColorMapper> color_mapper_;
     bool is_open_;
     std::vector<std::string> files_;
     std::string directory_path_;
