@@ -16,7 +16,10 @@ namespace pnana {
 namespace ui {
 
 PluginManagerDialog::PluginManagerDialog(Theme& theme, plugins::PluginManager* plugin_manager)
-    : theme_(theme), plugin_manager_(plugin_manager), visible_(false), selected_index_(0) {}
+    : theme_(theme), plugin_manager_(plugin_manager), visible_(false), selected_index_(0) {
+    // 确保 visible_ 被正确初始化为 false
+    visible_ = false;
+}
 
 void PluginManagerDialog::open() {
     visible_ = true;
@@ -44,6 +47,8 @@ void PluginManagerDialog::refreshPlugins() {
 void PluginManagerDialog::setPluginManager(plugins::PluginManager* plugin_manager) {
     plugin_manager_ = plugin_manager;
     refreshPlugins();
+    // 确保设置插件管理器后不会自动打开对话框
+    visible_ = false;
 }
 
 bool PluginManagerDialog::handleInput(ftxui::Event event) {
@@ -85,6 +90,7 @@ bool PluginManagerDialog::handleInput(ftxui::Event event) {
 
 Element PluginManagerDialog::render() {
     if (!visible_) {
+        // 返回空文本元素，确保不会渲染任何内容
         return text("");
     }
 
