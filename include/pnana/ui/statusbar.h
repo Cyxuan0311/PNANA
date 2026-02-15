@@ -22,10 +22,13 @@ struct StatusbarBeautifyConfig {
     // 是否启用美化
     bool enabled = false;
 
-    // 背景颜色 RGB
+    // 是否跟随主题颜色（如果为 true，即使启用了美化，背景和前景色也使用主题颜色）
+    bool follow_theme = true;
+
+    // 背景颜色 RGB（仅在 follow_theme = false 时使用）
     std::vector<int> bg_color = {45, 45, 45}; // 默认状态栏背景色
 
-    // 前景颜色 RGB
+    // 前景颜色 RGB（仅在 follow_theme = false 时使用）
     std::vector<int> fg_color = {248, 248, 242}; // 默认状态栏前景色
 
     // 特殊效果
