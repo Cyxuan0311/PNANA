@@ -124,6 +124,42 @@ void SyntaxHighlighter::initializeLanguages() {
                             "JSON",   "Math",    "Number", "Object", "Promise",
                             "RegExp", "String",  "Symbol", "Map",    "Set"};
 
+    // C# 关键字
+    keywords_["csharp"] = {
+        "abstract",   "as",          "base",        "bool",        "break",      "byte",
+        "case",       "catch",       "char",        "checked",     "class",      "const",
+        "continue",   "decimal",     "default",     "delegate",    "do",         "double",
+        "else",       "enum",        "event",       "explicit",    "extern",     "false",
+        "finally",    "fixed",       "float",       "for",         "foreach",    "goto",
+        "if",         "implicit",    "in",          "int",         "interface",  "internal",
+        "is",         "lock",        "long",        "namespace",   "new",        "null",
+        "object",     "operator",    "out",         "override",    "params",     "private",
+        "protected",  "public",     "readonly",    "ref",         "return",     "sbyte",
+        "sealed",     "short",       "sizeof",     "stackalloc",  "static",     "string",
+        "struct",     "switch",      "this",       "throw",       "true",       "try",
+        "typeof",     "uint",        "ulong",      "unchecked",   "unsafe",     "ushort",
+        "using",      "virtual",     "void",       "volatile",    "while",      "yield",
+        "get",        "set",        "add",         "remove",      "value",      "partial",
+        "where",      "select",     "from",       "group",       "into",       "orderby",
+        "join",       "let",        "on",         "equals",      "by",         "ascending",
+        "descending", "var",        "dynamic",    "async",       "await",      "nameof",
+        "when",       "record",     "init",       "with",        "required",   "file",
+        "scoped",     "global",     "nint",       "nuint",       "and",        "or",
+        "not"};
+
+    types_["csharp"] = {
+        "bool",      "byte",      "sbyte",     "char",       "decimal",   "double",
+        "float",     "int",       "uint",      "long",       "ulong",     "short",
+        "ushort",    "object",    "string",    "dynamic",    "void",       "var",
+        "nint",      "nuint",     "IntPtr",    "UIntPtr",    "DateTime",  "TimeSpan",
+        "Guid",      "Array",     "List",      "Dictionary", "HashSet",   "Queue",
+        "Stack",     "Tuple",     "ValueTuple", "Task",      "Task<T>",   "IEnumerable",
+        "IEnumerable<T>", "ICollection", "ICollection<T>", "IList", "IList<T>",
+        "IDictionary", "IDictionary<TKey,TValue>", "Exception", "System", "Console",
+        "Math",      "StringBuilder", "Regex", "File", "Directory", "Path",
+        "Stream",    "StreamReader", "StreamWriter", "XmlDocument", "XDocument",
+        "XElement",  "XAttribute", "JsonConvert", "JObject", "JArray", "JToken"};
+
     // Shell 关键字
     keywords_["shell"] = {"if",   "then",  "else",     "elif", "fi",     "case",     "esac",
                           "for",  "while", "do",       "done", "in",     "function", "return",
@@ -4723,7 +4759,329 @@ std::vector<Token> SyntaxHighlighter::tokenizeFSharp(const std::string& line) {
     return tokenizeGeneric(line);
 }
 std::vector<Token> SyntaxHighlighter::tokenizeCSharp(const std::string& line) {
-    return tokenizeGeneric(line);
+    std::vector<Token> tokens;
+    size_t i = 0;
+
+    // 处理多行注释的延续
+    if (in_multiline_comment_) {
+        size_t end_pos = line.find("*/");
+        if (end_pos != std::string::npos) {
+            tokens.push_back({line.substr(0, end_pos + 2), TokenType::COMMENT, 0, end_pos + 2});
+            in_multiline_comment_ = false;
+            i = end_pos + 2;
+        } else {
+            tokens.push_back({line, TokenType::COMMENT, 0, line.length()});
+            return tokens;
+        }
+    }
+
+    // 处理多行字符串的延续（逐字字符串或插值字符串）
+    if (in_multiline_string_) {
+        // 查找结束引号
+        size_t end_pos = line.find('"');
+        if (end_pos != std::string::npos) {
+            tokens.push_back({line.substr(0, end_pos + 1), TokenType::STRING, 0, end_pos + 1});
+            in_multiline_string_ = false;
+            i = end_pos + 1;
+        } else {
+            tokens.push_back({line, TokenType::STRING, 0, line.length()});
+            return tokens;
+        }
+    }
+
+    while (i < line.length()) {
+        // 跳过空白
+        if (std::isspace(line[i])) {
+            size_t start = i;
+            while (i < line.length() && std::isspace(line[i]))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            continue;
+        }
+
+        // XML 文档注释 (///)
+        if (i + 2 < line.length() && line[i] == '/' && line[i + 1] == '/' && line[i + 2] == '/') {
+            tokens.push_back({line.substr(i), TokenType::COMMENT, i, line.length()});
+            break;
+        }
+
+        // 单行注释 (//)
+        if (i + 1 < line.length() && line[i] == '/' && line[i + 1] == '/') {
+            tokens.push_back({line.substr(i), TokenType::COMMENT, i, line.length()});
+            break;
+        }
+
+        // 多行注释 (/* */)
+        if (i + 1 < line.length() && line[i] == '/' && line[i + 1] == '*') {
+            size_t start = i;
+            i += 2;
+            size_t end_pos = line.find("*/", i);
+            if (end_pos != std::string::npos) {
+                i = end_pos + 2;
+                tokens.push_back({line.substr(start, i - start), TokenType::COMMENT, start, i});
+            } else {
+                tokens.push_back({line.substr(start), TokenType::COMMENT, start, line.length()});
+                in_multiline_comment_ = true;
+                break;
+            }
+            continue;
+        }
+
+        // 逐字字符串插值 ($@"..." 或 $@"...")
+        if (i + 2 < line.length() && line[i] == '$' && line[i + 1] == '@' && line[i + 2] == '"') {
+            size_t start = i;
+            i += 3;
+            while (i < line.length()) {
+                if (line[i] == '"' && i + 1 < line.length() && line[i + 1] == '"') {
+                    // 双引号转义
+                    i += 2;
+                } else if (line[i] == '"') {
+                    i++;
+                    break;
+                } else if (line[i] == '{') {
+                    // 插值表达式
+                    i++;
+                    int brace_count = 1;
+                    while (i < line.length() && brace_count > 0) {
+                        if (line[i] == '{')
+                            brace_count++;
+                        else if (line[i] == '}')
+                            brace_count--;
+                        i++;
+                    }
+                } else {
+                    i++;
+                }
+            }
+            if (i >= line.length()) {
+                in_multiline_string_ = true;
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 逐字字符串 (@"...")
+        if (i + 1 < line.length() && line[i] == '@' && line[i + 1] == '"') {
+            size_t start = i;
+            i += 2;
+            while (i < line.length()) {
+                if (line[i] == '"' && i + 1 < line.length() && line[i + 1] == '"') {
+                    // 双引号转义
+                    i += 2;
+                } else if (line[i] == '"') {
+                    i++;
+                    break;
+                } else {
+                    i++;
+                }
+            }
+            if (i >= line.length()) {
+                in_multiline_string_ = true;
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 字符串插值 ($"...")
+        if (i + 1 < line.length() && line[i] == '$' && line[i + 1] == '"') {
+            size_t start = i;
+            i += 2;
+            while (i < line.length()) {
+                if (line[i] == '\\' && i + 1 < line.length()) {
+                    i += 2; // 转义字符
+                } else if (line[i] == '"') {
+                    i++;
+                    break;
+                } else if (line[i] == '{') {
+                    // 插值表达式
+                    i++;
+                    int brace_count = 1;
+                    while (i < line.length() && brace_count > 0) {
+                        if (line[i] == '{')
+                            brace_count++;
+                        else if (line[i] == '}')
+                            brace_count--;
+                        else if (line[i] == '\\' && i + 1 < line.length())
+                            i += 2; // 转义字符
+                        else
+                            i++;
+                    }
+                } else {
+                    i++;
+                }
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 普通字符串 ("..." 或 '...')
+        if (line[i] == '"' || line[i] == '\'') {
+            char quote = line[i];
+            size_t start = i;
+            i++;
+            while (i < line.length()) {
+                if (line[i] == '\\' && i + 1 < line.length()) {
+                    i += 2; // 跳过转义字符
+                } else if (line[i] == quote) {
+                    i++;
+                    break;
+                } else {
+                    i++;
+                }
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 字符字面量 ('c')
+        if (line[i] == '\'' && i + 1 < line.length()) {
+            size_t start = i;
+            i++;
+            if (line[i] == '\\' && i + 1 < line.length()) {
+                i += 2; // 转义字符
+            } else {
+                i++;
+            }
+            if (i < line.length() && line[i] == '\'') {
+                i++;
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 属性 ([Attribute])
+        if (line[i] == '[') {
+            size_t start = i;
+            i++;
+            int bracket_count = 1;
+            while (i < line.length() && bracket_count > 0) {
+                if (line[i] == '[')
+                    bracket_count++;
+                else if (line[i] == ']')
+                    bracket_count--;
+                else if (line[i] == '"' || line[i] == '\'') {
+                    // 跳过属性参数中的字符串
+                    char quote = line[i];
+                    i++;
+                    while (i < line.length() && line[i] != quote) {
+                        if (line[i] == '\\' && i + 1 < line.length())
+                            i += 2;
+                        else
+                            i++;
+                    }
+                    if (i < line.length())
+                        i++;
+                    continue;
+                }
+                i++;
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::PREPROCESSOR, start, i});
+            continue;
+        }
+
+        // 数字（支持十六进制、二进制、科学计数法）
+        if (std::isdigit(line[i]) ||
+            (line[i] == '.' && i + 1 < line.length() && std::isdigit(line[i + 1]))) {
+            size_t start = i;
+            i = parseNumber(line, start);
+            tokens.push_back({line.substr(start, i - start), TokenType::NUMBER, start, i});
+            continue;
+        }
+
+        // 多字符操作符
+        if (isMultiCharOperator(line, i)) {
+            size_t start = i;
+            std::string op;
+            if (i + 1 < line.length()) {
+                std::string two_char = line.substr(i, 2);
+                // 检查三字符操作符（C# 特有）
+                // 注意：使用字符数组避免 trigraph 警告（??= 是 trigraph）
+                bool is_three_char_op = false;
+                std::string three_char;
+                if (i + 2 < line.length()) {
+                    three_char = line.substr(i, 3);
+                    // 使用字符比较避免 trigraph 警告
+                    if (three_char.length() == 3 && 
+                        three_char[0] == '?' && three_char[1] == '?' && three_char[2] == '=') {
+                        is_three_char_op = true;
+                    }
+                }
+                
+                if (is_three_char_op) {
+                    op = three_char;
+                    i += 3;
+                } else if (two_char == "==" || two_char == "!=" || two_char == "<=" || two_char == ">=" ||
+                    two_char == "&&" || two_char == "||" || two_char == "<<" || two_char == ">>" ||
+                    two_char == "++" || two_char == "--" || two_char == "+=" || two_char == "-=" ||
+                    two_char == "*=" || two_char == "/=" || two_char == "%=" || two_char == "&=" ||
+                    two_char == "|=" || two_char == "^=" || two_char == "=>" || two_char == "??" ||
+                    two_char == "?." || two_char == "?[") {
+                    op = two_char;
+                    i += 2;
+                } else {
+                    op = std::string(1, line[i]);
+                    i++;
+                }
+            } else {
+                op = std::string(1, line[i]);
+                i++;
+            }
+            tokens.push_back({op, TokenType::OPERATOR, start, i});
+            continue;
+        }
+
+        // 标识符/关键字
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (isAsciiAlpha(c) || line[i] == '_' || line[i] == '@') {
+            size_t start = i;
+            if (line[i] == '@') {
+                i++; // @ 前缀（用于关键字转义或逐字标识符）
+            }
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    // UTF-8多字节字符，停止
+                    break;
+                } else {
+                    break;
+                }
+            }
+            std::string word = line.substr(start, i - start);
+
+            TokenType type = TokenType::NORMAL;
+            if (isKeyword(word)) {
+                type = TokenType::KEYWORD;
+            } else if (isType(word)) {
+                type = TokenType::TYPE;
+            } else {
+                // 检查是否是函数调用
+                size_t check_pos = i;
+                while (check_pos < line.length() && std::isspace(line[check_pos]))
+                    check_pos++;
+                if (check_pos < line.length() && line[check_pos] == '(') {
+                    type = TokenType::FUNCTION;
+                }
+            }
+
+            tokens.push_back({word, type, start, i});
+            continue;
+        }
+
+        // 单字符操作符
+        if (isOperator(line[i])) {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 其他
+        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        i++;
+    }
+
+    return tokens;
 }
 std::vector<Token> SyntaxHighlighter::tokenizeVB(const std::string& line) {
     return tokenizeGeneric(line);

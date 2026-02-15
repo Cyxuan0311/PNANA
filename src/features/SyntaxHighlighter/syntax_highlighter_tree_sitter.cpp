@@ -118,6 +118,11 @@ TSLanguage* tree_sitter_swift();
 TSLanguage* tree_sitter_kotlin();
 #endif
 
+// C#
+#ifdef BUILD_TREE_SITTER_CSHARP
+TSLanguage* tree_sitter_c_sharp();
+#endif
+
 // Scala
 #ifdef BUILD_TREE_SITTER_SCALA
 TSLanguage* tree_sitter_scala();
@@ -480,6 +485,16 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["kt"] = kotlin_lang;
         language_map_["kotlin"] = kotlin_lang;
         language_map_["kts"] = kotlin_lang;
+    }
+#endif
+
+// C#
+#ifdef BUILD_TREE_SITTER_CSHARP
+    TSLanguage* csharp_lang = tree_sitter_c_sharp();
+    if (csharp_lang) {
+        language_map_["cs"] = csharp_lang;
+        language_map_["csharp"] = csharp_lang;
+        language_map_["csx"] = csharp_lang;
     }
 #endif
 
