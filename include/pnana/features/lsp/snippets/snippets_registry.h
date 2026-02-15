@@ -53,6 +53,56 @@ std::vector<Snippet> getRubySnippets();
  */
 std::vector<Snippet> getPhpSnippets();
 
+/**
+ * 获取 C# 代码片段
+ */
+std::vector<Snippet> getCSharpSnippets();
+
+/**
+ * 获取 Kotlin 代码片段
+ */
+std::vector<Snippet> getKotlinSnippets();
+
+/**
+ * 获取 Swift 代码片段
+ */
+std::vector<Snippet> getSwiftSnippets();
+
+/**
+ * 获取 Dart 代码片段
+ */
+std::vector<Snippet> getDartSnippets();
+
+/**
+ * 获取 Shell/Bash 代码片段
+ */
+std::vector<Snippet> getShellSnippets();
+
+/**
+ * 获取 SQL 代码片段
+ */
+std::vector<Snippet> getSqlSnippets();
+
+/**
+ * 获取 HTML 代码片段
+ */
+std::vector<Snippet> getHtmlSnippets();
+
+/**
+ * 获取 CSS 代码片段
+ */
+std::vector<Snippet> getCssSnippets();
+
+/**
+ * 获取 YAML 代码片段
+ */
+std::vector<Snippet> getYamlSnippets();
+
+/**
+ * 获取 Lua 代码片段
+ */
+std::vector<Snippet> getLuaSnippets();
+
 } // namespace snippets
 } // namespace features
 } // namespace pnana
