@@ -21,9 +21,9 @@ namespace fs = std::filesystem;
 
 FilePicker::FilePicker(Theme& theme)
     : theme_(theme), visible_(false), picker_type_(FilePickerType::BOTH), selected_index_(0),
-      show_filter_(false), show_path_input_(false), type_filter_active_(false),
-      current_type_filter_(FilePickerType::BOTH), icon_mapper_(), color_mapper_(theme),
-      cached_path_("") {}
+      show_filter_(false), focus_in_search_(false), show_path_input_(false),
+      type_filter_active_(false), current_type_filter_(FilePickerType::BOTH), icon_mapper_(),
+      color_mapper_(theme), cached_path_("") {}
 
 void FilePicker::show(const std::string& start_path, FilePickerType type,
                       std::function<void(const std::string&)> on_select,
@@ -45,6 +45,7 @@ void FilePicker::show(const std::string& start_path, FilePickerType type,
     filter_input_ = "";
     path_input_ = "";
     show_filter_ = false;
+    focus_in_search_ = false;
     show_path_input_ = false;
     type_filter_active_ = false;
     current_type_filter_ = type;
@@ -57,7 +58,7 @@ bool FilePicker::handleInput(ftxui::Event event) {
     if (!visible_)
         return false;
 
-    // 路径输入模式
+    // 路径输入模式（优先级最高）
     if (show_path_input_) {
         if (event == Event::Escape) {
             show_path_input_ = false;
@@ -91,21 +92,38 @@ bool FilePicker::handleInput(ftxui::Event event) {
         return false;
     }
 
-    // 过滤模式
-    if (show_filter_) {
+    // 搜索框焦点模式
+    if (focus_in_search_) {
         if (event == Event::Escape) {
-            show_filter_ = false;
+            // Escape 清空搜索并切换到列表
             filter_input_ = "";
+            focus_in_search_ = false;
             loadDirectory();
             return true;
+        } else if (event == Event::ArrowUp || event == Event::ArrowDown) {
+            // 上下键切换到列表
+            focus_in_search_ = false;
+            // 确保选中索引有效
+            if (items_.empty()) {
+                selected_index_ = 0;
+            } else if (selected_index_ >= items_.size()) {
+                selected_index_ = items_.size() - 1;
+            }
+            return true;
         } else if (event == Event::Return) {
-            show_filter_ = false;
-            loadDirectory();
+            // Enter 键切换到列表
+            focus_in_search_ = false;
+            // 确保选中索引有效
+            if (items_.empty()) {
+                selected_index_ = 0;
+            } else if (selected_index_ >= items_.size()) {
+                selected_index_ = 0;
+            }
             return true;
         } else if (event == Event::Backspace) {
             if (!filter_input_.empty()) {
                 filter_input_.pop_back();
-                loadDirectory();
+                loadDirectory(); // 实时更新列表
             }
             return true;
         } else if (event.is_character()) {
@@ -113,14 +131,14 @@ bool FilePicker::handleInput(ftxui::Event event) {
             // 支持完整的UTF-8字符输入，包括中文等多字节字符
             if (!ch.empty() && ch[0] >= 32) { // 过滤控制字符
                 filter_input_ += ch;
-                loadDirectory();
+                loadDirectory(); // 实时更新列表
             }
             return true;
         }
         return false;
     }
 
-    // 正常模式
+    // 列表焦点模式（正常模式）
     if (event == Event::Escape) {
         cancel();
         return true;
@@ -128,6 +146,11 @@ bool FilePicker::handleInput(ftxui::Event event) {
         selectItem();
         return true;
     } else if (event == Event::ArrowUp) {
+        // 如果已在列表顶部，上键切换到搜索框
+        if (selected_index_ == 0) {
+            focus_in_search_ = true;
+            return true;
+        }
         navigateUp();
         return true;
     } else if (event == Event::ArrowDown) {
@@ -145,12 +168,8 @@ bool FilePicker::handleInput(ftxui::Event event) {
         }
         return true;
     } else if (event == Event::CtrlF) {
-        // Ctrl+F 切换文本过滤模式
-        show_filter_ = !show_filter_;
-        if (!show_filter_) {
-            filter_input_ = "";
-            loadDirectory();
-        }
+        // Ctrl+F 切换到搜索框
+        focus_in_search_ = true;
         return true;
     } else if (event == Event::Character(':') || event == Event::Character('/')) {
         // : 或 / 进入路径输入模式
@@ -175,6 +194,15 @@ bool FilePicker::handleInput(ftxui::Event event) {
         picker_type_ = current_type_filter_;
         loadDirectory();
         return true;
+    } else if (event.is_character()) {
+        // 在列表模式下输入字符，切换到搜索框并开始输入
+        std::string ch = event.character();
+        if (!ch.empty() && ch[0] >= 32) { // 过滤控制字符
+            focus_in_search_ = true;
+            filter_input_ = ch;
+            loadDirectory(); // 实时更新列表
+            return true;
+        }
     }
 
     return false;
@@ -221,13 +249,24 @@ Element FilePicker::render() {
 
     content.push_back(separator());
 
-    // 过滤输入框（如果启用）
-    if (show_filter_) {
-        content.push_back(hbox(
-            {text(" Filter: ") | color(colors.comment),
-             text(filter_input_ + "_") | color(colors.foreground) | bgcolor(colors.selection)}));
-        content.push_back(separator());
+    // 搜索框（始终可见）
+    Element search_box;
+    if (focus_in_search_) {
+        // 焦点在搜索框时高亮显示
+        search_box = hbox({text(" "), text(ui::icons::SEARCH) | color(colors.keyword) | bold,
+                           text(" Search: ") | color(colors.keyword) | bold,
+                           text(filter_input_ + "_") | color(colors.foreground) |
+                               bgcolor(colors.selection)});
+    } else {
+        // 焦点不在搜索框时正常显示
+        std::string search_display = filter_input_.empty() ? "Type to search..." : filter_input_;
+        Color search_color = filter_input_.empty() ? colors.comment : colors.foreground;
+        search_box = hbox({text(" "), text(ui::icons::SEARCH) | color(colors.comment),
+                           text(" Search: ") | color(colors.comment),
+                           text(search_display) | color(search_color)});
     }
+    content.push_back(search_box);
+    content.push_back(separator());
 
     // 文件列表
     size_t visible_count = 15; // 显示15行
@@ -284,11 +323,11 @@ Element FilePicker::render() {
     content.push_back(separator());
 
     // 底部提示
-    Elements hints = {text(" "),  text("↑↓: Navigate") | color(colors.comment),
+    Elements hints = {text(" "),  text("↑↓: Navigate/Switch") | color(colors.comment),
                       text("  "), text("Enter: Select") | color(colors.comment),
                       text("  "), text("Tab: Type Filter") | color(colors.comment),
                       text("  "), text(":/: Path Input") | color(colors.comment),
-                      text("  "), text("Ctrl+F: Text Filter") | color(colors.comment),
+                      text("  "), text("Type: Search") | color(colors.comment),
                       text("  "), text("Esc: Cancel") | color(colors.comment),
                       filler()};
     content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
@@ -304,6 +343,7 @@ void FilePicker::reset() {
     filter_input_ = "";
     path_input_ = "";
     show_filter_ = false;
+    focus_in_search_ = false;
     show_path_input_ = false;
     type_filter_active_ = false;
     current_type_filter_ = FilePickerType::BOTH;

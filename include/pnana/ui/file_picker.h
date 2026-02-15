@@ -57,7 +57,8 @@ class FilePicker {
     std::vector<std::string> items_; // 文件/文件夹列表
     size_t selected_index_;
     std::string filter_input_;           // 过滤输入
-    bool show_filter_;                   // 是否显示过滤输入框
+    bool show_filter_;                   // 是否显示过滤输入框（保留用于路径输入模式）
+    bool focus_in_search_;               // 焦点是否在搜索框中
     std::string path_input_;             // 路径输入
     bool show_path_input_;               // 是否显示路径输入框
     bool type_filter_active_;            // 类型筛选是否激活
