@@ -84,6 +84,7 @@ find_tree_sitter_language(RUBY "tree-sitter-ruby;libtree-sitter-ruby" "Ruby")
 find_tree_sitter_language(PHP "tree-sitter-php;libtree-sitter-php" "PHP")
 find_tree_sitter_language(SWIFT "tree-sitter-swift;libtree-sitter-swift" "Swift")
 find_tree_sitter_language(KOTLIN "tree-sitter-kotlin;libtree-sitter-kotlin" "Kotlin")
+find_tree_sitter_language(CSHARP "tree-sitter-c-sharp;tree-sitter-csharp;libtree-sitter-c-sharp;libtree-sitter-csharp" "C#")
 find_tree_sitter_language(SCALA "tree-sitter-scala;libtree-sitter-scala" "Scala")
 find_tree_sitter_language(R "tree-sitter-r;libtree-sitter-r" "R")
 find_tree_sitter_language(PERL "tree-sitter-perl;libtree-sitter-perl" "Perl")
@@ -128,6 +129,7 @@ mark_as_advanced(
     TreeSitter_PHP_LIBRARY
     TreeSitter_SWIFT_LIBRARY
     TreeSitter_KOTLIN_LIBRARY
+    TreeSitter_CSHARP_LIBRARY
     TreeSitter_SCALA_LIBRARY
     TreeSitter_R_LIBRARY
     TreeSitter_PERL_LIBRARY
