@@ -1,8 +1,10 @@
 #ifdef BUILD_LUA_SUPPORT
 
 #include "plugins/file_api.h"
+#include "plugins/path_validator.h"
 #include "core/document.h"
 #include "core/editor.h"
+#include "utils/logger.h"
 #include <fstream>
 #include <lua.hpp>
 
@@ -11,15 +13,24 @@ namespace plugins {
 
 // 在 Lua 注册表中存储编辑器指针的键
 static const char* EDITOR_REGISTRY_KEY = "pnana_editor";
+static const char* FILE_API_REGISTRY_KEY = "pnana_file_api";
 
-FileAPI::FileAPI(core::Editor* editor) : editor_(editor) {}
+FileAPI::FileAPI(core::Editor* editor) : editor_(editor), path_validator_(nullptr) {}
 
 FileAPI::~FileAPI() {}
+
+void FileAPI::setPathValidator(PathValidator* validator) {
+    path_validator_ = validator;
+}
 
 void FileAPI::registerFunctions(lua_State* L) {
     // 在注册表中存储编辑器指针
     lua_pushlightuserdata(L, editor_);
     lua_setfield(L, LUA_REGISTRYINDEX, EDITOR_REGISTRY_KEY);
+    
+    // 在注册表中存储 FileAPI 实例
+    lua_pushlightuserdata(L, this);
+    lua_setfield(L, LUA_REGISTRYINDEX, FILE_API_REGISTRY_KEY);
 
     // 注册API函数到vim.api表
     lua_getglobal(L, "vim");
@@ -54,6 +65,13 @@ core::Editor* FileAPI::getEditorFromLua(lua_State* L) {
     core::Editor* editor = static_cast<core::Editor*>(lua_touserdata(L, -1));
     lua_pop(L, 1);
     return editor;
+}
+
+FileAPI* FileAPI::getAPIFromLua(lua_State* L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, FILE_API_REGISTRY_KEY);
+    FileAPI* api = static_cast<FileAPI*>(lua_touserdata(L, -1));
+    lua_pop(L, 1);
+    return api;
 }
 
 // vim.api.get_filepath() -> string
@@ -119,6 +137,16 @@ int FileAPI::lua_fn_readfile(lua_State* L) {
         return 1;
     }
 
+    // 沙盒检查：验证路径是否允许访问
+    FileAPI* api = getAPIFromLua(L);
+    if (api && api->path_validator_) {
+        if (!api->path_validator_->isPathAllowed(filepath)) {
+            LOG_WARNING("Plugin attempted to read restricted path: " + std::string(filepath) + " (blocked by sandbox)");
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+
     std::ifstream file(filepath);
     if (!file.is_open()) {
         lua_pushnil(L);
@@ -142,6 +170,16 @@ int FileAPI::lua_fn_writefile(lua_State* L) {
     if (!filepath || !lua_istable(L, 2)) {
         lua_pushboolean(L, 0);
         return 1;
+    }
+
+    // 沙盒检查：验证路径是否允许访问
+    FileAPI* api = getAPIFromLua(L);
+    if (api && api->path_validator_) {
+        if (!api->path_validator_->isPathAllowed(filepath)) {
+            LOG_WARNING("Plugin attempted to write to restricted path: " + std::string(filepath) + " (blocked by sandbox)");
+            lua_pushboolean(L, 0);
+            return 1;
+        }
     }
 
     std::ofstream file(filepath);
