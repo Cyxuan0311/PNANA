@@ -71,6 +71,7 @@
 #include "features/lsp/snippet_manager.h"
 #include "ui/completion_popup.h"
 #include "ui/diagnostics_popup.h"
+#include "ui/symbol_navigation_popup.h"
 #endif
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
@@ -512,6 +513,10 @@ class Editor {
     // 诊断错误弹窗
     pnana::ui::DiagnosticsPopup diagnostics_popup_;
     bool show_diagnostics_popup_;
+#ifdef BUILD_LSP_SUPPORT
+    pnana::ui::SymbolNavigationPopup symbol_navigation_popup_;
+    bool show_symbol_navigation_popup_;
+#endif
     std::vector<features::Diagnostic> current_file_diagnostics_;
     std::mutex diagnostics_mutex_;
 
@@ -550,6 +555,8 @@ class Editor {
 
     // SSH连接状态
     pnana::ui::SSHConfig current_ssh_config_;
+    // 文档索引到SSH配置的映射（用于保存SSH文件）
+    std::map<size_t, pnana::ui::SSHConfig> document_ssh_configs_;
 
     // 主题选择
     bool show_theme_menu_;
@@ -717,6 +724,10 @@ class Editor {
     void showSSHTransferDialog();
     void handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items);
     void handleSSHTransferCancel();
+    
+    // SSH文件保存（内部方法）
+    bool saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config, 
+                     const std::string& filepath = "");
 
     // 标签页管理
     void closeCurrentTab();
@@ -832,6 +843,12 @@ class Editor {
     void jumpToDiagnostic(const features::Diagnostic& diagnostic);
     ftxui::Element renderDiagnosticsPopup();
 
+    // 符号导航相关方法
+    void showSymbolNavigation();
+    void hideSymbolNavigation();
+    void jumpToSymbol(const features::DocumentSymbol& symbol);
+    ftxui::Element renderSymbolNavigationPopup();
+
     // Snippet placeholders (Tab jump after snippet expansion)
     void startSnippetSession(std::vector<SnippetPlaceholderRange> ranges);
     void endSnippetSession();
@@ -849,6 +866,31 @@ class Editor {
     }
     void setStatusMessageForLua(const std::string& message) {
         setStatusMessage(message);
+    }
+    size_t getCursorRowForLua() const {
+        return cursor_row_;
+    }
+    size_t getCursorColForLua() const {
+        return cursor_col_;
+    }
+    void setCursorPosForLua(size_t row, size_t col) {
+        cursor_row_ = row;
+        cursor_col_ = col;
+        // 确保光标在有效范围内
+        Document* doc = getCurrentDocument();
+        if (doc) {
+            if (cursor_row_ >= doc->lineCount()) {
+                cursor_row_ = doc->lineCount() > 0 ? doc->lineCount() - 1 : 0;
+            }
+            if (cursor_row_ < doc->lineCount()) {
+                size_t line_len = doc->getLine(cursor_row_).length();
+                if (cursor_col_ > line_len) {
+                    cursor_col_ = line_len;
+                }
+            }
+        }
+        adjustCursor();
+        adjustViewOffset();
     }
 
     // 渲染批处理控制（方案1）
@@ -886,6 +928,9 @@ class Editor {
     plugins::PluginManager* getPluginManager() {
         return plugin_manager_.get();
     }
+    
+    // 触发插件事件（供内部使用）
+    void triggerPluginEvent(const std::string& event, const std::vector<std::string>& args = {});
 #endif
 };
 

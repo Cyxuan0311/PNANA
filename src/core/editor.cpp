@@ -64,7 +64,11 @@ Editor::Editor()
       image_preview_(),
 #endif
       syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
-      split_view_manager_(), diagnostics_popup_(theme_), mode_(EditorMode::NORMAL), cursor_row_(0),
+      split_view_manager_(), diagnostics_popup_(theme_),
+#ifdef BUILD_LSP_SUPPORT
+      symbol_navigation_popup_(theme_),
+#endif
+      mode_(EditorMode::NORMAL), cursor_row_(0),
       cursor_col_(0), view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false),
       show_help_(false), show_create_folder_(false), show_save_as_(false), show_move_file_(false),
       show_extract_dialog_(false), show_extract_path_dialog_(false),
@@ -1655,6 +1659,38 @@ std::string Editor::getFileType() const {
 }
 
 bool Editor::isCtrlKey(const Event& event, char key) const {
+    // 首先检查 FTXUI 预定义的 Ctrl 事件
+    switch (key) {
+        case 'a': return event == Event::CtrlA;
+        case 'b': return event == Event::CtrlB;
+        case 'c': return event == Event::CtrlC;
+        case 'd': return event == Event::CtrlD;
+        case 'e': return event == Event::CtrlE;
+        case 'f': return event == Event::CtrlF;
+        case 'g': return event == Event::CtrlG;
+        case 'h': return event == Event::CtrlH;
+        case 'i': return event == Event::CtrlI;
+        case 'j': return event == Event::CtrlJ;
+        case 'k': return event == Event::CtrlK;
+        case 'l': return event == Event::CtrlL;
+        case 'm': return event == Event::CtrlM;
+        case 'n': return event == Event::CtrlN;
+        case 'o': return event == Event::CtrlO;
+        case 'p': return event == Event::CtrlP;
+        case 'q': return event == Event::CtrlQ;
+        case 'r': return event == Event::CtrlR;
+        case 's': return event == Event::CtrlS;
+        case 't': return event == Event::CtrlT;
+        case 'u': return event == Event::CtrlU;
+        case 'v': return event == Event::CtrlV;
+        case 'w': return event == Event::CtrlW;
+        case 'x': return event == Event::CtrlX;
+        case 'y': return event == Event::CtrlY;
+        case 'z': return event == Event::CtrlZ;
+        default: break;
+    }
+
+    // 如果没有匹配预定义事件，检查字符事件（Ctrl+Key产生ASCII控制字符）
     if (!event.is_character()) {
         return false;
     }
@@ -2405,6 +2441,14 @@ std::string Editor::getCallStackInfo() {
 
     return info;
 }
+
+#ifdef BUILD_LUA_SUPPORT
+void Editor::triggerPluginEvent(const std::string& event, const std::vector<std::string>& args) {
+    if (plugin_manager_) {
+        plugin_manager_->triggerEvent(event, args);
+    }
+}
+#endif
 
 } // namespace core
 } // namespace pnana
