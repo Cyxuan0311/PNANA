@@ -113,9 +113,10 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
     clearError();
 
     // Construct git clone command
+    // Use --quiet flag to suppress progress output, redirect stderr to stdout to capture errors
     std::string escaped_url = escapePath(url);
     std::string escaped_path = escapePath(path);
-    std::string cmd = "git clone \"" + escaped_url + "\" \"" + escaped_path + "\"";
+    std::string cmd = "git clone --quiet \"" + escaped_url + "\" \"" + escaped_path + "\" 2>&1";
 
     pnana::utils::Logger::getInstance().log("Executing: " + cmd);
 
@@ -132,7 +133,7 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
         return false;
     }
 
-    // Read any error output
+    // Read error output (stderr redirected to stdout, stdout redirected to /dev/null)
     std::array<char, 256> buffer;
     std::string error_output;
     while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
@@ -149,10 +150,58 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
                                             "ms (exit code: " + std::to_string(status) + ")");
 
     if (status != 0) {
+        // Extract meaningful error message from git output
+        std::string error_msg;
         if (!error_output.empty()) {
-            last_error_ = "Clone failed: " + error_output;
-        } else {
+            // Clean up error output: remove newlines and extract key error message
+            std::string cleaned = error_output;
+            // Remove trailing newlines
+            while (!cleaned.empty() && (cleaned.back() == '\n' || cleaned.back() == '\r')) {
+                cleaned.pop_back();
+            }
+            
+            // Try to extract the most relevant error line (usually the last line with "fatal" or "error")
+            std::istringstream iss(cleaned);
+            std::string line;
+            std::string last_error_line;
+            while (std::getline(iss, line)) {
+                std::string lower = line;
+                std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+                    return std::tolower(c);
+                });
+                if (lower.find("fatal") != std::string::npos || 
+                    lower.find("error") != std::string::npos ||
+                    lower.find("failed") != std::string::npos) {
+                    last_error_line = line;
+                }
+            }
+            
+            if (!last_error_line.empty()) {
+                // Remove "fatal: " prefix if present
+                if (last_error_line.find("fatal: ") == 0) {
+                    error_msg = last_error_line.substr(7);
+                } else {
+                    error_msg = last_error_line;
+                }
+            } else {
+                // Use first non-empty line or full output if no error keywords found
+                std::istringstream iss2(cleaned);
+                if (std::getline(iss2, line)) {
+                    error_msg = line;
+                } else {
+                    error_msg = cleaned;
+                }
+            }
+        }
+        
+        if (error_msg.empty()) {
             last_error_ = "Clone failed with exit code: " + std::to_string(status);
+        } else {
+            // Clean up the error message
+            while (!error_msg.empty() && (error_msg.back() == '\n' || error_msg.back() == '\r')) {
+                error_msg.pop_back();
+            }
+            last_error_ = error_msg;
         }
 
         auto end_time = std::chrono::high_resolution_clock::now();
