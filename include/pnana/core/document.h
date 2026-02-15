@@ -105,6 +105,9 @@ class Document {
     std::string getFilePath() const {
         return filepath_;
     }
+    void setFilePath(const std::string& filepath) {
+        filepath_ = filepath;
+    }
     std::string getFileName() const;
     std::string getFileExtension() const;
     bool isModified() const {

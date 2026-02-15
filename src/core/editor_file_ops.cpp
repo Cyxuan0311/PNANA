@@ -6,6 +6,13 @@
 #include <filesystem>
 #include <iostream>
 
+// 前向声明辅助函数（在editor_ssh.cpp中定义）
+namespace pnana {
+namespace core {
+bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config);
+}
+}
+
 namespace pnana {
 namespace core {
 
@@ -82,6 +89,12 @@ bool Editor::openFile(const std::string& filepath) {
         } catch (...) {
             LOG_WARNING("Syntax highlighter unknown exception");
         }
+
+#ifdef BUILD_LUA_SUPPORT
+        // 触发文件打开事件
+        triggerPluginEvent("FileOpened", {filepath});
+        triggerPluginEvent("BufEnter", {filepath});
+#endif
 
 #ifdef BUILD_LSP_SUPPORT
         LOG("Step 5: Updating LSP document...");
@@ -189,6 +202,37 @@ bool Editor::saveFile() {
         return false;
     }
 
+    // 检查是否为SSH文件
+    std::string filepath = doc->getFilePath();
+    if (filepath.find("ssh://") == 0) {
+        // SSH文件保存
+        size_t doc_index = document_manager_.getCurrentIndex();
+        auto it = document_ssh_configs_.find(doc_index);
+        if (it != document_ssh_configs_.end()) {
+            // 使用关联的SSH配置保存
+            return saveSSHFile(doc, it->second);
+        } else {
+            // 尝试从路径解析SSH配置
+            pnana::ui::SSHConfig config;
+            if (parseSSHPath(filepath, config)) {
+                // 需要密码或密钥，使用当前配置
+                if (current_ssh_config_.host == config.host && 
+                    current_ssh_config_.user == config.user) {
+                    config.password = current_ssh_config_.password;
+                    config.key_path = current_ssh_config_.key_path;
+                    return saveSSHFile(doc, config);
+                } else {
+                    setStatusMessage("SSH: Authentication required. Please reconnect.");
+                    return false;
+                }
+            } else {
+                setStatusMessage("SSH: Invalid SSH path format");
+                return false;
+            }
+        }
+    }
+
+    // 普通文件保存
     size_t line_count = doc->lineCount();
     size_t byte_count = 0;
     for (size_t i = 0; i < line_count; ++i) {
@@ -201,6 +245,13 @@ bool Editor::saveFile() {
                           std::to_string(line_count) + " lines (" + std::to_string(byte_count) +
                           " bytes) to " + doc->getFileName();
         setStatusMessage(msg);
+        
+#ifdef BUILD_LUA_SUPPORT
+        // 触发文件保存事件
+        triggerPluginEvent("FileSaved", {filepath});
+        triggerPluginEvent("BufWrite", {filepath});
+#endif
+        
         return true;
     }
 
@@ -217,6 +268,39 @@ bool Editor::saveFileAs(const std::string& filepath) {
     Document* doc = getCurrentDocument();
     if (!doc)
         return false;
+
+    // 检查是否为SSH路径
+    if (filepath.find("ssh://") == 0) {
+        // SSH文件保存
+        pnana::ui::SSHConfig config;
+        if (parseSSHPath(filepath, config)) {
+            // 使用当前SSH配置的认证信息（如果可用）
+            size_t doc_index = document_manager_.getCurrentIndex();
+            auto it = document_ssh_configs_.find(doc_index);
+            if (it != document_ssh_configs_.end() && 
+                it->second.host == config.host && 
+                it->second.user == config.user) {
+                config.password = it->second.password;
+                config.key_path = it->second.key_path;
+            } else if (current_ssh_config_.host == config.host && 
+                       current_ssh_config_.user == config.user) {
+                config.password = current_ssh_config_.password;
+                config.key_path = current_ssh_config_.key_path;
+            } else {
+                setStatusMessage("SSH: Authentication required. Please reconnect.");
+                return false;
+            }
+            bool result = saveSSHFile(doc, config, filepath);
+            if (result) {
+                // 更新SSH配置映射
+                document_ssh_configs_[doc_index] = config;
+            }
+            return result;
+        } else {
+            setStatusMessage("SSH: Invalid SSH path format");
+            return false;
+        }
+    }
 
     size_t line_count = doc->lineCount();
     size_t byte_count = 0;
