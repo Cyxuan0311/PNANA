@@ -16,6 +16,21 @@ class Editor;
 }
 namespace plugins {
 
+class PathValidator;
+
+// 沙盒配置
+struct SandboxConfig {
+    std::vector<std::string> allowed_paths;
+    bool allow_system_commands;
+    size_t max_memory_mb;
+    int max_execution_time_ms;
+
+    SandboxConfig() 
+        : allow_system_commands(false)
+        , max_memory_mb(512)
+        , max_execution_time_ms(5000) {}
+};
+
 // 插件信息
 struct PluginInfo {
     std::string name;
@@ -85,6 +100,8 @@ class PluginManager {
     core::Editor* editor_;
     std::unique_ptr<LuaEngine> lua_engine_;
     std::unique_ptr<LuaAPI> lua_api_;
+    std::unique_ptr<PathValidator> path_validator_;
+    SandboxConfig sandbox_config_;
 
     // 插件映射: name -> info
     std::map<std::string, PluginInfo> plugins_;
@@ -103,6 +120,9 @@ class PluginManager {
 
     // 加载内置插件路径
     void setupPluginPaths();
+
+    // 初始化沙盒环境
+    void initializeSandbox();
 };
 
 } // namespace plugins
