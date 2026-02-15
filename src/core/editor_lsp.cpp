@@ -88,6 +88,9 @@ void Editor::initializeLsp() {
 
     // 初始化诊断弹窗状态
     show_diagnostics_popup_ = false;
+#ifdef BUILD_LSP_SUPPORT
+    show_symbol_navigation_popup_ = false;
+#endif
 
     // 设置诊断回调（应用到所有 LSP 客户端）
     lsp_manager_->setDiagnosticsCallback(
@@ -1720,6 +1723,99 @@ void Editor::hideDiagnosticsPopup() {
     show_diagnostics_popup_ = false;
 }
 
+#ifdef BUILD_LSP_SUPPORT
+void Editor::showSymbolNavigation() {
+    if (!lsp_enabled_) {
+        setStatusMessage("LSP is not enabled. Cannot show symbol navigation.");
+        return;
+    }
+
+    const Document* doc = getCurrentDocument();
+    if (!doc) {
+        setStatusMessage("No document open. Cannot show symbol navigation.");
+        return;
+    }
+
+    std::string file_path = doc->getFilePath();
+    if (file_path.empty()) {
+        setStatusMessage("File not saved. Cannot show symbol navigation.");
+        return;
+    }
+
+    // 获取当前文件的LSP客户端
+    auto* lsp_client = lsp_manager_->getClientForFile(file_path);
+    if (!lsp_client) {
+        setStatusMessage("LSP server not available for this file.");
+        return;
+    }
+    if (!lsp_client->isConnected()) {
+        setStatusMessage("LSP server not connected for this file.");
+        return;
+    }
+    
+    // 确保文档已经通过 didOpen 添加到 LSP 服务器
+    std::string uri = lsp_client->filepathToUri(file_path);
+    std::string language_id = detectLanguageId(file_path);
+    
+    // 检查文档是否已经打开
+    bool needs_did_open = (file_language_map_.find(uri) == file_language_map_.end());
+    if (needs_did_open) {
+        try {
+            // 获取文档内容
+            std::string content;
+            size_t line_count = doc->lineCount();
+            size_t max_lines = std::min(line_count, static_cast<size_t>(1000));
+            for (size_t i = 0; i < max_lines; ++i) {
+                content += doc->getLine(i);
+                if (i < max_lines - 1) {
+                    content += "\n";
+                }
+            }
+            lsp_client->didOpen(uri, language_id, content);
+            file_language_map_[uri] = language_id;
+        } catch (const std::exception& e) {
+            setStatusMessage("Failed to prepare document for symbol navigation.");
+            return;
+        }
+    }
+
+    // 异步获取符号列表
+    std::thread([this, file_path, lsp_client, uri]() {
+        std::vector<pnana::features::DocumentSymbol> symbols = lsp_client->documentSymbol(uri);
+
+        // 在主线程更新UI
+        screen_.Post([this, symbols]() {
+            symbol_navigation_popup_.setSymbols(symbols);
+            if (symbols.empty()) {
+                setStatusMessage("No symbols found in this file.");
+                return;
+            }
+
+            // 设置跳转回调（用于预览跳转）
+            symbol_navigation_popup_.setJumpCallback([this](const pnana::features::DocumentSymbol& symbol) {
+                jumpToSymbol(symbol);
+            });
+
+            symbol_navigation_popup_.show();
+            show_symbol_navigation_popup_ = true;
+        });
+    }).detach();
+}
+
+void Editor::hideSymbolNavigation() {
+    symbol_navigation_popup_.hide();
+    show_symbol_navigation_popup_ = false;
+}
+
+void Editor::jumpToSymbol(const pnana::features::DocumentSymbol& symbol) {
+    // 跳转到符号位置
+    setCursorPosForLua(symbol.range.start.line, symbol.range.start.character);
+    adjustCursor();
+    adjustViewOffset();
+    force_ui_update_ = true;
+}
+#endif
+
 void Editor::updateDiagnosticsStatus(const std::vector<pnana::features::Diagnostic>& diagnostics) {
     {
         std::lock_guard<std::mutex> lock(diagnostics_mutex_);
@@ -1815,6 +1911,15 @@ void Editor::jumpToDiagnostic(const pnana::features::Diagnostic& diagnostic) {
 Element Editor::renderDiagnosticsPopup() {
     return diagnostics_popup_.render();
 }
+
+#ifdef BUILD_LSP_SUPPORT
+Element Editor::renderSymbolNavigationPopup() {
+    if (!show_symbol_navigation_popup_ || !symbol_navigation_popup_.isVisible()) {
+        return text("");
+    }
+    return symbol_navigation_popup_.render();
+}
+#endif
 
 // 代码折叠方法实现（Neovim-like 行为）
 void Editor::toggleFold() {

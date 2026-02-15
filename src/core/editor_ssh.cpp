@@ -1,9 +1,42 @@
 #include "core/editor.h"
 #include "features/ssh/ssh_client.h"
 #include <sstream>
+#include <regex>
 
 namespace pnana {
 namespace core {
+
+// 辅助函数：解析SSH路径 (ssh://user@host:port/path)
+bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config) {
+    if (path.find("ssh://") != 0) {
+        return false;
+    }
+
+    // 移除 ssh:// 前缀
+    std::string remaining = path.substr(6);
+    
+    // 解析格式: user@host:port/path 或 user@host/path
+    std::regex ssh_regex(R"(^([^@]+)@([^:/]+)(?::(\d+))?(/.*)$)");
+    std::smatch match;
+    
+    if (std::regex_match(remaining, match, ssh_regex)) {
+        config.user = match[1].str();
+        config.host = match[2].str();
+        if (match[3].matched && !match[3].str().empty()) {
+            try {
+                config.port = std::stoi(match[3].str());
+            } catch (...) {
+                config.port = 22;
+            }
+        } else {
+            config.port = 22;
+        }
+        config.remote_path = match[4].str();
+        return true;
+    }
+    
+    return false;
+}
 
 void Editor::showSSHDialog() {
     ssh_dialog_.show(
@@ -55,9 +88,8 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
         return;
     }
 
-    // 设置文件路径
-    // 注意：Document 类可能需要修改以支持 SSH 文件
-    // 暂时使用文件路径来标识
+    // 设置文件路径（SSH路径格式: ssh://user@host:port/path）
+    doc->setFilePath(local_filename.str());
 
     // 将内容按行分割并写入文档
     std::istringstream iss(result.content);
@@ -88,8 +120,10 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
     // 设置语法高亮
     syntax_highlighter_.setFileType(getFileType());
 
-    // 保存SSH连接信息（用于后续文件传输）
+    // 保存SSH连接信息（用于后续文件传输和保存）
     current_ssh_config_ = config;
+    // 将SSH配置与文档关联
+    document_ssh_configs_[doc_index] = config;
 
     setStatusMessage("SSH: Connected and loaded " + config.remote_path);
 }
@@ -145,6 +179,60 @@ void Editor::handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>
 
 void Editor::handleSSHTransferCancel() {
     setStatusMessage("SSH: File transfer cancelled");
+}
+
+bool Editor::saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config, 
+                          const std::string& filepath) {
+    if (!doc) {
+        return false;
+    }
+
+    // 获取文档内容
+    std::string content = doc->getContent();
+    
+    // 确定远程路径
+    std::string remote_path = config.remote_path;
+    if (!filepath.empty()) {
+        // 如果提供了新路径，解析它
+        pnana::ui::SSHConfig new_config;
+        if (parseSSHPath(filepath, new_config)) {
+            remote_path = new_config.remote_path;
+        }
+    }
+
+    setStatusMessage("SSH: Saving to " + config.host + ":" + remote_path + "...");
+
+    // 创建SSH配置用于写回
+    pnana::ui::SSHConfig write_config = config;
+    write_config.remote_path = remote_path;
+
+    // 创建SSH客户端并写入文件
+    features::ssh::Client ssh_client;
+    features::ssh::Result result = ssh_client.writeFile(write_config, content);
+
+    if (!result.success) {
+        setStatusMessage("SSH Error: " + result.error);
+        return false;
+    }
+
+    // 更新文档路径（如果是新路径）
+    if (!filepath.empty()) {
+        // 更新文档路径和SSH配置映射
+        doc->setFilePath(filepath);
+        size_t doc_index = document_manager_.getCurrentIndex();
+        document_ssh_configs_[doc_index] = write_config;
+    }
+
+    // 标记为已保存
+    doc->setModified(false);
+
+    size_t line_count = doc->lineCount();
+    size_t byte_count = content.length();
+    std::string msg = std::string(pnana::ui::icons::SAVED) + " Wrote " +
+                      std::to_string(line_count) + " lines (" + std::to_string(byte_count) +
+                      " bytes) to " + config.host + ":" + remote_path;
+    setStatusMessage(msg);
+    return true;
 }
 
 } // namespace core

@@ -39,6 +39,36 @@ void Editor::handleInput(Event event) {
     region_manager_.setTerminalEnabled(terminal_.isVisible());
     region_manager_.setHelpWindowEnabled(show_help_);
 
+    // 优先处理符号导航弹窗的输入（在 InputRouter 之前，确保弹窗输入优先）
+#ifdef BUILD_LSP_SUPPORT
+    if (show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible()) {
+        if (symbol_navigation_popup_.handleInput(event)) {
+            // 如果按了Enter，跳转并关闭弹窗
+            if (event == Event::Return || event == Event::Character('\n')) {
+                const auto* symbol = symbol_navigation_popup_.getSelectedSymbol();
+                if (symbol) {
+                    jumpToSymbol(*symbol);
+                    hideSymbolNavigation();
+                    setStatusMessage("Jumped to symbol: " + symbol->name);
+                }
+            }
+            // 如果按了Escape，关闭弹窗
+            if (event == Event::Escape) {
+                hideSymbolNavigation();
+            }
+            return; // 符号导航弹窗打开时，这些键只用于导航，不继续处理
+        }
+    }
+
+    // Ctrl+B: 符号导航（优先处理，在 InputRouter 之前）
+    if (isCtrlKey(event, 'b')) {
+        if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+            showSymbolNavigation();
+            return;
+        }
+    }
+#endif
+
     // 使用 InputRouter 处理全局输入（如果已初始化）
     // 包括全局快捷键、分屏操作等
     if (input_router_) {
@@ -603,6 +633,28 @@ void Editor::handleNormalMode(Event event) {
     }
 
 #ifdef BUILD_LSP_SUPPORT
+    // 优先处理符号导航弹窗的输入（在补全弹窗之前，因为符号导航优先级更高）
+#ifdef BUILD_LSP_SUPPORT
+    if (show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible()) {
+        if (symbol_navigation_popup_.handleInput(event)) {
+            // 如果按了Enter，跳转并关闭弹窗
+            if (event == Event::Return || event == Event::Character('\n')) {
+                const auto* symbol = symbol_navigation_popup_.getSelectedSymbol();
+                if (symbol) {
+                    jumpToSymbol(*symbol);
+                    hideSymbolNavigation();
+                    setStatusMessage("Jumped to symbol: " + symbol->name);
+                }
+            }
+            // 如果按了Escape，关闭弹窗
+            if (event == Event::Escape) {
+                hideSymbolNavigation();
+            }
+            return; // 符号导航弹窗打开时，这些键只用于导航，不继续处理
+        }
+    }
+#endif
+
     // 优先处理补全弹窗的导航键，避免影响代码区光标
     // 必须在处理其他按键之前检查，确保补全导航优先
     if (completion_popup_.isVisible()) {
@@ -1502,6 +1554,24 @@ void Editor::handleFileBrowserInput(Event event) {
         startSearch();
         return;
     }
+
+    // 处理符号导航弹窗输入
+#ifdef BUILD_LSP_SUPPORT
+    if (show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible()) {
+        if (symbol_navigation_popup_.handleInput(event)) {
+            // 如果按了Enter，跳转并关闭弹窗
+            if (event == Event::Return || event == Event::Character('\n')) {
+                const auto* symbol = symbol_navigation_popup_.getSelectedSymbol();
+                if (symbol) {
+                    jumpToSymbol(*symbol);
+                    hideSymbolNavigation();
+                    setStatusMessage("Jumped to symbol: " + symbol->name);
+                }
+            }
+            return;
+        }
+    }
+#endif
 
     // Ctrl+R: 替换
     if (isCtrlKey(event, 'r')) {

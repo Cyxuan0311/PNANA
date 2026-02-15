@@ -312,6 +312,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderDiagnosticsPopupCallback([this]() {
         return renderDiagnosticsPopup();
     });
+    overlay_manager_->setRenderSymbolNavigationPopupCallback([this]() {
+        return renderSymbolNavigationPopup();
+    });
 #endif
 
     // 设置可见性检查回调函数
@@ -391,6 +394,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsDiagnosticsPopupVisibleCallback([this]() {
         return show_diagnostics_popup_;
+    });
+    overlay_manager_->setIsSymbolNavigationPopupVisibleCallback([this]() {
+        return show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible();
     });
 #endif
 
