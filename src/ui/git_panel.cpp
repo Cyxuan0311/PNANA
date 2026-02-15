@@ -317,6 +317,7 @@ void GitPanel::switchMode(GitPanelMode mode) {
 
     if (mode == GitPanelMode::COMMIT) {
         commit_message_.clear();
+        commit_cursor_position_ = 0;
     } else if (mode == GitPanelMode::BRANCH) {
         branch_name_.clear();
     } else if (mode == GitPanelMode::CLONE) {
@@ -324,6 +325,8 @@ void GitPanel::switchMode(GitPanelMode mode) {
         clone_path_ = git_manager_->getRepositoryRoot().empty() ? fs::current_path().string()
                                                                 : git_manager_->getRepositoryRoot();
         clone_focus_on_url_ = true; // Default focus on URL
+        clone_state_ = CloneState::IDLE; // Reset clone state when switching to clone mode
+        clone_success_message_.clear();
     } else if (mode == GitPanelMode::GRAPH) {
         // Load graph commits when switching to graph mode
         if (graph_commits_.empty() || !data_loaded_) {
@@ -623,6 +626,7 @@ void GitPanel::performCommit() {
 
     if (git_manager_->commit(commit_message_)) {
         commit_message_.clear();
+        commit_cursor_position_ = 0;
         // Refresh data and ensure UI updates immediately
         refreshData(); // commit后需要刷新所有数据，包括分支
         // Invalidate cached stats to force recalculation
@@ -919,8 +923,45 @@ Element GitPanel::renderCommitPanel() {
 
     // Show character count and validation
     std::string char_count = "(" + std::to_string(commit_message_.length()) + " chars)";
-    elements.push_back(text(commit_message_) | color(colors.foreground) | border |
-                       bgcolor(colors.background));
+    
+    // Render commit message with cursor
+    Element commit_input;
+    if (commit_message_.empty()) {
+        // Empty input: show block cursor
+        commit_input = hbox({text(" ") | bgcolor(colors.selection) | color(colors.background) | bold,
+                             text(" ")}) |
+                         border | bgcolor(colors.background);
+    } else {
+        // Ensure cursor position is valid
+        size_t safe_cursor_pos = std::min(commit_cursor_position_, commit_message_.length());
+        
+        // Split message: before cursor, at cursor, after cursor
+        std::string before = commit_message_.substr(0, safe_cursor_pos);
+        std::string cursor_char =
+            safe_cursor_pos < commit_message_.length()
+                ? commit_message_.substr(safe_cursor_pos, 1)
+                : " ";
+        std::string after =
+            safe_cursor_pos < commit_message_.length()
+                ? commit_message_.substr(safe_cursor_pos + 1)
+                : "";
+        
+        // Render with block cursor (highlight current character)
+        Elements input_elements;
+        if (!before.empty()) {
+            input_elements.push_back(text(before) | color(colors.foreground));
+        }
+        // Block cursor: highlight current character
+        input_elements.push_back(text(cursor_char) | bgcolor(colors.selection) |
+                                 color(colors.background) | bold);
+        if (!after.empty()) {
+            input_elements.push_back(text(after) | color(colors.foreground));
+        }
+        
+        commit_input = hbox(std::move(input_elements)) | border | bgcolor(colors.background);
+    }
+    
+    elements.push_back(commit_input);
     elements.push_back(text(char_count) | color(colors.comment) | dim);
 
     // Validation and status messages
@@ -1409,6 +1450,48 @@ Element GitPanel::renderClonePanel() {
     elements.push_back(hbox(std::move(header_elements)));
     elements.push_back(separator());
 
+    // Show clone state status
+    {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        if (clone_state_ == CloneState::CLONING) {
+            Elements cloning_elements = {
+                text(pnana::ui::icons::REFRESH) | color(colors.keyword),
+                text(" Cloning repository...") | color(colors.keyword) | bold};
+            elements.push_back(hbox(std::move(cloning_elements)));
+            elements.push_back(separatorLight());
+        } else if (clone_state_ == CloneState::SUCCESS) {
+            // Show success message for 5 seconds
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - clone_state_time_);
+            
+            if (elapsed.count() < 5000) { // Show for 5 seconds
+                Elements success_elements = {
+                    text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success),
+                    text(" ") | color(colors.background),
+                    text(clone_success_message_) | color(colors.success) | bold};
+                elements.push_back(hbox(std::move(success_elements)));
+                elements.push_back(separatorLight());
+            } else {
+                // Auto-reset after 5 seconds
+                clone_state_ = CloneState::IDLE;
+                clone_url_.clear();
+                clone_path_ = git_manager_->getRepositoryRoot().empty()
+                                  ? fs::current_path().string()
+                                  : git_manager_->getRepositoryRoot();
+                clone_focus_on_url_ = true;
+                clone_success_message_.clear();
+            }
+        } else if (clone_state_ == CloneState::FAILED && !error_message_.empty()) {
+            Elements error_elements = {
+                text(pnana::ui::icons::ERROR) | color(colors.error),
+                text(" ") | color(colors.background),
+                text("Clone failed: " + error_message_) | color(colors.error) | bold};
+            elements.push_back(hbox(std::move(error_elements)));
+            elements.push_back(separatorLight());
+        }
+    }
+
     // Repository URL input
     Elements url_header = {text(pnana::ui::icons::LINK) | color(colors.keyword),
                            text(" Repository URL (HTTPS/SSH):") | color(colors.menubar_fg)};
@@ -1416,7 +1499,7 @@ Element GitPanel::renderClonePanel() {
 
     // URL input with focus indication
     auto url_input = text(clone_url_) | color(colors.foreground);
-    if (clone_focus_on_url_) {
+    if (clone_focus_on_url_ && clone_state_ != CloneState::CLONING) {
         url_input = url_input | border | bgcolor(colors.selection) | color(colors.background);
     } else {
         url_input = url_input | border | bgcolor(colors.background);
@@ -1431,7 +1514,7 @@ Element GitPanel::renderClonePanel() {
 
     // Path input with focus indication
     auto path_input = text(clone_path_) | color(colors.foreground);
-    if (!clone_focus_on_url_) {
+    if (!clone_focus_on_url_ && clone_state_ != CloneState::CLONING) {
         path_input = path_input | border | bgcolor(colors.selection) | color(colors.background);
     } else {
         path_input = path_input | border | bgcolor(colors.background);
@@ -1439,26 +1522,28 @@ Element GitPanel::renderClonePanel() {
     elements.push_back(path_input);
     elements.push_back(separatorLight());
 
-    // Instructions
-    Elements instructions = {
-        text(pnana::ui::icons::INFO_CIRCLE) | color(colors.info),
-        text(" Enter repository URL and destination path, then press Enter to clone") |
-            color(colors.comment)};
-    elements.push_back(hbox(std::move(instructions)));
+    // Instructions (hide when cloning)
+    if (clone_state_ != CloneState::CLONING) {
+        Elements instructions = {
+            text(pnana::ui::icons::INFO_CIRCLE) | color(colors.info),
+            text(" Enter repository URL and destination path, then press Enter to clone") |
+                color(colors.comment)};
+        elements.push_back(hbox(std::move(instructions)));
 
-    elements.push_back(separatorLight());
+        elements.push_back(separatorLight());
 
-    // Examples
-    Elements examples_header = {text("Examples:") | color(colors.menubar_fg)};
-    elements.push_back(hbox(std::move(examples_header)));
+        // Examples
+        Elements examples_header = {text("Examples:") | color(colors.menubar_fg)};
+        elements.push_back(hbox(std::move(examples_header)));
 
-    Elements https_example = {text("HTTPS: ") | color(colors.comment),
-                              text("https://github.com/user/repo.git") | color(colors.string)};
-    elements.push_back(hbox(std::move(https_example)));
+        Elements https_example = {text("HTTPS: ") | color(colors.comment),
+                                  text("https://github.com/user/repo.git") | color(colors.string)};
+        elements.push_back(hbox(std::move(https_example)));
 
-    Elements ssh_example = {text("SSH:   ") | color(colors.comment),
-                            text("git@github.com:user/repo.git") | color(colors.string)};
-    elements.push_back(hbox(std::move(ssh_example)));
+        Elements ssh_example = {text("SSH:   ") | color(colors.comment),
+                                text("git@github.com:user/repo.git") | color(colors.string)};
+        elements.push_back(hbox(std::move(ssh_example)));
+    }
 
     return vbox(std::move(elements));
 }
@@ -1470,9 +1555,24 @@ bool GitPanel::handleCloneModeKey(Event event) {
         return true;
     }
 
+    // Don't allow input when cloning
+    {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        if (clone_state_ == CloneState::CLONING) {
+            // Only allow ESC to cancel (though we can't actually cancel the async operation)
+            if (event == Event::Escape) {
+                // Note: The clone operation will continue in background
+                // User can switch modes, but clone state will update when done
+                return false; // Let ESC bubble up to switch mode
+            }
+            return true; // Consume other events while cloning
+        }
+    }
+
     // Up/Down arrow keys to switch between input fields
     if (event == Event::ArrowUp || event == Event::ArrowDown) {
         clone_focus_on_url_ = !clone_focus_on_url_;
+        component_needs_rebuild_ = true;
         return true;
     }
 
@@ -1481,6 +1581,14 @@ bool GitPanel::handleCloneModeKey(Event event) {
         return true;
     }
     if (event == Event::Escape) {
+        // Reset clone state when escaping
+        {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            if (clone_state_ != CloneState::CLONING) {
+                clone_state_ = CloneState::IDLE;
+                clone_success_message_.clear();
+            }
+        }
         switchMode(GitPanelMode::STATUS);
         return true;
     }
@@ -1492,6 +1600,7 @@ bool GitPanel::handleCloneModeKey(Event event) {
         } else {
             clone_path_ += event.character();
         }
+        component_needs_rebuild_ = true;
         return true;
     }
     if (event == Event::Backspace) {
@@ -1500,6 +1609,7 @@ bool GitPanel::handleCloneModeKey(Event event) {
         } else if (!clone_focus_on_url_ && !clone_path_.empty()) {
             clone_path_.pop_back();
         }
+        component_needs_rebuild_ = true;
         return true;
     }
 
@@ -1509,12 +1619,26 @@ bool GitPanel::handleCloneModeKey(Event event) {
 void GitPanel::performClone() {
     if (clone_url_.empty()) {
         error_message_ = "Repository URL cannot be empty";
+        clone_state_ = CloneState::FAILED;
+        clone_state_time_ = std::chrono::steady_clock::now();
         return;
     }
 
     if (clone_path_.empty()) {
         error_message_ = "Clone path cannot be empty";
+        clone_state_ = CloneState::FAILED;
+        clone_state_time_ = std::chrono::steady_clock::now();
         return;
+    }
+
+    // Set cloning state
+    {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        clone_state_ = CloneState::CLONING;
+        clone_state_time_ = std::chrono::steady_clock::now();
+        error_message_.clear();
+        clone_success_message_.clear();
+        component_needs_rebuild_ = true; // Force UI update to show cloning state
     }
 
     // Start async clone operation
@@ -1523,30 +1647,60 @@ void GitPanel::performClone() {
         pnana::utils::Logger::getInstance().log(
             "GitPanel::performClone - Starting async clone operation");
 
-        GitManager temp_manager(clone_path_);
-        bool success = temp_manager.clone(clone_url_, clone_path_);
+        std::string url_to_clone = clone_url_;
+        std::string path_to_clone = clone_path_;
+
+        GitManager temp_manager(path_to_clone);
+        bool success = temp_manager.clone(url_to_clone, path_to_clone);
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        if (success) {
-            error_message_.clear();
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::performClone - Clone completed successfully in " +
-                std::to_string(duration.count()) + "ms");
+        // Update state in main thread
+        {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            if (success) {
+                clone_state_ = CloneState::SUCCESS;
+                clone_state_time_ = std::chrono::steady_clock::now();
+                
+                // Build success message with repository name only
+                std::string repo_name = url_to_clone;
+                // Extract repo name from URL (e.g., "user/repo.git" or "user/repo")
+                size_t last_slash = repo_name.find_last_of('/');
+                if (last_slash != std::string::npos) {
+                    repo_name = repo_name.substr(last_slash + 1);
+                    // Remove .git suffix if present
+                    if (repo_name.length() > 4 && repo_name.substr(repo_name.length() - 4) == ".git") {
+                        repo_name = repo_name.substr(0, repo_name.length() - 4);
+                    }
+                }
+                
+                clone_success_message_ = "Repository '" + repo_name + "' cloned successfully!";
+                error_message_.clear(); // Clear any previous errors
+                
+                pnana::utils::Logger::getInstance().log(
+                    "GitPanel::performClone - Clone completed successfully in " +
+                    std::to_string(duration.count()) + "ms: " + clone_success_message_);
 
-            // Clear inputs on success
-            clone_url_.clear();
-            clone_path_ = git_manager_->getRepositoryRoot().empty()
-                              ? fs::current_path().string()
-                              : git_manager_->getRepositoryRoot();
-            clone_focus_on_url_ = true; // Reset focus to URL
-        } else {
-            error_message_ = temp_manager.getLastError();
-            pnana::utils::Logger::getInstance().log("GitPanel::performClone - Clone failed after " +
-                                                    std::to_string(duration.count()) +
-                                                    "ms: " + error_message_);
+                // Clear inputs on success (after a delay, so user can see the success message)
+                // We'll clear them after 3 seconds or when user switches mode
+            } else {
+                clone_state_ = CloneState::FAILED;
+                clone_state_time_ = std::chrono::steady_clock::now();
+                
+                // Only set error message if there's an actual error (consistent with remote operations)
+                std::string error = temp_manager.getLastError();
+                if (!error.empty()) {
+                    error_message_ = error;
+                } else {
+                    error_message_ = "Clone operation failed";
+                }
+                pnana::utils::Logger::getInstance().log("GitPanel::performClone - Clone failed after " +
+                                                        std::to_string(duration.count()) +
+                                                        "ms: " + error_message_);
+            }
+            component_needs_rebuild_ = true; // Force UI update to show result
         }
     }).detach();
 }
@@ -2122,13 +2276,57 @@ bool GitPanel::handleCommitModeKey(Event event) {
         return true;
     }
 
-    // Handle text input for commit message
-    if (event.is_character()) {
-        commit_message_ += event.character();
+    // Cursor movement
+    if (event == Event::ArrowLeft) {
+        if (commit_cursor_position_ > 0) {
+            commit_cursor_position_--;
+        }
         return true;
     }
-    if (event == Event::Backspace && !commit_message_.empty()) {
-        commit_message_.pop_back();
+    if (event == Event::ArrowRight) {
+        if (commit_cursor_position_ < commit_message_.length()) {
+            commit_cursor_position_++;
+        }
+        return true;
+    }
+    if (event == Event::Home) {
+        commit_cursor_position_ = 0;
+        return true;
+    }
+    if (event == Event::End) {
+        commit_cursor_position_ = commit_message_.length();
+        return true;
+    }
+
+    // Handle text input for commit message
+    if (event.is_character()) {
+        // Insert character at cursor position
+        std::string char_str = event.character();
+        if (!char_str.empty()) {
+            if (commit_cursor_position_ >= commit_message_.length()) {
+                commit_message_ += char_str;
+            } else {
+                commit_message_.insert(commit_cursor_position_, char_str);
+            }
+            commit_cursor_position_ += char_str.length();
+        }
+        return true;
+    }
+    if (event == Event::Backspace) {
+        if (commit_cursor_position_ > 0) {
+            if (commit_cursor_position_ >= commit_message_.length()) {
+                commit_message_.pop_back();
+            } else {
+                commit_message_.erase(commit_cursor_position_ - 1, 1);
+            }
+            commit_cursor_position_--;
+        }
+        return true;
+    }
+    if (event == Event::Delete) {
+        if (commit_cursor_position_ < commit_message_.length()) {
+            commit_message_.erase(commit_cursor_position_, 1);
+        }
         return true;
     }
 
