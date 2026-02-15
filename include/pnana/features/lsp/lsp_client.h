@@ -101,6 +101,9 @@ class LspClient {
     // 代码折叠范围
     std::vector<FoldingRange> foldingRange(const std::string& uri);
 
+    // 文档符号查询（用于符号导航）
+    std::vector<DocumentSymbol> documentSymbol(const std::string& uri);
+
     // 重命名符号
     std::map<std::string, std::vector<LspRange>> rename(const std::string& uri,
                                                         const LspPosition& position,
@@ -118,6 +121,10 @@ class LspClient {
     jsonrpccxx::json getServerCapabilities() const {
         return server_capabilities_;
     }
+
+    // URI 转换（public方法，供外部使用）
+    std::string filepathToUri(const std::string& filepath);
+    std::string uriToFilepath(const std::string& uri);
 
   private:
     // 辅助函数
@@ -146,16 +153,13 @@ class LspClient {
     Location jsonToLocation(const jsonrpccxx::json& json);
     HoverInfo jsonToHoverInfo(const jsonrpccxx::json& json);
     FoldingRange jsonToFoldingRange(const jsonrpccxx::json& json);
+    DocumentSymbol jsonToDocumentSymbol(const jsonrpccxx::json& json, int depth);
 
     // 处理服务器通知
     void handleNotification(const std::string& notification);
 
     // 解析 JSON 字符串
     jsonrpccxx::json parseJson(const std::string& json_str);
-
-    // URI 转换
-    std::string filepathToUri(const std::string& filepath);
-    std::string uriToFilepath(const std::string& uri);
 };
 
 } // namespace features
