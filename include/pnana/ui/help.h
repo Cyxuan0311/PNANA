@@ -37,6 +37,13 @@ class Help {
   private:
     Theme& theme_;
     size_t scroll_offset_; // 滚动偏移量
+    size_t current_tab_index_; // 当前选中的tab索引
+
+    // 获取所有分类
+    static std::vector<std::string> getCategories();
+
+    // 渲染tab栏
+    ftxui::Element renderTabs();
 
     // 渲染帮助分类
     ftxui::Element renderCategory(const std::string& category,
