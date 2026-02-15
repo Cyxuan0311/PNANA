@@ -79,10 +79,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
 
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理对话框
-    if (is_plugin_manager_visible_callback_ && is_plugin_manager_visible_callback_() &&
-        render_plugin_manager_callback_) {
+    if (is_plugin_manager_visible_callback_ && render_plugin_manager_callback_) {
+        bool is_visible = is_plugin_manager_visible_callback_();
+        if (is_visible) {
         Elements dialog_elements = {main_ui, render_plugin_manager_callback_() | center};
         return dbox(dialog_elements);
+        }
     }
 #endif
 
@@ -135,6 +137,15 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         Elements diagnostics_elements = {main_ui | dim,
                                          render_diagnostics_popup_callback_() | center};
         return dbox(diagnostics_elements);
+    }
+
+    // 如果符号导航弹窗打开，叠加显示
+    if (is_symbol_navigation_popup_visible_callback_ &&
+        is_symbol_navigation_popup_visible_callback_() &&
+        render_symbol_navigation_popup_callback_) {
+        Elements symbol_nav_elements = {main_ui | dim,
+                                       render_symbol_navigation_popup_callback_() | center};
+        return dbox(symbol_nav_elements);
     }
 #endif
 
