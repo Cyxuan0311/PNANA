@@ -73,4 +73,3 @@ class SymbolNavigationPopup {
 } // namespace pnana
 
 #endif // PNANA_UI_SYMBOL_NAVIGATION_POPUP_H
-

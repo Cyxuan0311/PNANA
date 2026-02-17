@@ -11,11 +11,9 @@ namespace plugins {
 
 // 系统目录列表（禁止访问）
 const std::vector<std::string> PathValidator::system_directories_ = {
-    "/bin", "/sbin", "/usr/bin", "/usr/sbin", "/usr/local/bin",
-    "/etc", "/sys", "/proc", "/dev", "/boot", "/root",
-    "/usr/lib", "/usr/lib64", "/lib", "/lib64",
-    "/var/log", "/var/run", "/var/tmp"
-};
+    "/bin",       "/sbin", "/usr/bin", "/usr/sbin", "/usr/local/bin", "/etc",
+    "/sys",       "/proc", "/dev",     "/boot",     "/root",          "/usr/lib",
+    "/usr/lib64", "/lib",  "/lib64",   "/var/log",  "/var/run",       "/var/tmp"};
 
 PathValidator::PathValidator() {}
 
@@ -76,7 +74,7 @@ void PathValidator::setWorkingDirectory(const std::string& dir) {
 std::string PathValidator::normalizePath(const std::string& path) const {
     try {
         fs::path p(path);
-        
+
         // 如果是相对路径，先转换为绝对路径
         if (!p.is_absolute()) {
             if (!working_directory_.empty()) {
@@ -85,7 +83,7 @@ std::string PathValidator::normalizePath(const std::string& path) const {
                 p = fs::absolute(p);
             }
         }
-        
+
         // 规范化路径（解析符号链接、. 和 ..）
         if (fs::exists(p)) {
             return fs::canonical(p).string();
@@ -104,19 +102,19 @@ bool PathValidator::isSystemDirectory(const std::string& path) const {
     if (normalized.empty()) {
         return true; // 无法规范化的路径视为系统目录
     }
-    
+
     // 确保路径以 / 结尾用于比较
     if (normalized.back() != '/') {
         normalized += '/';
     }
-    
+
     // 检查是否匹配任何系统目录
     for (const auto& sys_dir : system_directories_) {
         if (normalized.find(sys_dir + '/') == 0 || normalized == sys_dir + '/') {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -125,27 +123,27 @@ bool PathValidator::isPathInAllowedList(const std::string& normalized_path) cons
     if (normalized_path.empty()) {
         return false;
     }
-    
+
     // 确保路径以 / 结尾用于前缀匹配
     std::string path_with_slash = normalized_path;
     if (path_with_slash.back() != '/') {
         path_with_slash += '/';
     }
-    
+
     // 检查是否在任何允许的路径前缀下
     for (const auto& allowed : allowed_paths_) {
         if (path_with_slash.find(allowed) == 0) {
             return true;
         }
     }
-    
+
     // 检查工作目录
     if (!working_directory_.empty()) {
         if (path_with_slash.find(working_directory_) == 0) {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -154,13 +152,13 @@ bool PathValidator::isPathAllowed(const std::string& path) const {
     if (isSystemDirectory(path)) {
         return false;
     }
-    
+
     // 规范化路径
     std::string normalized = normalizePath(path);
     if (normalized.empty()) {
         return false; // 无法规范化的路径拒绝访问
     }
-    
+
     // 检查是否在允许的路径列表中
     return isPathInAllowedList(normalized);
 }
@@ -169,4 +167,3 @@ bool PathValidator::isPathAllowed(const std::string& path) const {
 } // namespace pnana
 
 #endif // BUILD_LUA_SUPPORT
-

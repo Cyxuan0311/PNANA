@@ -92,17 +92,13 @@ std::vector<HelpEntry> Help::getAllHelp() {
 }
 
 std::vector<std::string> Help::getCategories() {
-    return {"File Operations",
-            "Editing",
-            "Navigation",
-            "View & Tools",
-            "Help"};
+    return {"File Operations", "Editing", "Navigation", "View & Tools", "Help"};
 }
 
 Element Help::renderTabs() {
     auto& colors = theme_.getColors();
     auto categories = getCategories();
-    
+
     Elements tabs;
     for (size_t i = 0; i < categories.size(); ++i) {
         std::string tab_text = categories[i];
@@ -110,21 +106,18 @@ Element Help::renderTabs() {
         if (tab_text.length() > 15) {
             tab_text = tab_text.substr(0, 13) + "..";
         }
-        
+
         if (i == current_tab_index_) {
             // 当前选中的tab：使用更明显的背景色和加粗字体
-            tabs.push_back(text(" " + tab_text + " ") | 
-                          bgcolor(colors.statusbar_bg) | 
-                          color(colors.statusbar_fg) | 
-                          bold);
+            tabs.push_back(text(" " + tab_text + " ") | bgcolor(colors.statusbar_bg) |
+                           color(colors.statusbar_fg) | bold);
         } else {
             // 未选中的tab：使用较淡的背景色
-            tabs.push_back(text(" " + tab_text + " ") | 
-                          bgcolor(colors.background) | 
-                          color(colors.foreground));
+            tabs.push_back(text(" " + tab_text + " ") | bgcolor(colors.background) |
+                           color(colors.foreground));
         }
     }
-    
+
     return hbox(tabs) | border;
 }
 
@@ -161,7 +154,7 @@ Element Help::render(int width, int height) {
     auto categories = getCategories();
     if (current_tab_index_ < categories.size()) {
         std::string current_category = categories[current_tab_index_];
-        
+
         if (grouped.find(current_category) != grouped.end()) {
             // 显示分类标题
             help_content.push_back(text("") | color(colors.keyword) | bold);
@@ -176,8 +169,8 @@ Element Help::render(int width, int height) {
                           text(" "), text(entry.description) | color(colors.foreground)}));
             }
         } else {
-            help_content.push_back(text("  No help entries found for this category.") | 
-                                  color(colors.foreground));
+            help_content.push_back(text("  No help entries found for this category.") |
+                                   color(colors.foreground));
         }
     }
 
@@ -233,17 +226,16 @@ Element Help::renderCategory(const std::string& category, const std::vector<Help
 
 bool Help::handleInput(ftxui::Event event) {
     auto categories = getCategories();
-    
+
     // Tab键切换tab
     if (event == Event::Tab || event == Event::Character('\t')) {
         current_tab_index_ = (current_tab_index_ + 1) % categories.size();
         scroll_offset_ = 0; // 切换tab时重置滚动位置
         return true;
     }
-    
+
     // Shift+Tab反向切换tab
-    if (event == Event::TabReverse || 
-        (event.is_character() && event.character() == "\x1b[Z")) {
+    if (event == Event::TabReverse || (event.is_character() && event.character() == "\x1b[Z")) {
         if (current_tab_index_ > 0) {
             current_tab_index_--;
         } else {
@@ -252,7 +244,7 @@ bool Help::handleInput(ftxui::Event event) {
         scroll_offset_ = 0; // 切换tab时重置滚动位置
         return true;
     }
-    
+
     // 左右箭头键切换tab
     if (event == Event::ArrowLeft || event == Event::Character('h')) {
         if (current_tab_index_ > 0) {
@@ -263,7 +255,7 @@ bool Help::handleInput(ftxui::Event event) {
         scroll_offset_ = 0;
         return true;
     }
-    
+
     if (event == Event::ArrowRight || event == Event::Character('l')) {
         current_tab_index_ = (current_tab_index_ + 1) % categories.size();
         scroll_offset_ = 0;

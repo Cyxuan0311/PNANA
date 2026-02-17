@@ -81,11 +81,11 @@ struct Snippet {
 // LSP 文档符号（用于符号导航）
 struct DocumentSymbol {
     std::string name;
-    std::string kind;  // "Function", "Class", "Namespace", "Method", "Variable", etc.
+    std::string kind; // "Function", "Class", "Namespace", "Method", "Variable", etc.
     LspRange range;
-    std::string detail;  // 可选详细信息（如函数签名）
-    std::vector<DocumentSymbol> children;  // 嵌套符号（如类中的方法）
-    int depth;  // 嵌套深度（用于UI显示）
+    std::string detail;                   // 可选详细信息（如函数签名）
+    std::vector<DocumentSymbol> children; // 嵌套符号（如类中的方法）
+    int depth;                            // 嵌套深度（用于UI显示）
 
     DocumentSymbol() : depth(0) {}
     DocumentSymbol(const std::string& n, const std::string& k, const LspRange& r, int d = 0)

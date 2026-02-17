@@ -82,8 +82,8 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     if (is_plugin_manager_visible_callback_ && render_plugin_manager_callback_) {
         bool is_visible = is_plugin_manager_visible_callback_();
         if (is_visible) {
-        Elements dialog_elements = {main_ui, render_plugin_manager_callback_() | center};
-        return dbox(dialog_elements);
+            Elements dialog_elements = {main_ui, render_plugin_manager_callback_() | center};
+            return dbox(dialog_elements);
         }
     }
 #endif
@@ -144,7 +144,7 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         is_symbol_navigation_popup_visible_callback_() &&
         render_symbol_navigation_popup_callback_) {
         Elements symbol_nav_elements = {main_ui | dim,
-                                       render_symbol_navigation_popup_callback_() | center};
+                                        render_symbol_navigation_popup_callback_() | center};
         return dbox(symbol_nav_elements);
     }
 #endif

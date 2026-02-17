@@ -11,7 +11,7 @@ namespace pnana {
 namespace core {
 bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config);
 }
-}
+} // namespace pnana
 
 namespace pnana {
 namespace core {
@@ -216,7 +216,7 @@ bool Editor::saveFile() {
             pnana::ui::SSHConfig config;
             if (parseSSHPath(filepath, config)) {
                 // 需要密码或密钥，使用当前配置
-                if (current_ssh_config_.host == config.host && 
+                if (current_ssh_config_.host == config.host &&
                     current_ssh_config_.user == config.user) {
                     config.password = current_ssh_config_.password;
                     config.key_path = current_ssh_config_.key_path;
@@ -245,13 +245,13 @@ bool Editor::saveFile() {
                           std::to_string(line_count) + " lines (" + std::to_string(byte_count) +
                           " bytes) to " + doc->getFileName();
         setStatusMessage(msg);
-        
+
 #ifdef BUILD_LUA_SUPPORT
         // 触发文件保存事件
         triggerPluginEvent("FileSaved", {filepath});
         triggerPluginEvent("BufWrite", {filepath});
 #endif
-        
+
         return true;
     }
 
@@ -277,12 +277,11 @@ bool Editor::saveFileAs(const std::string& filepath) {
             // 使用当前SSH配置的认证信息（如果可用）
             size_t doc_index = document_manager_.getCurrentIndex();
             auto it = document_ssh_configs_.find(doc_index);
-            if (it != document_ssh_configs_.end() && 
-                it->second.host == config.host && 
+            if (it != document_ssh_configs_.end() && it->second.host == config.host &&
                 it->second.user == config.user) {
                 config.password = it->second.password;
                 config.key_path = it->second.key_path;
-            } else if (current_ssh_config_.host == config.host && 
+            } else if (current_ssh_config_.host == config.host &&
                        current_ssh_config_.user == config.user) {
                 config.password = current_ssh_config_.password;
                 config.key_path = current_ssh_config_.key_path;

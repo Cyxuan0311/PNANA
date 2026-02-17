@@ -68,14 +68,14 @@ Editor::Editor()
 #ifdef BUILD_LSP_SUPPORT
       symbol_navigation_popup_(theme_),
 #endif
-      mode_(EditorMode::NORMAL), cursor_row_(0),
-      cursor_col_(0), view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false),
-      show_help_(false), show_create_folder_(false), show_save_as_(false), show_move_file_(false),
-      show_extract_dialog_(false), show_extract_path_dialog_(false),
-      show_extract_progress_dialog_(false), selection_active_(false), selection_start_row_(0),
-      selection_start_col_(0), show_line_numbers_(true), relative_line_numbers_(false),
-      syntax_highlighting_(true), zoom_level_(0), file_browser_width_(35), // 默认宽度35列
-      terminal_height_(0), // 0 表示使用默认值（屏幕高度的1/3）
+      mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
+      view_offset_col_(0), show_theme_menu_(false), show_help_(false), show_create_folder_(false),
+      show_save_as_(false), show_move_file_(false), show_extract_dialog_(false),
+      show_extract_path_dialog_(false), show_extract_progress_dialog_(false),
+      selection_active_(false), selection_start_row_(0), selection_start_col_(0),
+      show_line_numbers_(true), relative_line_numbers_(false), syntax_highlighting_(true),
+      zoom_level_(0), file_browser_width_(35), // 默认宽度35列
+      terminal_height_(0),                     // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""), search_input_(""), replace_input_(""), search_cursor_pos_(0),
       replace_cursor_pos_(0), current_search_match_(0), total_search_matches_(0),
       current_option_index_(0), search_options_{false, false, false, false},
@@ -1661,33 +1661,60 @@ std::string Editor::getFileType() const {
 bool Editor::isCtrlKey(const Event& event, char key) const {
     // 首先检查 FTXUI 预定义的 Ctrl 事件
     switch (key) {
-        case 'a': return event == Event::CtrlA;
-        case 'b': return event == Event::CtrlB;
-        case 'c': return event == Event::CtrlC;
-        case 'd': return event == Event::CtrlD;
-        case 'e': return event == Event::CtrlE;
-        case 'f': return event == Event::CtrlF;
-        case 'g': return event == Event::CtrlG;
-        case 'h': return event == Event::CtrlH;
-        case 'i': return event == Event::CtrlI;
-        case 'j': return event == Event::CtrlJ;
-        case 'k': return event == Event::CtrlK;
-        case 'l': return event == Event::CtrlL;
-        case 'm': return event == Event::CtrlM;
-        case 'n': return event == Event::CtrlN;
-        case 'o': return event == Event::CtrlO;
-        case 'p': return event == Event::CtrlP;
-        case 'q': return event == Event::CtrlQ;
-        case 'r': return event == Event::CtrlR;
-        case 's': return event == Event::CtrlS;
-        case 't': return event == Event::CtrlT;
-        case 'u': return event == Event::CtrlU;
-        case 'v': return event == Event::CtrlV;
-        case 'w': return event == Event::CtrlW;
-        case 'x': return event == Event::CtrlX;
-        case 'y': return event == Event::CtrlY;
-        case 'z': return event == Event::CtrlZ;
-        default: break;
+        case 'a':
+            return event == Event::CtrlA;
+        case 'b':
+            return event == Event::CtrlB;
+        case 'c':
+            return event == Event::CtrlC;
+        case 'd':
+            return event == Event::CtrlD;
+        case 'e':
+            return event == Event::CtrlE;
+        case 'f':
+            return event == Event::CtrlF;
+        case 'g':
+            return event == Event::CtrlG;
+        case 'h':
+            return event == Event::CtrlH;
+        case 'i':
+            return event == Event::CtrlI;
+        case 'j':
+            return event == Event::CtrlJ;
+        case 'k':
+            return event == Event::CtrlK;
+        case 'l':
+            return event == Event::CtrlL;
+        case 'm':
+            return event == Event::CtrlM;
+        case 'n':
+            return event == Event::CtrlN;
+        case 'o':
+            return event == Event::CtrlO;
+        case 'p':
+            return event == Event::CtrlP;
+        case 'q':
+            return event == Event::CtrlQ;
+        case 'r':
+            return event == Event::CtrlR;
+        case 's':
+            return event == Event::CtrlS;
+        case 't':
+            return event == Event::CtrlT;
+        case 'u':
+            return event == Event::CtrlU;
+        case 'v':
+            return event == Event::CtrlV;
+        case 'w':
+            return event == Event::CtrlW;
+        case 'x':
+            return event == Event::CtrlX;
+        case 'y':
+            return event == Event::CtrlY;
+        case 'z':
+            return event == Event::CtrlZ;
+        default:
+            break;
     }
 
     // 如果没有匹配预定义事件，检查字符事件（Ctrl+Key产生ASCII控制字符）

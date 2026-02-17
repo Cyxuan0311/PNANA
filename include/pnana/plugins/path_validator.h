@@ -3,9 +3,9 @@
 
 #ifdef BUILD_LUA_SUPPORT
 
+#include <filesystem>
 #include <string>
 #include <vector>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -55,4 +55,3 @@ class PathValidator {
 #endif // BUILD_LUA_SUPPORT
 
 #endif // PNANA_PLUGINS_PATH_VALIDATOR_H
-

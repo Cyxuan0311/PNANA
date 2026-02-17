@@ -12,8 +12,8 @@ namespace ssh {
 size_t SSHTask::next_id_ = 1;
 std::mutex SSHTask::id_mutex_;
 
-SSHTask::SSHTask(SSHTaskType type, const ui::SSHConfig& config, 
-                 const std::string& param1, const std::string& param2)
+SSHTask::SSHTask(SSHTaskType type, const ui::SSHConfig& config, const std::string& param1,
+                 const std::string& param2)
     : type_(type), config_(config), param1_(param1), param2_(param2),
       status_(SSHTaskStatus::PENDING), progress_(""), cancelled_(false) {
     std::lock_guard<std::mutex> lock(id_mutex_);
@@ -24,7 +24,7 @@ SSHTask::~SSHTask() {}
 
 void SSHTask::execute() {
     status_.store(SSHTaskStatus::RUNNING);
-    
+
     if (cancelled_.load()) {
         status_.store(SSHTaskStatus::CANCELLED);
         return;
@@ -89,7 +89,7 @@ SSHAsyncManager::SSHAsyncManager() : should_stop_(false) {
 SSHAsyncManager::~SSHAsyncManager() {
     should_stop_.store(true);
     queue_cv_.notify_all();
-    
+
     for (auto& thread : worker_threads_) {
         if (thread.joinable()) {
             thread.join();
@@ -101,13 +101,13 @@ size_t SSHAsyncManager::submitTask(std::shared_ptr<SSHTask> task) {
     std::lock_guard<std::mutex> lock(tasks_mutex_);
     size_t task_id = task->getId();
     tasks_[task_id] = task;
-    
+
     {
         std::lock_guard<std::mutex> queue_lock(queue_mutex_);
         task_queue_.push(task);
     }
     queue_cv_.notify_one();
-    
+
     return task_id;
 }
 
@@ -144,23 +144,23 @@ bool SSHAsyncManager::cancelTask(size_t task_id) {
 
 bool SSHAsyncManager::waitForTask(size_t task_id, int timeout_ms) {
     auto start = std::chrono::steady_clock::now();
-    
+
     while (true) {
         SSHTaskStatus status = getTaskStatus(task_id);
-        if (status == SSHTaskStatus::COMPLETED || 
-            status == SSHTaskStatus::FAILED || 
+        if (status == SSHTaskStatus::COMPLETED || status == SSHTaskStatus::FAILED ||
             status == SSHTaskStatus::CANCELLED) {
             return true;
         }
-        
+
         if (timeout_ms > 0) {
             auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
             if (elapsed >= timeout_ms) {
                 return false;
             }
         }
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
@@ -170,8 +170,7 @@ void SSHAsyncManager::cleanupCompletedTasks() {
     auto it = tasks_.begin();
     while (it != tasks_.end()) {
         SSHTaskStatus status = it->second->getStatus();
-        if (status == SSHTaskStatus::COMPLETED || 
-            status == SSHTaskStatus::FAILED || 
+        if (status == SSHTaskStatus::COMPLETED || status == SSHTaskStatus::FAILED ||
             status == SSHTaskStatus::CANCELLED) {
             it = tasks_.erase(it);
         } else {
@@ -183,23 +182,23 @@ void SSHAsyncManager::cleanupCompletedTasks() {
 void SSHAsyncManager::workerThread() {
     while (!should_stop_.load()) {
         std::shared_ptr<SSHTask> task;
-        
+
         {
             std::unique_lock<std::mutex> lock(queue_mutex_);
             queue_cv_.wait(lock, [this] {
                 return !task_queue_.empty() || should_stop_.load();
             });
-            
+
             if (should_stop_.load() && task_queue_.empty()) {
                 break;
             }
-            
+
             if (!task_queue_.empty()) {
                 task = task_queue_.front();
                 task_queue_.pop();
             }
         }
-        
+
         if (task) {
             task->execute();
         }
@@ -209,4 +208,3 @@ void SSHAsyncManager::workerThread() {
 } // namespace ssh
 } // namespace features
 } // namespace pnana
-

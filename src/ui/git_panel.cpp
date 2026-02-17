@@ -324,7 +324,7 @@ void GitPanel::switchMode(GitPanelMode mode) {
         clone_url_.clear();
         clone_path_ = git_manager_->getRepositoryRoot().empty() ? fs::current_path().string()
                                                                 : git_manager_->getRepositoryRoot();
-        clone_focus_on_url_ = true; // Default focus on URL
+        clone_focus_on_url_ = true;      // Default focus on URL
         clone_state_ = CloneState::IDLE; // Reset clone state when switching to clone mode
         clone_success_message_.clear();
     } else if (mode == GitPanelMode::GRAPH) {
@@ -923,29 +923,28 @@ Element GitPanel::renderCommitPanel() {
 
     // Show character count and validation
     std::string char_count = "(" + std::to_string(commit_message_.length()) + " chars)";
-    
+
     // Render commit message with cursor
     Element commit_input;
     if (commit_message_.empty()) {
         // Empty input: show block cursor
-        commit_input = hbox({text(" ") | bgcolor(colors.selection) | color(colors.background) | bold,
-                             text(" ")}) |
-                         border | bgcolor(colors.background);
+        commit_input =
+            hbox({text(" ") | bgcolor(colors.selection) | color(colors.background) | bold,
+                  text(" ")}) |
+            border | bgcolor(colors.background);
     } else {
         // Ensure cursor position is valid
         size_t safe_cursor_pos = std::min(commit_cursor_position_, commit_message_.length());
-        
+
         // Split message: before cursor, at cursor, after cursor
         std::string before = commit_message_.substr(0, safe_cursor_pos);
-        std::string cursor_char =
-            safe_cursor_pos < commit_message_.length()
-                ? commit_message_.substr(safe_cursor_pos, 1)
-                : " ";
-        std::string after =
-            safe_cursor_pos < commit_message_.length()
-                ? commit_message_.substr(safe_cursor_pos + 1)
-                : "";
-        
+        std::string cursor_char = safe_cursor_pos < commit_message_.length()
+                                      ? commit_message_.substr(safe_cursor_pos, 1)
+                                      : " ";
+        std::string after = safe_cursor_pos < commit_message_.length()
+                                ? commit_message_.substr(safe_cursor_pos + 1)
+                                : "";
+
         // Render with block cursor (highlight current character)
         Elements input_elements;
         if (!before.empty()) {
@@ -957,10 +956,10 @@ Element GitPanel::renderCommitPanel() {
         if (!after.empty()) {
             input_elements.push_back(text(after) | color(colors.foreground));
         }
-        
+
         commit_input = hbox(std::move(input_elements)) | border | bgcolor(colors.background);
     }
-    
+
     elements.push_back(commit_input);
     elements.push_back(text(char_count) | color(colors.comment) | dim);
 
@@ -1462,9 +1461,9 @@ Element GitPanel::renderClonePanel() {
         } else if (clone_state_ == CloneState::SUCCESS) {
             // Show success message for 5 seconds
             auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - clone_state_time_);
-            
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - clone_state_time_);
+
             if (elapsed.count() < 5000) { // Show for 5 seconds
                 Elements success_elements = {
                     text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success),
@@ -1663,7 +1662,7 @@ void GitPanel::performClone() {
             if (success) {
                 clone_state_ = CloneState::SUCCESS;
                 clone_state_time_ = std::chrono::steady_clock::now();
-                
+
                 // Build success message with repository name only
                 std::string repo_name = url_to_clone;
                 // Extract repo name from URL (e.g., "user/repo.git" or "user/repo")
@@ -1671,14 +1670,15 @@ void GitPanel::performClone() {
                 if (last_slash != std::string::npos) {
                     repo_name = repo_name.substr(last_slash + 1);
                     // Remove .git suffix if present
-                    if (repo_name.length() > 4 && repo_name.substr(repo_name.length() - 4) == ".git") {
+                    if (repo_name.length() > 4 &&
+                        repo_name.substr(repo_name.length() - 4) == ".git") {
                         repo_name = repo_name.substr(0, repo_name.length() - 4);
                     }
                 }
-                
+
                 clone_success_message_ = "Repository '" + repo_name + "' cloned successfully!";
                 error_message_.clear(); // Clear any previous errors
-                
+
                 pnana::utils::Logger::getInstance().log(
                     "GitPanel::performClone - Clone completed successfully in " +
                     std::to_string(duration.count()) + "ms: " + clone_success_message_);
@@ -1688,17 +1688,18 @@ void GitPanel::performClone() {
             } else {
                 clone_state_ = CloneState::FAILED;
                 clone_state_time_ = std::chrono::steady_clock::now();
-                
-                // Only set error message if there's an actual error (consistent with remote operations)
+
+                // Only set error message if there's an actual error (consistent with remote
+                // operations)
                 std::string error = temp_manager.getLastError();
                 if (!error.empty()) {
                     error_message_ = error;
                 } else {
                     error_message_ = "Clone operation failed";
                 }
-                pnana::utils::Logger::getInstance().log("GitPanel::performClone - Clone failed after " +
-                                                        std::to_string(duration.count()) +
-                                                        "ms: " + error_message_);
+                pnana::utils::Logger::getInstance().log(
+                    "GitPanel::performClone - Clone failed after " +
+                    std::to_string(duration.count()) + "ms: " + error_message_);
             }
             component_needs_rebuild_ = true; // Force UI update to show result
         }

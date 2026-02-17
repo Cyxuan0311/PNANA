@@ -159,8 +159,9 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
             while (!cleaned.empty() && (cleaned.back() == '\n' || cleaned.back() == '\r')) {
                 cleaned.pop_back();
             }
-            
-            // Try to extract the most relevant error line (usually the last line with "fatal" or "error")
+
+            // Try to extract the most relevant error line (usually the last line with "fatal" or
+            // "error")
             std::istringstream iss(cleaned);
             std::string line;
             std::string last_error_line;
@@ -169,13 +170,13 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
                 std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
                     return std::tolower(c);
                 });
-                if (lower.find("fatal") != std::string::npos || 
+                if (lower.find("fatal") != std::string::npos ||
                     lower.find("error") != std::string::npos ||
                     lower.find("failed") != std::string::npos) {
                     last_error_line = line;
                 }
             }
-            
+
             if (!last_error_line.empty()) {
                 // Remove "fatal: " prefix if present
                 if (last_error_line.find("fatal: ") == 0) {
@@ -193,7 +194,7 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
                 }
             }
         }
-        
+
         if (error_msg.empty()) {
             last_error_ = "Clone failed with exit code: " + std::to_string(status);
         } else {

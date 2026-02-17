@@ -109,9 +109,9 @@ int EditorAPI::lua_api_get_cursor_pos(lua_State* L) {
         size_t row = editor->getCursorRowForLua();
         size_t col = editor->getCursorColForLua();
         lua_pushinteger(L, static_cast<lua_Integer>(row));
-            lua_setfield(L, -2, "row");
+        lua_setfield(L, -2, "row");
         lua_pushinteger(L, static_cast<lua_Integer>(col));
-            lua_setfield(L, -2, "col");
+        lua_setfield(L, -2, "col");
     } else {
         lua_pushinteger(L, 0);
         lua_setfield(L, -2, "row");
@@ -133,11 +133,13 @@ int EditorAPI::lua_api_set_cursor_pos(lua_State* L) {
 
     int row = static_cast<int>(lua_tointeger(L, -2));
     int col = static_cast<int>(lua_tointeger(L, -1));
-    
+
     // 确保非负
-    if (row < 0) row = 0;
-    if (col < 0) col = 0;
-    
+    if (row < 0)
+        row = 0;
+    if (col < 0)
+        col = 0;
+
     editor->setCursorPosForLua(static_cast<size_t>(row), static_cast<size_t>(col));
 
     lua_pop(L, 2);

@@ -724,9 +724,9 @@ class Editor {
     void showSSHTransferDialog();
     void handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items);
     void handleSSHTransferCancel();
-    
+
     // SSH文件保存（内部方法）
-    bool saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config, 
+    bool saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config,
                      const std::string& filepath = "");
 
     // 标签页管理
@@ -928,7 +928,7 @@ class Editor {
     plugins::PluginManager* getPluginManager() {
         return plugin_manager_.get();
     }
-    
+
     // 触发插件事件（供内部使用）
     void triggerPluginEvent(const std::string& event, const std::vector<std::string>& args = {});
 #endif

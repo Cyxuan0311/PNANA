@@ -1,9 +1,9 @@
 #ifdef BUILD_LUA_SUPPORT
 
 #include "plugins/file_api.h"
-#include "plugins/path_validator.h"
 #include "core/document.h"
 #include "core/editor.h"
+#include "plugins/path_validator.h"
 #include "utils/logger.h"
 #include <fstream>
 #include <lua.hpp>
@@ -27,7 +27,7 @@ void FileAPI::registerFunctions(lua_State* L) {
     // 在注册表中存储编辑器指针
     lua_pushlightuserdata(L, editor_);
     lua_setfield(L, LUA_REGISTRYINDEX, EDITOR_REGISTRY_KEY);
-    
+
     // 在注册表中存储 FileAPI 实例
     lua_pushlightuserdata(L, this);
     lua_setfield(L, LUA_REGISTRYINDEX, FILE_API_REGISTRY_KEY);
@@ -141,7 +141,8 @@ int FileAPI::lua_fn_readfile(lua_State* L) {
     FileAPI* api = getAPIFromLua(L);
     if (api && api->path_validator_) {
         if (!api->path_validator_->isPathAllowed(filepath)) {
-            LOG_WARNING("Plugin attempted to read restricted path: " + std::string(filepath) + " (blocked by sandbox)");
+            LOG_WARNING("Plugin attempted to read restricted path: " + std::string(filepath) +
+                        " (blocked by sandbox)");
             lua_pushnil(L);
             return 1;
         }
@@ -176,7 +177,8 @@ int FileAPI::lua_fn_writefile(lua_State* L) {
     FileAPI* api = getAPIFromLua(L);
     if (api && api->path_validator_) {
         if (!api->path_validator_->isPathAllowed(filepath)) {
-            LOG_WARNING("Plugin attempted to write to restricted path: " + std::string(filepath) + " (blocked by sandbox)");
+            LOG_WARNING("Plugin attempted to write to restricted path: " + std::string(filepath) +
+                        " (blocked by sandbox)");
             lua_pushboolean(L, 0);
             return 1;
         }

@@ -301,13 +301,12 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     // 应用美化配置 - 增强视觉效果
     // 如果启用了美化配置且不跟随主题，使用自定义颜色
     // 否则使用主题颜色（默认行为）
-    bool use_custom_colors = beautify_config_.enabled && 
-                             !beautify_config_.follow_theme &&
+    bool use_custom_colors = beautify_config_.enabled && !beautify_config_.follow_theme &&
                              beautify_config_.bg_color.size() >= 3 &&
                              beautify_config_.fg_color.size() >= 3;
 
-    auto content = hbox({hbox(left_elements) | flex_grow, hbox(center_elements) | flex,
-                        hbox(right_elements)});
+    auto content =
+        hbox({hbox(left_elements) | flex_grow, hbox(center_elements) | flex, hbox(right_elements)});
 
     if (use_custom_colors) {
         // 使用自定义颜色（美化配置）
@@ -318,8 +317,7 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
                                        beautify_config_.fg_color[2]));
     } else {
         // 使用主题颜色（默认行为，包括美化配置启用但 follow_theme = true 的情况）
-        return content |
-               bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg);
+        return content | bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg);
     }
 }
 

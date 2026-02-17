@@ -42,7 +42,7 @@ void LuaAPI::initialize(LuaEngine* engine) {
     // 在注册表中存储 API 实例
     lua_pushlightuserdata(L, this);
     lua_setfield(L, LUA_REGISTRYINDEX, API_REGISTRY_KEY);
-    
+
     // 在注册表中存储LuaAPI实例（供SystemAPI使用）
     lua_pushlightuserdata(L, this);
     lua_setfield(L, LUA_REGISTRYINDEX, LUA_API_REGISTRY_KEY);
@@ -99,11 +99,11 @@ void LuaAPI::triggerEvent(const std::string& event, const std::vector<std::strin
     // 处理新API的autocmd
     auto autocmd_it = autocmds_.find(event);
     if (autocmd_it != autocmds_.end()) {
-        std::vector<int> to_remove;  // 标记需要删除的once事件
-        
+        std::vector<int> to_remove; // 标记需要删除的once事件
+
         for (size_t i = 0; i < autocmd_it->second.size(); ++i) {
             const auto& info = autocmd_it->second[i];
-            
+
             // 检查pattern匹配（简化实现，支持通配符*）
             bool pattern_match = true;
             if (!info.pattern.empty() && !filepath.empty()) {
@@ -122,11 +122,11 @@ void LuaAPI::triggerEvent(const std::string& event, const std::vector<std::strin
                     pattern_match = (filepath.find(pattern) != std::string::npos);
                 }
             }
-            
+
             if (!pattern_match) {
                 continue;
             }
-            
+
             // 调用回调函数
             lua_rawgeti(L, LUA_REGISTRYINDEX, info.callback_ref);
             if (lua_isfunction(L, -1)) {
@@ -138,7 +138,7 @@ void LuaAPI::triggerEvent(const std::string& event, const std::vector<std::strin
                     lua_pushstring(L, filepath.c_str());
                     lua_setfield(L, -2, "file");
                 }
-                
+
                 // 调用函数
                 int result = lua_pcall(L, 1, 0, 0);
                 if (result != LUA_OK) {
@@ -146,7 +146,7 @@ void LuaAPI::triggerEvent(const std::string& event, const std::vector<std::strin
                     LOG_ERROR("Autocmd callback error: " + std::string(error));
                     lua_pop(L, 1);
                 }
-                
+
                 // 如果是once事件，标记删除
                 if (info.once) {
                     to_remove.push_back(static_cast<int>(i));
@@ -155,18 +155,19 @@ void LuaAPI::triggerEvent(const std::string& event, const std::vector<std::strin
                 lua_pop(L, 1);
             }
         }
-        
+
         // 删除once事件（从后往前删除，避免索引问题）
         for (auto it = to_remove.rbegin(); it != to_remove.rend(); ++it) {
             int index = *it;
             if (index < static_cast<int>(autocmd_it->second.size())) {
                 if (engine_ && engine_->getState()) {
-                    luaL_unref(engine_->getState(), LUA_REGISTRYINDEX, autocmd_it->second[index].callback_ref);
+                    luaL_unref(engine_->getState(), LUA_REGISTRYINDEX,
+                               autocmd_it->second[index].callback_ref);
                 }
                 autocmd_it->second.erase(autocmd_it->second.begin() + index);
             }
         }
-        
+
         // 如果列表为空，删除事件
         if (autocmd_it->second.empty()) {
             autocmds_.erase(autocmd_it);
@@ -248,14 +249,14 @@ void LuaAPI::registerKeymap(const std::string& mode, const std::string& keys,
 
 // 新API实现
 
-void LuaAPI::registerUserCommand(const std::string& name, int callback_ref, const std::string& nargs, 
-                                  const std::string& desc, bool force) {
+void LuaAPI::registerUserCommand(const std::string& name, int callback_ref,
+                                 const std::string& nargs, const std::string& desc, bool force) {
     // 检查是否已存在且force=false
     if (user_commands_.find(name) != user_commands_.end() && !force) {
         LOG_ERROR("Command '" + name + "' already exists. Use force=true to override.");
         return;
     }
-    
+
     UserCommandInfo info;
     info.callback_ref = callback_ref;
     info.nargs = nargs;
@@ -274,14 +275,14 @@ bool LuaAPI::delUserCommand(const std::string& name) {
         user_commands_.erase(it);
         return true;
     }
-    
+
     // 也检查旧API的命令
     auto old_it = commands_.find(name);
     if (old_it != commands_.end()) {
         commands_.erase(old_it);
         return true;
     }
-    
+
     return false;
 }
 
@@ -289,9 +290,9 @@ bool LuaAPI::executeCommand(const std::string& name, const std::string& args) {
     if (!engine_ || !engine_->getState()) {
         return false;
     }
-    
+
     lua_State* L = engine_->getState();
-    
+
     // 首先检查新API的命令
     auto it = user_commands_.find(name);
     if (it != user_commands_.end()) {
@@ -301,12 +302,12 @@ bool LuaAPI::executeCommand(const std::string& name, const std::string& args) {
             lua_pop(L, 1);
             return false;
         }
-        
+
         // 创建opts表
         lua_newtable(L);
         lua_pushstring(L, args.c_str());
         lua_setfield(L, -2, "args");
-        
+
         // 解析参数到fargs数组（简化实现）
         lua_newtable(L);
         if (!args.empty()) {
@@ -319,7 +320,7 @@ bool LuaAPI::executeCommand(const std::string& name, const std::string& args) {
             }
         }
         lua_setfield(L, -2, "fargs");
-        
+
         // 调用函数
         int result = lua_pcall(L, 1, 0, 0);
         if (result != LUA_OK) {
@@ -330,7 +331,7 @@ bool LuaAPI::executeCommand(const std::string& name, const std::string& args) {
         }
         return true;
     }
-    
+
     // 检查旧API的命令
     auto old_it = commands_.find(name);
     if (old_it != commands_.end()) {
@@ -348,12 +349,13 @@ bool LuaAPI::executeCommand(const std::string& name, const std::string& args) {
             lua_pop(L, 1);
         }
     }
-    
+
     return false;
 }
 
-void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs, int rhs_ref, 
-                            bool noremap, bool silent, bool expr, bool nowait, const std::string& desc) {
+void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs, int rhs_ref,
+                            bool noremap, bool silent, bool expr, bool nowait,
+                            const std::string& desc) {
     KeymapInfo info;
     info.rhs_ref = rhs_ref;
     info.rhs_string = "";
@@ -365,8 +367,9 @@ void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs, int
     keymaps_info_[mode][lhs] = info;
 }
 
-void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs, const std::string& rhs_string,
-                            bool noremap, bool silent, bool expr, bool nowait, const std::string& desc) {
+void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs,
+                            const std::string& rhs_string, bool noremap, bool silent, bool expr,
+                            bool nowait, const std::string& desc) {
     KeymapInfo info;
     info.rhs_ref = -1;
     info.rhs_string = rhs_string;
@@ -391,7 +394,7 @@ bool LuaAPI::delKeymap(const std::string& mode, const std::string& lhs) {
             return true;
         }
     }
-    
+
     // 也检查旧API的键映射
     auto old_mode_it = keymaps_.find(mode);
     if (old_mode_it != keymaps_.end()) {
@@ -401,7 +404,7 @@ bool LuaAPI::delKeymap(const std::string& mode, const std::string& lhs) {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -409,16 +412,16 @@ bool LuaAPI::executeKeymap(const std::string& mode, const std::string& lhs) {
     if (!engine_ || !engine_->getState()) {
         return false;
     }
-    
+
     lua_State* L = engine_->getState();
-    
+
     // 首先检查新API的键映射
     auto mode_it = keymaps_info_.find(mode);
     if (mode_it != keymaps_info_.end()) {
         auto lhs_it = mode_it->second.find(lhs);
         if (lhs_it != mode_it->second.end()) {
             const auto& info = lhs_it->second;
-            
+
             if (info.rhs_ref != -1) {
                 // 函数引用
                 lua_rawgeti(L, LUA_REGISTRYINDEX, info.rhs_ref);
@@ -456,7 +459,7 @@ bool LuaAPI::executeKeymap(const std::string& mode, const std::string& lhs) {
             }
         }
     }
-    
+
     // 检查旧API的键映射
     auto old_mode_it = keymaps_.find(mode);
     if (old_mode_it != keymaps_.end()) {
@@ -477,12 +480,13 @@ bool LuaAPI::executeKeymap(const std::string& mode, const std::string& lhs) {
             }
         }
     }
-    
+
     return false;
 }
 
 void LuaAPI::registerAutocmd(const std::string& event, int callback_ref, const std::string& pattern,
-                              bool once, bool nested, const std::string& desc, const std::string& group) {
+                             bool once, bool nested, const std::string& desc,
+                             const std::string& group) {
     AutocmdInfo info;
     info.callback_ref = callback_ref;
     info.pattern = pattern;
@@ -494,7 +498,8 @@ void LuaAPI::registerAutocmd(const std::string& event, int callback_ref, const s
     autocmds_[event].push_back(info);
 }
 
-void LuaAPI::clearAutocmds(const std::string& event, const std::string& pattern, const std::string& group) {
+void LuaAPI::clearAutocmds(const std::string& event, const std::string& pattern,
+                           const std::string& group) {
     if (event.empty()) {
         // 清除所有事件
         for (auto& [evt, infos] : autocmds_) {
@@ -507,26 +512,25 @@ void LuaAPI::clearAutocmds(const std::string& event, const std::string& pattern,
         autocmds_.clear();
         return;
     }
-    
+
     auto it = autocmds_.find(event);
     if (it != autocmds_.end()) {
         auto& infos = it->second;
-        auto new_end = std::remove_if(infos.begin(), infos.end(), 
-            [&](const AutocmdInfo& info) {
-                bool match = true;
-                if (!pattern.empty() && info.pattern != pattern) {
-                    match = false;
-                }
-                if (!group.empty() && info.group != group) {
-                    match = false;
-                }
-                if (match && engine_ && engine_->getState()) {
-                    luaL_unref(engine_->getState(), LUA_REGISTRYINDEX, info.callback_ref);
-                }
-                return match;
-            });
+        auto new_end = std::remove_if(infos.begin(), infos.end(), [&](const AutocmdInfo& info) {
+            bool match = true;
+            if (!pattern.empty() && info.pattern != pattern) {
+                match = false;
+            }
+            if (!group.empty() && info.group != group) {
+                match = false;
+            }
+            if (match && engine_ && engine_->getState()) {
+                luaL_unref(engine_->getState(), LUA_REGISTRYINDEX, info.callback_ref);
+            }
+            return match;
+        });
         infos.erase(new_end, infos.end());
-        
+
         if (infos.empty()) {
             autocmds_.erase(it);
         }

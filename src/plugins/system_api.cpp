@@ -49,21 +49,21 @@ void SystemAPI::registerFunctions(lua_State* L) {
     // 注册新API到vim.api表
     lua_getglobal(L, "vim");
     lua_getfield(L, -1, "api");
-    
+
     lua_pushcfunction(L, lua_api_create_user_command);
     lua_setfield(L, -2, "create_user_command");
-    
+
     lua_pushcfunction(L, lua_api_del_user_command);
     lua_setfield(L, -2, "del_user_command");
-    
+
     lua_pushcfunction(L, lua_api_create_autocmd);
     lua_setfield(L, -2, "create_autocmd");
-    
+
     lua_pushcfunction(L, lua_api_clear_autocmds);
     lua_setfield(L, -2, "clear_autocmds");
-    
+
     lua_pop(L, 2); // 弹出vim和api表
-    
+
     // 注册vim.keymap表
     lua_getglobal(L, "vim");
     lua_newtable(L);
@@ -113,11 +113,11 @@ int SystemAPI::lua_fn_system(lua_State* L) {
     }
 
     // 记录尝试执行的命令（用于安全审计）
-    LOG_WARNING("Plugin attempted to execute system command: " + 
-               std::string(command) + " (blocked by sandbox)");
+    LOG_WARNING("Plugin attempted to execute system command: " + std::string(command) +
+                " (blocked by sandbox)");
 
     // 返回 nil 和错误消息
-        lua_pushnil(L);
+    lua_pushnil(L);
     lua_pushstring(L, "System command execution is disabled in sandbox mode");
     return 2; // 返回 nil, error_message
 }
@@ -148,12 +148,12 @@ int SystemAPI::lua_api_command(lua_State* L) {
         // 函数回调 - 创建函数引用
         lua_pushvalue(L, 2);
         int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        
+
         // 使用新API注册，但使用简化的选项
         lua_api->registerUserCommand(std::string(name), ref, "*", "", false);
     } else if (lua_isstring(L, 2)) {
         // 字符串回调 - 旧API兼容
-    const char* callback = lua_tostring(L, 2);
+        const char* callback = lua_tostring(L, 2);
         if (callback) {
             lua_api->registerCommand(std::string(name), std::string(callback));
         }
@@ -180,12 +180,13 @@ int SystemAPI::lua_api_keymap(lua_State* L) {
         // 函数回调 - 创建函数引用
         lua_pushvalue(L, 3);
         int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        
+
         // 使用新API注册，默认noremap=true（旧行为）
-        lua_api->registerKeymap(std::string(mode), std::string(keys), ref, true, false, false, false, "");
+        lua_api->registerKeymap(std::string(mode), std::string(keys), ref, true, false, false,
+                                false, "");
     } else if (lua_isstring(L, 3)) {
         // 字符串回调 - 旧API兼容
-    const char* callback = lua_tostring(L, 3);
+        const char* callback = lua_tostring(L, 3);
         if (callback) {
             lua_api->registerKeymap(std::string(mode), std::string(keys), std::string(callback));
         }
@@ -211,7 +212,7 @@ int SystemAPI::lua_api_autocmd(lua_State* L) {
         // 函数回调 - 创建函数引用
         lua_pushvalue(L, 2);
         int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        
+
         // 使用新API注册，使用默认选项
         lua_api->registerAutocmd(std::string(event), ref, "", false, false, "", "");
     } else if (lua_isstring(L, 2)) {
@@ -247,7 +248,7 @@ int SystemAPI::lua_api_create_user_command(lua_State* L) {
     std::string nargs = "*";
     std::string desc = "";
     bool force = false;
-    
+
     if (lua_istable(L, 3)) {
         parseCommandOptions(L, 3, nargs, desc, force);
     }
@@ -293,7 +294,7 @@ int SystemAPI::lua_keymap_set(lua_State* L) {
 
     int rhs_ref = -1;
     std::string rhs_string = "";
-    
+
     // 检查rhs是函数还是字符串
     if (lua_isfunction(L, 3)) {
         lua_pushvalue(L, 3);
@@ -311,21 +312,23 @@ int SystemAPI::lua_keymap_set(lua_State* L) {
     bool expr = false;
     bool nowait = false;
     std::string desc = "";
-    
+
     if (lua_istable(L, 4)) {
         parseKeymapOptions(L, 4, noremap, silent, expr, nowait, desc);
     }
 
     if (rhs_ref != -1) {
-        lua_api->registerKeymap(std::string(mode), std::string(lhs), rhs_ref, noremap, silent, expr, nowait, desc);
+        lua_api->registerKeymap(std::string(mode), std::string(lhs), rhs_ref, noremap, silent, expr,
+                                nowait, desc);
     } else if (!rhs_string.empty()) {
         // 对于字符串rhs，使用字符串重载
-        lua_api->registerKeymap(std::string(mode), std::string(lhs), rhs_string, noremap, silent, expr, nowait, desc);
+        lua_api->registerKeymap(std::string(mode), std::string(lhs), rhs_string, noremap, silent,
+                                expr, nowait, desc);
     } else {
         lua_pushboolean(L, false);
         return 1;
     }
-    
+
     lua_pushboolean(L, true);
     return 1;
 }
@@ -384,7 +387,7 @@ int SystemAPI::lua_api_create_autocmd(lua_State* L) {
     // 第二个参数是选项表，第三个参数是回调函数
     int opts_index = 2;
     int callback_index = 3;
-    
+
     // 检查参数顺序：可能是 (event, callback) 或 (event, opts, callback)
     if (!lua_istable(L, 2) && lua_isfunction(L, 2)) {
         // 只有两个参数：event和callback
@@ -407,7 +410,7 @@ int SystemAPI::lua_api_create_autocmd(lua_State* L) {
     bool nested = false;
     std::string desc = "";
     std::string group = "";
-    
+
     if (opts_index > 0 && lua_istable(L, opts_index)) {
         parseAutocmdOptions(L, opts_index, pattern, once, nested, desc, group);
     }
@@ -416,7 +419,7 @@ int SystemAPI::lua_api_create_autocmd(lua_State* L) {
     for (const auto& event : events) {
         lua_api->registerAutocmd(event, ref, pattern, once, nested, desc, group);
     }
-    
+
     lua_pushboolean(L, true);
     return 1;
 }
@@ -457,7 +460,8 @@ int SystemAPI::lua_api_clear_autocmds(lua_State* L) {
 }
 
 // 解析命令选项
-void SystemAPI::parseCommandOptions(lua_State* L, int opts_index, std::string& nargs, std::string& desc, bool& force) {
+void SystemAPI::parseCommandOptions(lua_State* L, int opts_index, std::string& nargs,
+                                    std::string& desc, bool& force) {
     lua_getfield(L, opts_index, "nargs");
     if (lua_isstring(L, -1)) {
         nargs = lua_tostring(L, -1);
@@ -481,7 +485,8 @@ void SystemAPI::parseCommandOptions(lua_State* L, int opts_index, std::string& n
 }
 
 // 解析键映射选项
-void SystemAPI::parseKeymapOptions(lua_State* L, int opts_index, bool& noremap, bool& silent, bool& expr, bool& nowait, std::string& desc) {
+void SystemAPI::parseKeymapOptions(lua_State* L, int opts_index, bool& noremap, bool& silent,
+                                   bool& expr, bool& nowait, std::string& desc) {
     lua_getfield(L, opts_index, "noremap");
     if (lua_isboolean(L, -1)) {
         noremap = lua_toboolean(L, -1) != 0;
@@ -514,7 +519,8 @@ void SystemAPI::parseKeymapOptions(lua_State* L, int opts_index, bool& noremap, 
 }
 
 // 解析autocmd选项
-void SystemAPI::parseAutocmdOptions(lua_State* L, int opts_index, std::string& pattern, bool& once, bool& nested, std::string& desc, std::string& group) {
+void SystemAPI::parseAutocmdOptions(lua_State* L, int opts_index, std::string& pattern, bool& once,
+                                    bool& nested, std::string& desc, std::string& group) {
     lua_getfield(L, opts_index, "pattern");
     if (lua_isstring(L, -1)) {
         pattern = lua_tostring(L, -1);

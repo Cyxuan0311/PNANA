@@ -1,9 +1,9 @@
 #ifdef BUILD_LUA_SUPPORT
 
 #include "plugins/plugin_manager.h"
-#include "plugins/path_validator.h"
-#include "plugins/file_api.h"
 #include "core/editor.h"
+#include "plugins/file_api.h"
+#include "plugins/path_validator.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <cstdlib>
@@ -465,13 +465,13 @@ bool PluginManager::executeCommand(const std::string& command_name) {
     // 命令参数从command_name中提取（格式：CommandName args）
     std::string name = command_name;
     std::string args = "";
-    
+
     size_t space_pos = command_name.find(' ');
     if (space_pos != std::string::npos) {
         name = command_name.substr(0, space_pos);
         args = command_name.substr(space_pos + 1);
     }
-    
+
     return lua_api_->executeCommand(name, args);
 }
 
@@ -490,13 +490,13 @@ void PluginManager::initializeSandbox() {
 
     // 查找插件目录
     std::string plugin_dir = findPluginDirectory();
-    
+
     // 设置允许的路径
     std::vector<std::string> allowed_paths;
     if (!plugin_dir.empty()) {
         allowed_paths.push_back(plugin_dir);
     }
-    
+
     // 添加当前工作目录（如果存在）
     try {
         std::string cwd = fs::current_path().string();
@@ -505,15 +505,15 @@ void PluginManager::initializeSandbox() {
     } catch (const std::exception& e) {
         LOG_WARNING("Failed to get current working directory: " + std::string(e.what()));
     }
-    
+
     // 设置允许的路径
     path_validator_->setAllowedPaths(allowed_paths);
-    
+
     // 配置沙盒设置
     sandbox_config_.allow_system_commands = false; // 禁用系统命令
-    sandbox_config_.max_memory_mb = 512; // 最大内存512MB
-    sandbox_config_.max_execution_time_ms = 5000; // 最大执行时间5秒
-    
+    sandbox_config_.max_memory_mb = 512;           // 最大内存512MB
+    sandbox_config_.max_execution_time_ms = 5000;  // 最大执行时间5秒
+
     LOG("Plugin sandbox initialized: " + std::to_string(allowed_paths.size()) + " allowed paths");
 }
 

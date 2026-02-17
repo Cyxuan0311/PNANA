@@ -1752,11 +1752,11 @@ void Editor::showSymbolNavigation() {
         setStatusMessage("LSP server not connected for this file.");
         return;
     }
-    
+
     // 确保文档已经通过 didOpen 添加到 LSP 服务器
     std::string uri = lsp_client->filepathToUri(file_path);
     std::string language_id = detectLanguageId(file_path);
-    
+
     // 检查文档是否已经打开
     bool needs_did_open = (file_language_map_.find(uri) == file_language_map_.end());
     if (needs_did_open) {
@@ -1792,9 +1792,10 @@ void Editor::showSymbolNavigation() {
             }
 
             // 设置跳转回调（用于预览跳转）
-            symbol_navigation_popup_.setJumpCallback([this](const pnana::features::DocumentSymbol& symbol) {
-                jumpToSymbol(symbol);
-            });
+            symbol_navigation_popup_.setJumpCallback(
+                [this](const pnana::features::DocumentSymbol& symbol) {
+                    jumpToSymbol(symbol);
+                });
 
             symbol_navigation_popup_.show();
             show_symbol_navigation_popup_ = true;

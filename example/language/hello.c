@@ -2,13 +2,13 @@
 #include <stdlib.h>
 
 // C语言示例 - Hello World
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     printf("Hello, C World!\n");
 
     // 变量声明
     int number = 42;
     float pi = 3.14159;
-    char *message = "This is a test";
+    char* message = "This is a test";
 
     // 条件语句
     if (number > 40) {

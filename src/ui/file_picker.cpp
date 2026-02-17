@@ -253,10 +253,10 @@ Element FilePicker::render() {
     Element search_box;
     if (focus_in_search_) {
         // 焦点在搜索框时高亮显示
-        search_box = hbox({text(" "), text(ui::icons::SEARCH) | color(colors.keyword) | bold,
-                           text(" Search: ") | color(colors.keyword) | bold,
-                           text(filter_input_ + "_") | color(colors.foreground) |
-                               bgcolor(colors.selection)});
+        search_box = hbox(
+            {text(" "), text(ui::icons::SEARCH) | color(colors.keyword) | bold,
+             text(" Search: ") | color(colors.keyword) | bold,
+             text(filter_input_ + "_") | color(colors.foreground) | bgcolor(colors.selection)});
     } else {
         // 焦点不在搜索框时正常显示
         std::string search_display = filter_input_.empty() ? "Type to search..." : filter_input_;

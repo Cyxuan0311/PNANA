@@ -926,33 +926,87 @@ DocumentSymbol LspClient::jsonToDocumentSymbol(const jsonrpccxx::json& json, int
             int kind_num = json["kind"].get<int>();
             // 映射LSP符号类型到字符串
             switch (kind_num) {
-                case 1: symbol.kind = "File"; break;
-                case 2: symbol.kind = "Module"; break;
-                case 3: symbol.kind = "Namespace"; break;
-                case 4: symbol.kind = "Package"; break;
-                case 5: symbol.kind = "Class"; break;
-                case 6: symbol.kind = "Method"; break;
-                case 7: symbol.kind = "Property"; break;
-                case 8: symbol.kind = "Field"; break;
-                case 9: symbol.kind = "Constructor"; break;
-                case 10: symbol.kind = "Enum"; break;
-                case 11: symbol.kind = "Interface"; break;
-                case 12: symbol.kind = "Function"; break;
-                case 13: symbol.kind = "Variable"; break;
-                case 14: symbol.kind = "Constant"; break;
-                case 15: symbol.kind = "String"; break;
-                case 16: symbol.kind = "Number"; break;
-                case 17: symbol.kind = "Boolean"; break;
-                case 18: symbol.kind = "Array"; break;
-                case 19: symbol.kind = "Object"; break;
-                case 20: symbol.kind = "Key"; break;
-                case 21: symbol.kind = "Null"; break;
-                case 22: symbol.kind = "EnumMember"; break;
-                case 23: symbol.kind = "Struct"; break;
-                case 24: symbol.kind = "Event"; break;
-                case 25: symbol.kind = "Operator"; break;
-                case 26: symbol.kind = "TypeParameter"; break;
-                default: symbol.kind = "Unknown"; break;
+                case 1:
+                    symbol.kind = "File";
+                    break;
+                case 2:
+                    symbol.kind = "Module";
+                    break;
+                case 3:
+                    symbol.kind = "Namespace";
+                    break;
+                case 4:
+                    symbol.kind = "Package";
+                    break;
+                case 5:
+                    symbol.kind = "Class";
+                    break;
+                case 6:
+                    symbol.kind = "Method";
+                    break;
+                case 7:
+                    symbol.kind = "Property";
+                    break;
+                case 8:
+                    symbol.kind = "Field";
+                    break;
+                case 9:
+                    symbol.kind = "Constructor";
+                    break;
+                case 10:
+                    symbol.kind = "Enum";
+                    break;
+                case 11:
+                    symbol.kind = "Interface";
+                    break;
+                case 12:
+                    symbol.kind = "Function";
+                    break;
+                case 13:
+                    symbol.kind = "Variable";
+                    break;
+                case 14:
+                    symbol.kind = "Constant";
+                    break;
+                case 15:
+                    symbol.kind = "String";
+                    break;
+                case 16:
+                    symbol.kind = "Number";
+                    break;
+                case 17:
+                    symbol.kind = "Boolean";
+                    break;
+                case 18:
+                    symbol.kind = "Array";
+                    break;
+                case 19:
+                    symbol.kind = "Object";
+                    break;
+                case 20:
+                    symbol.kind = "Key";
+                    break;
+                case 21:
+                    symbol.kind = "Null";
+                    break;
+                case 22:
+                    symbol.kind = "EnumMember";
+                    break;
+                case 23:
+                    symbol.kind = "Struct";
+                    break;
+                case 24:
+                    symbol.kind = "Event";
+                    break;
+                case 25:
+                    symbol.kind = "Operator";
+                    break;
+                case 26:
+                    symbol.kind = "TypeParameter";
+                    break;
+                default:
+                    symbol.kind = "Unknown";
+                    break;
             }
         } else if (json["kind"].is_string()) {
             symbol.kind = json["kind"].get<std::string>();

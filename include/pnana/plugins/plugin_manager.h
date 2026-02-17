@@ -25,10 +25,8 @@ struct SandboxConfig {
     size_t max_memory_mb;
     int max_execution_time_ms;
 
-    SandboxConfig() 
-        : allow_system_commands(false)
-        , max_memory_mb(512)
-        , max_execution_time_ms(5000) {}
+    SandboxConfig()
+        : allow_system_commands(false), max_memory_mb(512), max_execution_time_ms(5000) {}
 };
 
 // 插件信息

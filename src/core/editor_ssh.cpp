@@ -1,7 +1,7 @@
 #include "core/editor.h"
 #include "features/ssh/ssh_client.h"
-#include <sstream>
 #include <regex>
+#include <sstream>
 
 namespace pnana {
 namespace core {
@@ -14,11 +14,11 @@ bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config) {
 
     // 移除 ssh:// 前缀
     std::string remaining = path.substr(6);
-    
+
     // 解析格式: user@host:port/path 或 user@host/path
     std::regex ssh_regex(R"(^([^@]+)@([^:/]+)(?::(\d+))?(/.*)$)");
     std::smatch match;
-    
+
     if (std::regex_match(remaining, match, ssh_regex)) {
         config.user = match[1].str();
         config.host = match[2].str();
@@ -34,7 +34,7 @@ bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config) {
         config.remote_path = match[4].str();
         return true;
     }
-    
+
     return false;
 }
 
@@ -181,15 +181,15 @@ void Editor::handleSSHTransferCancel() {
     setStatusMessage("SSH: File transfer cancelled");
 }
 
-bool Editor::saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config, 
-                          const std::string& filepath) {
+bool Editor::saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config,
+                         const std::string& filepath) {
     if (!doc) {
         return false;
     }
 
     // 获取文档内容
     std::string content = doc->getContent();
-    
+
     // 确定远程路径
     std::string remote_path = config.remote_path;
     if (!filepath.empty()) {

@@ -19,36 +19,25 @@ namespace features {
 namespace ssh {
 
 // SSH异步操作类型
-enum class SSHTaskType {
-    READ_FILE,
-    WRITE_FILE,
-    UPLOAD_FILE,
-    DOWNLOAD_FILE
-};
+enum class SSHTaskType { READ_FILE, WRITE_FILE, UPLOAD_FILE, DOWNLOAD_FILE };
 
 // SSH异步任务状态
-enum class SSHTaskStatus {
-    PENDING,
-    RUNNING,
-    COMPLETED,
-    FAILED,
-    CANCELLED
-};
+enum class SSHTaskStatus { PENDING, RUNNING, COMPLETED, FAILED, CANCELLED };
 
 // SSH异步任务结果
 struct SSHTaskResult {
     SSHTaskStatus status;
     std::string content;
     std::string error;
-    
+
     SSHTaskResult() : status(SSHTaskStatus::PENDING), content(""), error("") {}
 };
 
 // SSH异步任务
 class SSHTask {
   public:
-    SSHTask(SSHTaskType type, const ui::SSHConfig& config, 
-            const std::string& param1 = "", const std::string& param2 = "");
+    SSHTask(SSHTaskType type, const ui::SSHConfig& config, const std::string& param1 = "",
+            const std::string& param2 = "");
     ~SSHTask();
 
     // 执行任务
@@ -91,14 +80,14 @@ class SSHTask {
     ui::SSHConfig config_;
     std::string param1_; // 用于writeFile的content，或upload/download的路径
     std::string param2_; // 用于upload/download的第二个路径
-    
+
     std::atomic<SSHTaskStatus> status_;
     mutable std::mutex result_mutex_;
     SSHTaskResult result_;
     std::string progress_;
-    
+
     std::atomic<bool> cancelled_;
-    
+
     static size_t next_id_;
     static std::mutex id_mutex_;
 };
@@ -130,19 +119,19 @@ class SSHAsyncManager {
   private:
     std::map<size_t, std::shared_ptr<SSHTask>> tasks_;
     std::mutex tasks_mutex_;
-    
+
     // 工作线程
     std::vector<std::thread> worker_threads_;
     std::atomic<bool> should_stop_;
-    
+
     // 任务队列
     std::queue<std::shared_ptr<SSHTask>> task_queue_;
     std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
-    
+
     // 工作线程函数
     void workerThread();
-    
+
     static constexpr size_t MAX_WORKER_THREADS = 2;
 };
 
@@ -151,4 +140,3 @@ class SSHAsyncManager {
 } // namespace pnana
 
 #endif // PNANA_FEATURES_SSH_SSH_ASYNC_MANAGER_H
-

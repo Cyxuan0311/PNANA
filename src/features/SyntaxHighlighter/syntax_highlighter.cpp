@@ -126,39 +126,87 @@ void SyntaxHighlighter::initializeLanguages() {
 
     // C# 关键字
     keywords_["csharp"] = {
-        "abstract",   "as",          "base",        "bool",        "break",      "byte",
-        "case",       "catch",       "char",        "checked",     "class",      "const",
-        "continue",   "decimal",     "default",     "delegate",    "do",         "double",
-        "else",       "enum",        "event",       "explicit",    "extern",     "false",
-        "finally",    "fixed",       "float",       "for",         "foreach",    "goto",
-        "if",         "implicit",    "in",          "int",         "interface",  "internal",
-        "is",         "lock",        "long",        "namespace",   "new",        "null",
-        "object",     "operator",    "out",         "override",    "params",     "private",
-        "protected",  "public",     "readonly",    "ref",         "return",     "sbyte",
-        "sealed",     "short",       "sizeof",     "stackalloc",  "static",     "string",
-        "struct",     "switch",      "this",       "throw",       "true",       "try",
-        "typeof",     "uint",        "ulong",      "unchecked",   "unsafe",     "ushort",
-        "using",      "virtual",     "void",       "volatile",    "while",      "yield",
-        "get",        "set",        "add",         "remove",      "value",      "partial",
-        "where",      "select",     "from",       "group",       "into",       "orderby",
-        "join",       "let",        "on",         "equals",      "by",         "ascending",
-        "descending", "var",        "dynamic",    "async",       "await",      "nameof",
-        "when",       "record",     "init",       "with",        "required",   "file",
-        "scoped",     "global",     "nint",       "nuint",       "and",        "or",
-        "not"};
+        "abstract", "as",         "base",    "bool",     "break",     "byte",       "case",
+        "catch",    "char",       "checked", "class",    "const",     "continue",   "decimal",
+        "default",  "delegate",   "do",      "double",   "else",      "enum",       "event",
+        "explicit", "extern",     "false",   "finally",  "fixed",     "float",      "for",
+        "foreach",  "goto",       "if",      "implicit", "in",        "int",        "interface",
+        "internal", "is",         "lock",    "long",     "namespace", "new",        "null",
+        "object",   "operator",   "out",     "override", "params",    "private",    "protected",
+        "public",   "readonly",   "ref",     "return",   "sbyte",     "sealed",     "short",
+        "sizeof",   "stackalloc", "static",  "string",   "struct",    "switch",     "this",
+        "throw",    "true",       "try",     "typeof",   "uint",      "ulong",      "unchecked",
+        "unsafe",   "ushort",     "using",   "virtual",  "void",      "volatile",   "while",
+        "yield",    "get",        "set",     "add",      "remove",    "value",      "partial",
+        "where",    "select",     "from",    "group",    "into",      "orderby",    "join",
+        "let",      "on",         "equals",  "by",       "ascending", "descending", "var",
+        "dynamic",  "async",      "await",   "nameof",   "when",      "record",     "init",
+        "with",     "required",   "file",    "scoped",   "global",    "nint",       "nuint",
+        "and",      "or",         "not"};
 
-    types_["csharp"] = {
-        "bool",      "byte",      "sbyte",     "char",       "decimal",   "double",
-        "float",     "int",       "uint",      "long",       "ulong",     "short",
-        "ushort",    "object",    "string",    "dynamic",    "void",       "var",
-        "nint",      "nuint",     "IntPtr",    "UIntPtr",    "DateTime",  "TimeSpan",
-        "Guid",      "Array",     "List",      "Dictionary", "HashSet",   "Queue",
-        "Stack",     "Tuple",     "ValueTuple", "Task",      "Task<T>",   "IEnumerable",
-        "IEnumerable<T>", "ICollection", "ICollection<T>", "IList", "IList<T>",
-        "IDictionary", "IDictionary<TKey,TValue>", "Exception", "System", "Console",
-        "Math",      "StringBuilder", "Regex", "File", "Directory", "Path",
-        "Stream",    "StreamReader", "StreamWriter", "XmlDocument", "XDocument",
-        "XElement",  "XAttribute", "JsonConvert", "JObject", "JArray", "JToken"};
+    types_["csharp"] = {"bool",
+                        "byte",
+                        "sbyte",
+                        "char",
+                        "decimal",
+                        "double",
+                        "float",
+                        "int",
+                        "uint",
+                        "long",
+                        "ulong",
+                        "short",
+                        "ushort",
+                        "object",
+                        "string",
+                        "dynamic",
+                        "void",
+                        "var",
+                        "nint",
+                        "nuint",
+                        "IntPtr",
+                        "UIntPtr",
+                        "DateTime",
+                        "TimeSpan",
+                        "Guid",
+                        "Array",
+                        "List",
+                        "Dictionary",
+                        "HashSet",
+                        "Queue",
+                        "Stack",
+                        "Tuple",
+                        "ValueTuple",
+                        "Task",
+                        "Task<T>",
+                        "IEnumerable",
+                        "IEnumerable<T>",
+                        "ICollection",
+                        "ICollection<T>",
+                        "IList",
+                        "IList<T>",
+                        "IDictionary",
+                        "IDictionary<TKey,TValue>",
+                        "Exception",
+                        "System",
+                        "Console",
+                        "Math",
+                        "StringBuilder",
+                        "Regex",
+                        "File",
+                        "Directory",
+                        "Path",
+                        "Stream",
+                        "StreamReader",
+                        "StreamWriter",
+                        "XmlDocument",
+                        "XDocument",
+                        "XElement",
+                        "XAttribute",
+                        "JsonConvert",
+                        "JObject",
+                        "JArray",
+                        "JToken"};
 
     // Shell 关键字
     keywords_["shell"] = {"if",   "then",  "else",     "elif", "fi",     "case",     "esac",
@@ -5001,21 +5049,23 @@ std::vector<Token> SyntaxHighlighter::tokenizeCSharp(const std::string& line) {
                 if (i + 2 < line.length()) {
                     three_char = line.substr(i, 3);
                     // 使用字符比较避免 trigraph 警告
-                    if (three_char.length() == 3 && 
-                        three_char[0] == '?' && three_char[1] == '?' && three_char[2] == '=') {
+                    if (three_char.length() == 3 && three_char[0] == '?' && three_char[1] == '?' &&
+                        three_char[2] == '=') {
                         is_three_char_op = true;
                     }
                 }
-                
+
                 if (is_three_char_op) {
                     op = three_char;
                     i += 3;
-                } else if (two_char == "==" || two_char == "!=" || two_char == "<=" || two_char == ">=" ||
-                    two_char == "&&" || two_char == "||" || two_char == "<<" || two_char == ">>" ||
-                    two_char == "++" || two_char == "--" || two_char == "+=" || two_char == "-=" ||
-                    two_char == "*=" || two_char == "/=" || two_char == "%=" || two_char == "&=" ||
-                    two_char == "|=" || two_char == "^=" || two_char == "=>" || two_char == "??" ||
-                    two_char == "?." || two_char == "?[") {
+                } else if (two_char == "==" || two_char == "!=" || two_char == "<=" ||
+                           two_char == ">=" || two_char == "&&" || two_char == "||" ||
+                           two_char == "<<" || two_char == ">>" || two_char == "++" ||
+                           two_char == "--" || two_char == "+=" || two_char == "-=" ||
+                           two_char == "*=" || two_char == "/=" || two_char == "%=" ||
+                           two_char == "&=" || two_char == "|=" || two_char == "^=" ||
+                           two_char == "=>" || two_char == "??" || two_char == "?." ||
+                           two_char == "?[") {
                     op = two_char;
                     i += 2;
                 } else {

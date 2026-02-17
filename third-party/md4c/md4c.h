@@ -264,7 +264,7 @@ typedef struct MD_BLOCK_CODE_DETAIL {
     MD_ATTRIBUTE info;
     MD_ATTRIBUTE lang;
     MD_CHAR
-        fence_char; /* The character used for fenced code block; or zero for indented code block. */
+    fence_char; /* The character used for fenced code block; or zero for indented code block. */
 } MD_BLOCK_CODE_DETAIL;
 
 /* Detailed info for MD_BLOCK_TABLE. */
@@ -304,8 +304,9 @@ typedef struct MD_SPAN_WIKILINK {
  */
 #define MD_FLAG_COLLAPSEWHITESPACE                                                                 \
     0x0001 /* In MD_TEXT_NORMAL, collapse non-trivial whitespace into single ' ' */
-#define MD_FLAG_PERMISSIVEATXHEADERS 0x0002 /* Do not require space in ATX headers ( ###header )   \
-                                             */
+#define MD_FLAG_PERMISSIVEATXHEADERS                                                               \
+    0x0002 /* Do not require space in ATX headers ( ###header )                                    \
+            */
 #define MD_FLAG_PERMISSIVEURLAUTOLINKS                                                             \
     0x0004 /* Recognize URLs as autolinks even without '<', '>' */
 #define MD_FLAG_PERMISSIVEEMAILAUTOLINKS                                                           \

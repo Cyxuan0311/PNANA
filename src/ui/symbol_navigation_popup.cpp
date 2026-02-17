@@ -12,20 +12,21 @@ namespace ui {
 SymbolNavigationPopup::SymbolNavigationPopup(Theme& theme)
     : theme_(theme), selected_index_(0), visible_(false), jump_callback_(nullptr) {}
 
-void SymbolNavigationPopup::setSymbols(const std::vector<pnana::features::DocumentSymbol>& symbols) {
+void SymbolNavigationPopup::setSymbols(
+    const std::vector<pnana::features::DocumentSymbol>& symbols) {
     symbols_ = symbols;
     flattened_symbols_.clear();
     flattenSymbols(symbols);
     selected_index_ = flattened_symbols_.empty() ? 0 : 0;
 }
 
-void SymbolNavigationPopup::flattenSymbols(const std::vector<pnana::features::DocumentSymbol>& symbols,
-                                           int depth) {
+void SymbolNavigationPopup::flattenSymbols(
+    const std::vector<pnana::features::DocumentSymbol>& symbols, int depth) {
     for (const auto& symbol : symbols) {
         pnana::features::DocumentSymbol flat_symbol = symbol;
         flat_symbol.depth = depth;
         flattened_symbols_.push_back(flat_symbol);
-        
+
         // 递归处理子符号
         if (!symbol.children.empty()) {
             flattenSymbols(symbol.children, depth + 1);
@@ -58,7 +59,8 @@ void SymbolNavigationPopup::selectNext() {
 
 void SymbolNavigationPopup::selectPrevious() {
     if (!flattened_symbols_.empty()) {
-        selected_index_ = (selected_index_ + flattened_symbols_.size() - 1) % flattened_symbols_.size();
+        selected_index_ =
+            (selected_index_ + flattened_symbols_.size() - 1) % flattened_symbols_.size();
         // 触发预览跳转
         if (jump_callback_ && selected_index_ < flattened_symbols_.size()) {
             jump_callback_(flattened_symbols_[selected_index_]);
@@ -183,7 +185,7 @@ Element SymbolNavigationPopup::render() const {
 }
 
 Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentSymbol& symbol,
-                                               bool is_selected) const {
+                                                bool is_selected) const {
     auto& colors = theme_.getColors();
 
     // 获取符号类型图标和颜色
@@ -202,19 +204,20 @@ Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentS
 
     // 构建显示文本
     Elements line_elements;
-    
+
     // 缩进
     if (!indent.empty()) {
         line_elements.push_back(text(indent));
     }
-    
+
     // 图标
     line_elements.push_back(text(icon) | color(kind_color));
     line_elements.push_back(text(" "));
-    
+
     // 符号名称
-    line_elements.push_back(text(symbol.name) | color(is_selected ? colors.foreground : kind_color));
-    
+    line_elements.push_back(text(symbol.name) |
+                            color(is_selected ? colors.foreground : kind_color));
+
     // 详细信息（如果有）
     if (!symbol.detail.empty()) {
         std::string detail = symbol.detail;
@@ -223,7 +226,7 @@ Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentS
         }
         line_elements.push_back(text(" " + detail) | dim);
     }
-    
+
     // 位置信息（右对齐）
     line_elements.push_back(text("") | flex);
     line_elements.push_back(text(location) | dim);
@@ -265,7 +268,7 @@ std::string SymbolNavigationPopup::getKindIcon(const std::string& kind) const {
 
 Color SymbolNavigationPopup::getKindColor(const std::string& kind) const {
     auto& colors = theme_.getColors();
-    
+
     // 根据符号类型返回对应的颜色
     if (kind == "Function" || kind == "12" || kind == "Method" || kind == "6") {
         return colors.function; // 函数和方法用函数色
@@ -291,4 +294,3 @@ size_t SymbolNavigationPopup::getSymbolCount() const {
 
 } // namespace ui
 } // namespace pnana
-
