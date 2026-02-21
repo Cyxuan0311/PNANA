@@ -67,9 +67,10 @@ bool PluginManager::initialize() {
             auto& config = editor_->getConfigManager().getConfig();
             std::string saved_theme = config.current_theme; // 保存当前主题
 
+            // 启动时加载已启用的插件，但不保存配置（避免启动时的文件I/O）
             for (const auto& plugin_name : config.plugins.enabled_plugins) {
                 if (plugin_paths_.find(plugin_name) != plugin_paths_.end()) {
-                    enablePlugin(plugin_name);
+                    enablePlugin(plugin_name, false); // false = 不保存配置
                 }
             }
 
@@ -389,7 +390,7 @@ PluginInfo PluginManager::getPluginInfo(const std::string& plugin_name) const {
     return PluginInfo();
 }
 
-bool PluginManager::enablePlugin(const std::string& plugin_name) {
+bool PluginManager::enablePlugin(const std::string& plugin_name, bool save_config) {
     auto it = plugin_paths_.find(plugin_name);
     if (it == plugin_paths_.end()) {
         return false;
@@ -404,15 +405,20 @@ bool PluginManager::enablePlugin(const std::string& plugin_name) {
     // 加载插件
     bool success = loadPlugin(it->second);
     if (success && editor_) {
-        // 保存到配置
+        // 更新配置中的启用列表（但不一定保存到文件）
         auto& config_manager = editor_->getConfigManager();
         auto& config = config_manager.getConfig();
         // 检查是否已经在启用列表中
         auto& enabled_plugins = config.plugins.enabled_plugins;
-        if (std::find(enabled_plugins.begin(), enabled_plugins.end(), plugin_name) ==
-            enabled_plugins.end()) {
+        bool was_in_list = std::find(enabled_plugins.begin(), enabled_plugins.end(), plugin_name) !=
+                           enabled_plugins.end();
+
+        if (!was_in_list) {
             enabled_plugins.push_back(plugin_name);
-            // 保存配置
+        }
+
+        // 只在用户操作时保存配置，启动时加载不保存（避免启动时的文件I/O）
+        if (save_config && !was_in_list) {
             config_manager.saveConfig();
         }
 

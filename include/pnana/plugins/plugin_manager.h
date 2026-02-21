@@ -75,7 +75,8 @@ class PluginManager {
     PluginInfo getPluginInfo(const std::string& plugin_name) const;
 
     // 启用插件
-    bool enablePlugin(const std::string& plugin_name);
+    // save_config: true=保存配置到文件（用户操作时）, false=不保存配置（启动时加载）
+    bool enablePlugin(const std::string& plugin_name, bool save_config = true);
 
     // 禁用插件
     bool disablePlugin(const std::string& plugin_name);
