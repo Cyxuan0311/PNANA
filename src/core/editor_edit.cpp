@@ -3,6 +3,7 @@
 #include "core/editor.h"
 #include "utils/clipboard.h"
 #include "utils/logger.h"
+#include "utils/text_utils.h"
 #include <iostream>
 #include <sstream>
 
@@ -96,6 +97,68 @@ void Editor::insertChar(char ch) {
 #endif
 }
 
+void Editor::insertText(const std::string& text) {
+    if (text.empty()) {
+        return;
+    }
+
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        return;
+    }
+
+    // 记录变更（阶段2优化：增量更新）
+#ifdef BUILD_LSP_SUPPORT
+    if (lsp_enabled_ && document_change_tracker_) {
+        document_change_tracker_->recordInsert(static_cast<int>(cursor_row_),
+                                               static_cast<int>(cursor_col_), text);
+    }
+#endif
+
+    // 使用 Document 的 insertText 方法插入文本
+    doc->insertText(cursor_row_, cursor_col_, text);
+
+    // 更新光标位置：对于UTF-8字符，需要按字符数移动光标
+    // 由于 cursor_col_ 是按字节索引的，所以直接加上文本长度
+    cursor_col_ += text.length();
+
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_insertText";
+    }
+
+    // 更新单词高亮（光标位置变化）
+    updateWordHighlight();
+
+#ifdef BUILD_LSP_SUPPORT
+    // 对于UTF-8字符，不触发代码补全（中文等字符通常不需要补全）
+    // 但如果是ASCII字符，仍然可以触发补全
+    if (lsp_enabled_ && lsp_manager_ && text.length() == 1) {
+        char ch = text[0];
+        if (std::isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '-' || ch == '>') {
+            completion_trigger_delay_++;
+            if (completion_trigger_delay_ >= 3) {
+                completion_trigger_delay_ = 0;
+                updateLspDocument();
+                triggerCompletion();
+            }
+        } else if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '(' || ch == '[' || ch == '{') {
+            completion_popup_.hide();
+            completion_trigger_delay_ = 0;
+        } else {
+            completion_popup_.hide();
+            completion_trigger_delay_ = 0;
+        }
+    } else {
+        // 多字节字符，隐藏补全弹窗
+        completion_popup_.hide();
+        completion_trigger_delay_ = 0;
+    }
+#endif
+}
+
 void Editor::insertNewline() {
     Document* doc = getCurrentDocument();
     if (!doc)
@@ -139,15 +202,43 @@ void Editor::insertNewline() {
 
 void Editor::deleteChar() {
     Document* doc = getCurrentDocument();
-    if (doc) {
-        doc->deleteChar(cursor_row_, cursor_col_);
+    if (!doc) {
+        return;
+    }
 
-        // 更新markdown预览（延迟更新以提升性能）
-        if (isMarkdownPreviewActive()) {
-            markdown_preview_needs_update_ = true;
-            last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-            last_render_source_ = "edit_deleteSelection";
+    const std::string& line = doc->getLine(cursor_row_);
+
+    // 如果光标不在行尾，删除下一个UTF-8字符
+    if (cursor_col_ < line.length()) {
+        // 计算需要删除的UTF-8字符的字节数
+        size_t bytes_to_delete = utils::getUtf8CharBytesAfter(line, cursor_col_);
+
+        // 确保不会越界
+        if (cursor_col_ + bytes_to_delete > line.length()) {
+            bytes_to_delete = line.length() - cursor_col_;
         }
+
+        // 删除完整的UTF-8字符
+        std::string& mutable_line = doc->getLines()[cursor_row_];
+        std::string deleted_char = line.substr(cursor_col_, bytes_to_delete);
+        mutable_line.erase(cursor_col_, bytes_to_delete);
+
+        // 记录删除操作到撤销栈
+        doc->pushChange(DocumentChange(DocumentChange::Type::DELETE, cursor_row_, cursor_col_,
+                                       deleted_char, ""));
+        doc->setModified(true);
+    } else if (cursor_row_ < doc->lineCount() - 1) {
+        // 光标在行尾，合并下一行
+        std::string next_line = doc->getLine(cursor_row_ + 1);
+        doc->getLines()[cursor_row_] += next_line;
+        doc->deleteLine(cursor_row_ + 1);
+    }
+
+    // 更新markdown预览（延迟更新以提升性能）
+    if (isMarkdownPreviewActive()) {
+        markdown_preview_needs_update_ = true;
+        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
+        last_render_source_ = "edit_deleteChar";
     }
 }
 
@@ -234,8 +325,32 @@ void Editor::backspace() {
 
     // 没有选中内容，执行正常的退格操作
     if (cursor_col_ > 0) {
-        cursor_col_--;
-        doc->deleteChar(cursor_row_, cursor_col_);
+        // 获取当前行的内容
+        const std::string& line = doc->getLine(cursor_row_);
+
+        // 计算需要删除的UTF-8字符的字节数
+        size_t bytes_to_delete = utils::getUtf8CharBytesBefore(line, cursor_col_);
+
+        // 确保不会越界
+        if (bytes_to_delete > cursor_col_) {
+            bytes_to_delete = cursor_col_;
+        }
+
+        if (bytes_to_delete == 0) {
+            bytes_to_delete = 1;
+        }
+
+        // 删除完整的UTF-8字符
+        std::string& mutable_line = doc->getLines()[cursor_row_];
+        std::string deleted_char = line.substr(cursor_col_ - bytes_to_delete, bytes_to_delete);
+
+        mutable_line.erase(cursor_col_ - bytes_to_delete, bytes_to_delete);
+        cursor_col_ -= bytes_to_delete;
+
+        // 记录删除操作到撤销栈
+        doc->pushChange(DocumentChange(DocumentChange::Type::DELETE, cursor_row_, cursor_col_,
+                                       deleted_char, ""));
+        doc->setModified(true);
     } else if (cursor_row_ > 0) {
         size_t prev_len = doc->getLine(cursor_row_ - 1).length();
         // 合并行
@@ -256,7 +371,7 @@ void Editor::backspace() {
     if (isMarkdownPreviewActive()) {
         markdown_preview_needs_update_ = true;
         last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_deleteChar";
+        last_render_source_ = "edit_backspace";
     }
 }
 

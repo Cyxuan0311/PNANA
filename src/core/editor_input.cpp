@@ -5,6 +5,7 @@
 #include "input/key_action.h"
 #include "ui/icons.h"
 #include "utils/logger.h"
+#include "utils/text_utils.h"
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <iostream>
@@ -1273,19 +1274,37 @@ void Editor::handleNormalMode(Event event) {
     } else if (event == Event::Return) {
         insertNewline();
     }
-    // 可打印字符 - 直接插入
+    // 可打印字符 - 直接插入（支持UTF-8多字节字符，如中文）
     else if (event.is_character()) {
         std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            // 只接受可打印ASCII字符（32-126），排除控制字符
-            // 注意：补全弹窗的导航键（上下键、Return、Tab、Escape）已在函数开头优先处理
-            if (c >= 32 && c < 127) {
+
+        if (!ch.empty()) {
+            // 检查是否为可打印字符
+            // 对于单字节字符，检查是否为ASCII可打印字符（32-126）
+            // 对于多字节UTF-8字符（如中文），直接接受
+            bool is_printable = false;
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // ASCII可打印字符
+                if (c >= 32 && c < 127) {
+                    is_printable = true;
+                }
+            } else {
+                // 多字节UTF-8字符（如中文、日文、韩文等）
+                // 检查是否为有效的UTF-8字符（首字节应该是0xC0-0xFF）
+                unsigned char first_byte = static_cast<unsigned char>(ch[0]);
+                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                    is_printable = true;
+                }
+            }
+
+            if (is_printable) {
                 // When in snippet session, typing should overwrite currently selected placeholder.
                 if (snippet_session_active_ && selection_active_) {
                     backspace(); // deletes selection and clears selection mode
                 }
-                insertChar(c);
+                // 使用 insertText 支持多字节字符
+                insertText(ch);
             }
         }
     }
@@ -1349,8 +1368,19 @@ void Editor::handleSearchMode(Event event) {
         }
     } else if (event == Event::Backspace) {
         if (search_cursor_pos_ > 0) {
-            search_input_.erase(search_cursor_pos_ - 1, 1);
-            search_cursor_pos_--;
+            // 计算需要删除的UTF-8字符的字节数
+            size_t bytes_to_delete =
+                utils::getUtf8CharBytesBefore(search_input_, search_cursor_pos_);
+
+            // 确保不会越界
+            if (bytes_to_delete > search_cursor_pos_) {
+                bytes_to_delete = search_cursor_pos_;
+            }
+
+            // 删除完整的UTF-8字符
+            search_input_.erase(search_cursor_pos_ - bytes_to_delete, bytes_to_delete);
+            search_cursor_pos_ -= bytes_to_delete;
+
             // 实时执行搜索（如果还有输入），使用当前选择的选项
             if (!search_input_.empty()) {
                 features::SearchOptions options = buildSearchOptions();
@@ -1372,18 +1402,30 @@ void Editor::handleSearchMode(Event event) {
     } else if (event == Event::End) {
         search_cursor_pos_ = search_input_.length();
     } else if (event.is_character()) {
-        // 只接受可打印字符
+        // 支持UTF-8多字节字符（如中文）
         std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            if (c >= 32 && c < 127) {
-                if (search_cursor_pos_ <= search_input_.length()) {
-                    search_input_.insert(search_cursor_pos_, 1, c);
-                    search_cursor_pos_++;
-                    // 实时执行搜索（不移动光标，只高亮），使用当前选择的选项
-                    features::SearchOptions options = buildSearchOptions();
-                    performSearch(search_input_, options);
+        if (!ch.empty()) {
+            bool is_printable = false;
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // ASCII可打印字符
+                if (c >= 32 && c < 127) {
+                    is_printable = true;
                 }
+            } else {
+                // 多字节UTF-8字符（如中文、日文、韩文等）
+                unsigned char first_byte = static_cast<unsigned char>(ch[0]);
+                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                    is_printable = true;
+                }
+            }
+
+            if (is_printable && search_cursor_pos_ <= search_input_.length()) {
+                search_input_.insert(search_cursor_pos_, ch);
+                search_cursor_pos_ += ch.length(); // 按字节数移动光标
+                // 实时执行搜索（不移动光标，只高亮），使用当前选择的选项
+                features::SearchOptions options = buildSearchOptions();
+                performSearch(search_input_, options);
             }
         }
     }
@@ -1442,8 +1484,18 @@ void Editor::handleReplaceMode(Event event) {
         }
     } else if (event == Event::Backspace) {
         if (replace_cursor_pos_ > 0) {
-            replace_input_.erase(replace_cursor_pos_ - 1, 1);
-            replace_cursor_pos_--;
+            // 计算需要删除的UTF-8字符的字节数
+            size_t bytes_to_delete =
+                utils::getUtf8CharBytesBefore(replace_input_, replace_cursor_pos_);
+
+            // 确保不会越界
+            if (bytes_to_delete > replace_cursor_pos_) {
+                bytes_to_delete = replace_cursor_pos_;
+            }
+
+            // 删除完整的UTF-8字符
+            replace_input_.erase(replace_cursor_pos_ - bytes_to_delete, bytes_to_delete);
+            replace_cursor_pos_ -= bytes_to_delete;
         }
     } else if (event == Event::ArrowLeft) {
         if (replace_cursor_pos_ > 0) {
@@ -1458,15 +1510,27 @@ void Editor::handleReplaceMode(Event event) {
     } else if (event == Event::End) {
         replace_cursor_pos_ = replace_input_.length();
     } else if (event.is_character()) {
-        // 只接受可打印字符
+        // 支持UTF-8多字节字符（如中文）
         std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            if (c >= 32 && c < 127) {
-                if (replace_cursor_pos_ <= replace_input_.length()) {
-                    replace_input_.insert(replace_cursor_pos_, 1, c);
-                    replace_cursor_pos_++;
+        if (!ch.empty()) {
+            bool is_printable = false;
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // ASCII可打印字符
+                if (c >= 32 && c < 127) {
+                    is_printable = true;
                 }
+            } else {
+                // 多字节UTF-8字符（如中文、日文、韩文等）
+                unsigned char first_byte = static_cast<unsigned char>(ch[0]);
+                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                    is_printable = true;
+                }
+            }
+
+            if (is_printable && replace_cursor_pos_ <= replace_input_.length()) {
+                replace_input_.insert(replace_cursor_pos_, ch);
+                replace_cursor_pos_ += ch.length(); // 按字节数移动光标
             }
         }
     }
