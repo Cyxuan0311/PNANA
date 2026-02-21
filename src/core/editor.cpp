@@ -94,8 +94,8 @@ Editor::Editor()
     // 加载配置文件（使用默认路径）
     loadConfig();
 
-    // 初始化文件浏览器到当前目录
-    file_browser_.openDirectory(".");
+    // 文件浏览器延迟加载：不在构造函数中加载目录，只在首次显示时才加载
+    // 这样可以避免启动时扫描大目录导致的延迟
 
     // 初始化包管理器注册表
     {
@@ -226,8 +226,9 @@ Editor::Editor()
 #endif
 
 #ifdef BUILD_LUA_SUPPORT
-    // 初始化插件系统
-    initializePlugins();
+    // 插件系统延迟初始化：不在启动时初始化，只在首次需要时才初始化
+    // 这样可以避免启动时加载插件导致的延迟
+    plugin_manager_initialized_ = false;
 #endif
     // 启动光标闪烁刷新线程（轻量级，仅在启用闪烁时触发 UI 刷新）
     std::thread([this]() {
@@ -2392,9 +2393,19 @@ void Editor::initializePlugins() {
         // 设置插件管理对话框的插件管理器指针
         plugin_manager_dialog_.setPluginManager(plugin_manager_.get());
     }
+    plugin_manager_initialized_ = true;
+}
+
+void Editor::ensurePluginManagerInitialized() {
+    if (!plugin_manager_initialized_) {
+        initializePlugins();
+    }
 }
 
 void Editor::openPluginManager() {
+    // 延迟初始化插件系统
+    ensurePluginManagerInitialized();
+
     if (plugin_manager_) {
         plugin_manager_dialog_.open();
         setStatusMessage("Plugin Manager | ↑↓: Navigate, Space/Enter: Toggle, Esc: Close");
@@ -2471,6 +2482,9 @@ std::string Editor::getCallStackInfo() {
 
 #ifdef BUILD_LUA_SUPPORT
 void Editor::triggerPluginEvent(const std::string& event, const std::vector<std::string>& args) {
+    // 延迟初始化插件系统
+    ensurePluginManagerInitialized();
+
     if (plugin_manager_) {
         plugin_manager_->triggerEvent(event, args);
     }

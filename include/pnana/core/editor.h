@@ -167,6 +167,7 @@ class Editor {
 
     // 编辑操作
     void insertChar(char ch);
+    void insertText(const std::string& text); // 支持UTF-8多字节字符（如中文）
     void insertNewline();
     void deleteChar();
     void backspace();
@@ -544,6 +545,7 @@ class Editor {
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理器
     std::unique_ptr<plugins::PluginManager> plugin_manager_;
+    bool plugin_manager_initialized_; // 标记插件管理器是否已初始化（用于延迟初始化）
 #endif
 
     // 编辑器状态
@@ -925,7 +927,9 @@ class Editor {
 #ifdef BUILD_LUA_SUPPORT
     // 插件系统
     void initializePlugins();
+    void ensurePluginManagerInitialized(); // 确保插件管理器已初始化（延迟初始化）
     plugins::PluginManager* getPluginManager() {
+        ensurePluginManagerInitialized();
         return plugin_manager_.get();
     }
 
