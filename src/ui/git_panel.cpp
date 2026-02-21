@@ -39,9 +39,6 @@ Component GitPanel::getComponent() {
     if (!main_component_ || component_needs_rebuild_) {
         main_component_ = buildMainComponent();
         component_needs_rebuild_ = false; // Reset the flag after rebuild
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::getComponent - Component rebuilt, needs_rebuild was: " +
-            std::string(component_needs_rebuild_ ? "true" : "false"));
     }
     return main_component_;
 }
@@ -54,22 +51,9 @@ void GitPanel::onShow() {
 
     // 如果还没加载过数据，开始异步加载（不阻塞UI）
     if (!data_loaded_ && !data_loading_) {
-        pnana::utils::Logger::getInstance().log("GitPanel::onShow - Starting async data loading");
-
         // 异步加载数据，不阻塞UI
         std::thread([this]() {
-            auto start_time = std::chrono::high_resolution_clock::now();
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::onShow - ASYNC: Starting data loading");
-
             refreshData();
-
-            auto end_time = std::chrono::high_resolution_clock::now();
-            auto duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::onShow - ASYNC: Data loading completed - " +
-                std::to_string(duration.count()) + "ms");
         }).detach(); // 分离线程，让它在后台运行
     }
 }
@@ -79,37 +63,16 @@ void GitPanel::onHide() {
 }
 
 bool GitPanel::onKeyPress(Event event) {
-    auto start_time = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::onKeyPress - START");
-
     if (!visible_) {
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitPanel::onKeyPress - END (not visible) - " +
-                                                std::to_string(duration.count()) + "ms");
         return false;
     }
 
     if (event == Event::Escape) {
-        auto escape_start = std::chrono::high_resolution_clock::now();
         hide();
-        auto escape_end = std::chrono::high_resolution_clock::now();
-        auto escape_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(escape_end - escape_start);
-        pnana::utils::Logger::getInstance().log("GitPanel::hide() took " +
-                                                std::to_string(escape_duration.count()) + "ms");
-
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitPanel::onKeyPress - END (escape) - " +
-                                                std::to_string(duration.count()) + "ms");
         return true;
     }
 
     bool handled = false;
-    auto handler_start = std::chrono::high_resolution_clock::now();
     switch (current_mode_) {
         case GitPanelMode::STATUS:
             handled = handleStatusModeKey(event);
@@ -133,12 +96,6 @@ bool GitPanel::onKeyPress(Event event) {
             handled = handleGraphModeKey(event);
             break;
     }
-    auto handler_end = std::chrono::high_resolution_clock::now();
-    auto handler_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(handler_end - handler_start);
-    pnana::utils::Logger::getInstance().log(
-        "GitPanel::handleKey(mode=" + std::to_string(static_cast<int>(current_mode_)) + ") took " +
-        std::to_string(handler_duration.count()) + "ms");
 
     // 对于导航键（箭头键、翻页键等），标记为需要重绘
     // 对于Git操作，GitPanelHandler会处理重绘
@@ -146,22 +103,11 @@ bool GitPanel::onKeyPress(Event event) {
         needs_redraw_ = true;
     }
 
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    pnana::utils::Logger::getInstance().log(
-        "GitPanel::onKeyPress - END (handled: " + std::string(handled ? "true" : "false") + ") - " +
-        std::to_string(duration.count()) + "ms");
-
     return handled;
 }
 
 void GitPanel::refreshStatusOnly() {
-    auto start_time = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::refreshStatusOnly - START");
-
     if (data_loading_) {
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::refreshStatusOnly - END (already loading)");
         return; // 如果正在加载，忽略请求
     }
 
@@ -169,9 +115,6 @@ void GitPanel::refreshStatusOnly() {
 
     // 异步只刷新状态数据，不刷新分支数据
     auto future = std::async(std::launch::async, [this]() {
-        auto async_start = std::chrono::high_resolution_clock::now();
-        pnana::utils::Logger::getInstance().log("GitPanel::refreshStatusOnly - ASYNC START");
-
         try {
             git_manager_->refreshStatusForced();
             auto files = git_manager_->getStatus();
@@ -184,40 +127,16 @@ void GitPanel::refreshStatusOnly() {
             error_message_ = std::move(error);
             data_loading_ = false;
             stats_cache_valid_ = false; // Invalidate stats cache when data changes
-
-            auto async_end = std::chrono::high_resolution_clock::now();
-            auto async_duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(async_end - async_start);
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::refreshStatusOnly - ASYNC END (success) - " +
-                std::to_string(async_duration.count()) +
-                "ms, files: " + std::to_string(files_.size()));
         } catch (...) {
             std::lock_guard<std::mutex> lock(data_mutex_);
             data_loading_ = false;
             error_message_ = "Failed to load git data";
-            auto async_end = std::chrono::high_resolution_clock::now();
-            auto async_duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(async_end - async_start);
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::refreshStatusOnly - ASYNC END (exception) - " +
-                std::to_string(async_duration.count()) + "ms");
         }
     });
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    pnana::utils::Logger::getInstance().log(
-        "GitPanel::refreshStatusOnly - END (launched async) - " + std::to_string(duration.count()) +
-        "ms");
 }
 
 void GitPanel::refreshData() {
-    auto refresh_start = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::refreshData - START");
-
     if (data_loading_) {
-        pnana::utils::Logger::getInstance().log("GitPanel::refreshData - END (already loading)");
         return; // 如果正在加载，忽略请求
     }
 
@@ -226,19 +145,9 @@ void GitPanel::refreshData() {
 
     // 异步加载git数据，使用更高效的方式
     auto future = std::async(std::launch::async, [this]() {
-        auto async_start = std::chrono::high_resolution_clock::now();
-        pnana::utils::Logger::getInstance().log("GitPanel::refreshData - ASYNC START");
-
         try {
             // 强制刷新状态，确保获取最新数据
-            auto status_refresh_start = std::chrono::high_resolution_clock::now();
             git_manager_->refreshStatusForced();
-            auto status_refresh_end = std::chrono::high_resolution_clock::now();
-            auto status_refresh_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                status_refresh_end - status_refresh_start);
-            pnana::utils::Logger::getInstance().log(
-                "GitManager::refreshStatusForced took " +
-                std::to_string(status_refresh_duration.count()) + "ms");
 
             auto files = git_manager_->getStatus();
             auto error = git_manager_->getLastError();
@@ -248,19 +157,10 @@ void GitPanel::refreshData() {
             bool need_branches = branches_.empty() || branch_data_stale_;
             std::vector<GitBranch> branches;
             if (need_branches) {
-                auto branch_fetch_start = std::chrono::high_resolution_clock::now();
                 branches = git_manager_->getBranches();
-                auto branch_fetch_end = std::chrono::high_resolution_clock::now();
-                auto branch_fetch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    branch_fetch_end - branch_fetch_start);
-                pnana::utils::Logger::getInstance().log(
-                    "GitManager::getBranches took " +
-                    std::to_string(branch_fetch_duration.count()) + "ms (" +
-                    std::to_string(branches.size()) + " branches)");
             }
 
             // 在主线程中更新UI数据
-            auto ui_update_start = std::chrono::high_resolution_clock::now();
             std::lock_guard<std::mutex> lock(data_mutex_);
             files_ = std::move(files);
             error_message_ = std::move(error);
@@ -276,37 +176,12 @@ void GitPanel::refreshData() {
 
             // Ensure indices are valid after data update
             ensureValidIndices();
-
-            auto ui_update_end = std::chrono::high_resolution_clock::now();
-            auto ui_update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                ui_update_end - ui_update_start);
-            pnana::utils::Logger::getInstance().log(
-                "UI data update took " + std::to_string(ui_update_duration.count()) + "ms (" +
-                std::to_string(files_.size()) + " files)");
-
-            auto async_end = std::chrono::high_resolution_clock::now();
-            auto async_duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(async_end - async_start);
-            pnana::utils::Logger::getInstance().log("GitPanel::refreshData - ASYNC END - " +
-                                                    std::to_string(async_duration.count()) + "ms");
         } catch (...) {
             std::lock_guard<std::mutex> lock(data_mutex_);
             data_loading_ = false;
             error_message_ = "Failed to load git data";
-            auto async_end = std::chrono::high_resolution_clock::now();
-            auto async_duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(async_end - async_start);
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::refreshData - ASYNC END (exception) - " +
-                std::to_string(async_duration.count()) + "ms");
         }
     });
-
-    auto refresh_end = std::chrono::high_resolution_clock::now();
-    auto refresh_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(refresh_end - refresh_start);
-    pnana::utils::Logger::getInstance().log("GitPanel::refreshData - END (launched async) - " +
-                                            std::to_string(refresh_duration.count()) + "ms");
 }
 
 void GitPanel::switchMode(GitPanelMode mode) {
@@ -387,38 +262,18 @@ void GitPanel::selectAll() {
 }
 
 void GitPanel::performStageSelected() {
-    auto start_time = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::performStageSelected - START - selected: " +
-                                            std::to_string(selected_files_.size()));
-
     if (selected_files_.empty()) {
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performStageSelected - END (no selection) - " +
-            std::to_string(duration.count()) + "ms");
         return; // 没有选中文件，直接返回
     }
 
-    auto git_ops_start = std::chrono::high_resolution_clock::now();
     bool success = true;
-    size_t staged_count = 0;
     for (size_t index : selected_files_) {
         if (index < files_.size()) {
-            auto single_stage_start = std::chrono::high_resolution_clock::now();
             if (!git_manager_->stageFile(files_[index].path)) {
                 success = false;
                 error_message_ = git_manager_->getLastError();
-                auto single_stage_end = std::chrono::high_resolution_clock::now();
-                auto single_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    single_stage_end - single_stage_start);
-                pnana::utils::Logger::getInstance().log(
-                    "GitPanel::stageFile failed for '" + files_[index].path + "' after " +
-                    std::to_string(single_duration.count()) + "ms");
                 break;
             } else {
-                staged_count++;
                 // Immediately reflect staged state in UI so color/indicator update without waiting
                 {
                     std::lock_guard<std::mutex> lock(data_mutex_);
@@ -431,24 +286,10 @@ void GitPanel::performStageSelected() {
                 // Request a rebuild/redraw so changes are visible immediately
                 component_needs_rebuild_ = true;
                 needs_redraw_ = true;
-                auto single_stage_end = std::chrono::high_resolution_clock::now();
-                auto single_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    single_stage_end - single_stage_start);
-                pnana::utils::Logger::getInstance().log(
-                    "GitPanel::stageFile succeeded for '" + files_[index].path + "' in " +
-                    std::to_string(single_duration.count()) + "ms");
             }
         }
     }
-    auto git_ops_end = std::chrono::high_resolution_clock::now();
-    auto git_ops_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(git_ops_end - git_ops_start);
-    pnana::utils::Logger::getInstance().log(
-        "Git operations completed: " + std::to_string(staged_count) + "/" +
-        std::to_string(selected_files_.size()) + " files staged in " +
-        std::to_string(git_ops_duration.count()) + "ms");
 
-    auto post_ops_start = std::chrono::high_resolution_clock::now();
     if (success) {
         // 延迟刷新状态，避免频繁的Git命令调用
         // 用户可以通过F5或R键手动刷新，或者等待下次自动刷新
@@ -459,56 +300,22 @@ void GitPanel::performStageSelected() {
         data_loaded_ = false;
         // Invalidate cached stats so UI will recalculate staged/unstaged counts
         stats_cache_valid_ = false;
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performStageSelected - Marked data as stale, will refresh on next access");
     }
-    auto post_ops_end = std::chrono::high_resolution_clock::now();
-    auto post_ops_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(post_ops_end - post_ops_start);
-    pnana::utils::Logger::getInstance().log("Post-operations took " +
-                                            std::to_string(post_ops_duration.count()) + "ms");
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    pnana::utils::Logger::getInstance().log("GitPanel::performStageSelected - END (success: " +
-                                            std::string(success ? "true" : "false") + ") - " +
-                                            std::to_string(duration.count()) + "ms");
 }
 
 void GitPanel::performUnstageSelected() {
-    auto start_time = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log(
-        "GitPanel::performUnstageSelected - START - selected: " +
-        std::to_string(selected_files_.size()));
-
     if (selected_files_.empty()) {
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performUnstageSelected - END (no selection) - " +
-            std::to_string(duration.count()) + "ms");
         return; // 没有选中文件，直接返回
     }
 
-    auto git_ops_start = std::chrono::high_resolution_clock::now();
     bool success = true;
-    size_t unstaged_count = 0;
     for (size_t index : selected_files_) {
         if (index < files_.size()) {
-            auto single_unstage_start = std::chrono::high_resolution_clock::now();
             if (!git_manager_->unstageFile(files_[index].path)) {
                 success = false;
                 error_message_ = git_manager_->getLastError();
-                auto single_unstage_end = std::chrono::high_resolution_clock::now();
-                auto single_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    single_unstage_end - single_unstage_start);
-                pnana::utils::Logger::getInstance().log(
-                    "GitPanel::unstageFile failed for '" + files_[index].path + "' after " +
-                    std::to_string(single_duration.count()) + "ms");
                 break;
             } else {
-                unstaged_count++;
                 // Immediately reflect unstaged state in UI so color/indicator update without
                 // waiting
                 {
@@ -521,24 +328,10 @@ void GitPanel::performUnstageSelected() {
                 }
                 component_needs_rebuild_ = true;
                 needs_redraw_ = true;
-                auto single_unstage_end = std::chrono::high_resolution_clock::now();
-                auto single_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    single_unstage_end - single_unstage_start);
-                pnana::utils::Logger::getInstance().log(
-                    "GitPanel::unstageFile succeeded for '" + files_[index].path + "' in " +
-                    std::to_string(single_duration.count()) + "ms");
             }
         }
     }
-    auto git_ops_end = std::chrono::high_resolution_clock::now();
-    auto git_ops_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(git_ops_end - git_ops_start);
-    pnana::utils::Logger::getInstance().log(
-        "Git unstage operations completed: " + std::to_string(unstaged_count) + "/" +
-        std::to_string(selected_files_.size()) + " files unstaged in " +
-        std::to_string(git_ops_duration.count()) + "ms");
 
-    auto post_ops_start = std::chrono::high_resolution_clock::now();
     if (success) {
         // 延迟刷新状态，避免频繁的Git命令调用
         // refreshStatusOnly();
@@ -546,26 +339,10 @@ void GitPanel::performUnstageSelected() {
 
         // 标记数据已过期，下次需要时再刷新
         data_loaded_ = false;
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performUnstageSelected - Marked data as stale, will refresh on next access");
     }
-    auto post_ops_end = std::chrono::high_resolution_clock::now();
-    auto post_ops_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(post_ops_end - post_ops_start);
-    pnana::utils::Logger::getInstance().log("Post-operations took " +
-                                            std::to_string(post_ops_duration.count()) + "ms");
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    pnana::utils::Logger::getInstance().log("GitPanel::performUnstageSelected - END (success: " +
-                                            std::string(success ? "true" : "false") + ") - " +
-                                            std::to_string(duration.count()) + "ms");
 }
 
 void GitPanel::performStageAll() {
-    auto start_time = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::performStageAll - START");
-
     if (git_manager_->stageAll()) {
         // 延迟刷新状态，避免频繁的Git命令调用
         // refreshStatusOnly();
@@ -573,28 +350,12 @@ void GitPanel::performStageAll() {
 
         // 标记数据已过期，下次需要时再刷新
         data_loaded_ = false;
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performStageAll - Marked data as stale, will refresh on next access");
-
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitPanel::performStageAll - END (success) - " +
-                                                std::to_string(duration.count()) + "ms");
     } else {
         error_message_ = git_manager_->getLastError();
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitPanel::performStageAll - END (failed) - " +
-                                                std::to_string(duration.count()) + "ms");
     }
 }
 
 void GitPanel::performUnstageAll() {
-    auto start_time = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::performUnstageAll - START");
-
     if (git_manager_->unstageAll()) {
         // 延迟刷新状态，避免频繁的Git命令调用
         // refreshStatusOnly();
@@ -602,21 +363,8 @@ void GitPanel::performUnstageAll() {
 
         // 标记数据已过期，下次需要时再刷新
         data_loaded_ = false;
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performUnstageAll - Marked data as stale, will refresh on next access");
-
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitPanel::performUnstageAll - END (success) - " +
-                                                std::to_string(duration.count()) + "ms");
     } else {
         error_message_ = git_manager_->getLastError();
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        pnana::utils::Logger::getInstance().log("GitPanel::performUnstageAll - END (failed) - " +
-                                                std::to_string(duration.count()) + "ms");
     }
 }
 
@@ -738,18 +486,10 @@ Element GitPanel::renderTabs() {
 }
 
 Element GitPanel::renderStatusPanel() {
-    auto render_start = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::renderStatusPanel - START");
-
     auto& colors = theme_.getColors();
 
     // 如果数据正在加载，显示加载指示器
     if (data_loading_) {
-        auto render_end = std::chrono::high_resolution_clock::now();
-        auto render_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_start);
-        pnana::utils::Logger::getInstance().log("GitPanel::renderStatusPanel - END (loading) - " +
-                                                std::to_string(render_duration.count()) + "ms");
         return vbox({text("Loading git status...") | color(colors.comment) | center,
                      text("Please wait...") | color(colors.menubar_fg) | center}) |
                center | size(HEIGHT, EQUAL, 10);
@@ -758,16 +498,8 @@ Element GitPanel::renderStatusPanel() {
     Elements file_elements;
 
     // Enhanced header with status summary (use cached stats for performance)
-    auto stats_start = std::chrono::high_resolution_clock::now();
     if (!stats_cache_valid_) {
         updateCachedStats();
-    }
-    auto stats_end = std::chrono::high_resolution_clock::now();
-    auto stats_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stats_end - stats_start);
-    if (!stats_cache_valid_) {
-        pnana::utils::Logger::getInstance().log("updateCachedStats took " +
-                                                std::to_string(stats_duration.count()) + "ms");
     }
 
     size_t staged_count = cached_staged_count_;
@@ -788,7 +520,6 @@ Element GitPanel::renderStatusPanel() {
     file_elements.push_back(separator());
 
     // File list with improved scrolling and display
-    auto list_prep_start = std::chrono::high_resolution_clock::now();
     const size_t MAX_VISIBLE_FILES = 25; // Fixed maximum visible files for better UX
 
     // Ensure scroll_offset_ is within valid range
@@ -815,31 +546,12 @@ Element GitPanel::renderStatusPanel() {
 
     size_t start = scroll_offset_;
     size_t end = std::min(start + MAX_VISIBLE_FILES, files_.size());
-    size_t visible_count = end - start;
-    auto list_prep_end = std::chrono::high_resolution_clock::now();
-    auto list_prep_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(list_prep_end - list_prep_start);
-    pnana::utils::Logger::getInstance().log(
-        "File list preparation took " + std::to_string(list_prep_duration.count()) +
-        "ms (showing " + std::to_string(visible_count) + " of " + std::to_string(files_.size()) +
-        " files, scroll_offset=" + std::to_string(scroll_offset_) +
-        ", selected_index=" + std::to_string(selected_index_) + ")");
 
-    auto render_items_start = std::chrono::high_resolution_clock::now();
     for (size_t i = start; i < end; ++i) {
         bool is_selected =
             std::find(selected_files_.begin(), selected_files_.end(), i) != selected_files_.end();
         bool is_highlighted = (i == selected_index_);
         file_elements.push_back(renderFileItem(files_[i], i, is_selected, is_highlighted));
-    }
-    auto render_items_end = std::chrono::high_resolution_clock::now();
-    auto render_items_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        render_items_end - render_items_start);
-    if (end > start) {
-        pnana::utils::Logger::getInstance().log(
-            "Rendering " + std::to_string(end - start) + " file items took " +
-            std::to_string(render_items_duration.count()) + "ms (avg: " +
-            std::to_string(render_items_duration.count() / (end - start)) + "ms per item)");
     }
 
     if (files_.empty()) {
@@ -849,12 +561,6 @@ Element GitPanel::renderStatusPanel() {
             text(" - no changes to commit") | color(colors.comment)};
         file_elements.push_back(hbox(std::move(empty_elements)) | center);
     }
-
-    auto render_end = std::chrono::high_resolution_clock::now();
-    auto render_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_start);
-    pnana::utils::Logger::getInstance().log("GitPanel::renderStatusPanel - END - " +
-                                            std::to_string(render_duration.count()) + "ms");
 
     return vbox(std::move(file_elements));
 }
@@ -1642,19 +1348,11 @@ void GitPanel::performClone() {
 
     // Start async clone operation
     std::thread([this]() {
-        auto start_time = std::chrono::high_resolution_clock::now();
-        pnana::utils::Logger::getInstance().log(
-            "GitPanel::performClone - Starting async clone operation");
-
         std::string url_to_clone = clone_url_;
         std::string path_to_clone = clone_path_;
 
         GitManager temp_manager(path_to_clone);
         bool success = temp_manager.clone(url_to_clone, path_to_clone);
-
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
         // Update state in main thread
         {
@@ -1679,10 +1377,6 @@ void GitPanel::performClone() {
                 clone_success_message_ = "Repository '" + repo_name + "' cloned successfully!";
                 error_message_.clear(); // Clear any previous errors
 
-                pnana::utils::Logger::getInstance().log(
-                    "GitPanel::performClone - Clone completed successfully in " +
-                    std::to_string(duration.count()) + "ms: " + clone_success_message_);
-
                 // Clear inputs on success (after a delay, so user can see the success message)
                 // We'll clear them after 3 seconds or when user switches mode
             } else {
@@ -1697,9 +1391,6 @@ void GitPanel::performClone() {
                 } else {
                     error_message_ = "Clone operation failed";
                 }
-                pnana::utils::Logger::getInstance().log(
-                    "GitPanel::performClone - Clone failed after " +
-                    std::to_string(duration.count()) + "ms: " + error_message_);
             }
             component_needs_rebuild_ = true; // Force UI update to show result
         }
@@ -2018,58 +1709,38 @@ Component GitPanel::buildMainComponent() {
            CatchEvent([this](Event event) {
                // Handle diff viewer events first if visible
                if (diff_viewer_visible_) {
-                   pnana::utils::Logger::getInstance().log(
-                       "GitPanel::CatchEvent - Diff viewer visible, handling event");
                    if (event == Event::Escape) {
-                       pnana::utils::Logger::getInstance().log(
-                           "GitPanel::CatchEvent - ESC pressed in diff viewer, hiding viewer");
                        hideDiffViewer();
                        component_needs_rebuild_ =
                            true;    // Force component rebuild after hiding viewer
                        return true; // Consume ESC event, don't let it bubble up
                    }
                    if (event == Event::PageUp) {
-                       pnana::utils::Logger::getInstance().log(
-                           "GitPanel::CatchEvent - PageUp in diff viewer");
                        const size_t VISIBLE_LINES = 25; // Must match renderDiffViewer
                        if (diff_scroll_offset_ > 0) {
-                           size_t old_offset = diff_scroll_offset_;
                            diff_scroll_offset_ = (diff_scroll_offset_ > VISIBLE_LINES)
                                                      ? diff_scroll_offset_ - VISIBLE_LINES
                                                      : 0;
-                           pnana::utils::Logger::getInstance().log(
-                               "GitPanel::CatchEvent - Scrolled up from " +
-                               std::to_string(old_offset) + " to " +
-                               std::to_string(diff_scroll_offset_));
                            component_needs_rebuild_ =
                                true; // Force component rebuild after scrolling
                        }
                        return true;
                    }
                    if (event == Event::PageDown) {
-                       pnana::utils::Logger::getInstance().log(
-                           "GitPanel::CatchEvent - PageDown in diff viewer");
                        const size_t VISIBLE_LINES = 25; // Must match renderDiffViewer
                        size_t max_offset = diff_content_.size() > VISIBLE_LINES
                                                ? diff_content_.size() - VISIBLE_LINES
                                                : 0;
                        if (diff_scroll_offset_ < max_offset) {
-                           size_t old_offset = diff_scroll_offset_;
                            diff_scroll_offset_ += VISIBLE_LINES;
                            if (diff_scroll_offset_ > max_offset) {
                                diff_scroll_offset_ = max_offset;
                            }
-                           pnana::utils::Logger::getInstance().log(
-                               "GitPanel::CatchEvent - Scrolled down from " +
-                               std::to_string(old_offset) + " to " +
-                               std::to_string(diff_scroll_offset_));
                            component_needs_rebuild_ =
                                true; // Force component rebuild after scrolling
                        }
                        return true;
                    }
-                   pnana::utils::Logger::getInstance().log(
-                       "GitPanel::CatchEvent - Consuming event in diff viewer");
                    return true; // Consume all events when diff viewer is open
                }
 
@@ -2206,9 +1877,6 @@ bool GitPanel::handleStatusModeKey(Event event) {
         if (selected_files_.empty()) {
             // No files selected, toggle detailed stats view
             show_detailed_stats_ = !show_detailed_stats_;
-            pnana::utils::Logger::getInstance().log(
-                "GitPanel::handleStatusModeKey - Toggled detailed stats: " +
-                std::string(show_detailed_stats_ ? "on" : "off"));
             return true;
         } else {
             // If all selected files are already staged, unstage them; otherwise stage selected
@@ -2255,6 +1923,12 @@ bool GitPanel::handleStatusModeKey(Event event) {
         } else {
             performStageSelected();
         }
+        return true;
+    }
+
+    // Refresh data
+    if (event == Event::Character('R') || event == Event::F5) { // Refresh/Ctrl+R or F5
+        refreshData();
         return true;
     }
 
@@ -2788,10 +2462,6 @@ bool GitPanel::hasUnstagedChanges() const {
 // Utility methods
 
 void GitPanel::updateCachedStats() {
-    auto stats_start = std::chrono::high_resolution_clock::now();
-    pnana::utils::Logger::getInstance().log("GitPanel::updateCachedStats - START (" +
-                                            std::to_string(files_.size()) + " files)");
-
     // Use git to get authoritative staged count (handles cached index reliably)
     try {
         cached_staged_count_ = git_manager_->getStagedCount();
@@ -2810,14 +2480,6 @@ void GitPanel::updateCachedStats() {
         (files_.size() > cached_staged_count_) ? (files_.size() - cached_staged_count_) : 0;
 
     stats_cache_valid_ = true;
-
-    auto stats_end = std::chrono::high_resolution_clock::now();
-    auto stats_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stats_end - stats_start);
-    pnana::utils::Logger::getInstance().log("GitPanel::updateCachedStats - END - " +
-                                            std::to_string(stats_duration.count()) + "ms (" +
-                                            std::to_string(cached_staged_count_) + " staged, " +
-                                            std::to_string(cached_unstaged_count_) + " unstaged)");
 }
 
 bool GitPanel::isNavigationKey(Event event) const {
@@ -2841,9 +2503,6 @@ std::string GitPanel::getCachedRepoPathDisplay() {
     cached_repo_path_display_ = repo_root.empty() ? "." : repo_root;
     last_repo_display_update_ = now;
 
-    pnana::utils::Logger::getInstance().log("GitPanel::getCachedRepoPathDisplay - Cache updated: " +
-                                            cached_repo_path_display_);
-
     return cached_repo_path_display_;
 }
 
@@ -2860,9 +2519,6 @@ std::string GitPanel::getCachedCurrentBranch() {
     // Update cache
     cached_current_branch_ = git_manager_->getCurrentBranch();
     last_branch_update_ = now;
-
-    pnana::utils::Logger::getInstance().log("GitPanel::getCachedCurrentBranch - Cache updated: " +
-                                            cached_current_branch_);
 
     return cached_current_branch_;
 }
@@ -2881,12 +2537,6 @@ GitBranchStatus GitPanel::getCachedBranchStatus() {
     // Update cache
     cached_branch_status_ = git_manager_->getBranchStatus();
     last_branch_status_update_ = now;
-
-    std::string log_msg = "GitPanel::getCachedBranchStatus - Cache updated: ahead=" +
-                          std::to_string(cached_branch_status_.ahead) +
-                          ", behind=" + std::to_string(cached_branch_status_.behind) +
-                          ", remote=" + cached_branch_status_.remote_branch;
-    pnana::utils::Logger::getInstance().log(log_msg);
 
     return cached_branch_status_;
 }
