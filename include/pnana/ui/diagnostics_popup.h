@@ -73,9 +73,9 @@ class DiagnosticsPopup {
     // 复制回调函数
     std::function<void(const std::string&)> copy_callback_;
 
-    // 渲染单个诊断项
+    // 渲染单个诊断项（index 为 1-based 序号，total 为总数用于显示 x/N）
     ftxui::Element renderDiagnosticItem(const pnana::features::Diagnostic& diagnostic,
-                                        bool is_selected) const;
+                                        bool is_selected, size_t index, size_t total) const;
 
     // 获取诊断类型的颜色
     ftxui::Color getSeverityColor(int severity) const;
