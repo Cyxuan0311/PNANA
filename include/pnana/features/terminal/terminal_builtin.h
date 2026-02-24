@@ -38,6 +38,10 @@ class BuiltinCommandExecutor {
     static std::string executeEcho(const std::vector<std::string>& args);
     static std::string executeWhoami();
     static std::string executeHostname();
+    static std::string executeJobs();
+    static std::string executeFg(const std::vector<std::string>& args);
+    static std::string executeBg(const std::vector<std::string>& args);
+    static std::string executeKill(const std::vector<std::string>& args);
 };
 
 } // namespace terminal
