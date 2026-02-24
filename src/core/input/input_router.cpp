@@ -5,7 +5,6 @@
 #include "core/input/region_handlers/terminal_handler.h"
 #include "input/action_executor.h"
 #include "input/key_binding_manager.h"
-#include "utils/logger.h"
 #include <ftxui/component/event.hpp>
 
 namespace pnana {
@@ -62,14 +61,11 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
     // 使用现有的 KeyBindingManager 解析事件
     pnana::input::KeyAction action = editor->getKeyBindingManager().getAction(event);
 
-    // global shortcut action: action
-
     // 检查当前区域，如果是终端区域且按键是F1或F2，优先让区域处理器处理
     EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
     if (current_region == EditorRegion::TERMINAL) {
         if (action == pnana::input::KeyAction::TOGGLE_HELP && event == ftxui::Event::F1) {
             // F1在终端区域用于增加终端高度，不执行全局的TOGGLE_HELP
-            LOG("[INPUT] Skipping TOGGLE_HELP in terminal region (F1 used for height adjustment)");
             return false;
         }
         // F2在终端区域用于减少终端高度，但F2没有被绑定为全局快捷键，所以不需要特殊处理
@@ -91,8 +87,6 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
         action == pnana::input::KeyAction::OPEN_PLUGIN_MANAGER ||
         action == pnana::input::KeyAction::SSH_CONNECT ||
         action == pnana::input::KeyAction::TOGGLE_THEME_MENU) {
-        LOG("[INPUT] Executing global shortcut action: " +
-            std::to_string(static_cast<int>(action)));
         return editor->getActionExecutor().execute(action);
     }
 
@@ -227,40 +221,15 @@ bool InputRouter::handleSplitNavigation(ftxui::Event event, Editor* editor) {
 }
 
 bool InputRouter::routeByRegion(ftxui::Event event, Editor* editor) {
-    // 获取当前区域
     EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
-    std::string region_name = editor->getRegionManager().getRegionName();
 
-    LOG("InputRouter::routeByRegion: Current region=" + region_name + ", event=" + event.input());
-
-    // 查找对应的区域处理器
     auto it = region_handlers_.find(current_region);
     if (it != region_handlers_.end() && it->second) {
-        LOG("InputRouter::routeByRegion: Found handler for region " + region_name);
-
-        // 先检查区域导航（左右键切换面板）
         if (it->second->handleNavigation(event, editor)) {
-            LOG("InputRouter::routeByRegion: Navigation handled");
             return true;
         }
-
-        // 处理区域特定的输入
-        bool handled = it->second->handleInput(event, editor);
-        std::string handled_str = handled ? "true" : "false";
-        LOG("InputRouter::routeByRegion: Input handled=" + handled_str);
-
-        // 如果是代码区，进一步根据模式分发（如果需要）
-        if (handled && current_region == EditorRegion::CODE_AREA) {
-            // 代码区的输入可能还需要模式处理器处理
-            // 这里暂时返回 handled，后续可以扩展
-        }
-
-        return handled;
+        return it->second->handleInput(event, editor);
     }
-
-    // 如果没有找到对应的处理器，返回 false
-    LOG("InputRouter::routeByRegion: No handler found for region " + region_name +
-        " (handlers registered: " + std::to_string(region_handlers_.size()) + ")");
     return false;
 }
 
