@@ -124,6 +124,16 @@ Editor::Editor()
         this->recent_files_manager_.openFile(index);
     });
 
+    // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
+    // 必须设置 force_ui_update_=true，否则 renderUI 的渲染去抖可能跳过重绘，导致新输出不显示
+    terminal_.setOnOutputAdded([this]() {
+        screen_.Post([this]() {
+            force_ui_update_ = true;
+            needs_render_ = true; // 防止 force 被鼠标等事件提前消费后无法重绘
+            screen_.PostEvent(Event::Custom);
+        });
+    });
+
     // 设置文档切换回调，优化LSP诊断响应速度
     document_manager_.setDocumentSwitchedCallback([this](size_t old_index, size_t new_index) {
         try {
@@ -635,10 +645,8 @@ void Editor::toggleMarkdownPreview() {
     // Toggle lightweight preview flag and request UI update
     markdown_preview_enabled_ = !markdown_preview_enabled_;
     if (markdown_preview_enabled_) {
-        LOG("[DEBUG] Markdown preview enabled (lightweight)");
         setStatusMessage("Markdown preview enabled - Press Alt+W again to close");
     } else {
-        LOG("[DEBUG] Markdown preview disabled");
         setStatusMessage("Markdown preview closed");
     }
     force_ui_update_ = true;
@@ -724,7 +732,8 @@ void Editor::toggleGitPanel() {
 
 // 终端
 void Editor::toggleTerminal() {
-    terminal_.toggle();
+    // 使用 setVisible 而非 toggle，以便正确调用 startShellSession/stopShellSession
+    terminal_.setVisible(!terminal_.isVisible());
     if (terminal_.isVisible()) {
         // 启用终端区域（必须先启用，才能切换）
         region_manager_.setTerminalEnabled(true);
@@ -736,9 +745,6 @@ void Editor::toggleTerminal() {
         if (terminal_height_ <= 0) {
             terminal_height_ = screen_.dimy() / 3;
         }
-        // 清空终端输入，准备接收新输入
-        terminal_.handleInput("");
-        terminal_.setCursorPosition(0);
         setStatusMessage("Terminal opened | Region: " + region_manager_.getRegionName() +
                          " | Use +/- to adjust height, ←→ to switch panels");
     } else {
@@ -759,92 +765,106 @@ void Editor::handleTerminalInput(Event event) {
         region_manager_.setRegion(EditorRegion::TERMINAL);
     }
 
-    // 处理特殊键
+    // Escape: 关闭终端
     if (event == Event::Escape) {
         terminal_.setVisible(false);
         region_manager_.setRegion(EditorRegion::CODE_AREA);
         setStatusMessage("Terminal closed | Region: " + region_manager_.getRegionName());
         return;
-    } else if (event == Event::Return) {
-        std::string command = terminal_.getCurrentInput();
-        if (command == "exit" || command == "quit") {
-            terminal_.setVisible(false);
-            region_manager_.setRegion(EditorRegion::CODE_AREA);
-            setStatusMessage("Terminal closed | Region: " + region_manager_.getRegionName());
-            return;
-        }
-        terminal_.executeCommand(command);
-        terminal_.handleInput(""); // 清空输入
+    }
+
+    // 所有其他按键透传到 shell（含 Return/Enter/CtrlM/Character(\n)）
+    if (event == Event::Return || event == Event::CtrlM ||
+        (event.is_character() && (event.character() == "\n" || event.character() == "\r"))) {
+        terminal_.handleKeyEvent("return");
         return;
-    } else if (event == Event::ArrowUp) {
-        // 在终端顶部时，向上切换到代码区
-        // 否则处理命令历史
+    }
+    if (event == Event::Tab) {
+        terminal_.handleKeyEvent("tab");
+        return;
+    }
+    if (event == Event::ArrowUp) {
         terminal_.handleKeyEvent("ArrowUp");
         return;
-    } else if (event == Event::ArrowDown) {
-        // 在终端底部时，向下没有其他区域
-        // 否则处理命令历史
+    }
+    if (event == Event::ArrowDown) {
         terminal_.handleKeyEvent("ArrowDown");
         return;
-    } else if (event == Event::ArrowLeft) {
-        // 在终端左边界时，向左切换到文件浏览器或代码区
-        // 否则移动光标
-        if (terminal_.getCursorPosition() == 0 && file_browser_.isVisible()) {
-            if (region_manager_.navigateLeft()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                 " | →: Return to terminal");
-                return;
-            }
-        }
+    }
+    if (event == Event::ArrowLeft) {
         terminal_.handleKeyEvent("ArrowLeft");
         return;
-    } else if (event == Event::ArrowRight) {
-        // 在终端右边界时，向右切换到代码区
-        // 否则移动光标
-        std::string input = terminal_.getCurrentInput();
-        if (terminal_.getCursorPosition() >= input.length()) {
-            if (region_manager_.navigateRight()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                 " | ←: Return to terminal");
-                return;
-            }
-        }
+    }
+    if (event == Event::ArrowRight) {
         terminal_.handleKeyEvent("ArrowRight");
         return;
-    } else if (event == Event::Home) {
+    }
+    if (event == Event::Home) {
         terminal_.handleKeyEvent("Home");
         return;
-    } else if (event == Event::End) {
+    }
+    if (event == Event::End) {
         terminal_.handleKeyEvent("End");
         return;
-    } else if (event == Event::Backspace) {
+    }
+    if (event == Event::Backspace) {
         terminal_.handleKeyEvent("Backspace");
         return;
-    } else if (event == Event::Delete) {
+    }
+    if (event == Event::Delete) {
         terminal_.handleKeyEvent("Delete");
         return;
-    } else if (event == Event::Tab) {
-        // Tab 补全
-        if (terminal_.handleTabCompletion()) {
-            setStatusMessage("Tab completion applied");
-        } else {
-            setStatusMessage("No completion found");
-        }
+    }
+    if (event == Event::PageUp) {
+        terminal_.scrollUp();
         return;
-    } else if (event.is_character()) {
-        std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            // 接受所有可打印字符
-            if (c >= 32 && c < 127) {
-                std::string current = terminal_.getCurrentInput();
-                size_t pos = terminal_.getCursorPosition();
-                std::string new_input = current.substr(0, pos) + c + current.substr(pos);
-                terminal_.handleInput(new_input);
-                // 移动光标到插入字符之后
-                terminal_.setCursorPosition(pos + 1);
-            }
-        }
+    }
+    if (event == Event::PageDown) {
+        terminal_.scrollDown();
+        return;
+    }
+    if (event == Event::CtrlC) {
+        terminal_.handleKeyEvent("ctrl_c");
+        return;
+    }
+    if (event == Event::CtrlD) {
+        terminal_.handleKeyEvent("ctrl_d");
+        return;
+    }
+    if (event == Event::CtrlZ) {
+        terminal_.handleKeyEvent("ctrl_z");
+        return;
+    }
+    if (event == Event::CtrlL) {
+        terminal_.handleKeyEvent("ctrl_l");
+        return;
+    }
+    if (event == Event::CtrlU) {
+        terminal_.handleKeyEvent("ctrl_u");
+        return;
+    }
+    if (event == Event::CtrlK) {
+        terminal_.handleKeyEvent("ctrl_k");
+        return;
+    }
+    if (event == Event::CtrlA) {
+        terminal_.handleKeyEvent("ctrl_a");
+        return;
+    }
+    if (event == Event::CtrlE) {
+        terminal_.handleKeyEvent("ctrl_e");
+        return;
+    }
+    if (event == Event::CtrlW) {
+        terminal_.handleKeyEvent("ctrl_w");
+        return;
+    }
+    if (event == Event::CtrlH) {
+        terminal_.handleKeyEvent("ctrl_h"); // Ctrl+H = Backspace（部分终端）
+        return;
+    }
+    if (event.is_character()) {
+        terminal_.handleKeyEvent(event.character());
         return;
     }
 }
@@ -2453,7 +2473,6 @@ void Editor::resumeRendering() {
 // 强制触发待处理的光标更新
 void Editor::triggerPendingCursorUpdate() {
     if (pending_cursor_update_ && !rendering_paused_) {
-        LOG("[DEBUG INCREMENTAL] Triggering pending cursor update");
         pending_cursor_update_ = false;
         screen_.PostEvent(Event::Custom);
     }

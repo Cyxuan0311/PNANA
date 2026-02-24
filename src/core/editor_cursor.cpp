@@ -530,13 +530,11 @@ void Editor::adjustViewOffset() {
 
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[DEBUG VIEW] No document, returning");
         return;
     }
 
     size_t total_lines = doc->lineCount();
     if (total_lines == 0) {
-        LOG("[DEBUG VIEW] Empty document, setting offset to 0");
         view_offset_row_ = 0;
         return;
     }
@@ -714,37 +712,25 @@ void Editor::pageDown() {
 // 方案4：最小化状态变更优化
 // 统一进行光标和视图调整，避免多次调用导致的闪烁
 void Editor::adjustCursorAndViewConservative() {
-    LOG("[DEBUG OPTIMIZE] Starting unified cursor and view adjustment");
-
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[DEBUG OPTIMIZE] No document available, skipping adjustment");
         return;
     }
 
     // 1. 调整光标位置（基于adjustCursor()的逻辑）
-    size_t original_cursor_row = cursor_row_;
-    size_t original_cursor_col = cursor_col_;
-
     size_t max_row = doc->lineCount() - 1;
     if (cursor_row_ > max_row) {
         cursor_row_ = max_row;
-        LOG("[DEBUG OPTIMIZE] Cursor row adjusted: " + std::to_string(original_cursor_row) +
-            " -> " + std::to_string(cursor_row_));
     }
 
     if (cursor_row_ < doc->lineCount()) {
         size_t max_col = doc->getLine(cursor_row_).length();
         if (cursor_col_ > max_col) {
             cursor_col_ = max_col;
-            LOG("[DEBUG OPTIMIZE] Cursor col adjusted: " + std::to_string(original_cursor_col) +
-                " -> " + std::to_string(cursor_col_));
         }
     }
 
     // 2. 调整视图偏移（基于adjustViewOffsetForUndoConservative()的逻辑）
-    size_t original_view_offset = view_offset_row_;
-
     // 撤销操作的核心优化原则：
     // 1. 优先保持视觉连续性，避免任何不必要的视图跳跃
     // 2. 只有当光标完全超出可见区域时才调整，且调整幅度最小
@@ -758,7 +744,6 @@ void Editor::adjustCursorAndViewConservative() {
     size_t total_lines = doc->lineCount();
     if (total_lines == 0) {
         view_offset_row_ = 0;
-        LOG("[DEBUG OPTIMIZE] View offset reset to 0 (empty document)");
         return;
     }
 
@@ -771,8 +756,6 @@ void Editor::adjustCursorAndViewConservative() {
         // 光标在可见区域上方，仅当完全不可见时才调整
         // 精确调整到刚好可见，不使用任何buffer
         view_offset_row_ = cursor_row_;
-        LOG("[DEBUG OPTIMIZE] View offset adjusted (cursor above): " +
-            std::to_string(original_view_offset) + " -> " + std::to_string(view_offset_row_));
     } else if (cursor_screen_pos >= screen_height) {
         // 光标在可见区域下方，仅当完全不可见时才调整
         // 精确调整到刚好可见，不使用任何buffer
@@ -782,49 +765,30 @@ void Editor::adjustCursorAndViewConservative() {
         if (view_offset_row_ > max_offset) {
             view_offset_row_ = max_offset;
         }
-        LOG("[DEBUG OPTIMIZE] View offset adjusted (cursor below): " +
-            std::to_string(original_view_offset) + " -> " + std::to_string(view_offset_row_));
-    } else {
-        // 如果光标已在可见范围内，绝对不调整视图 - 这是避免闪烁的关键
-        LOG("[DEBUG OPTIMIZE] View offset unchanged (cursor in view)");
     }
-
-    LOG("[DEBUG OPTIMIZE] Unified adjustment completed");
 }
 
 // 重做操作的状态调整（与撤销不同，重做可以更激进地调整视图）
 void Editor::adjustCursorAndViewForRedo() {
-    LOG("[DEBUG OPTIMIZE] Starting redo cursor and view adjustment");
-
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[DEBUG OPTIMIZE] No document available, skipping adjustment");
         return;
     }
 
     // 1. 调整光标位置（与adjustCursor()相同）
-    size_t original_cursor_row = cursor_row_;
-    size_t original_cursor_col = cursor_col_;
-
     size_t max_row = doc->lineCount() - 1;
     if (cursor_row_ > max_row) {
         cursor_row_ = max_row;
-        LOG("[DEBUG OPTIMIZE] Cursor row adjusted: " + std::to_string(original_cursor_row) +
-            " -> " + std::to_string(cursor_row_));
     }
 
     if (cursor_row_ < doc->lineCount()) {
         size_t max_col = doc->getLine(cursor_row_).length();
         if (cursor_col_ > max_col) {
             cursor_col_ = max_col;
-            LOG("[DEBUG OPTIMIZE] Cursor col adjusted: " + std::to_string(original_cursor_col) +
-                " -> " + std::to_string(cursor_col_));
         }
     }
 
     // 2. 重做操作的视图调整（可以更激进，因为重做通常是用户主动操作）
-    size_t original_view_offset = view_offset_row_;
-
     int screen_height = screen_.dimy() - 4;
     if (screen_height > 0) {
         // 计算光标在屏幕上的位置
@@ -836,30 +800,18 @@ void Editor::adjustCursorAndViewForRedo() {
             view_offset_row_ = (cursor_row_ >= static_cast<size_t>(screen_height / 2))
                                    ? cursor_row_ - screen_height / 2
                                    : 0;
-            LOG("[DEBUG OPTIMIZE] View offset adjusted (cursor out of view): " +
-                std::to_string(original_view_offset) + " -> " + std::to_string(view_offset_row_));
         } else {
             // 光标在可见范围内，但如果太靠近边缘，微调视图
             int margin = 3; // 边缘边距
             if (cursor_screen_pos < margin) {
                 view_offset_row_ =
                     (cursor_row_ >= static_cast<size_t>(margin)) ? cursor_row_ - margin : 0;
-                LOG("[DEBUG OPTIMIZE] View offset adjusted (cursor near top): " +
-                    std::to_string(original_view_offset) + " -> " +
-                    std::to_string(view_offset_row_));
             } else if (cursor_screen_pos >= screen_height - margin) {
                 size_t target_offset = cursor_row_ - (screen_height - margin - 1);
                 view_offset_row_ = (target_offset > cursor_row_) ? 0 : target_offset;
-                LOG("[DEBUG OPTIMIZE] View offset adjusted (cursor near bottom): " +
-                    std::to_string(original_view_offset) + " -> " +
-                    std::to_string(view_offset_row_));
-            } else {
-                LOG("[DEBUG OPTIMIZE] View offset unchanged (cursor well positioned)");
             }
         }
     }
-
-    LOG("[DEBUG OPTIMIZE] Redo adjustment completed");
 }
 
 // 高级撤销优化：完全静态撤销
@@ -911,19 +863,12 @@ void Editor::prepareForStaticUndo(size_t change_row, size_t change_col) {
 
 // 执行静态撤销：只调整光标，不调整视图
 void Editor::performStaticUndo(size_t change_row, size_t change_col) {
-    LOG("[DEBUG STATIC] Performing static undo - setting cursor to (" + std::to_string(change_row) +
-        ", " + std::to_string(change_col) + ")");
-
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[DEBUG STATIC] No document available");
         return;
     }
 
     // 只调整光标位置，不调整视图
-    size_t original_cursor_row = cursor_row_;
-    size_t original_cursor_col = cursor_col_;
-
     cursor_row_ = change_row;
     cursor_col_ = change_col;
 
@@ -942,10 +887,6 @@ void Editor::performStaticUndo(size_t change_row, size_t change_col) {
 
     // 清除选择状态
     selection_active_ = false;
-
-    LOG("[DEBUG STATIC] Static undo completed - cursor: (" + std::to_string(original_cursor_row) +
-        "," + std::to_string(original_cursor_col) + ") -> (" + std::to_string(cursor_row_) + "," +
-        std::to_string(cursor_col_) + ")");
 }
 
 // 智能静态撤销：根据操作类型智能定位光标
@@ -1014,13 +955,9 @@ void Editor::performSmartStaticUndo(size_t change_row, size_t change_col,
 }
 
 // 预先为重做操作调整视图（重做可以更激进）
-void Editor::prepareForStaticRedo(size_t change_row, size_t change_col) {
-    LOG("[DEBUG STATIC] Preparing for static redo - target position: (" +
-        std::to_string(change_row) + ", " + std::to_string(change_col) + ")");
-
+void Editor::prepareForStaticRedo(size_t change_row, size_t /*change_col*/) {
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[DEBUG STATIC] No document available");
         return;
     }
 
@@ -1032,7 +969,6 @@ void Editor::prepareForStaticRedo(size_t change_row, size_t change_col) {
     size_t total_lines = doc->lineCount();
     if (total_lines == 0) {
         view_offset_row_ = 0;
-        LOG("[DEBUG STATIC] Empty document, reset view offset to 0");
         return;
     }
 
@@ -1056,32 +992,19 @@ void Editor::prepareForStaticRedo(size_t change_row, size_t change_col) {
         }
 
         if (new_offset != view_offset_row_) {
-            LOG("[DEBUG STATIC] Pre-adjusting view offset for redo centering: " +
-                std::to_string(view_offset_row_) + " -> " + std::to_string(new_offset));
             view_offset_row_ = new_offset;
         }
-    } else {
-        LOG("[DEBUG STATIC] No view adjustment needed for redo, cursor already visible");
     }
-
-    LOG("[DEBUG STATIC] Static redo preparation completed");
 }
 
 // 执行静态重做：只调整光标，不调整视图
 void Editor::performStaticRedo(size_t change_row, size_t change_col) {
-    LOG("[DEBUG STATIC] Performing static redo - setting cursor to (" + std::to_string(change_row) +
-        ", " + std::to_string(change_col) + ")");
-
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[DEBUG STATIC] No document available");
         return;
     }
 
     // 只调整光标位置，不调整视图
-    size_t original_cursor_row = cursor_row_;
-    size_t original_cursor_col = cursor_col_;
-
     cursor_row_ = change_row;
     cursor_col_ = change_col;
 
@@ -1100,10 +1023,6 @@ void Editor::performStaticRedo(size_t change_row, size_t change_col) {
 
     // 清除选择状态
     selection_active_ = false;
-
-    LOG("[DEBUG STATIC] Static redo completed - cursor: (" + std::to_string(original_cursor_row) +
-        "," + std::to_string(original_cursor_col) + ") -> (" + std::to_string(cursor_row_) + "," +
-        std::to_string(cursor_col_) + ")");
 }
 
 } // namespace core

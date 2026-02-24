@@ -99,7 +99,6 @@ Element Editor::renderUI() {
         force_ui_update_ = true;
         markdown_preview_needs_update_ = false;
         last_markdown_preview_update_time_ = current_time;
-        LOG("[DEBUG MD PREVIEW] Triggering delayed markdown preview update");
     }
 
     // 增量渲染优化：抑制快速的光标移动渲染
@@ -1790,7 +1789,14 @@ Element Editor::renderTerminal() {
         // 使用默认高度（屏幕高度的1/3）
         height = screen_.dimy() / 3;
     }
-    return pnana::ui::renderTerminal(terminal_, height);
+    // 复用编辑器光标配置，统一终端与代码区光标样式
+    pnana::ui::TerminalCursorOptions cursor_opts;
+    cursor_opts.config.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
+    cursor_opts.config.color = getCursorColor();
+    cursor_opts.config.smooth = getCursorSmooth();
+    cursor_opts.config.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+    cursor_opts.blink_rate_ms = getCursorBlinkRate();
+    return pnana::ui::renderTerminal(terminal_, height, &cursor_opts);
 }
 
 Element Editor::renderGitPanel() {

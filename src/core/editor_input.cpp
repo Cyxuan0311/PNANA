@@ -22,7 +22,6 @@ namespace core {
 void Editor::handleInput(Event event) {
     // 特殊处理Event::Custom（我们的渲染触发事件）
     if (event == Event::Custom) {
-        LOG("[DEBUG EVENT] Received Event::Custom - this should trigger a render update");
         // Event::Custom是我们手动触发的渲染更新事件，不需要额外处理
         // 直接返回，让FTXUI重新渲染
         return;
@@ -77,6 +76,17 @@ void Editor::handleInput(Event event) {
             LOG("InputRouter handled global event");
             return;
         }
+        // 终端可见且焦点在终端时的回退：确保 Return/Enter/Backspace 等始终到达 shell
+        if (terminal_.isVisible() && region_manager_.getCurrentRegion() == EditorRegion::TERMINAL &&
+            (event == Event::Return || event == Event::CtrlM || event == Event::Character('\n') ||
+             (event.is_character() && (event.character() == "\n" || event.character() == "\r")) ||
+             event == Event::Backspace || event == Event::Delete || event == Event::Tab ||
+             event == Event::CtrlH || // Ctrl+H 作为 Backspace 的替代
+             event == Event::ArrowUp || event == Event::ArrowDown || event == Event::ArrowLeft ||
+             event == Event::ArrowRight || event == Event::Home || event == Event::End)) {
+            handleTerminalInput(event);
+            return;
+        }
     }
 
     // 如果 InputRouter 未初始化且终端可见，使用原有逻辑
@@ -108,19 +118,7 @@ void Editor::handleInput(Event event) {
         }
     }
 
-    // 调试信息：检查 Ctrl+P 事件
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
-    }
-
     KeyAction action = key_binding_manager_.getAction(event);
-
-    // 调试信息：检查 Ctrl+P 事件解析结果
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) +
-            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) +
-            ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-    }
 
     // Alt+A (另存为)、Alt+F (创建文件夹) 和 Alt+M (文件选择器) 应该能够在任何情况下工作
     // 包括在对话框中或文件浏览器打开时
@@ -545,39 +543,16 @@ void Editor::handleInput(Event event) {
             action == KeyAction::SELECT_ALL || action == KeyAction::SELECT_WORD ||
             action == KeyAction::SELECT_EXTEND_UP || action == KeyAction::SELECT_EXTEND_DOWN ||
             action == KeyAction::SELECT_EXTEND_LEFT || action == KeyAction::SELECT_EXTEND_RIGHT) {
-            LOG("[DEBUG COPY] Action detected: " + std::to_string(static_cast<int>(action)) +
-                " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
-            LOG("[DEBUG COPY] Current region: " + std::to_string(static_cast<int>(current_region)) +
-                " (CODE_AREA=" + std::to_string(static_cast<int>(EditorRegion::CODE_AREA)) + ")");
-
             if (current_region != EditorRegion::CODE_AREA) {
-                // 不在代码区，忽略这些操作
-                LOG("[DEBUG COPY] Not in CODE_AREA, ignoring copy action");
                 return;
             }
-            // 确保有文档
             if (!getCurrentDocument()) {
-                LOG("[DEBUG COPY] No document available, ignoring copy action");
                 return;
             }
-            LOG("[DEBUG COPY] Region check passed, proceeding with copy");
         }
-
-        LOG("[DEBUG COPY] About to execute action: " + std::to_string(static_cast<int>(action)));
 
         if (action_executor_.execute(action)) {
-            LOG("[DEBUG COPY] ActionExecutor returned true");
             return;
-        } else {
-            LOG("[DEBUG COPY] ActionExecutor returned false");
-        }
-    } else {
-        if (event == ftxui::Event::CtrlP) {
-            LOG("[DEBUG COPY] Ctrl+P event but action is UNKNOWN or shortcuts skipped");
-            LOG("[DEBUG COPY] action: " + std::to_string(static_cast<int>(action)) +
-                " (UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-            LOG("[DEBUG COPY] should_skip_shortcuts: " +
-                std::string(should_skip_shortcuts ? "true" : "false"));
         }
     }
 
@@ -597,7 +572,6 @@ void Editor::handleInput(Event event) {
     // 检查是否有待处理的光标更新需要触发
     auto now = std::chrono::steady_clock::now();
     if (pending_cursor_update_ && (now - last_render_time_) >= CURSOR_UPDATE_DELAY) {
-        LOG("[DEBUG INCREMENTAL] Auto-triggering pending cursor update after delay");
         triggerPendingCursorUpdate();
     }
 
@@ -1538,40 +1512,18 @@ void Editor::handleReplaceMode(Event event) {
 }
 
 void Editor::handleFileBrowserInput(Event event) {
-    LOG("Event type check - Return: " + std::string(event == Event::Return ? "yes" : "no"));
-    LOG("Event type check - Escape: " + std::string(event == Event::Escape ? "yes" : "no"));
-    LOG("Event input string: '" + event.input() + "'");
-    LOG("Event is_character: " + std::string(event.is_character() ? "yes" : "no"));
-
     // 确保当前区域是文件浏览器
     if (region_manager_.getCurrentRegion() != EditorRegion::FILE_BROWSER) {
-        LOG("Setting region to FILE_BROWSER");
         region_manager_.setRegion(EditorRegion::FILE_BROWSER);
     }
-    LOG("Current region: " + region_manager_.getRegionName());
 
     // 首先检查是否是全局快捷键（Alt+A, Alt+F 等）
     // 这些快捷键应该在文件浏览器中也能工作
     using namespace pnana::input;
 
-    // 调试信息：检查 Ctrl+P 事件
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
-    }
-
     KeyAction action = key_binding_manager_.getAction(event);
-
-    // 调试信息：检查 Ctrl+P 事件解析结果
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) +
-            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) +
-            ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-    }
-    LOG("Action resolved: " + std::to_string(static_cast<int>(action)));
     if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER) {
-        LOG("Global shortcut detected, executing...");
         if (action_executor_.execute(action)) {
-            LOG("Global shortcut executed, returning");
             return;
         }
     }
