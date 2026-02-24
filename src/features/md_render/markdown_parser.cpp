@@ -76,14 +76,6 @@ int MarkdownParser::text_callback(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE
                                   void* userdata) {
     auto* parser = static_cast<MarkdownParser*>(userdata);
     std::string text_str(text, size);
-    // 诊断日志：记录部分文本回调内容，帮助确认 md4c 是否正确传递文本
-    if (size > 0) {
-        std::string snippet = text_str.substr(0, std::min<size_t>(text_str.size(), 200));
-        LOG("[DEBUG MD4C TEXT] type=" + std::to_string(static_cast<int>(type)) +
-            " size=" + std::to_string(size) + " snippet=\"" + snippet + "\"");
-    } else {
-        LOG("[DEBUG MD4C TEXT] type=" + std::to_string(static_cast<int>(type)) + " size=0");
-    }
     parser->handle_text(type, text_str);
     return 0;
 }
