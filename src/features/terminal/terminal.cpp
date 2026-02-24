@@ -1,14 +1,14 @@
 #include "features/terminal.h"
-#include "features/terminal/terminal_builtin.h"
 #include "features/terminal/terminal_color.h"
-#include "features/terminal/terminal_completion.h"
-#include "features/terminal/terminal_parser.h"
-#include "features/terminal/terminal_shell.h"
-#include "features/terminal/terminal_utils.h"
-#include "ui/icons.h"
+#include "features/terminal/terminal_line_buffer.h"
+#include "features/terminal/terminal_pty.h"
+#include <chrono>
 #include <cstdlib>
 #include <ftxui/dom/elements.hpp>
+#include <poll.h>
 #include <signal.h>
+#include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
 
 using namespace ftxui;
@@ -16,11 +16,63 @@ using namespace ftxui;
 namespace pnana {
 namespace features {
 
+namespace {
+
+// 将按键名映射为 PTY 应接收的字节序列
+// 部分 shell 需要 \r\n 才能正确执行命令（PTY 模拟真实终端行为）
+std::string keyToEscape(const std::string& key) {
+    if (key == "return" || key == "ctrl_m")
+        return "\r\n";
+    if (key == "Tab" || key == "tab")
+        return "\t";
+    if (key == "Backspace")
+        return "\x08"; // BS，WSL/bash 下 VERASE 常为 \x08
+    if (key == "ctrl_h")
+        return "\x08"; // Ctrl+H 也映射为删除
+    if (key.size() == 1 && static_cast<unsigned char>(key[0]) == 0x7f)
+        return "\x08"; // Character(DEL) 也转为 BS
+    if (key == "ArrowUp" || key == "arrow_up")
+        return "\x1b[A";
+    if (key == "ArrowDown" || key == "arrow_down")
+        return "\x1b[B";
+    if (key == "ArrowLeft" || key == "arrow_left")
+        return "\x1b[D";
+    if (key == "ArrowRight" || key == "arrow_right")
+        return "\x1b[C";
+    if (key == "Home")
+        return "\x1b[H";
+    if (key == "End")
+        return "\x1b[F";
+    if (key == "Delete")
+        return "\x1b[3~";
+    if (key == "ctrl_c")
+        return "\x03";
+    if (key == "ctrl_d")
+        return "\x04";
+    if (key == "ctrl_z")
+        return "\x1a";
+    if (key == "ctrl_l")
+        return "\x0c";
+    if (key == "ctrl_u")
+        return "\x15";
+    if (key == "ctrl_k")
+        return "\x0b";
+    if (key == "ctrl_a")
+        return "\x01";
+    if (key == "ctrl_e")
+        return "\x05";
+    if (key == "ctrl_w")
+        return "\x17";
+    return "";
+}
+
+} // namespace
+
 Terminal::Terminal(ui::Theme& theme)
-    : theme_(theme), visible_(false), history_index_(0), max_history_size_(100), current_input_(""),
-      cursor_position_(0), max_output_lines_(1000), scroll_offset_(0), current_directory_("."),
-      command_running_(false), current_pid_(0) {
-    // 初始化当前目录
+    : theme_(theme), visible_(false), pending_line_(""), max_output_lines_(1000), scroll_offset_(0),
+      current_directory_("."), shell_running_(false), current_pid_(0), current_pty_fd_(-1),
+      current_slave_fd_(-1), output_thread_running_(false) {
+    pending_line_buffer_.setPendingBackspaceCount(&pending_backspace_count_);
     char* cwd = getcwd(nullptr, 0);
     if (cwd) {
         current_directory_ = cwd;
@@ -29,448 +81,296 @@ Terminal::Terminal(ui::Theme& theme)
 }
 
 void Terminal::setVisible(bool visible) {
+    if (visible_ == visible)
+        return;
     visible_ = visible;
     if (visible) {
-        // 重置历史索引
-        history_index_ = 0;
+        startShellSession();
+    } else {
+        stopShellSession();
     }
-}
-
-void Terminal::handleInput(const std::string& input) {
-    current_input_ = input;
-    // 保持光标位置在有效范围内
-    if (cursor_position_ > current_input_.length()) {
-        cursor_position_ = current_input_.length();
-    }
-}
-
-void Terminal::setCursorPosition(size_t pos) {
-    cursor_position_ = std::min(pos, current_input_.length());
 }
 
 void Terminal::handleKeyEvent(const std::string& key) {
-    if (key == "ArrowLeft") {
-        if (cursor_position_ > 0) {
-            cursor_position_--;
-        }
-    } else if (key == "ArrowRight") {
-        if (cursor_position_ < current_input_.length()) {
-            cursor_position_++;
-        }
-    } else if (key == "Home") {
-        cursor_position_ = 0;
-    } else if (key == "End") {
-        cursor_position_ = current_input_.length();
-    } else if (key == "ArrowUp") {
-        // 浏览命令历史
-        if (!command_history_.empty()) {
-            if (history_index_ < command_history_.size()) {
-                history_index_++;
-            }
-            if (history_index_ > 0 && history_index_ <= command_history_.size()) {
-                current_input_ = command_history_[command_history_.size() - history_index_];
-                cursor_position_ = current_input_.length();
-            }
-        }
-    } else if (key == "ArrowDown") {
-        // 浏览命令历史（向下）
-        if (history_index_ > 0) {
-            history_index_--;
-            if (history_index_ == 0) {
-                current_input_ = "";
-            } else {
-                current_input_ = command_history_[command_history_.size() - history_index_];
-            }
-            cursor_position_ = current_input_.length();
-        }
-    } else if (key == "Backspace") {
-        if (cursor_position_ > 0) {
-            current_input_.erase(cursor_position_ - 1, 1);
-            cursor_position_--;
-        }
-    } else if (key == "Delete") {
-        if (cursor_position_ < current_input_.length()) {
-            current_input_.erase(cursor_position_, 1);
-        }
-    } else if (key == "Ctrl+C") {
-        // Ctrl+C: 中断当前命令或清空输入行
-        if (command_running_) {
-            // 如果有命令正在运行，中断它
-            interruptCommand();
-        } else if (!current_input_.empty()) {
-            // 如果有输入，清空当前输入行
-            current_input_.clear();
-            cursor_position_ = 0;
-            addOutputLine("^C", false);
-        }
-    } else if (key == "Ctrl+D") {
-        // Ctrl+D: 退出终端（如果输入行为空）或删除字符
-        if (current_input_.empty()) {
-            // 输入行为空，关闭终端
-            setVisible(false);
-        } else {
-            // 删除光标处字符（同Delete）
-            if (cursor_position_ < current_input_.length()) {
-                current_input_.erase(cursor_position_, 1);
-            }
-        }
-    } else if (key == "Ctrl+L") {
-        // Ctrl+L: 清屏
-        executeCommand("clear");
-    } else if (key == "Ctrl+U") {
-        // Ctrl+U: 删除光标前所有字符
-        if (cursor_position_ > 0) {
-            current_input_.erase(0, cursor_position_);
-            cursor_position_ = 0;
-        }
-    } else if (key == "Ctrl+K") {
-        // Ctrl+K: 删除光标后所有字符
-        if (cursor_position_ < current_input_.length()) {
-            current_input_.erase(cursor_position_);
-        }
-    } else if (key == "Ctrl+A") {
-        // Ctrl+A: 移动到行首
-        cursor_position_ = 0;
-    } else if (key == "Ctrl+E") {
-        // Ctrl+E: 移动到行尾
-        cursor_position_ = current_input_.length();
-    } else if (key == "Ctrl+W") {
-        // Ctrl+W: 删除前一个单词
-        if (cursor_position_ > 0) {
-            size_t new_pos = cursor_position_;
-            // 跳过当前单词结尾的空格
-            while (new_pos > 0 && current_input_[new_pos - 1] == ' ') {
-                new_pos--;
-            }
-            // 删除单词
-            while (new_pos > 0 && current_input_[new_pos - 1] != ' ') {
-                new_pos--;
-            }
-            current_input_.erase(new_pos, cursor_position_ - new_pos);
-            cursor_position_ = new_pos;
-        }
-    } else if (key == "PageUp") {
-        // PageUp: 向上滚动页面
+    // PageUp/PageDown 用于滚动，不发送到 shell
+    if (key == "PageUp") {
         scrollUp();
-    } else if (key == "PageDown") {
-        // PageDown: 向下滚动页面
+        return;
+    }
+    if (key == "PageDown") {
         scrollDown();
-    }
-}
-
-void Terminal::executeCommand(const std::string& command) {
-    if (command.empty()) {
-        // 空命令，不添加任何输出，输入行会显示提示符
         return;
     }
 
-    using namespace terminal;
-
-    // 检查是否是后台命令
-    std::string cmd;
-    bool is_background = CommandParser::isBackgroundCommand(command, cmd);
-
-    // 添加到历史
-    if (command_history_.empty() || command_history_.back() != command) {
-        command_history_.push_back(command);
-        if (command_history_.size() > max_history_size_) {
-            command_history_.pop_front();
+    std::string esc = keyToEscape(key);
+    if (!esc.empty()) {
+        // ArrowLeft/ArrowRight 会令 shell 回显 \b 做光标移动，不应消耗 pending_backspace_count_。
+        // 发送方向键前清零残留的 bs，避免误将光标移动当作 Backspace 截断。
+        if (key == "ArrowLeft" || key == "ArrowRight") {
+            pending_backspace_count_.store(0);
+        } else if (esc.size() == 1 && static_cast<unsigned char>(esc[0]) == 0x08) {
+            pending_backspace_count_++;
         }
-    }
-    history_index_ = 0;
-
-    // 显示命令（带提示符）
-    addOutputLine(buildPrompt() + command, true);
-
-    // 方案：所有命令都通过系统 shell 执行，以支持所有 Linux 命令和参数
-    // 这样可以：
-    // 1. 支持所有系统命令（ls, grep, find, git, python, 等）
-    // 2. 支持所有命令参数（-al, --help, -r, 等）
-    // 3. 支持所有 shell 特性（管道、重定向、环境变量等）
-    // 4. 自动处理命令别名、PATH 查找等
-
-    // 特殊处理：cd 命令需要更新当前目录
-    std::vector<std::string> args = CommandParser::parse(cmd);
-    if (!args.empty() && args[0] == "cd") {
-        // cd 命令需要特殊处理，因为它需要改变终端的工作目录
-        std::string cd_result = BuiltinCommandExecutor::execute(
-            "cd",
-            args.size() > 1 ? std::vector<std::string>(args.begin() + 1, args.end())
-                            : std::vector<std::string>(),
-            current_directory_, output_lines_);
-        // cd 命令通常没有输出，但如果有错误会返回错误信息
-        if (!cd_result.empty()) {
-            // 添加错误图标和更好的格式
-            addOutputLine(pnana::ui::icons::ERROR + std::string(" ") + cd_result, false);
-        } else {
-            // 成功时显示新目录（可选，通过环境变量控制）
-            const char* show_cd = getenv("PNANA_TERMINAL_SHOW_CD");
-            if (show_cd && std::string(show_cd) == "1") {
-                addOutputLine(pnana::ui::icons::FOLDER + std::string(" Changed directory to: ") +
-                                  current_directory_,
-                              false);
-            }
-        }
+        writeToShell(esc);
         return;
     }
 
-    // 特殊处理：clear 命令需要清空输出
-    if (!args.empty() && (args[0] == "clear" || args[0] == "cls")) {
-        BuiltinCommandExecutor::execute("clear", std::vector<std::string>(), current_directory_,
-                                        output_lines_);
-        return;
-    }
-
-    // 所有其他命令都通过 shell 执行
-    // 这样可以支持所有 Linux 命令和参数，无需手动解析
-    std::string result =
-        ShellCommandExecutor::executeShellCommand(cmd, is_background, current_directory_);
-
-    if (!result.empty()) {
-        // 检查是否是错误输出（通常错误信息会以"Error:"或特定模式开头）
-        bool is_error = (result.find("Error:") == 0 || result.find("Failed to") == 0 ||
-                         result.find("Command failed") == 0 || result.find("cd:") == 0 ||
-                         result.find("ls:") == 0 || result.find("cat:") == 0);
-
-        // 优化多行输出处理，避免使用 stringstream
-        size_t start = 0;
-        size_t end = 0;
-
-        // 预分配输出行向量以提高性能
-        std::vector<std::string> lines;
-        size_t line_count = 0;
-        for (char c : result) {
-            if (c == '\n')
-                line_count++;
+    // 单字符直接写入（含 Ctrl+H 等可能产生 \b 的按键）
+    if (key.length() == 1) {
+        if (static_cast<unsigned char>(key[0]) == 0x08) {
+            pending_backspace_count_++;
         }
-        lines.reserve(line_count + 1);
-
-        while ((end = result.find('\n', start)) != std::string::npos) {
-            std::string line = result.substr(start, end - start);
-            if (is_error && !line.empty()) {
-                line = pnana::ui::icons::ERROR + std::string(" ") + line; // 为错误行添加错误图标
-            }
-            lines.emplace_back(line);
-            start = end + 1;
-        }
-
-        // 处理最后一行（如果没有以换行符结尾）
-        if (start < result.length()) {
-            std::string last_line = result.substr(start);
-            if (is_error && !last_line.empty()) {
-                last_line = pnana::ui::icons::ERROR + std::string(" ") + last_line;
-            }
-            lines.emplace_back(last_line);
-        }
-
-        // 批量添加输出行（更高效）
-        addOutputLines(lines, false);
-    } else if (is_background) {
-        // 后台命令成功启动的反馈
-        addOutputLine(pnana::ui::icons::SUCCESS + std::string(" Command started in background"),
-                      false);
+        writeToShell(key);
     }
 }
 
-ftxui::Element Terminal::render(int /* height */) {
-    // 渲染逻辑已迁移到 ui/terminal_ui.cpp
-    // 这里保留是为了向后兼容，实际应该使用 ui::renderTerminal
-    return text(""); // 占位符，实际不会使用
-}
-
-void Terminal::addOutputLine(const std::string& line, bool is_command) {
-    // 使用环形缓冲区优化：当达到最大行数时，移除最旧的行
-    if (output_lines_.size() >= max_output_lines_) {
-        // 移除最旧的行（从开头移除）
-        output_lines_.erase(output_lines_.begin());
+void Terminal::writeToShell(const std::string& input) {
+    if (shell_running_ && current_pty_fd_ >= 0) {
+        terminal::PTYExecutor::writeInput(current_pty_fd_, input);
     }
-
-    bool has_ansi = terminal::AnsiColorParser::hasAnsiCodes(line);
-    output_lines_.push_back(TerminalLine(line, is_command, has_ansi));
-}
-
-void Terminal::addOutputLines(const std::vector<std::string>& lines, bool is_command) {
-    // 批量添加多行输出，预先计算需要移除的行数
-    size_t total_lines = output_lines_.size() + lines.size();
-    size_t lines_to_remove = 0;
-
-    if (total_lines > max_output_lines_) {
-        lines_to_remove = total_lines - max_output_lines_;
-        if (lines_to_remove > output_lines_.size()) {
-            lines_to_remove = output_lines_.size();
-        }
-    }
-
-    // 移除多余的行
-    if (lines_to_remove > 0) {
-        output_lines_.erase(output_lines_.begin(), output_lines_.begin() + lines_to_remove);
-    }
-
-    // 批量添加新行
-    output_lines_.reserve(output_lines_.size() + lines.size());
-    for (const auto& line : lines) {
-        bool has_ansi = terminal::AnsiColorParser::hasAnsiCodes(line);
-        output_lines_.emplace_back(line, is_command, has_ansi);
-    }
-}
-
-std::string Terminal::buildPrompt() const {
-    using namespace terminal;
-
-    // 预计算各个部分的大小以优化内存分配
-    static const std::string separator = " · ";
-    static const std::string prompt_end = " → ";
-
-    std::string username = TerminalUtils::getUsername();
-    std::string hostname = TerminalUtils::getHostname();
-    std::string time_str = TerminalUtils::getCurrentTime();
-    std::string dir = TerminalUtils::simplifyPath(current_directory_);
-    dir = TerminalUtils::truncatePath(dir, 25);
-    std::string git_branch = TerminalUtils::getGitBranch(current_directory_);
-
-    // 预估总长度以减少重新分配
-    size_t estimated_size = username.length() + hostname.length() + time_str.length() +
-                            dir.length() + separator.length() * 3 + prompt_end.length() + 10;
-
-    if (!git_branch.empty()) {
-        estimated_size += git_branch.length() + 5; // "git:" + separator
-    }
-
-    std::string result;
-    result.reserve(estimated_size);
-
-    // 构建提示符字符串
-    result += username;
-    result += "@";
-    result += hostname;
-    result += separator;
-    result += time_str;
-    result += separator;
-    result += dir;
-
-    // Git 分支（如果有）
-    if (!git_branch.empty()) {
-        result += separator;
-        result += "git:";
-        result += git_branch;
-    }
-
-    result += prompt_end;
-
-    return result;
-}
-
-std::string Terminal::getUsername() const {
-    return terminal::TerminalUtils::getUsername();
-}
-
-std::string Terminal::getHostname() const {
-    return terminal::TerminalUtils::getHostname();
-}
-
-std::string Terminal::getCurrentDir() const {
-    return current_directory_;
-}
-
-std::string Terminal::getGitBranch() const {
-    return terminal::TerminalUtils::getGitBranch(current_directory_);
-}
-
-std::string Terminal::getCurrentTime() const {
-    return terminal::TerminalUtils::getCurrentTime();
-}
-
-ftxui::Color Terminal::getPromptColor() const {
-    return Color::Green; // 使用绿色，更像真实终端
-}
-
-ftxui::Color Terminal::getCommandColor() const {
-    return Color::Green; // 命令也使用绿色
-}
-
-ftxui::Color Terminal::getOutputColor() const {
-    auto& colors = theme_.getColors();
-    return colors.foreground;
-}
-
-ftxui::Color Terminal::getErrorColor() const {
-    return Color::Red;
 }
 
 void Terminal::clear() {
+    std::lock_guard<std::mutex> lock(output_mutex_);
     output_lines_.clear();
-    // 清空后不显示任何消息，更像真实终端
+    pending_raw_.clear();
+    pending_line_.clear();
+    pending_cursor_pos_ = 0;
+    pending_backspace_count_ = 0;
+    pending_line_buffer_.reset();
+    scroll_offset_ = 0;
 }
 
 void Terminal::interruptCommand() {
-    if (command_running_ && current_pid_ > 0) {
-        // 发送SIGINT信号中断进程
-        kill(current_pid_, SIGINT);
-        command_running_ = false;
-        current_pid_ = 0;
-        addOutputLine("^C", false);
+    if (shell_running_ && current_pid_ > 0) {
+        terminal::PTYExecutor::sendSignal(current_pid_, SIGINT);
     }
 }
 
-// 保留旧的方法以保持兼容性（已移至各个模块）
-std::vector<std::string> Terminal::parseCommand(const std::string& command) {
-    return terminal::CommandParser::parse(command);
+void Terminal::addOutputLine(const std::string& line) {
+    if (output_lines_.size() >= max_output_lines_) {
+        output_lines_.erase(output_lines_.begin());
+    }
+    bool has_ansi = terminal::AnsiColorParser::hasAnsiCodes(line);
+    output_lines_.push_back(TerminalLine(line, has_ansi));
 }
 
-std::string Terminal::executeBuiltinCommand(const std::string& command,
-                                            const std::vector<std::string>& args) {
-    return terminal::BuiltinCommandExecutor::execute(command, args, current_directory_,
-                                                     output_lines_);
+void Terminal::addOutputLines(const std::vector<std::string>& lines) {
+    for (const auto& line : lines) {
+        addOutputLine(line);
+    }
 }
 
-std::string Terminal::executeSystemCommand(const std::string& command,
-                                           const std::vector<std::string>& args) {
-    return terminal::ShellCommandExecutor::executeSystemCommand(command, args, current_directory_);
+std::vector<TerminalLine> Terminal::getOutputLinesSnapshot() const {
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    return output_lines_;
 }
 
-std::string Terminal::executeShellCommand(const std::string& command, bool background) {
-    return terminal::ShellCommandExecutor::executeShellCommand(command, background,
-                                                               current_directory_);
+std::string Terminal::getPendingLineSnapshot() const {
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    return pending_line_;
 }
 
-bool Terminal::handleTabCompletion() {
-    std::string completed;
-    size_t new_pos;
+size_t Terminal::getPendingCursorPositionSnapshot() const {
+    std::lock_guard<std::mutex> lock(output_mutex_);
+    return pending_cursor_pos_;
+}
 
-    bool success = terminal::TerminalCompletion::complete(current_input_, cursor_position_,
-                                                          current_directory_, completed, new_pos);
+void Terminal::startShellSession() {
+    if (shell_running_)
+        return;
 
-    if (success) {
-        current_input_ = completed;
-        cursor_position_ = new_pos;
-        return true;
+    terminal::PTYResult result = terminal::PTYExecutor::createInteractiveShell(current_directory_);
+    if (!result.success) {
+        addOutputLine("Error: " + result.error);
+        return;
     }
 
-    return false;
+    shell_running_ = true;
+    current_pid_ = result.pid;
+    current_pty_fd_ = result.master_fd;
+    current_slave_fd_ = result.slave_fd;
+    startOutputThread(result.master_fd);
+    // termios 已在 createInteractiveShell 子进程中设置 VERASE=\x08，与 keyToEscape 的 Backspace
+    // 映射一致
 }
 
-// 滚动功能实现
+void Terminal::stopShellSession() {
+    if (!shell_running_)
+        return;
+    writeToShell("exit\n");
+    output_thread_running_ = false;
+    if (output_thread_.joinable()) {
+        output_thread_.join();
+    }
+    cleanupShell();
+}
+
+void Terminal::startOutputThread(int pty_fd) {
+    stopOutputThread();
+    output_thread_running_ = true;
+    output_thread_ = std::thread([this, pty_fd]() {
+        readPTYOutput(pty_fd);
+    });
+}
+
+void Terminal::stopOutputThread() {
+    output_thread_running_ = false;
+    if (output_thread_.joinable()) {
+        output_thread_.join();
+    }
+}
+
+void Terminal::readPTYOutput(int pty_fd) {
+    const size_t BUFFER_SIZE = 4096;
+    char buffer[BUFFER_SIZE];
+
+    auto drainAndAdd = [this, pty_fd, &buffer, BUFFER_SIZE]() {
+        bool had_output = false;
+        while (true) {
+            ssize_t n = terminal::PTYExecutor::readOutput(pty_fd, buffer, BUFFER_SIZE);
+            if (n > 0) {
+                had_output = true;
+                bool had_complete_line = false;
+                {
+                    std::lock_guard<std::mutex> lock(output_mutex_);
+                    std::string raw = pending_raw_ + std::string(buffer, static_cast<size_t>(n));
+                    pending_raw_.clear();
+                    size_t start = 0;
+                    size_t end;
+                    bool is_first_line_in_batch = true;
+                    while ((end = raw.find('\n', start)) != std::string::npos) {
+                        std::string line_to_add;
+                        if (is_first_line_in_batch && !pending_line_.empty()) {
+                            // 第一行即用户刚提交的输入，使用我们持续解析的
+                            // pending_line_（已正确处理历史切换）
+                            line_to_add = pending_line_;
+                        } else {
+                            std::string line_raw = raw.substr(start, end - start);
+                            pending_line_buffer_.reset();
+                            pending_line_buffer_.feed(line_raw);
+                            pending_line_buffer_.flushReplace();
+                            line_to_add = pending_line_buffer_.getLine();
+                            if (line_to_add.empty())
+                                line_to_add = line_raw;
+                        }
+                        addOutputLine(line_to_add);
+                        had_complete_line = true;
+                        start = end + 1;
+                        is_first_line_in_batch = false;
+                        pending_line_buffer_.reset();
+                    }
+                    if (start < raw.length()) {
+                        std::string new_pending = raw.substr(start);
+                        std::string to_feed;
+                        if (had_complete_line) {
+                            // 中间有换行：reset 后 feed 剩余部分（新行起始）
+                            pending_line_buffer_.reset();
+                            to_feed = new_pending;
+                        } else {
+                            // 无换行：仅 feed 本次 read 的新字节，避免重复处理历史 \b 耗尽 bs_count
+                            to_feed = std::string(buffer, static_cast<size_t>(n));
+                        }
+                        if (!to_feed.empty()) {
+                            pending_line_buffer_.feed(to_feed);
+                            pending_line_buffer_.flushReplace();
+                        }
+                        pending_raw_ = new_pending;
+                        pending_line_ = pending_line_buffer_.getLine();
+                        pending_cursor_pos_ = pending_line_buffer_.getCursorPos();
+                    } else {
+                        pending_raw_.clear();
+                        pending_line_.clear();
+                        pending_cursor_pos_ = 0;
+                        pending_line_buffer_.reset();
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+        // 每个 poll 周期最多触发一次；节流到 ~30fps 避免事件队列洪泛
+        if (had_output && on_output_added_) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - last_refresh_time_)
+                    .count();
+            if (elapsed >= REFRESH_THROTTLE_MS) {
+                last_refresh_time_ = now;
+                on_output_added_();
+            }
+        }
+    };
+
+    constexpr int CURSOR_BLINK_INTERVAL_MS = 500;
+    auto last_cursor_tick = std::chrono::steady_clock::now();
+
+    while (output_thread_running_) {
+        struct pollfd pfd = {};
+        pfd.fd = pty_fd;
+        pfd.events = POLLIN;
+        int ret = poll(&pfd, 1, 16); // 16ms 超时 (~60fps)，输入回显更及时
+
+        if (ret > 0 && (pfd.revents & POLLIN)) {
+            drainAndAdd();
+        } else if (ret < 0) {
+            break;
+        }
+
+        // 定期触发刷新以保持光标闪烁（终端空闲时）
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - last_cursor_tick).count();
+        if (elapsed >= CURSOR_BLINK_INTERVAL_MS && on_output_added_) {
+            last_cursor_tick = now;
+            on_output_added_();
+        }
+
+        if (current_pid_ > 0 && !terminal::PTYExecutor::isProcessRunning(current_pid_)) {
+            drainAndAdd();
+            shell_running_ = false;
+            break;
+        }
+    }
+}
+
+void Terminal::cleanupShell() {
+    stopOutputThread();
+    if (current_pty_fd_ >= 0) {
+        terminal::PTYExecutor::closePTY(current_pty_fd_);
+        current_pty_fd_ = -1;
+    }
+    if (current_slave_fd_ >= 0) {
+        terminal::PTYExecutor::closeSlave(current_slave_fd_);
+        current_slave_fd_ = -1;
+    }
+    shell_running_ = false;
+    current_pid_ = 0;
+}
+
+ftxui::Element Terminal::render(int /* height */) {
+    return text("");
+}
+
 void Terminal::scrollUp() {
-    // 向上滚动：增加偏移量，最多滚动到输出历史的开始
+    std::lock_guard<std::mutex> lock(output_mutex_);
     if (scroll_offset_ < output_lines_.size()) {
         scroll_offset_ += 1;
     }
 }
 
 void Terminal::scrollDown() {
-    // 向下滚动：减少偏移量，最少滚动到最新输出
     if (scroll_offset_ > 0) {
         scroll_offset_ -= 1;
     }
 }
 
 void Terminal::scrollToTop() {
-    // 滚动到最顶部
+    std::lock_guard<std::mutex> lock(output_mutex_);
     scroll_offset_ = output_lines_.size();
 }
 
 void Terminal::scrollToBottom() {
-    // 滚动到最底部（最新输出）
     scroll_offset_ = 0;
 }
 
