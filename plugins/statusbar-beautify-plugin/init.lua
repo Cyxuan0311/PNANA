@@ -81,23 +81,16 @@ local beautify_config = {
 }
 
 -- 应用状态栏美化配置
-print("[DEBUG] Applying statusbar beautify config...")
 local result = vim.api.set_statusbar_beautify(beautify_config)
 
 if result then
     vim.api.set_status_message("✓ Statusbar Beautify Plugin loaded! Enhanced statusbar with beautiful colors and optimized icons!")
-    print("[DEBUG] ✓ Statusbar beautify config applied successfully")
-    print(string.format("[DEBUG] BG Color: RGB(%d, %d, %d)", beautify_config.bg_color[1], beautify_config.bg_color[2], beautify_config.bg_color[3]))
-    print(string.format("[DEBUG] FG Color: RGB(%d, %d, %d)", beautify_config.fg_color[1], beautify_config.fg_color[2], beautify_config.fg_color[3]))
-    print("[DEBUG] Plugin should now be active - check statusbar appearance")
 else
     vim.api.set_status_message("✗ Statusbar Beautify Plugin failed to load!")
-    print("[DEBUG] ✗ Statusbar beautify config failed to apply")
 end
 
 -- 插件禁用时的清理函数
 function on_disable()
-    print("[DEBUG] Statusbar beautify plugin disabled - resetting config")
     local reset_config = {
         enabled = false,
         bg_color = {45, 45, 45},  -- 默认背景色
@@ -109,4 +102,3 @@ end
 
 -- 插件初始化完成
 -- 所有配置都在 Lua 中定义，包括颜色、图标和布局
-print("[DEBUG] Statusbar beautify plugin init.lua loaded")
