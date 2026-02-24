@@ -398,12 +398,15 @@ set(SOURCES
     src/features/package_manager/yum_manager.cpp
     src/features/package_manager/brew_manager.cpp
     src/features/terminal/terminal.cpp
+    src/features/terminal/terminal_line_buffer.cpp
     src/features/terminal/terminal_color.cpp
     src/features/terminal/terminal_parser.cpp
     src/features/terminal/terminal_builtin.cpp
     src/features/terminal/terminal_shell.cpp
     src/features/terminal/terminal_utils.cpp
     src/features/terminal/terminal_completion.cpp
+    src/features/terminal/terminal_pty.cpp
+    src/features/terminal/terminal_job.cpp
     src/features/split_view/split_view.cpp
     src/features/md_render/markdown_parser.cpp
     src/features/md_render/markdown_renderer.cpp
