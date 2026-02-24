@@ -104,82 +104,13 @@ void KeyBindingManager::initializeTabOperationBindings() {
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
     std::string key = parser_.eventToKey(event);
 
-    // Debug all key events
-    LOG("[DEBUG KEY] Event input: '" + event.input() + "', parsed key: '" + key + "'");
-
-    // Debug Alt+E detection
-    (void)key;
-    (void)event;
-
-    // ??????? Ctrl+P ??
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] KeyBindingManager::getAction() - Ctrl+P detected");
-        LOG("[DEBUG COPY] eventToKey() returned: '" + key + "'");
-    }
-
-    // ????????? Tab ??
-    if (event == ftxui::Event::Tab) {
-        LOG("KeyBindingManager::getAction() - Tab key detected");
-        LOG("eventToKey() returned: '" + key + "'");
-        LOG("Key string empty: " + std::string(key.empty() ? "yes" : "no"));
-
-        if (!key.empty()) {
-            auto it = key_to_action_.find(key);
-            if (it != key_to_action_.end()) {
-                LOG("Found action in key_to_action_ map: " +
-                    std::to_string(static_cast<int>(it->second)));
-            } else {
-                LOG_ERROR("Key '" + key + "' not found in key_to_action_ map!");
-                LOG_ERROR("Total keys in map: " + std::to_string(key_to_action_.size()));
-                // ?? "tab" ?????
-                LOG("Checking if 'tab' key exists in map...");
-                int tab_count = 0;
-                for (const auto& pair : key_to_action_) {
-                    if (pair.first == "tab") {
-                        LOG("Found 'tab' key in map! Action: " +
-                            std::to_string(static_cast<int>(pair.second)));
-                        tab_count++;
-                    }
-                }
-                if (tab_count == 0) {
-                    LOG_ERROR("'tab' key NOT found in map at all!");
-                }
-            }
-        }
-    }
-
     if (key.empty()) {
-        if (event == ftxui::Event::CtrlP) {
-            LOG_ERROR("[DEBUG COPY] Key string is empty for Ctrl+P!");
-        }
         return KeyAction::UNKNOWN;
     }
 
     auto it = key_to_action_.find(key);
     if (it != key_to_action_.end()) {
-        if (event == ftxui::Event::CtrlP) {
-            LOG("[DEBUG COPY] Found action in map: " +
-                std::to_string(static_cast<int>(it->second)) +
-                " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
-        }
         return it->second;
-    }
-
-    if (event == ftxui::Event::CtrlP) {
-        LOG_ERROR("[DEBUG COPY] Key '" + key + "' not found in key_to_action_ map!");
-        LOG_ERROR("[DEBUG COPY] Total keys in map: " + std::to_string(key_to_action_.size()));
-        // ?? "ctrl_p" ?????
-        int ctrl_p_count = 0;
-        for (const auto& pair : key_to_action_) {
-            if (pair.first == "ctrl_p") {
-                LOG("[DEBUG COPY] Found 'ctrl_p' key in map! Action: " +
-                    std::to_string(static_cast<int>(pair.second)));
-                ctrl_p_count++;
-            }
-        }
-        if (ctrl_p_count == 0) {
-            LOG_ERROR("[DEBUG COPY] 'ctrl_p' key NOT found in map at all!");
-        }
     }
 
     return KeyAction::UNKNOWN;
