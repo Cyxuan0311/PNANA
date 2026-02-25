@@ -75,7 +75,7 @@ SyntaxHighlighter::SyntaxHighlighter(ui::Theme& theme, SyntaxHighlightBackend ba
 SyntaxHighlighter::~SyntaxHighlighter() = default;
 
 void SyntaxHighlighter::initializeLanguages() {
-    // C/C++ 关键字
+    // C/C++ 关键字（扩展版）
     keywords_["cpp"] = {"auto",        "break",        "case",
                         "char",        "const",        "continue",
                         "default",     "do",           "double",
@@ -94,11 +94,111 @@ void SyntaxHighlighter::initializeLanguages() {
                         "catch",       "throw",        "new",
                         "delete",      "this",         "nullptr",
                         "true",        "false",        "const_cast",
-                        "static_cast", "dynamic_cast", "reinterpret_cast"};
+                        "static_cast", "dynamic_cast", "reinterpret_cast",
+                        "constexpr",   "noexcept",     "explicit",
+                        "mutable",     "consteval",    "constinit",
+                        "export",      "import",       "module",
+                        "concept",     "requires",     "co_await",
+                        "co_return",   "co_yield",     "alignas",
+                        "alignof",     "and",          "and_eq",
+                        "bitand",      "bitor",        "compl",
+                        "not",         "not_eq",       "or",
+                        "or_eq",       "xor",          "xor_eq",
+                        "decltype",    "typeid",       "reflexpr",
+                        "friend",      "operator",     "wchar_t",
+                        "char8_t",     "char16_t",     "char32_t"};
 
-    types_["cpp"] = {"bool",     "int8_t",   "int16_t",  "int32_t",    "int64_t",    "uint8_t",
-                     "uint16_t", "uint32_t", "uint64_t", "size_t",     "ssize_t",    "string",
-                     "vector",   "map",      "set",      "shared_ptr", "unique_ptr", "weak_ptr"};
+    types_["cpp"] = {"bool",
+                     "int8_t",
+                     "int16_t",
+                     "int32_t",
+                     "int64_t",
+                     "uint8_t",
+                     "uint16_t",
+                     "uint32_t",
+                     "uint64_t",
+                     "size_t",
+                     "ssize_t",
+                     "string",
+                     "vector",
+                     "map",
+                     "set",
+                     "unordered_map",
+                     "unordered_set",
+                     "shared_ptr",
+                     "unique_ptr",
+                     "weak_ptr",
+                     "optional",
+                     "variant",
+                     "any",
+                     "string_view",
+                     "span",
+                     "array",
+                     "tuple",
+                     "pair",
+                     "list",
+                     "deque",
+                     "queue",
+                     "stack",
+                     "priority_queue",
+                     "multiset",
+                     "multimap",
+                     "bitset",
+                     "valarray",
+                     "complex",
+                     "regex",
+                     "chrono",
+                     "mutex",
+                     "atomic",
+                     "thread",
+                     "future",
+                     "promise",
+                     "packaged_task",
+                     "exception",
+                     "runtime_error",
+                     "logic_error",
+                     "invalid_argument",
+                     "out_of_range",
+                     "int",
+                     "char",
+                     "wchar_t",
+                     "short",
+                     "long",
+                     "float",
+                     "double",
+                     "void",
+                     "FILE",
+                     "FILE*",
+                     "size_type",
+                     "value_type",
+                     "iterator",
+                     "const_iterator",
+                     "reverse_iterator",
+                     "difference_type"};
+
+    // Zig 关键字
+    keywords_["zig"] = {
+        "addrspace", "align",       "and",         "anyframe", "anytype",     "asm",
+        "async",     "await",       "break",       "catch",    "comptime",    "const",
+        "continue",  "defer",       "else",        "enum",     "errdefer",    "error",
+        "export",    "extern",      "fn",          "for",      "if",          "inline",
+        "noalias",   "nosuspend",   "orelse",      "or",       "packed",      "pub",
+        "resume",    "return",      "linksection", "struct",   "suspend",     "switch",
+        "test",      "threadlocal", "try",         "union",    "unreachable", "usingnamespace",
+        "var",       "volatile",    "while"};
+
+    types_["zig"] = {"void",         "bool",         "noreturn",
+                     "type",         "anyerror",     "u8",
+                     "i8",           "u16",          "i16",
+                     "u32",          "i32",          "u64",
+                     "i64",          "u128",         "i128",
+                     "usize",        "isize",        "f16",
+                     "f32",          "f64",          "f80",
+                     "f128",         "c_short",      "c_ushort",
+                     "c_int",        "c_uint",       "c_long",
+                     "c_ulong",      "c_longlong",   "c_ulonglong",
+                     "c_longdouble", "comptime_int", "comptime_float",
+                     "null",         "undefined"};
 
     // Python 关键字
     keywords_["python"] = {
@@ -4598,14 +4698,16 @@ std::vector<Token> SyntaxHighlighter::tokenizeGeneric(const std::string& line) {
             continue;
         }
 
-        // 标识符和关键字
+        // 标识符、关键字和类型
         if (std::isalpha(line[i]) || line[i] == '_') {
             size_t start = i;
             while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_'))
                 i++;
             std::string word = line.substr(start, i - start);
-            TokenType type = isKeyword(word) ? TokenType::KEYWORD : TokenType::NORMAL;
-            tokens.push_back({word, type, start, i});
+            TokenType tok_type = isKeyword(word) ? TokenType::KEYWORD
+                                 : isType(word)  ? TokenType::TYPE
+                                                 : TokenType::NORMAL;
+            tokens.push_back({word, tok_type, start, i});
             continue;
         }
 

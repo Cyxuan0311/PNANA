@@ -168,6 +168,11 @@ TSLanguage* tree_sitter_toml();
 TSLanguage* tree_sitter_nim();
 #endif
 
+// Zig
+#ifdef BUILD_TREE_SITTER_ZIG
+TSLanguage* tree_sitter_zig();
+#endif
+
 // 函数式编程和编译器相关语言
 // Lisp
 #ifdef BUILD_TREE_SITTER_LISP
@@ -594,6 +599,14 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["nim"] = nim_lang;
         language_map_["nims"] = nim_lang;   // Nim script files
         language_map_["nimble"] = nim_lang; // Nimble package files
+    }
+#endif
+
+// Zig
+#ifdef BUILD_TREE_SITTER_ZIG
+    TSLanguage* zig_lang = tree_sitter_zig();
+    if (zig_lang) {
+        language_map_["zig"] = zig_lang;
     }
 #endif
 
