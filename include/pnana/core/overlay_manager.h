@@ -92,6 +92,9 @@ class OverlayManager {
     void setRenderRecentFilesCallback(std::function<ftxui::Element()> callback) {
         render_recent_files_callback_ = callback;
     }
+    void setRenderFzfPopupCallback(std::function<ftxui::Element()> callback) {
+        render_fzf_popup_callback_ = callback;
+    }
     void setRenderTUIConfigCallback(std::function<ftxui::Element()> callback) {
         render_tui_config_callback_ = callback;
     }
@@ -178,6 +181,9 @@ class OverlayManager {
     void setIsRecentFilesVisibleCallback(std::function<bool()> callback) {
         is_recent_files_visible_callback_ = callback;
     }
+    void setIsFzfPopupVisibleCallback(std::function<bool()> callback) {
+        is_fzf_popup_visible_callback_ = callback;
+    }
     void setIsTUIConfigVisibleCallback(std::function<bool()> callback) {
         is_tui_config_visible_callback_ = callback;
     }
@@ -216,6 +222,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_ssh_dialog_callback_;
     std::function<ftxui::Element()> render_encoding_dialog_callback_;
     std::function<ftxui::Element()> render_recent_files_callback_;
+    std::function<ftxui::Element()> render_fzf_popup_callback_;
     std::function<ftxui::Element()> render_tui_config_callback_;
     std::function<ftxui::Element()> render_dialog_callback_;
 
@@ -246,6 +253,7 @@ class OverlayManager {
     std::function<bool()> is_ssh_dialog_visible_callback_;
     std::function<bool()> is_encoding_dialog_visible_callback_;
     std::function<bool()> is_recent_files_visible_callback_;
+    std::function<bool()> is_fzf_popup_visible_callback_;
     std::function<bool()> is_tui_config_visible_callback_;
     std::function<bool()> is_dialog_visible_callback_;
 };
