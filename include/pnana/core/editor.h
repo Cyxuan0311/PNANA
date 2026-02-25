@@ -24,6 +24,7 @@
 #include "ui/extract_progress_dialog.h"
 #include "ui/file_picker.h"
 #include "ui/format_dialog.h"
+#include "ui/fzf_popup.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
 #include "ui/move_file_dialog.h"
@@ -396,6 +397,7 @@ class Editor {
     pnana::ui::EncodingDialog encoding_dialog_;
     pnana::ui::FormatDialog format_dialog_;
     pnana::ui::RecentFilesPopup recent_files_popup_;
+    pnana::ui::FzfPopup fzf_popup_;
     pnana::ui::TUIConfigPopup tui_config_popup_;
     pnana::ui::ExtractDialog extract_dialog_;
     pnana::ui::ExtractPathDialog extract_path_dialog_;
@@ -781,6 +783,8 @@ class Editor {
     void handleCommandPaletteInput(ftxui::Event event);
     void initializeCommandPalette();
     void openRecentFilesDialog();
+    void openFzfPopup();
+    void handleFzfPopupInput(ftxui::Event event);
     void openTUIConfigDialog();
 
     // AI助手

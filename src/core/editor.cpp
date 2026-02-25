@@ -15,7 +15,6 @@
 #include "features/package_manager/yum_manager.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
-#include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
@@ -51,9 +50,10 @@ Editor::Editor()
       new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
       save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
       binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
-      recent_files_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
-      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
-      ai_config_dialog_(theme_), todo_panel_(theme_), package_manager_panel_(theme_),
+      recent_files_popup_(theme_), fzf_popup_(theme_), tui_config_popup_(theme_),
+      extract_dialog_(theme_), extract_path_dialog_(theme_), extract_progress_dialog_(theme_),
+      ai_assistant_panel_(theme_), ai_config_dialog_(theme_), todo_panel_(theme_),
+      package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -124,6 +124,25 @@ Editor::Editor()
         this->recent_files_manager_.openFile(index);
     });
 
+    // 初始化 FZF 模糊文件查找弹窗
+    fzf_popup_.setFileOpenCallback([this](const std::string& filepath) {
+        this->openFile(filepath);
+    });
+    fzf_popup_.setCursorColorGetter([this]() {
+        return getCursorColor();
+    });
+    fzf_popup_.setOnLoadComplete([this](std::vector<std::string> files,
+                                        std::vector<std::string> display_paths,
+                                        std::string root_path) {
+        screen_.Post([this, files = std::move(files), display_paths = std::move(display_paths),
+                      root_path = std::move(root_path)]() mutable {
+            fzf_popup_.receiveFiles(std::move(files), std::move(display_paths),
+                                    std::move(root_path));
+            force_ui_update_ = true;
+            screen_.PostEvent(Event::Custom);
+        });
+    });
+
     // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
     // 必须设置 force_ui_update_=true，否则 renderUI 的渲染去抖可能跳过重绘，导致新输出不显示
     terminal_.setOnOutputAdded([this]() {
@@ -135,70 +154,32 @@ Editor::Editor()
     });
 
     // 设置文档切换回调，优化LSP诊断响应速度
-    document_manager_.setDocumentSwitchedCallback([this](size_t old_index, size_t new_index) {
+    document_manager_.setDocumentSwitchedCallback([this](size_t /*old_index*/, size_t new_index) {
         try {
-            LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH START =====");
-            LOG("[DOC_SWITCH] Document switched from " + std::to_string(old_index) + " to " +
-                std::to_string(new_index));
-
-            // 安全检查：验证新文档索引有效
             if (new_index >= document_manager_.getDocumentCount()) {
-                LOG_ERROR(
-                    "[DOC_SWITCH] Invalid new document index: " + std::to_string(new_index) +
-                    ", total documents: " + std::to_string(document_manager_.getDocumentCount()));
                 return;
             }
 
-            // 获取新文档信息
             Document* new_doc = document_manager_.getDocument(new_index);
             if (!new_doc) {
-                LOG_ERROR("[DOC_SWITCH] Failed to get document at index " +
-                          std::to_string(new_index));
                 return;
             }
 
             std::string filepath = new_doc->getFilePath();
-            LOG("[DOC_SWITCH] New document filepath: " + filepath);
 
-            // 安全检查：验证文档状态
             if (filepath.empty()) {
-                LOG_WARNING("[DOC_SWITCH] Document has empty filepath, skipping LSP updates");
-                // 对于无路径文档，只需要设置渲染标志
                 needs_render_ = true;
                 last_render_source_ = "document_switch";
                 return;
             }
 
-            // 立即更新当前文件的诊断信息，提升响应速度（不强制UI更新）
-            LOG("[DOC_SWITCH] Updating diagnostics...");
             updateCurrentFileDiagnostics();
-
-            // 检查诊断更新结果
-            {
-                std::lock_guard<std::mutex> lock(diagnostics_mutex_);
-                LOG("[DOC_SWITCH] Current diagnostics count: " +
-                    std::to_string(current_file_diagnostics_.size()));
-            }
-
-            // 立即更新折叠状态，提升响应速度（不强制UI更新）
-            LOG("[DOC_SWITCH] Updating folding...");
             updateCurrentFileFolding();
-
-            // 预加载相邻文档的诊断和折叠数据，提升后续切换响应速度
-            LOG("[DOC_SWITCH] Starting preload for adjacent documents...");
             preloadAdjacentDocuments(new_index);
 
-            // 设置渲染标志，避免强制UI更新导致的抖动
             needs_render_ = true;
             last_render_source_ = "document_switch";
-            LOG("[DOC_SWITCH] Set needs_render_=true, last_render_source=document_switch");
-
-            LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH END =====");
-        } catch (const std::exception& e) {
-            LOG_ERROR("[DOC_SWITCH] Exception in document switch callback: " +
-                      std::string(e.what()));
         } catch (...) {
-            LOG_ERROR("[DOC_SWITCH] Unknown exception in document switch callback");
         }
     });
 
@@ -208,6 +189,9 @@ Editor::Editor()
     });
 
     // 初始化TUI配置弹窗
+    tui_config_popup_.setCursorColorGetter([this]() {
+        return getCursorColor();
+    });
     tui_config_popup_.setConfigOpenCallback([this](const features::TUIConfig& config) {
         this->tui_config_manager_.openConfig(config);
     });
@@ -221,7 +205,6 @@ Editor::Editor()
 
     // 日志系统不会在这里自动初始化
     // 只有在 main.cpp 中指定 -l/--log 参数时才会初始化
-    // LOG("Editor constructor started");  // 只有在启用日志时才记录
 
 #ifdef BUILD_LSP_SUPPORT
     // 初始化 LSP 客户端
@@ -421,6 +404,9 @@ void Editor::loadConfig(const std::string& config_path) {
     theme_.clearCustomThemes();
 
     theme_menu_.setAvailableThemes(available_themes);
+    theme_menu_.setCursorColorGetter([this]() {
+        return getCursorColor();
+    });
 
     // 加载光标配置
     const auto& display_config = config.display;
@@ -952,6 +938,35 @@ void Editor::openRecentFilesDialog() {
     if (!recent_projects.empty()) {
         recent_files_popup_.setData(true, recent_projects, 0);
         recent_files_popup_.open();
+    }
+}
+
+void Editor::openFzfPopup() {
+    // 设置根目录：优先使用当前文档所在目录，否则使用文件浏览器当前目录，最后使用当前工作目录
+    std::string root = ".";
+    if (getCurrentDocument() && !getCurrentDocument()->getFileName().empty()) {
+        try {
+            std::filesystem::path p(getCurrentDocument()->getFileName());
+            if (std::filesystem::exists(p)) {
+                root = std::filesystem::canonical(p).parent_path().string();
+            }
+        } catch (...) {
+        }
+    }
+    if (root == "." && file_browser_.isVisible()) {
+        root = file_browser_.getCurrentDirectory();
+    }
+    fzf_popup_.setRootDirectory(root);
+    fzf_popup_.open();
+    setStatusMessage("FZF - Type to filter, ↑↓ navigate, Enter to open");
+}
+
+void Editor::handleFzfPopupInput(Event event) {
+    if (fzf_popup_.handleInput(event)) {
+        if (!fzf_popup_.isOpen()) {
+            setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
+                             "Ctrl+O Files | F1 Help");
+        }
     }
 }
 
@@ -1604,23 +1619,14 @@ void Editor::formatSelectedFiles(const std::vector<std::string>& file_paths) {
 
     // 在后台线程执行格式化，避免阻塞UI
     std::thread([this, file_paths]() {
-        LOG("Async format: Starting background formatting thread");
         bool success = lsp_formatter_->formatFiles(file_paths);
-        LOG("Async format: Formatting completed, success: " +
-            std::string(success ? "true" : "false"));
-
-        // 在主线程中更新状态消息
-        LOG("Async format: Posting UI update to main thread");
         screen_.Post([this, success, count = file_paths.size()]() {
-            LOG("Async format: UI update callback executed");
             if (success) {
                 setStatusMessage("✓ Successfully formatted " + std::to_string(count) + " file(s)");
             } else {
                 setStatusMessage("✗ Failed to format some files. Check LSP server status.");
             }
-            LOG("Async format: Status message updated");
         });
-        LOG("Async format: Background thread completed");
     }).detach(); // 分离线程，让它在后台运行
 }
 
@@ -2407,7 +2413,6 @@ void Editor::focusDownRegion() {
 void Editor::initializePlugins() {
     plugin_manager_ = std::make_unique<plugins::PluginManager>(this);
     if (!plugin_manager_ || !plugin_manager_->initialize()) {
-        LOG_ERROR("Failed to initialize plugin system");
         plugin_manager_.reset();
     } else {
         // 设置插件管理对话框的插件管理器指针
