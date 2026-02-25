@@ -102,14 +102,20 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
         return true;
     }
 
-    // 2. 最近文件弹窗
+    // 2. FZF 模糊文件查找弹窗
+    if (editor->fzf_popup_.isOpen()) {
+        editor->handleFzfPopupInput(event);
+        return true;
+    }
+
+    // 3. 最近文件弹窗
     if (editor->recent_files_popup_.isOpen()) {
         if (editor->recent_files_popup_.handleInput(event)) {
             return true;
         }
     }
 
-    // 3. TUI配置弹窗
+    // 4. TUI配置弹窗
     if (editor->tui_config_popup_.isOpen()) {
         if (editor->tui_config_popup_.handleInput(event)) {
             return true;
