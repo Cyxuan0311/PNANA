@@ -4,7 +4,6 @@
 #include "input/event_parser.h"
 #include "input/key_action.h"
 #include "ui/icons.h"
-#include "utils/logger.h"
 #include "utils/text_utils.h"
 #include <filesystem>
 #include <ftxui/component/event.hpp>
@@ -73,7 +72,6 @@ void Editor::handleInput(Event event) {
     // 包括全局快捷键、分屏操作等
     if (input_router_) {
         if (input_router_->route(event, this)) {
-            LOG("InputRouter handled global event");
             return;
         }
         // 终端可见且焦点在终端时的回退：确保 Return/Enter/Backspace 等始终到达 shell
@@ -1236,10 +1234,8 @@ void Editor::handleNormalMode(Event event) {
     pnana::input::EventParser parser;
     std::string key_str = parser.eventToKey(event);
     if (key_str == "alt_0") {
-        LOG("EditorInput: Alt+0 detected, calling moveCursorPageUp()");
         moveCursorPageUp();
     } else if (key_str == "alt_9") {
-        LOG("EditorInput: Alt+9 detected, calling moveCursorPageDown()");
         moveCursorPageDown();
     } else if (event == Event::Backspace) {
         backspace();
@@ -1699,80 +1695,45 @@ void Editor::handleFileBrowserInput(Event event) {
         setStatusMessage("File browser closed | Region: " + region_manager_.getRegionName());
     } else if (event == Event::Return) {
         // Enter: toggle expand/collapse for directories, or open file
-        LOG("=== File Browser: Return key pressed ===");
-        LOG("Current directory: " + file_browser_.getCurrentDirectory());
-        LOG("Calling file_browser_.toggleSelected()...");
         bool is_file = file_browser_.toggleSelected();
-        LOG("toggleSelected() returned: " +
-            std::string(is_file ? "true (file)" : "false (directory)"));
 
         if (is_file) {
-            LOG("Getting selected file...");
             std::string selected = file_browser_.getSelectedFile();
-            LOG("Selected file path: " + selected);
-            LOG("Selected file length: " + std::to_string(selected.length()));
-            LOG("Selected file empty check: " + std::string(selected.empty() ? "true" : "false"));
 
             if (!selected.empty()) {
-                // It's a file, open it but keep browser open
-                LOG("--- Starting file open process ---");
-                LOG("Calling openFile() with path: " + selected);
-
                 try {
                     bool open_result = openFile(selected);
-                    LOG("openFile() returned: " + std::string(open_result ? "true" : "false"));
 
                     if (open_result) {
                         Document* doc = getCurrentDocument();
                         if (doc) {
-                            LOG("File opened successfully, document pointer: " +
-                                std::to_string(reinterpret_cast<uintptr_t>(doc)));
-                            LOG("Document file name: " + doc->getFileName());
-                            LOG("Document file path: " + doc->getFilePath());
-                            LOG("Document line count: " + std::to_string(doc->lineCount()));
                             setStatusMessage(std::string(pnana::ui::icons::OPEN) +
                                              " Opened: " + doc->getFileName() +
                                              " | Press Ctrl+O to close browser | Region: " +
                                              region_manager_.getRegionName());
                         } else {
-                            LOG_ERROR("openFile() returned true but getCurrentDocument() is null!");
                             setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                                              " Failed to open file: Document is null");
                         }
                     } else {
-                        LOG_ERROR("openFile() returned false - file open failed");
                         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                                          " Failed to open file");
                     }
                 } catch (const std::exception& e) {
-                    LOG_ERROR("Exception in openFile(): " + std::string(e.what()));
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                                      " Exception: " + std::string(e.what()));
                 } catch (...) {
-                    LOG_ERROR("Unknown exception in openFile()");
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Unknown exception");
                 }
 
-                LOG("--- File open process completed ---");
-
-                // 文件打开后，关闭文件浏览器并切换到代码区域
                 file_browser_.setVisible(false);
                 region_manager_.setRegion(EditorRegion::CODE_AREA);
-                LOG("File browser closed and switched to CODE_AREA region after opening file");
-            } else {
-                LOG_WARNING("Selected file path is empty!");
             }
         } else {
-            // It's a directory, toggled expand/collapse
-            LOG("Directory toggled, current directory: " + file_browser_.getCurrentDirectory());
             setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " " +
                              file_browser_.getCurrentDirectory() +
                              " | Region: " + region_manager_.getRegionName());
         }
-        LOG("=== File Browser: Return key handling completed ===");
-        LOG("File browser visible: " + std::string(file_browser_.isVisible() ? "true" : "false"));
-        LOG("Current region: " + region_manager_.getRegionName());
-        LOG("Document count: " + std::to_string(document_manager_.getDocumentCount()));
     } else if (event == Event::Backspace) {
         // Go to parent directory
         if (file_browser_.goUp()) {
@@ -1805,7 +1766,6 @@ void Editor::handleFileBrowserInput(Event event) {
 
     // Delete: 删除文件/文件夹
     if (event == Event::Delete) {
-        LOG("Delete key in file browser - deleting file");
         handleDeleteFile();
         return;
     }

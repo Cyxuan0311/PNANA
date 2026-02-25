@@ -282,6 +282,12 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setIsRecentFilesVisibleCallback([this]() {
         return recent_files_popup_.isOpen();
     });
+    overlay_manager_->setRenderFzfPopupCallback([this]() {
+        return fzf_popup_.render();
+    });
+    overlay_manager_->setIsFzfPopupVisibleCallback([this]() {
+        return fzf_popup_.isOpen();
+    });
     overlay_manager_->setRenderTUIConfigCallback([this]() {
         auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
         tui_config_popup_.setData(tui_config_popup_.isOpen(), available_configs,
@@ -793,8 +799,6 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                     }
                 }
             } catch (const std::exception& e) {
-                LOG_WARNING("[UI_RENDER] Exception in folding manager access: " +
-                            std::string(e.what()));
                 // 如果出现异常，回退到文档状态
                 if (is_folded_in_doc) {
                     can_fold = true;
