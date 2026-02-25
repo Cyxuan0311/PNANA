@@ -375,6 +375,7 @@ set(SOURCES
     src/features/recent_files_manager.cpp
     src/features/tui_config_manager.cpp
     src/ui/recent_files_popup.cpp
+    src/ui/fzf_popup.cpp
     src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
     # Markdown 解析库
