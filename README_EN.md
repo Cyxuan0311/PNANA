@@ -26,7 +26,7 @@
 ## ✨ Core Features
 
 ### 🎨 Beautiful and Friendly Interface
-- **28 Beautiful Themes**: Monokai (default), Dracula, Solarized Dark/Light, OneDark, Nord...
+- **Multiple Themes**: Monokai (default), Dracula, Solarized Dark/Light, OneDark, Nord...
 - **Three-Column Layout**: Top menu bar, middle editing area, bottom help bar
 - **Smart Status Bar**: Displays file information, cursor position, encoding, and modification status
 - **Line Numbers**: Switch between absolute and relative line numbers
