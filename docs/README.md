@@ -6,7 +6,7 @@
 
 ### 📖 用户指南
 - **[快捷键参考](KEYBINDINGS.md)** - 完整的快捷键列表和使用说明
-- **[配置文档](CONFIGURATION.md)** - 详细的配置选项和示例
+- **[配置文档](CONFIGURATION.md)** - 详细的配置选项和示例（[English](CONFIGURATION_EN.md)）
 - **[菜单功能](MENU.md)** - 菜单栏功能详细说明
 - **[主题文档](THEMES.md)** - 所有主题的介绍和预览
 

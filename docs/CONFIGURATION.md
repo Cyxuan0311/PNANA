@@ -1,5 +1,7 @@
 # pnana 配置文档
 
+> [English](CONFIGURATION_EN.md) | 中文
+
 本文档详细说明 pnana 的配置系统和使用方法。
 
 ## 📋 目录
@@ -26,26 +28,20 @@ pnana 的配置文件位于：
 
 ## 配置选项说明
 
-### 主题设置
+配置文件采用**嵌套 JSON 结构**，分为 `editor`、`display`、`files`、`search`、`themes`、`plugins` 等节。
+
+### editor（编辑器）
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `theme` | string | `"monokai"` | 编辑器主题，可选值：`monokai`, `dracula`, `solarized_dark`, `solarized_light`, `onedark`, `nord` |
-
-### 字体设置
-
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
+| `theme` | string | `"monokai"` | 主题，可选：`monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `cyberpunk`, `hacker` 等 |
 | `font_size` | number | `12` | 字体大小（像素） |
+| `tab_size` | number | `4` | Tab 缩进空格数 |
+| `insert_spaces` | boolean | `true` | 用空格替代 Tab 字符 |
+| `word_wrap` | boolean | `false` | 是否自动换行 |
+| `auto_indent` | boolean | `true` | 是否自动缩进 |
 
-### 缩进设置
-
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `tab_size` | number | `4` | Tab键缩进的空格数 |
-| `insert_spaces` | boolean | `true` | 是否使用空格代替Tab字符 |
-
-### 显示设置
+### display（显示）
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
@@ -53,28 +49,30 @@ pnana 的配置文件位于：
 | `relative_line_numbers` | boolean | `false` | 是否使用相对行号 |
 | `highlight_current_line` | boolean | `true` | 是否高亮当前行 |
 | `show_whitespace` | boolean | `false` | 是否显示空白字符 |
-| `word_wrap` | boolean | `false` | 是否自动换行 |
+| `cursor_style` | string | `"block"` | 光标样式：`block`, `underline`, `bar`, `hollow` |
+| `cursor_color` | string | `"255,255,255"` | 光标颜色（RGB，逗号分隔） |
+| `cursor_blink_rate` | number | `500` | 光标闪烁间隔（毫秒），0 不闪烁 |
+| `cursor_smooth` | boolean | `false` | 流动光标效果 |
 
-### 编辑设置
-
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `auto_indent` | boolean | `true` | 是否自动缩进 |
-| `trim_trailing_whitespace` | boolean | `true` | 保存时是否删除行尾空白 |
-
-### 自动保存设置
+### files（文件）
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
+| `encoding` | string | `"UTF-8"` | 编码：`UTF-8`, `GBK`, `GB2312`, `ASCII` |
+| `line_ending` | string | `"LF"` | 行尾：`LF` (Unix), `CRLF` (Windows), `CR` (Mac) |
+| `trim_trailing_whitespace` | boolean | `true` | 保存时删除行尾空白 |
+| `insert_final_newline` | boolean | `true` | 保存时在文件末尾插入换行 |
 | `auto_save` | boolean | `false` | 是否启用自动保存 |
 | `auto_save_interval` | number | `60` | 自动保存间隔（秒） |
 
-### 文件编码设置
+### search（搜索）
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `encoding` | string | `"UTF-8"` | 文件编码，可选值：`UTF-8`, `GBK`, `GB2312`, `ASCII` |
-| `line_ending` | string | `"LF"` | 行结束符，可选值：`LF` (Unix), `CRLF` (Windows), `CR` (Mac) |
+| `case_sensitive` | boolean | `false` | 区分大小写 |
+| `whole_word` | boolean | `false` | 全词匹配 |
+| `regex` | boolean | `false` | 正则表达式 |
+| `wrap_around` | boolean | `true` | 循环搜索 |
 
 ---
 
@@ -84,69 +82,87 @@ pnana 的配置文件位于：
 
 ```json
 {
-  "theme": "monokai",
-  "font_size": 12,
-  "tab_size": 4,
-  "insert_spaces": true,
-  "show_line_numbers": true,
-  "relative_line_numbers": false,
-  "word_wrap": false,
-  "auto_indent": true,
-  "auto_save": false,
-  "auto_save_interval": 60,
-  "highlight_current_line": true,
-  "show_whitespace": false,
-  "trim_trailing_whitespace": true,
-  "encoding": "UTF-8",
-  "line_ending": "LF"
+  "editor": {
+    "theme": "monokai",
+    "font_size": 12,
+    "tab_size": 4,
+    "insert_spaces": true,
+    "word_wrap": false,
+    "auto_indent": true
+  },
+  "display": {
+    "show_line_numbers": true,
+    "relative_line_numbers": false,
+    "highlight_current_line": true,
+    "show_whitespace": false,
+    "cursor_style": "block",
+    "cursor_color": "255,255,255",
+    "cursor_blink_rate": 500,
+    "cursor_smooth": false
+  },
+  "files": {
+    "encoding": "UTF-8",
+    "line_ending": "LF",
+    "trim_trailing_whitespace": true,
+    "insert_final_newline": true,
+    "auto_save": false,
+    "auto_save_interval": 60
+  },
+  "search": {
+    "case_sensitive": false,
+    "whole_word": false,
+    "regex": false,
+    "wrap_around": true
+  },
+  "themes": { "current": "monokai", "available": [] },
+  "plugins": { "enabled_plugins": [] }
 }
 ```
 
 ### 开发者配置
 
-适合代码开发的配置：
-
 ```json
 {
-  "theme": "dracula",
-  "font_size": 14,
-  "tab_size": 2,
-  "insert_spaces": true,
-  "show_line_numbers": true,
-  "relative_line_numbers": true,
-  "word_wrap": false,
-  "auto_indent": true,
-  "auto_save": true,
-  "auto_save_interval": 30,
-  "highlight_current_line": true,
-  "show_whitespace": true,
-  "trim_trailing_whitespace": true,
-  "encoding": "UTF-8",
-  "line_ending": "LF"
+  "editor": {
+    "theme": "dracula",
+    "font_size": 14,
+    "tab_size": 2,
+    "insert_spaces": true,
+    "word_wrap": false,
+    "auto_indent": true
+  },
+  "display": {
+    "show_line_numbers": true,
+    "relative_line_numbers": true,
+    "highlight_current_line": true,
+    "show_whitespace": true
+  },
+  "files": {
+    "auto_save": true,
+    "auto_save_interval": 30
+  }
 }
 ```
 
 ### 写作配置
 
-适合文档写作的配置：
-
 ```json
 {
-  "theme": "solarized_light",
-  "font_size": 16,
-  "tab_size": 2,
-  "insert_spaces": true,
-  "show_line_numbers": false,
-  "relative_line_numbers": false,
-  "word_wrap": true,
-  "auto_indent": false,
-  "auto_save": true,
-  "auto_save_interval": 60,
-  "highlight_current_line": false,
-  "show_whitespace": false,
-  "trim_trailing_whitespace": true,
-  "encoding": "UTF-8",
-  "line_ending": "LF"
+  "editor": {
+    "theme": "solarized-light",
+    "font_size": 16,
+    "tab_size": 2,
+    "word_wrap": true,
+    "auto_indent": false
+  },
+  "display": {
+    "show_line_numbers": false,
+    "highlight_current_line": false
+  },
+  "files": {
+    "auto_save": true,
+    "auto_save_interval": 60
+  }
 }
 ```
 
@@ -258,7 +274,7 @@ A: 直接复制 `~/.config/pnana/config.json` 文件即可。
 
 ## 更新日志
 
-- **v1.0.0**：初始配置系统
+- **v0.0.5**：初始配置系统
 - 支持 JSON 格式配置文件
 - 支持命令行参数覆盖
 
