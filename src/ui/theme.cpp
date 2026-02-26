@@ -12,87 +12,86 @@ Theme::Theme() : current_theme_("monokai") {
 
 ThemeColors Theme::Monokai() {
     ThemeColors colors;
-    // Modernized Monokai-inspired palette (more contrast, tuned hues)
-    colors.background = Color::RGB(40, 42, 38);             // slightly brighter base
-    colors.foreground = Color::RGB(235, 235, 230);          // softer foreground
-    colors.current_line = Color::RGB(60, 60, 55);           // current line
-    colors.selection = Color::RGB(70, 72, 66);              // selection
-    colors.line_number = Color::RGB(120, 120, 114);         // line numbers
-    colors.line_number_current = Color::RGB(235, 235, 230); // current line number
+    // Monokai Classic: 深灰绿基底，粉/绿/青/橙标志色
+    colors.background = Color::RGB(39, 40, 34);    // #272822
+    colors.foreground = Color::RGB(248, 248, 242); // #f8f8f2
+    colors.current_line = Color::RGB(55, 56, 48);  // #373831
+    colors.selection = Color::RGB(73, 72, 62);     // #49483e
+    colors.line_number = Color::RGB(117, 113, 94); // #75715e
+    colors.line_number_current = Color::RGB(248, 248, 242);
 
-    colors.statusbar_bg = Color::RGB(36, 38, 35);
-    colors.statusbar_fg = Color::RGB(225, 225, 220);
+    colors.statusbar_bg = Color::RGB(36, 37, 31);
+    colors.statusbar_fg = Color::RGB(248, 248, 242);
 
     colors.menubar_bg = Color::RGB(30, 31, 28);
-    colors.menubar_fg = Color::RGB(225, 225, 220);
+    colors.menubar_fg = Color::RGB(248, 248, 242);
 
-    colors.helpbar_bg = Color::RGB(36, 38, 35);
-    colors.helpbar_fg = Color::RGB(160, 155, 130);
-    colors.helpbar_key = Color::RGB(140, 200, 72);
+    colors.helpbar_bg = Color::RGB(36, 37, 31);
+    colors.helpbar_fg = Color::RGB(117, 113, 94);
+    colors.helpbar_key = Color::RGB(166, 226, 46); // #a6e22e 绿
 
-    // Accent palette - modern tones
-    colors.keyword = Color::RGB(255, 99, 150);        // pink
-    colors.string = Color::RGB(240, 200, 100);        // warm yellow
-    colors.comment = Color::RGB(140, 135, 120);       // muted gray
-    colors.number = Color::RGB(180, 140, 255);        // soft purple
-    colors.function = Color::RGB(100, 200, 150);      // teal
-    colors.type = Color::RGB(100, 180, 220);          // cyan
-    colors.operator_color = Color::RGB(255, 99, 150); // same as keyword
+    // 经典 Monokai：粉红关键字/绿字符串/青类型/橙数字
+    colors.keyword = Color::RGB(249, 38, 114);        // #f92672 粉红
+    colors.string = Color::RGB(230, 219, 116);        // #e6db74 黄
+    colors.comment = Color::RGB(117, 113, 94);        // #75715e 灰
+    colors.number = Color::RGB(253, 151, 31);         // #fd971f 橙
+    colors.function = Color::RGB(166, 226, 46);       // #a6e22e 绿
+    colors.type = Color::RGB(102, 217, 239);          // #66d9ef 青
+    colors.operator_color = Color::RGB(249, 38, 114); // 粉红
 
-    colors.error = Color::RGB(255, 85, 110);    // red
-    colors.warning = Color::RGB(255, 165, 80);  // orange
-    colors.info = Color::RGB(110, 180, 220);    // info/cyan
-    colors.success = Color::RGB(100, 200, 150); // green/teal
+    colors.error = Color::RGB(249, 38, 114);   // #f92672
+    colors.warning = Color::RGB(253, 151, 31); // #fd971f
+    colors.info = Color::RGB(102, 217, 239);   // #66d9ef
+    colors.success = Color::RGB(166, 226, 46); // #a6e22e
 
-    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
-    colors.dialog_bg = Color::RGB(50, 52, 48);          // #323430 - 比背景稍亮的深灰
-    colors.dialog_fg = Color::RGB(235, 235, 230);       // #ebebe6 - 与前景色协调
-    colors.dialog_title_bg = Color::RGB(40, 42, 38);    // #282a26 - 比背景稍深
-    colors.dialog_title_fg = Color::RGB(235, 235, 230); // #ebebe6 - 与前景色一致
-    colors.dialog_border = Color::RGB(100, 100, 95);    // #64645f - 与行号颜色协调
+    colors.dialog_bg = Color::RGB(49, 50, 44);
+    colors.dialog_fg = Color::RGB(248, 248, 242);
+    colors.dialog_title_bg = Color::RGB(39, 40, 34);
+    colors.dialog_title_fg = Color::RGB(248, 248, 242);
+    colors.dialog_border = Color::RGB(117, 113, 94); // #75715e
 
     return colors;
 }
 
 ThemeColors Theme::Dracula() {
     ThemeColors colors;
-    // Modernized Dracula palette (retained character but with cleaner tones)
-    colors.background = Color::RGB(43, 45, 66);    // slightly deeper base
-    colors.foreground = Color::RGB(232, 235, 244); // softer foreground
-    colors.current_line = Color::RGB(60, 62, 84);
-    colors.selection = Color::RGB(64, 66, 90);
-    colors.line_number = Color::RGB(110, 125, 170);
-    colors.line_number_current = Color::RGB(232, 235, 244);
+    // Dracula 官方案例：紫灰基底，粉/紫/青/绿高饱和点缀
+    colors.background = Color::RGB(40, 42, 54);    // #282a36
+    colors.foreground = Color::RGB(248, 248, 242); // #f8f8f2
+    colors.current_line = Color::RGB(52, 54, 70);  // #343652
+    colors.selection = Color::RGB(68, 71, 90);     // #44475a
+    colors.line_number = Color::RGB(98, 114, 164); // #6272a4
+    colors.line_number_current = Color::RGB(248, 248, 242);
 
-    colors.statusbar_bg = Color::RGB(58, 60, 86);
-    colors.statusbar_fg = Color::RGB(232, 235, 244);
+    colors.statusbar_bg = Color::RGB(68, 71, 90); // #44475a
+    colors.statusbar_fg = Color::RGB(248, 248, 242);
 
-    colors.menubar_bg = Color::RGB(36, 38, 60);
-    colors.menubar_fg = Color::RGB(232, 235, 244);
+    colors.menubar_bg = Color::RGB(33, 34, 44); // #21222c
+    colors.menubar_fg = Color::RGB(248, 248, 242);
 
-    colors.helpbar_bg = Color::RGB(58, 60, 86);
-    colors.helpbar_fg = Color::RGB(200, 170, 240);
-    colors.helpbar_key = Color::RGB(90, 220, 150);
+    colors.helpbar_bg = Color::RGB(68, 71, 90);
+    colors.helpbar_fg = Color::RGB(189, 147, 249); // #bd93f9 紫
+    colors.helpbar_key = Color::RGB(80, 250, 123); // #50fa7b 绿
 
-    colors.keyword = Color::RGB(255, 120, 190);
-    colors.string = Color::RGB(240, 220, 120);
-    colors.comment = Color::RGB(110, 125, 170);
-    colors.number = Color::RGB(200, 150, 250);
-    colors.function = Color::RGB(90, 220, 150);
-    colors.type = Color::RGB(120, 200, 230);
-    colors.operator_color = Color::RGB(255, 120, 190);
+    // Dracula 标志色：粉/紫/青/绿/橙
+    colors.keyword = Color::RGB(255, 121, 198);        // #ff79c6 粉
+    colors.string = Color::RGB(241, 250, 140);         // #f1fa8c 黄
+    colors.comment = Color::RGB(98, 114, 164);         // #6272a4
+    colors.number = Color::RGB(189, 147, 249);         // #bd93f9 紫
+    colors.function = Color::RGB(80, 250, 123);        // #50fa7b 绿
+    colors.type = Color::RGB(139, 233, 253);           // #8be9fd 青
+    colors.operator_color = Color::RGB(255, 121, 198); // 粉
 
-    colors.error = Color::RGB(255, 95, 95);
-    colors.warning = Color::RGB(255, 170, 95);
-    colors.info = Color::RGB(120, 200, 230);
-    colors.success = Color::RGB(90, 220, 150);
+    colors.error = Color::RGB(255, 85, 85);     // #ff5555
+    colors.warning = Color::RGB(255, 184, 108); // #ffb86c 橙
+    colors.info = Color::RGB(139, 233, 253);    // #8be9fd
+    colors.success = Color::RGB(80, 250, 123);  // #50fa7b
 
-    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
-    colors.dialog_bg = Color::RGB(68, 71, 90);          // #44475a - 比背景稍亮的紫灰色
-    colors.dialog_fg = Color::RGB(232, 235, 244);       // #e8ebf4 - 与前景色协调
-    colors.dialog_title_bg = Color::RGB(43, 45, 66);    // #2b2d42 - 比背景稍深
-    colors.dialog_title_fg = Color::RGB(232, 235, 244); // #e8ebf4 - 与前景色一致
-    colors.dialog_border = Color::RGB(110, 125, 170);   // #6e7daa - 与行号颜色协调
+    colors.dialog_bg = Color::RGB(52, 54, 70);
+    colors.dialog_fg = Color::RGB(248, 248, 242);
+    colors.dialog_title_bg = Color::RGB(68, 71, 90);
+    colors.dialog_title_fg = Color::RGB(248, 248, 242);
+    colors.dialog_border = Color::RGB(98, 114, 164); // #6272a4
 
     return colors;
 }
@@ -357,43 +356,43 @@ ThemeColors Theme::TokyoNight() {
 
 ThemeColors Theme::Catppuccin() {
     ThemeColors colors;
-    // Modern Catppuccin variant with balanced contrasts
-    colors.background = Color::RGB(34, 34, 50);
-    colors.foreground = Color::RGB(210, 215, 235);
-    colors.current_line = Color::RGB(48, 48, 66);
-    colors.selection = Color::RGB(50, 50, 70);
-    colors.line_number = Color::RGB(110, 112, 130);
-    colors.line_number_current = Color::RGB(210, 215, 235);
+    // Catppuccin Mocha: 暖色紫灰基底，柔和 pastel 点缀 (Rosewater/Mauve/Peach/Teal)
+    colors.background = Color::RGB(30, 30, 46);             // #1e1e2e Base
+    colors.foreground = Color::RGB(205, 214, 244);          // #cdd6f4 Text
+    colors.current_line = Color::RGB(49, 50, 68);           // #313244 Surface0
+    colors.selection = Color::RGB(69, 71, 90);              // #45475a Surface1
+    colors.line_number = Color::RGB(108, 112, 134);         // #6c7086 Overlay0
+    colors.line_number_current = Color::RGB(205, 214, 244); // #cdd6f4
 
-    colors.statusbar_bg = Color::RGB(30, 30, 46);
-    colors.statusbar_fg = Color::RGB(210, 215, 235);
+    colors.statusbar_bg = Color::RGB(24, 24, 37); // #181825 Mantle
+    colors.statusbar_fg = Color::RGB(205, 214, 244);
 
-    colors.menubar_bg = Color::RGB(34, 34, 50);
-    colors.menubar_fg = Color::RGB(210, 215, 235);
+    colors.menubar_bg = Color::RGB(17, 17, 27); // #11111b Crust
+    colors.menubar_fg = Color::RGB(205, 214, 244);
 
-    colors.helpbar_bg = Color::RGB(30, 30, 46);
-    colors.helpbar_fg = Color::RGB(110, 112, 130);
-    colors.helpbar_key = Color::RGB(150, 220, 170);
+    colors.helpbar_bg = Color::RGB(24, 24, 37);
+    colors.helpbar_fg = Color::RGB(166, 173, 222);  // #a6adc8 Overlay
+    colors.helpbar_key = Color::RGB(148, 226, 213); // #94e2d5 Teal
 
-    colors.keyword = Color::RGB(200, 160, 240);
-    colors.string = Color::RGB(160, 220, 160);
-    colors.comment = Color::RGB(110, 112, 130);
-    colors.number = Color::RGB(245, 185, 140);
-    colors.function = Color::RGB(130, 210, 230);
-    colors.type = Color::RGB(140, 210, 200);
-    colors.operator_color = Color::RGB(200, 160, 240);
+    // Catppuccin 标志色：Mauve/Peach/Green/Teal/Sky
+    colors.keyword = Color::RGB(203, 166, 247);        // #cba6f7 Mauve
+    colors.string = Color::RGB(166, 227, 161);         // #a6e3a1 Green
+    colors.comment = Color::RGB(108, 112, 134);        // #6c7086 Overlay0
+    colors.number = Color::RGB(250, 179, 135);         // #fab387 Peach
+    colors.function = Color::RGB(137, 220, 235);       // #89dceb Sky
+    colors.type = Color::RGB(116, 199, 236);           // #74c7ec Sapphire
+    colors.operator_color = Color::RGB(203, 166, 247); // Mauve
 
-    colors.error = Color::RGB(245, 130, 165);
-    colors.warning = Color::RGB(245, 185, 140);
-    colors.info = Color::RGB(130, 210, 230);
-    colors.success = Color::RGB(150, 220, 170);
+    colors.error = Color::RGB(243, 139, 168);   // #f38ba8 Red
+    colors.warning = Color::RGB(250, 179, 135); // #fab387 Peach
+    colors.info = Color::RGB(137, 220, 235);    // #89dceb Sky
+    colors.success = Color::RGB(166, 227, 161); // #a6e3a1 Green
 
-    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
-    colors.dialog_bg = Color::RGB(48, 48, 66);          // #303042 - 比背景稍亮的柔和紫灰
-    colors.dialog_fg = Color::RGB(210, 215, 235);       // #d2d7eb - 与前景色协调
-    colors.dialog_title_bg = Color::RGB(34, 34, 50);    // #222232 - 比背景稍深
-    colors.dialog_title_fg = Color::RGB(210, 215, 235); // #d2d7eb - 与前景色一致
-    colors.dialog_border = Color::RGB(110, 112, 130);   // #6e7082 - 与行号颜色协调
+    colors.dialog_bg = Color::RGB(49, 50, 68); // #313244
+    colors.dialog_fg = Color::RGB(205, 214, 244);
+    colors.dialog_title_bg = Color::RGB(55, 59, 78); // #373b47 Surface2
+    colors.dialog_title_fg = Color::RGB(205, 214, 244);
+    colors.dialog_border = Color::RGB(88, 91, 112); // #585b70 Surface2
 
     return colors;
 }
@@ -660,43 +659,43 @@ ThemeColors Theme::VSCodeDark() {
 
 ThemeColors Theme::NightOwl() {
     ThemeColors colors;
-    // Modernized NightOwl: deep oceanic blue with vibrant, contrasting accents
-    colors.background = Color::RGB(15, 35, 60);
-    colors.foreground = Color::RGB(225, 235, 245);
-    colors.current_line = Color::RGB(30, 55, 85);
-    colors.selection = Color::RGB(45, 70, 105);
-    colors.line_number = Color::RGB(120, 140, 160);
-    colors.line_number_current = Color::RGB(225, 235, 245);
+    // Night Owl (Sarah Drasner): 深蓝黑基底 + 紫/金/青冷调，夜间海洋感
+    colors.background = Color::RGB(1, 22, 39);              // #011627 - 极深蓝
+    colors.foreground = Color::RGB(214, 222, 235);          // #d6deeb
+    colors.current_line = Color::RGB(11, 37, 58);           // #0b2942 - 微亮蓝
+    colors.selection = Color::RGB(29, 59, 83);              // #1d3b53
+    colors.line_number = Color::RGB(75, 100, 121);          // #4b6479
+    colors.line_number_current = Color::RGB(197, 228, 253); // #C5E4FD 亮青
 
-    colors.statusbar_bg = Color::RGB(18, 40, 70);
-    colors.statusbar_fg = Color::RGB(225, 235, 245);
+    colors.statusbar_bg = Color::RGB(1, 22, 39);
+    colors.statusbar_fg = Color::RGB(95, 126, 151); // #5f7e97
 
-    colors.menubar_bg = Color::RGB(15, 35, 60);
-    colors.menubar_fg = Color::RGB(225, 235, 245);
+    colors.menubar_bg = Color::RGB(1, 11, 29); // #010e1a
+    colors.menubar_fg = Color::RGB(214, 222, 235);
 
-    colors.helpbar_bg = Color::RGB(18, 40, 70);
-    colors.helpbar_fg = Color::RGB(120, 140, 160);
-    colors.helpbar_key = Color::RGB(150, 210, 255);
+    colors.helpbar_bg = Color::RGB(1, 22, 39);
+    colors.helpbar_fg = Color::RGB(95, 126, 151);
+    colors.helpbar_key = Color::RGB(130, 170, 255); // #82AAFF 亮蓝
 
-    colors.keyword = Color::RGB(220, 180, 245);
-    colors.string = Color::RGB(190, 240, 160);
-    colors.comment = Color::RGB(120, 140, 160);
-    colors.number = Color::RGB(250, 180, 130);
-    colors.function = Color::RGB(150, 210, 255);
-    colors.type = Color::RGB(160, 200, 250);
-    colors.operator_color = Color::RGB(220, 180, 245);
+    // Night Owl 标志色：紫关键字/暖橙数字/青绿变量/沙色字符串
+    colors.keyword = Color::RGB(199, 146, 234);        // #c792ea 紫色
+    colors.string = Color::RGB(236, 196, 141);         // #ecc48d 暖沙色
+    colors.comment = Color::RGB(99, 119, 119);         // #637777 青灰
+    colors.number = Color::RGB(247, 140, 108);         // #F78C6C 珊瑚橙
+    colors.function = Color::RGB(199, 146, 234);       // #c792ea 紫 (函数名)
+    colors.type = Color::RGB(130, 170, 255);           // #82AAFF 亮蓝
+    colors.operator_color = Color::RGB(199, 146, 234); // 紫
 
-    colors.error = Color::RGB(245, 130, 155);
-    colors.warning = Color::RGB(245, 210, 130);
-    colors.info = Color::RGB(150, 210, 255);
-    colors.success = Color::RGB(170, 230, 150);
+    colors.error = Color::RGB(239, 83, 80);     // #EF5350
+    colors.warning = Color::RGB(179, 149, 84);  // #b39554 暖棕
+    colors.info = Color::RGB(130, 170, 255);    // #82AAFF
+    colors.success = Color::RGB(197, 228, 120); // #c5e478 青柠
 
-    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
-    colors.dialog_bg = Color::RGB(35, 60, 90);          // #233c5a - 比背景稍亮的深蓝
-    colors.dialog_fg = Color::RGB(225, 235, 245);       // #e1ebf5 - 与前景色协调
-    colors.dialog_title_bg = Color::RGB(15, 35, 60);    // #0f233c - 比背景稍深
-    colors.dialog_title_fg = Color::RGB(225, 235, 245); // #e1ebf5 - 与前景色一致
-    colors.dialog_border = Color::RGB(120, 140, 160);   // #788ca0 - 与行号颜色协调
+    colors.dialog_bg = Color::RGB(2, 19, 32); // #021320
+    colors.dialog_fg = Color::RGB(214, 222, 235);
+    colors.dialog_title_bg = Color::RGB(18, 45, 66); // #122d42
+    colors.dialog_title_fg = Color::RGB(214, 222, 235);
+    colors.dialog_border = Color::RGB(95, 126, 151); // #5f7e97
 
     return colors;
 }
@@ -1389,6 +1388,136 @@ ThemeColors Theme::TokyoNightDay() {
     return colors;
 }
 
+ThemeColors Theme::BlueLight() {
+    ThemeColors colors;
+    // Blue Light: 黑色背景 + 白色文字 + 浅蓝色主色
+    colors.background = Color::RGB(0, 0, 0);                // #000000 - 纯黑背景
+    colors.foreground = Color::RGB(255, 255, 255);          // #ffffff - 白色文字
+    colors.current_line = Color::RGB(15, 22, 35);           // #0f1623 - 深蓝灰高亮
+    colors.selection = Color::RGB(25, 45, 80);              // #192d50 - 浅蓝调选中
+    colors.line_number = Color::RGB(100, 145, 190);         // #6491be - 浅蓝灰行号
+    colors.line_number_current = Color::RGB(255, 255, 255); // #ffffff - 当前行号
+
+    colors.statusbar_bg = Color::RGB(8, 12, 22);     // #080c16
+    colors.statusbar_fg = Color::RGB(255, 255, 255); // #ffffff
+
+    colors.menubar_bg = Color::RGB(0, 0, 0);       // #000000
+    colors.menubar_fg = Color::RGB(255, 255, 255); // #ffffff
+
+    colors.helpbar_bg = Color::RGB(8, 12, 22);      // #080c16
+    colors.helpbar_fg = Color::RGB(180, 200, 230);  // #b4c8e6
+    colors.helpbar_key = Color::RGB(135, 206, 250); // #87ceeb - 浅蓝按键
+
+    // 浅蓝色系语法高亮
+    colors.keyword = Color::RGB(135, 206, 250);        // #87ceeb - sky blue
+    colors.string = Color::RGB(173, 216, 230);         // #add8e6 - light blue
+    colors.comment = Color::RGB(100, 149, 237);        // #6495ed - cornflower
+    colors.number = Color::RGB(176, 224, 230);         // #b0e0e6 - powder blue
+    colors.function = Color::RGB(135, 206, 255);       // #87ceff - 亮天蓝
+    colors.type = Color::RGB(100, 149, 237);           // #6495ed - cornflower
+    colors.operator_color = Color::RGB(135, 206, 250); // #87ceeb
+
+    colors.error = Color::RGB(255, 105, 105);   // #ff6969
+    colors.warning = Color::RGB(255, 200, 120); // #ffc878
+    colors.info = Color::RGB(135, 206, 250);    // #87ceeb
+    colors.success = Color::RGB(100, 220, 180); // #64dcb4 - 青绿
+
+    // 弹窗
+    colors.dialog_bg = Color::RGB(10, 18, 30);          // #0a121e
+    colors.dialog_fg = Color::RGB(255, 255, 255);       // #ffffff
+    colors.dialog_title_bg = Color::RGB(20, 35, 55);    // #142337
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_border = Color::RGB(60, 100, 150);    // #3c6496 - 浅蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::Cyberpunk() {
+    ThemeColors colors;
+    // Cyberpunk: 赛博朋克霓虹风 - 深黑背景 + 霓虹粉/青/黄
+    colors.background = Color::RGB(8, 8, 18);             // #080812 - 深黑偏紫
+    colors.foreground = Color::RGB(230, 230, 245);        // #e6e6f5 - 淡紫白
+    colors.current_line = Color::RGB(18, 18, 35);         // #121223 - 霓虹高亮区
+    colors.selection = Color::RGB(40, 20, 60);            // #28143c - 粉紫选中
+    colors.line_number = Color::RGB(100, 80, 140);        // #64508c - 紫灰行号
+    colors.line_number_current = Color::RGB(255, 0, 255); // #ff00ff - 霓虹品红
+
+    colors.statusbar_bg = Color::RGB(15, 10, 25);  // #0f0a19
+    colors.statusbar_fg = Color::RGB(0, 255, 255); // #00ffff - 霓虹青
+
+    colors.menubar_bg = Color::RGB(8, 8, 18);      // #080812
+    colors.menubar_fg = Color::RGB(230, 230, 245); // #e6e6f5
+
+    colors.helpbar_bg = Color::RGB(15, 10, 25);    // #0f0a19
+    colors.helpbar_fg = Color::RGB(150, 130, 200); // #9682c8
+    colors.helpbar_key = Color::RGB(255, 0, 255);  // #ff00ff - 霓虹粉
+
+    // 赛博朋克霓虹语法高亮
+    colors.keyword = Color::RGB(255, 0, 255);        // #ff00ff - 霓虹品红
+    colors.string = Color::RGB(0, 255, 200);         // #00ffc8 - 霓虹青绿
+    colors.comment = Color::RGB(120, 100, 160);      // #7864a0 - 紫灰
+    colors.number = Color::RGB(255, 200, 0);         // #ffc800 - 霓虹黄
+    colors.function = Color::RGB(0, 255, 255);       // #00ffff - 霓虹青
+    colors.type = Color::RGB(255, 100, 200);         // #ff64c8 - 粉红
+    colors.operator_color = Color::RGB(255, 0, 255); // #ff00ff
+
+    colors.error = Color::RGB(255, 50, 80);   // #ff3250
+    colors.warning = Color::RGB(255, 200, 0); // #ffc800
+    colors.info = Color::RGB(0, 255, 255);    // #00ffff
+    colors.success = Color::RGB(0, 255, 150); // #00ff96 - 霓虹绿
+
+    // 弹窗
+    colors.dialog_bg = Color::RGB(15, 12, 28);        // #0f0c1c
+    colors.dialog_fg = Color::RGB(230, 230, 245);     // #e6e6f5
+    colors.dialog_title_bg = Color::RGB(40, 20, 70);  // #281446 - 霓虹紫
+    colors.dialog_title_fg = Color::RGB(255, 0, 255); // #ff00ff
+    colors.dialog_border = Color::RGB(100, 50, 180);  // #6432b4 - 紫蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::Hacker() {
+    ThemeColors colors;
+    // Hacker: 黑底绿字，Matrix/终端风格，青/琥珀点缀
+    colors.background = Color::RGB(0, 0, 0);             // #000000 纯黑
+    colors.foreground = Color::RGB(0, 255, 65);          // #00ff41 矩阵绿
+    colors.current_line = Color::RGB(10, 30, 10);        // #0a1e0a 暗绿高亮
+    colors.selection = Color::RGB(20, 50, 20);           // #143214
+    colors.line_number = Color::RGB(0, 120, 40);         // #007828 暗绿
+    colors.line_number_current = Color::RGB(0, 255, 65); // 亮绿
+
+    colors.statusbar_bg = Color::RGB(5, 15, 5);
+    colors.statusbar_fg = Color::RGB(0, 255, 65);
+
+    colors.menubar_bg = Color::RGB(0, 0, 0);
+    colors.menubar_fg = Color::RGB(0, 255, 65);
+
+    colors.helpbar_bg = Color::RGB(5, 15, 5);
+    colors.helpbar_fg = Color::RGB(0, 180, 55);
+    colors.helpbar_key = Color::RGB(0, 255, 200); // 青绿
+
+    colors.keyword = Color::RGB(0, 255, 200);  // #00ffc8 青绿
+    colors.string = Color::RGB(0, 255, 65);    // 亮绿
+    colors.comment = Color::RGB(0, 120, 40);   // 暗绿
+    colors.number = Color::RGB(255, 200, 50);  // #ffc832 琥珀
+    colors.function = Color::RGB(0, 255, 255); // #00ffff 青
+    colors.type = Color::RGB(0, 220, 180);     // 青绿
+    colors.operator_color = Color::RGB(0, 255, 200);
+
+    colors.error = Color::RGB(255, 50, 50);    // 红
+    colors.warning = Color::RGB(255, 200, 50); // 琥珀
+    colors.info = Color::RGB(0, 255, 255);     // 青
+    colors.success = Color::RGB(0, 255, 65);   // 绿
+
+    colors.dialog_bg = Color::RGB(5, 20, 8);
+    colors.dialog_fg = Color::RGB(0, 255, 65);
+    colors.dialog_title_bg = Color::RGB(10, 40, 15);
+    colors.dialog_title_fg = Color::RGB(0, 255, 65);
+    colors.dialog_border = Color::RGB(0, 120, 40);
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -1463,6 +1592,12 @@ void Theme::setTheme(const std::string& name) {
         colors_ = AtomOneLight();
     } else if (name == "tokyo-night-day") {
         colors_ = TokyoNightDay();
+    } else if (name == "blue-light") {
+        colors_ = BlueLight();
+    } else if (name == "cyberpunk") {
+        colors_ = Cyberpunk();
+    } else if (name == "hacker") {
+        colors_ = Hacker();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -1607,7 +1742,10 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "desert",
             "slate",
             "atom-one-light",
-            "tokyo-night-day"};
+            "tokyo-night-day",
+            "blue-light",
+            "cyberpunk",
+            "hacker"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {

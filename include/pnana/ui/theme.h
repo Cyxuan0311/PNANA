@@ -90,6 +90,9 @@ class Theme {
     static ThemeColors Slate();             // Slate
     static ThemeColors AtomOneLight();      // Atom One Light
     static ThemeColors TokyoNightDay();     // Tokyo Night Day
+    static ThemeColors BlueLight();         // Blue Light - 浅蓝主色，白字黑底
+    static ThemeColors Cyberpunk();         // Cyberpunk - 赛博朋克霓虹风
+    static ThemeColors Hacker();            // Hacker - 黑客/Matrix 终端风
 
     void setTheme(const std::string& name);
 
