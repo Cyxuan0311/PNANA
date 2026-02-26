@@ -408,6 +408,20 @@ void Editor::loadConfig(const std::string& config_path) {
         return getCursorColor();
     });
 
+    // 应用 display 配置
+    show_line_numbers_ = config.display.show_line_numbers;
+    relative_line_numbers_ = config.display.relative_line_numbers;
+
+    // 应用 search 配置（默认搜索选项）
+    search_options_[0] = config.search.case_sensitive;
+    search_options_[1] = config.search.whole_word;
+    search_options_[2] = config.search.regex;
+    search_options_[3] = config.search.wrap_around;
+    current_search_options_.case_sensitive = config.search.case_sensitive;
+    current_search_options_.whole_word = config.search.whole_word;
+    current_search_options_.regex = config.search.regex;
+    current_search_options_.wrap_around = config.search.wrap_around;
+
     // 加载光标配置
     const auto& display_config = config.display;
     if (!display_config.cursor_style.empty()) {

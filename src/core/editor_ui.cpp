@@ -1367,8 +1367,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
 
     Element line_elem = hbox(line_elements);
 
-    // 高亮当前行背景
-    if (is_current) {
+    // 高亮当前行背景（可配置关闭）
+    if (is_current && config_manager_.getConfig().display.highlight_current_line) {
         line_elem = line_elem | bgcolor(theme_.getColors().current_line);
     }
 

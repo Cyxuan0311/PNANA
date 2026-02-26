@@ -901,7 +901,11 @@ void Editor::indentLine() {
         return;
     }
 
-    // Tab 键行为：在光标位置插入4个空格（如果光标在行首或行首空白处，则缩进整行）
+    // Tab 键行为：根据配置插入空格或 Tab 字符
+    const auto& editor_config = config_manager_.getConfig().editor;
+    int tab_size = std::max(1, std::min(8, editor_config.tab_size));
+    bool insert_spaces = editor_config.insert_spaces;
+
     std::string& line = lines[cursor_row_];
 
     // 检查光标是否在行首或行首空白处
@@ -909,16 +913,15 @@ void Editor::indentLine() {
     bool at_line_start = (cursor_col_ == 0) ||
                          (first_non_space != std::string::npos && cursor_col_ <= first_non_space);
 
-    std::string inserted_text = "    "; // 4个空格
+    std::string inserted_text =
+        insert_spaces ? std::string(static_cast<size_t>(tab_size), ' ') : "\t";
 
     if (at_line_start) {
-        // 在行首插入4个空格（缩进整行）
         doc->insertText(cursor_row_, 0, inserted_text);
-        cursor_col_ += 4;
+        cursor_col_ += static_cast<size_t>(insert_spaces ? tab_size : 1);
     } else {
-        // 在光标位置插入4个空格
         doc->insertText(cursor_row_, cursor_col_, inserted_text);
-        cursor_col_ += 4;
+        cursor_col_ += static_cast<size_t>(insert_spaces ? tab_size : 1);
     }
 
     // 记录变更到撤销系统（LSP支持）
