@@ -41,7 +41,7 @@
     "available": [],
     "_comment_available_themes_1": "monokai, dracula, solarized-dark, solarized-light, onedark, nord, gruvbox, tokyo-night, catppuccin, material",
     "_comment_available_themes_2": "ayu, github, github-dark, markdown-dark, vscode-dark, night-owl, palenight, oceanic-next, kanagawa, tomorrow-night, tomorrow-night-blue, cobalt",
-    "_comment_available_themes_3": "zenburn, base16-dark, papercolor, rose-pine, everforest, jellybeans, desert, slate, atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker"
+    "_comment_available_themes_3": "zenburn, base16-dark, papercolor, rose-pine, everforest, jellybeans, desert, slate, atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker, hatsune-miku"
   },
   "plugins": {
     "_comment": "Plugins: enabled plugin names",
