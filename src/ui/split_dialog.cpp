@@ -117,34 +117,28 @@ ftxui::Element SplitDialog::render() {
 
     if (mode_ == DialogMode::CREATE) {
         // 创建分屏模式
-        content.push_back(
-            hbox({text(" "), text("⚡") | color(Color::Yellow), text(" Split View "), text(" ")}) |
-            bold | bgcolor(colors.menubar_bg) | center);
+        content.push_back(hbox({text(" "), text(icons::SPLIT) | color(colors.success),
+                                text(" Split View "), text(" ")}) |
+                          bold | bgcolor(colors.dialog_title_bg) | color(colors.dialog_title_fg) |
+                          center);
 
         content.push_back(separator());
-        content.push_back(text(""));
+        content.push_back(text("  "));
 
         // 选项
         std::vector<std::string> options = {"Vertical Split (│)", "Horizontal Split (─)"};
-
-        std::vector<std::string> descriptions = {"Split window vertically (left/right)",
-                                                 "Split window horizontally (top/bottom)"};
+        std::vector<std::string> descriptions = {"Left/right", "Top/bottom"};
 
         for (size_t i = 0; i < options.size(); ++i) {
             Elements row;
             row.push_back(text("  "));
-
-            // 选中标记
             if (i == selected_index_) {
-                row.push_back(text("► ") | color(Color::GreenLight) | bold);
+                row.push_back(text("► ") | color(colors.success) | bold);
             } else {
                 row.push_back(text("  "));
             }
-
-            // 选项文本
             row.push_back(text(options[i]) | (i == selected_index_ ? color(colors.foreground) | bold
                                                                    : color(colors.comment)));
-
             row.push_back(filler());
             row.push_back(text(descriptions[i]) | color(colors.comment) | dim);
 
@@ -152,66 +146,55 @@ ftxui::Element SplitDialog::render() {
             if (i == selected_index_) {
                 row_elem = row_elem | bgcolor(colors.selection);
             }
-
             content.push_back(row_elem);
         }
 
-        content.push_back(text(""));
         content.push_back(separator());
-
-        // 提示
         content.push_back(
-            hbox({text("  "), text("↑↓") | color(colors.keyword) | bold, text(": Navigate  "),
-                  text("Enter") | color(colors.keyword) | bold, text(": Select  "),
-                  text("Esc") | color(colors.keyword) | bold, text(": Cancel")}) |
-            dim);
+            hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
+                  text("Enter") | color(colors.helpbar_key) | bold, text(": Select  "),
+                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
+            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim);
 
-        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 60) | size(HEIGHT, EQUAL, 12) |
+        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 58) | size(HEIGHT, EQUAL, 11) |
                bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
     } else {
         // 关闭分屏模式
-        content.push_back(hbox({text(" "), text("✕") | color(Color::Red),
+        content.push_back(hbox({text(" "), text(icons::CLOSE) | color(colors.foreground),
                                 text(" Close Split View "), text(" ")}) |
-                          bold | bgcolor(colors.menubar_bg) | center);
+                          bold | bgcolor(colors.dialog_title_bg) | color(colors.dialog_title_fg) |
+                          center);
 
         content.push_back(separator());
-        content.push_back(text(""));
+        content.push_back(text("  "));
 
         if (splits_.empty()) {
             content.push_back(
                 hbox({text("  "), text("No splits to close") | color(colors.comment) | dim}));
         } else {
-            // 显示所有分屏
             for (size_t i = 0; i < splits_.size(); ++i) {
                 const auto& split = splits_[i];
                 Elements row;
                 row.push_back(text("  "));
-
-                // 选中标记
                 if (i == selected_index_) {
-                    row.push_back(text("► ") | color(Color::Red) | bold);
+                    row.push_back(text("► ") | color(colors.success) | bold);
                 } else {
                     row.push_back(text("  "));
                 }
 
-                // 区域信息
                 std::string region_text = "Region " + std::to_string(i + 1);
                 if (split.is_active) {
                     region_text += " [Active]";
                 }
-
                 row.push_back(text(region_text) |
                               (i == selected_index_ ? color(colors.foreground) | bold
                                                     : color(colors.comment)));
-
                 row.push_back(filler());
 
-                // 文档名称和状态
                 std::string doc_info = split.document_name;
                 if (split.is_modified) {
                     doc_info += " [Modified]";
                 }
-
                 Color info_color = split.is_modified ? Color::Yellow : colors.comment;
                 row.push_back(text(doc_info) | color(info_color) | dim);
 
@@ -219,23 +202,19 @@ ftxui::Element SplitDialog::render() {
                 if (i == selected_index_) {
                     row_elem = row_elem | bgcolor(colors.selection);
                 }
-
                 content.push_back(row_elem);
             }
         }
 
-        content.push_back(text(""));
         content.push_back(separator());
-
-        // 提示
         content.push_back(
-            hbox({text("  "), text("↑↓") | color(colors.keyword) | bold, text(": Navigate  "),
-                  text("Delete") | color(colors.keyword) | bold, text(": Close  "),
-                  text("Esc") | color(colors.keyword) | bold, text(": Cancel")}) |
-            dim);
+            hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
+                  text("Delete") | color(colors.helpbar_key) | bold, text(": Close  "),
+                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
+            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim);
 
-        int height = std::min(20, int(10 + splits_.size()));
-        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 70) |
+        int height = std::min(20, int(10 + static_cast<int>(splits_.size())));
+        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 68) |
                size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
                borderWithColor(colors.dialog_border) | center;
     }
