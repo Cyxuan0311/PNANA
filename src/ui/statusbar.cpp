@@ -92,7 +92,12 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
 
     // 文件 type icon and filename
     std::string file_display = filename.empty() ? "[Untitled]" : filename;
-    std::string file_icon = getFileTypeIcon(file_type);
+    std::string file_icon;
+    if (filename == "Welcome") {
+        file_icon = icons::ROCKET; // 欢迎界面使用火箭图标，不用文件类型图标
+    } else {
+        file_icon = getFileTypeIcon(file_type);
+    }
     if (!file_icon.empty()) {
         left_elements.push_back(text(file_icon + " ") | color(colors.keyword));
     }
