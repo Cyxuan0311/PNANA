@@ -532,6 +532,10 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
     if (ext_lower == "q")
         return "qlang";
 
+    // Protocol Buffers
+    if (ext_lower == "proto")
+        return "proto";
+
     return "text";
 }
 
