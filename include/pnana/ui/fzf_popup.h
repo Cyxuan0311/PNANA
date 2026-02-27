@@ -69,6 +69,9 @@ class FzfPopup {
     size_t selected_index_;
     size_t scroll_offset_;
     size_t list_display_count_; // 文件列表显示数量
+    size_t preview_page_;       // 当前预览页（0 起），切换选中文件时重置为 0
+
+    static const size_t PREVIEW_LINES_PER_PAGE = 25; // 每页预览行数
 
     utils::FileTypeIconMapper icon_mapper_;
     utils::FileTypeColorMapper color_mapper_;
@@ -89,8 +92,9 @@ class FzfPopup {
     // 模糊匹配：检查 query 是否为 path 的子序列（不区分大小写）
     static bool fuzzyMatch(const std::string& path, const std::string& query);
 
-    // 读取文件内容用于预览（限制行数）
-    std::string readFilePreview(const std::string& filepath, size_t max_lines = 30) const;
+    // 读取文件内容用于预览（限制行数，可选跳过前 skip_lines 行用于分页）
+    std::string readFilePreview(const std::string& filepath, size_t max_lines = 30,
+                                size_t skip_lines = 0) const;
 
     // 获取文件类型用于语法高亮
     std::string getFileTypeForPath(const std::string& filepath) const;

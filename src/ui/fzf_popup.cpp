@@ -40,7 +40,7 @@ static bool shouldIgnoreDir(const std::string& name) {
 FzfPopup::FzfPopup(Theme& theme)
     : theme_(theme), is_open_(false), is_loading_(false), input_(""), cursor_pos_(0),
       root_directory_("."), selected_index_(0), scroll_offset_(0), list_display_count_(18),
-      color_mapper_(theme) {
+      preview_page_(0), color_mapper_(theme) {
     syntax_highlighter_ = std::make_unique<features::SyntaxHighlighter>(theme_);
 }
 
@@ -119,6 +119,7 @@ void FzfPopup::open() {
     cursor_pos_ = 0;
     selected_index_ = 0;
     scroll_offset_ = 0;
+    preview_page_ = 0;
     all_files_.clear();
     all_display_paths_.clear();
     filtered_files_.clear();
@@ -164,6 +165,7 @@ void FzfPopup::close() {
     input_.clear();
     cursor_pos_ = 0;
     selected_index_ = 0;
+    preview_page_ = 0;
     all_files_.clear();
     all_display_paths_.clear();
     filtered_files_.clear();
@@ -253,19 +255,28 @@ void FzfPopup::filterFiles() {
     }
     selected_index_ = 0;
     scroll_offset_ = 0;
+    preview_page_ = 0; // 过滤变化时重置预览页
     if (selected_index_ >= filtered_files_.size() && !filtered_files_.empty()) {
         selected_index_ = filtered_files_.size() - 1;
     }
 }
 
-std::string FzfPopup::readFilePreview(const std::string& filepath, size_t max_lines) const {
+std::string FzfPopup::readFilePreview(const std::string& filepath, size_t max_lines,
+                                      size_t skip_lines) const {
     std::ifstream file(filepath);
     if (!file)
-        return "(无法读取文件)";
+        return "(Unable to read file)";
     std::ostringstream oss;
     std::string line;
+    size_t skipped = 0;
     size_t count = 0;
-    while (count < max_lines && std::getline(file, line)) {
+    while (std::getline(file, line)) {
+        if (skipped < skip_lines) {
+            skipped++;
+            continue;
+        }
+        if (count >= max_lines)
+            break;
         // 简单检测二进制：含有过多非打印字符
         size_t non_print = 0;
         for (unsigned char c : line) {
@@ -273,7 +284,7 @@ std::string FzfPopup::readFilePreview(const std::string& filepath, size_t max_li
                 non_print++;
         }
         if (non_print > line.size() / 4) {
-            oss << "(二进制或无法预览)\n";
+            oss << "(Binary or cannot preview)\n";
             break;
         }
         oss << line << '\n';
@@ -459,18 +470,23 @@ Element FzfPopup::renderPreview() const {
                bgcolor(colors.background) | center;
     }
 
-    std::string content = readFilePreview(filepath);
+    const size_t skip_lines = preview_page_ * PREVIEW_LINES_PER_PAGE;
+    std::string content = readFilePreview(filepath, PREVIEW_LINES_PER_PAGE, skip_lines);
+
+    std::vector<std::string> content_lines;
+    std::istringstream iss_content(content);
+    std::string ln;
+    while (std::getline(iss_content, ln))
+        content_lines.push_back(std::move(ln));
 
     // 设置语法高亮类型
     syntax_highlighter_->setFileType(getFileTypeForPath(filepath));
     syntax_highlighter_->resetMultiLineState();
 
     Elements lines;
-    std::istringstream iss(content);
-    std::string line;
-    size_t line_no = 1;
+    size_t line_no = skip_lines + 1; // 行号从当前页起始行开始
     const size_t LINE_NUM_WIDTH = 4; // 右对齐行号，与代码区一致
-    while (std::getline(iss, line)) {
+    for (const auto& line : content_lines) {
         Element hl_line = syntax_highlighter_->highlightLine(line);
         std::string line_str = std::to_string(line_no);
         while (line_str.length() < LINE_NUM_WIDTH) {
@@ -481,8 +497,6 @@ Element FzfPopup::renderPreview() const {
         line_elements.push_back(hl_line);
         lines.push_back(hbox(line_elements));
         line_no++;
-        if (line_no > 25)
-            break;
     }
 
     return vbox(lines) | bgcolor(colors.background) | yflex;
@@ -492,6 +506,7 @@ Element FzfPopup::renderHelpBar() const {
     const auto& colors = theme_.getColors();
     return hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
                  text("Enter") | color(colors.helpbar_key) | bold, text(": Open  "),
+                 text("Tab") | color(colors.helpbar_key) | bold, text(": Preview next page  "),
                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel  "),
                  text("Type") | color(colors.helpbar_key) | bold, text(": Filter")}) |
            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;
@@ -520,6 +535,7 @@ bool FzfPopup::handleInput(ftxui::Event event) {
             if (selected_index_ >= scroll_offset_ + list_display_count_) {
                 scroll_offset_ = selected_index_ - list_display_count_ + 1;
             }
+            preview_page_ = 0; // 切换选中文件时重置预览页
         }
         return true;
     }
@@ -537,7 +553,34 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                     scroll_offset_ = selected_index_;
                 }
             }
+            preview_page_ = 0; // 切换选中文件时重置预览页
         }
+        return true;
+    }
+
+    // Tab: 预览下一页；若已在最后一页则循环回第一页
+    if (event == ftxui::Event::Tab) {
+        if (!filtered_files_.empty() && selected_index_ < filtered_files_.size()) {
+            const std::string& filepath = filtered_files_[selected_index_];
+            if (!isNonPreviewableFile(filepath)) {
+                const size_t next_skip = (preview_page_ + 1) * PREVIEW_LINES_PER_PAGE;
+                std::string next_content = readFilePreview(filepath, 1, next_skip);
+                const bool has_next = !next_content.empty() &&
+                                      next_content.find("(Binary") == std::string::npos &&
+                                      next_content.find("(Unable") == std::string::npos;
+                if (has_next)
+                    preview_page_++;
+                else
+                    preview_page_ = 0; // 最后一页再按 Tab 回到第一页
+            }
+        }
+        return true;
+    }
+
+    // Shift+Tab: 预览上一页
+    if (event == ftxui::Event::TabReverse) {
+        if (preview_page_ > 0)
+            preview_page_--;
         return true;
     }
 
