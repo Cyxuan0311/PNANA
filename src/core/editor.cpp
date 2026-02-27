@@ -956,9 +956,13 @@ void Editor::openRecentFilesDialog() {
 }
 
 void Editor::openFzfPopup() {
-    // 设置根目录：优先使用当前文档所在目录，否则使用文件浏览器当前目录，最后使用当前工作目录
+    // 设置根目录：优先使用文件浏览器当前目录（含 Alt+M 切换后的目录），否则当前文档所在目录，最后 .
     std::string root = ".";
-    if (getCurrentDocument() && !getCurrentDocument()->getFileName().empty()) {
+    std::string browser_dir = file_browser_.getCurrentDirectory();
+    if (!browser_dir.empty() && browser_dir != ".") {
+        root = browser_dir; // 用户通过 Alt+M 选文件夹切换后，FZF
+                            // 应显示该目录，与文件浏览器是否可见无关
+    } else if (getCurrentDocument() && !getCurrentDocument()->getFileName().empty()) {
         try {
             std::filesystem::path p(getCurrentDocument()->getFileName());
             if (std::filesystem::exists(p)) {
@@ -966,9 +970,6 @@ void Editor::openFzfPopup() {
             }
         } catch (...) {
         }
-    }
-    if (root == "." && file_browser_.isVisible()) {
-        root = file_browser_.getCurrentDirectory();
     }
     fzf_popup_.setRootDirectory(root);
     fzf_popup_.open();

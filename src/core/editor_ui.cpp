@@ -15,6 +15,7 @@
 #include "ui/terminal_ui.h"
 #include "ui/theme_menu.h"
 #include "ui/welcome_screen.h"
+#include "utils/file_type_detector.h"
 #include "utils/text_utils.h"
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
 #include "features/image_preview.h"
@@ -1570,8 +1571,12 @@ Element Editor::renderStatusbar() {
         }
     }
 
-    // If no document, show welcome status
-    if (getCurrentDocument() == nullptr) {
+    // 使用 getDocumentForActiveRegion：分屏时若当前激活区域无文档（welcome），应显示 Welcome
+    // 而非 getCurrentDocument() 可能返回的其他区域的文档
+    const Document* doc = getDocumentForActiveRegion();
+
+    // If no document in active region, show welcome status
+    if (doc == nullptr) {
         std::string welcome_msg =
             display_message.empty() ? "Press i to start editing" : display_message;
         return statusbar_.render(
@@ -1590,7 +1595,7 @@ Element Editor::renderStatusbar() {
 
     // 获取行尾类型
     std::string line_ending;
-    switch (getCurrentDocument()->getLineEnding()) {
+    switch (doc->getLineEnding()) {
         case Document::LineEnding::LF:
             line_ending = "LF";
             break;
@@ -1621,13 +1626,14 @@ Element Editor::renderStatusbar() {
                 : 0;
     }
 
-    return statusbar_.render(getCurrentDocument()->getFileName(),
-                             getCurrentDocument()->isModified(), getCurrentDocument()->isReadOnly(),
-                             cursor_row_, cursor_col_, getCurrentDocument()->lineCount(),
-                             getCurrentDocument()->getEncoding(), line_ending, getFileType(),
-                             display_message, region_manager_.getRegionName(), syntax_highlighting_,
-                             has_selection, selection_length, git_branch, git_uncommitted_count,
-                             current_ssh_config_.host, current_ssh_config_.user);
+    std::string file_type =
+        utils::FileTypeDetector::detectFileType(doc->getFileName(), doc->getFileExtension());
+
+    return statusbar_.render(
+        doc->getFileName(), doc->isModified(), doc->isReadOnly(), cursor_row_, cursor_col_,
+        doc->lineCount(), doc->getEncoding(), line_ending, file_type, display_message,
+        region_manager_.getRegionName(), syntax_highlighting_, has_selection, selection_length,
+        git_branch, git_uncommitted_count, current_ssh_config_.host, current_ssh_config_.user);
 }
 
 Element Editor::renderHelpbar() {
