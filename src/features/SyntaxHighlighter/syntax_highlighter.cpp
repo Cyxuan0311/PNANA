@@ -200,6 +200,15 @@ void SyntaxHighlighter::initializeLanguages() {
                      "c_longdouble", "comptime_int", "comptime_float",
                      "null",         "undefined"};
 
+    // Protocol Buffers (.proto) 关键字
+    keywords_["proto"] = {"syntax",  "import",   "option",  "package",  "message",  "enum",
+                          "service", "rpc",      "returns", "optional", "repeated", "map",
+                          "oneof",   "reserved", "extend",  "to",       "stream"};
+
+    types_["proto"] = {"int32",  "int64",   "uint32",  "uint64",   "sint32",
+                       "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64",
+                       "bool",   "string",  "bytes",   "float",    "double"};
+
     // Python 关键字
     keywords_["python"] = {
         "and",  "as",     "assert", "async",  "await",  "break",   "class",    "continue", "def",
@@ -1354,6 +1363,8 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizeK(line);
     } else if (current_file_type_ == "qlang") {
         return tokenizeQ(line);
+    } else if (current_file_type_ == "proto") {
+        return tokenizeProto(line);
     }
 
     // 默认：不高亮
@@ -1581,6 +1592,161 @@ std::vector<Token> SyntaxHighlighter::tokenizeCpp(const std::string& line) {
         }
 
         // 其他
+        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        i++;
+    }
+
+    return tokens;
+}
+
+std::vector<Token> SyntaxHighlighter::tokenizeProto(const std::string& line) {
+    std::vector<Token> tokens;
+    size_t i = 0;
+
+    // 处理多行注释的延续
+    if (in_multiline_comment_) {
+        size_t end_pos = line.find("*/");
+        if (end_pos != std::string::npos) {
+            tokens.push_back({line.substr(0, end_pos + 2), TokenType::COMMENT, 0, end_pos + 2});
+            in_multiline_comment_ = false;
+            i = end_pos + 2;
+        } else {
+            tokens.push_back({line, TokenType::COMMENT, 0, line.length()});
+            return tokens;
+        }
+    }
+
+    while (i < line.length()) {
+        // 跳过空白
+        if (std::isspace(line[i])) {
+            size_t start = i;
+            while (i < line.length() && std::isspace(line[i]))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            continue;
+        }
+
+        // 多行注释
+        if (i + 1 < line.length() && line[i] == '/' && line[i + 1] == '*') {
+            size_t start = i;
+            i += 2;
+            size_t end_pos = line.find("*/", i);
+            if (end_pos != std::string::npos) {
+                i = end_pos + 2;
+                tokens.push_back({line.substr(start, i - start), TokenType::COMMENT, start, i});
+            } else {
+                tokens.push_back({line.substr(start), TokenType::COMMENT, start, line.length()});
+                in_multiline_comment_ = true;
+                break;
+            }
+            continue;
+        }
+
+        // 单行注释
+        if (i + 1 < line.length() && line[i] == '/' && line[i + 1] == '/') {
+            tokens.push_back({line.substr(i), TokenType::COMMENT, i, line.length()});
+            break;
+        }
+
+        // 字符串
+        if (line[i] == '"' || line[i] == '\'') {
+            char quote = line[i];
+            size_t start = i;
+            i++;
+            while (i < line.length()) {
+                if (line[i] == '\\' && i + 1 < line.length()) {
+                    i += 2; // 跳过转义字符
+                } else if (line[i] == quote) {
+                    i++;
+                    break;
+                } else {
+                    i++;
+                }
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 数字
+        if (std::isdigit(line[i]) ||
+            (line[i] == '.' && i + 1 < line.length() && std::isdigit(line[i + 1]))) {
+            size_t start = i;
+            i = parseNumber(line, start);
+            tokens.push_back({line.substr(start, i - start), TokenType::NUMBER, start, i});
+            continue;
+        }
+
+        // 多字符操作符
+        if (isMultiCharOperator(line, i)) {
+            size_t start = i;
+            std::string op;
+            if (i + 1 < line.length()) {
+                std::string two_char = line.substr(i, 2);
+                if (two_char == "==" || two_char == "!=" || two_char == "<=" || two_char == ">=" ||
+                    two_char == "&&" || two_char == "||" || two_char == "<<" || two_char == ">>" ||
+                    two_char == "++" || two_char == "--" || two_char == "+=" || two_char == "-=" ||
+                    two_char == "*=" || two_char == "/=" || two_char == "%=" || two_char == "&=" ||
+                    two_char == "|=" || two_char == "^=" || two_char == "->") {
+                    op = two_char;
+                    i += 2;
+                } else {
+                    op = std::string(1, line[i]);
+                    i++;
+                }
+            } else {
+                op = std::string(1, line[i]);
+                i++;
+            }
+            tokens.push_back({op, TokenType::OPERATOR, start, i});
+            continue;
+        }
+
+        // 标识符/关键字/类型
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (isAsciiAlpha(c) || line[i] == '_') {
+            size_t start = i;
+            while (i < line.length()) {
+                unsigned char ch = static_cast<unsigned char>(line[i]);
+                if (isAsciiAlnum(ch) || ch == '_') {
+                    i++;
+                } else if ((ch & 0x80) != 0) {
+                    break;
+                } else {
+                    break;
+                }
+            }
+            std::string word = line.substr(start, i - start);
+            TokenType type = TokenType::NORMAL;
+            if (isKeyword(word)) {
+                type = TokenType::KEYWORD;
+            } else if (isType(word)) {
+                type = TokenType::TYPE;
+            } else {
+                // rpc 方法名后跟括号可高亮为函数
+                size_t check_pos = i;
+                while (check_pos < line.length()) {
+                    if (std::isspace(line[check_pos])) {
+                        check_pos++;
+                        continue;
+                    }
+                    if (line[check_pos] == '(') {
+                        type = TokenType::FUNCTION;
+                        break;
+                    }
+                    break;
+                }
+            }
+            tokens.push_back({word, type, start, i});
+            continue;
+        }
+
+        // 单字符操作符
+        if (isOperator(line[i])) {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
         tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
         i++;
     }

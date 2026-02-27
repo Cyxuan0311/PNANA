@@ -207,6 +207,7 @@ class SyntaxHighlighter {
     std::vector<Token> tokenizeJ(const std::string& line);
     std::vector<Token> tokenizeK(const std::string& line);
     std::vector<Token> tokenizeQ(const std::string& line);
+    std::vector<Token> tokenizeProto(const std::string& line);
 
     // 新增的函数式编程和编译器语言
     std::vector<Token> tokenizeLLVMIR(const std::string& line);
