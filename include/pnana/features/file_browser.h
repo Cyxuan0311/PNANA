@@ -91,14 +91,12 @@ class FileBrowser {
     ftxui::Element render(int height);
 
     // 显示/隐藏
-    void setVisible(bool visible) {
-        visible_ = visible;
-    }
+    void setVisible(bool visible);
     bool isVisible() const {
         return visible_;
     }
     void toggle() {
-        visible_ = !visible_;
+        setVisible(!visible_);
     }
 
     // 设置
@@ -135,6 +133,7 @@ class FileBrowser {
     size_t selected_index_;
     bool visible_;
     bool show_hidden_;
+    bool directory_loaded_; // 标记目录是否已加载（用于延迟加载）
 
     // 多选支持
     std::set<size_t> selected_indices_; // 选中的索引集合

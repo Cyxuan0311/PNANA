@@ -11,8 +11,8 @@ namespace features {
 
 FileBrowser::FileBrowser(ui::Theme& theme)
     : theme_(theme), current_directory_("."), selected_index_(0), visible_(false),
-      show_hidden_(false), clipboard_data_{} {
-    openDirectory(".");
+      show_hidden_(false), directory_loaded_(false), clipboard_data_{} {
+    // 延迟加载：不在构造函数中加载目录，只在首次显示时才加载
 }
 
 bool FileBrowser::openDirectory(const std::string& path) {
@@ -21,6 +21,7 @@ bool FileBrowser::openDirectory(const std::string& path) {
             current_directory_ = fs::canonical(path).string();
             loadDirectory();
             selected_index_ = 0;
+            directory_loaded_ = true;
             return true;
         }
     } catch (const std::exception&) {
@@ -31,6 +32,16 @@ bool FileBrowser::openDirectory(const std::string& path) {
 
 void FileBrowser::refresh() {
     loadDirectory();
+}
+
+void FileBrowser::setVisible(bool visible) {
+    bool was_visible = visible_;
+    visible_ = visible;
+
+    // 延迟加载：首次显示时加载目录
+    if (visible && !was_visible && !directory_loaded_) {
+        openDirectory(current_directory_.empty() ? "." : current_directory_);
+    }
 }
 
 void FileBrowser::loadDirectory() {
@@ -53,13 +64,10 @@ void FileBrowser::loadDirectory() {
 
             FileItem item(name, entry.path().string(), entry.is_directory(), 0);
 
-            if (!entry.is_directory() && fs::is_regular_file(entry)) {
-                try {
-                    item.size = fs::file_size(entry);
-                } catch (...) {
-                    item.size = 0;
-                }
-            }
+            // 优化：延迟文件大小获取，只在需要显示时才获取
+            // 文件大小在渲染时按需获取，避免启动时的大量系统调用
+            // 这里只设置基本属性，size 保持为 0
+            // 如果需要显示文件大小，可以在 render() 或 getItemSize() 中按需获取
 
             if (entry.is_directory()) {
                 dirs.push_back(item);

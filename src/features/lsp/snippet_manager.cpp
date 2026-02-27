@@ -63,6 +63,60 @@ void SnippetManager::initializeBuiltinSnippets() {
     std::vector<Snippet> php_snippets = getPhpSnippets();
     builtin_snippets_["php"] = php_snippets;
 
+    // 注册 C# 代码片段
+    std::vector<Snippet> csharp_snippets = getCSharpSnippets();
+    builtin_snippets_["csharp"] = csharp_snippets;
+    builtin_snippets_["cs"] = csharp_snippets;
+    builtin_snippets_["c#"] = csharp_snippets;
+
+    // 注册 Kotlin 代码片段
+    std::vector<Snippet> kotlin_snippets = getKotlinSnippets();
+    builtin_snippets_["kotlin"] = kotlin_snippets;
+    builtin_snippets_["kt"] = kotlin_snippets;
+
+    // 注册 Swift 代码片段
+    std::vector<Snippet> swift_snippets = getSwiftSnippets();
+    builtin_snippets_["swift"] = swift_snippets;
+
+    // 注册 Dart 代码片段
+    std::vector<Snippet> dart_snippets = getDartSnippets();
+    builtin_snippets_["dart"] = dart_snippets;
+
+    // 注册 Shell/Bash 代码片段
+    std::vector<Snippet> shell_snippets = getShellSnippets();
+    builtin_snippets_["shellscript"] = shell_snippets;
+    builtin_snippets_["bash"] = shell_snippets;
+    builtin_snippets_["sh"] = shell_snippets;
+    builtin_snippets_["zsh"] = shell_snippets;
+
+    // 注册 SQL 代码片段
+    std::vector<Snippet> sql_snippets = getSqlSnippets();
+    builtin_snippets_["sql"] = sql_snippets;
+    builtin_snippets_["mysql"] = sql_snippets;
+    builtin_snippets_["postgresql"] = sql_snippets;
+    builtin_snippets_["sqlite"] = sql_snippets;
+
+    // 注册 HTML 代码片段
+    std::vector<Snippet> html_snippets = getHtmlSnippets();
+    builtin_snippets_["html"] = html_snippets;
+    builtin_snippets_["xhtml"] = html_snippets;
+
+    // 注册 CSS 代码片段
+    std::vector<Snippet> css_snippets = getCssSnippets();
+    builtin_snippets_["css"] = css_snippets;
+    builtin_snippets_["scss"] = css_snippets;
+    builtin_snippets_["sass"] = css_snippets;
+    builtin_snippets_["less"] = css_snippets;
+
+    // 注册 YAML 代码片段
+    std::vector<Snippet> yaml_snippets = getYamlSnippets();
+    builtin_snippets_["yaml"] = yaml_snippets;
+    builtin_snippets_["yml"] = yaml_snippets;
+
+    // 注册 Lua 代码片段
+    std::vector<Snippet> lua_snippets = getLuaSnippets();
+    builtin_snippets_["lua"] = lua_snippets;
+
     // 为每个代码片段解析占位符
     for (auto& [lang, snippets] : builtin_snippets_) {
         for (auto& snippet : snippets) {

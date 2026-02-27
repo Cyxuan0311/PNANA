@@ -174,72 +174,119 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     // 查找各个配置段
     size_t editor_pos = cleaned.find("\"editor\":{");
     size_t display_pos = cleaned.find("\"display\":{");
-    /* size_t files_pos = cleaned.find("\"files\":{"); */
-    /* size_t search_pos = cleaned.find("\"search\":{"); */
+    size_t files_pos = cleaned.find("\"files\":{");
+    size_t search_pos = cleaned.find("\"search\":{");
     size_t themes_pos = cleaned.find("\"themes\":{");
     size_t plugins_pos = cleaned.find("\"plugins\":{");
 
-    // 解析 editor 配置
-    if (editor_pos != std::string::npos) {
-        // 提取 theme
-        size_t theme_pos = cleaned.find("\"theme\":\"", editor_pos);
-        if (theme_pos != std::string::npos) {
-            theme_pos += 9; // 跳过 "theme":"
-            size_t theme_end = cleaned.find("\"", theme_pos);
-            if (theme_end != std::string::npos) {
-                config_.editor.theme = cleaned.substr(theme_pos, theme_end - theme_pos);
-                config_.current_theme = config_.editor.theme;
-            }
+    // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
+    auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
+                                 int default_val) -> int {
+        size_t pos = cleaned.find("\"" + key + "\":", start);
+        if (pos == std::string::npos || pos >= section_end)
+            return default_val;
+        pos += key.length() + 3;
+        size_t end = cleaned.find_first_of(",}", pos);
+        if (end == std::string::npos || end > section_end)
+            return default_val;
+        try {
+            return std::stoi(cleaned.substr(pos, end - pos));
+        } catch (...) {
+            return default_val;
         }
+    };
+    auto extractBool = [&cleaned](const std::string& key, size_t start, size_t section_end,
+                                  bool default_val) -> bool {
+        size_t pos = cleaned.find("\"" + key + "\":", start);
+        if (pos == std::string::npos || pos >= section_end)
+            return default_val;
+        pos += key.length() + 3;
+        std::string val = cleaned.substr(pos, 5);
+        if (val.find("true") == 0)
+            return true;
+        if (val.find("false") == 0)
+            return false;
+        return default_val;
+    };
+    auto extractStr = [&cleaned](const std::string& key, size_t start,
+                                 size_t section_end) -> std::string {
+        size_t pos = cleaned.find("\"" + key + "\":\"", start);
+        if (pos == std::string::npos || pos >= section_end)
+            return "";
+        pos += key.length() + 4;
+        size_t end = cleaned.find("\"", pos);
+        if (end == std::string::npos || end > section_end)
+            return "";
+        return cleaned.substr(pos, end - pos);
+    };
 
-        // 提取其他 editor 配置（简化处理）
-        // font_size, tab_size 等
+    size_t editor_end =
+        (editor_pos != std::string::npos) ? cleaned.find("}", editor_pos + 1) : std::string::npos;
+    if (editor_pos != std::string::npos && editor_end != std::string::npos) {
+        config_.editor.theme = extractStr("theme", editor_pos, editor_end);
+        if (!config_.editor.theme.empty()) {
+            config_.current_theme = config_.editor.theme;
+        }
+        config_.editor.font_size = extractInt("font_size", editor_pos, editor_end, 12);
+        config_.editor.tab_size = extractInt("tab_size", editor_pos, editor_end, 4);
+        config_.editor.insert_spaces = extractBool("insert_spaces", editor_pos, editor_end, true);
+        config_.editor.word_wrap = extractBool("word_wrap", editor_pos, editor_end, false);
+        config_.editor.auto_indent = extractBool("auto_indent", editor_pos, editor_end, true);
     }
 
     // 解析 display 配置
-    if (display_pos != std::string::npos) {
-        // 提取 cursor_style
-        size_t style_pos = cleaned.find("\"cursor_style\":\"", display_pos);
-        if (style_pos != std::string::npos && style_pos < display_pos + 200) {
-            style_pos += 16; // 跳过 "cursor_style":"
-            size_t style_end = cleaned.find("\"", style_pos);
-            if (style_end != std::string::npos) {
-                config_.display.cursor_style = cleaned.substr(style_pos, style_end - style_pos);
-            }
-        }
+    size_t display_end =
+        (display_pos != std::string::npos) ? cleaned.find("}", display_pos + 1) : std::string::npos;
+    if (display_pos != std::string::npos && display_end != std::string::npos) {
+        config_.display.show_line_numbers =
+            extractBool("show_line_numbers", display_pos, display_end, true);
+        config_.display.relative_line_numbers =
+            extractBool("relative_line_numbers", display_pos, display_end, false);
+        config_.display.highlight_current_line =
+            extractBool("highlight_current_line", display_pos, display_end, true);
+        config_.display.show_whitespace =
+            extractBool("show_whitespace", display_pos, display_end, false);
 
-        // 提取 cursor_color
-        size_t color_pos = cleaned.find("\"cursor_color\":\"", display_pos);
-        if (color_pos != std::string::npos && color_pos < display_pos + 200) {
-            color_pos += 16; // 跳过 "cursor_color":"
-            size_t color_end = cleaned.find("\"", color_pos);
-            if (color_end != std::string::npos) {
-                config_.display.cursor_color = cleaned.substr(color_pos, color_end - color_pos);
-            }
-        }
+        std::string style = extractStr("cursor_style", display_pos, display_end);
+        if (!style.empty())
+            config_.display.cursor_style = style;
+        std::string color = extractStr("cursor_color", display_pos, display_end);
+        if (!color.empty())
+            config_.display.cursor_color = color;
+        int rate = extractInt("cursor_blink_rate", display_pos, display_end, 500);
+        config_.display.cursor_blink_rate = rate;
+        config_.display.cursor_smooth =
+            extractBool("cursor_smooth", display_pos, display_end, false);
+    }
 
-        // 提取 cursor_blink_rate
-        size_t rate_pos = cleaned.find("\"cursor_blink_rate\":", display_pos);
-        if (rate_pos != std::string::npos && rate_pos < display_pos + 200) {
-            rate_pos += 20; // 跳过 "cursor_blink_rate":
-            size_t rate_end = cleaned.find_first_of(",}", rate_pos);
-            if (rate_end != std::string::npos) {
-                std::string rate_str = cleaned.substr(rate_pos, rate_end - rate_pos);
-                try {
-                    config_.display.cursor_blink_rate = std::stoi(rate_str);
-                } catch (...) {
-                    config_.display.cursor_blink_rate = 500;
-                }
-            }
-        }
+    // 解析 files 配置
+    size_t files_end =
+        (files_pos != std::string::npos) ? cleaned.find("}", files_pos + 1) : std::string::npos;
+    if (files_pos != std::string::npos && files_end != std::string::npos) {
+        std::string enc = extractStr("encoding", files_pos, files_end);
+        if (!enc.empty())
+            config_.files.encoding = enc;
+        std::string le = extractStr("line_ending", files_pos, files_end);
+        if (!le.empty())
+            config_.files.line_ending = le;
+        config_.files.trim_trailing_whitespace =
+            extractBool("trim_trailing_whitespace", files_pos, files_end, true);
+        config_.files.insert_final_newline =
+            extractBool("insert_final_newline", files_pos, files_end, true);
+        config_.files.auto_save = extractBool("auto_save", files_pos, files_end, false);
+        config_.files.auto_save_interval =
+            extractInt("auto_save_interval", files_pos, files_end, 60);
+    }
 
-        // 提取 cursor_smooth
-        size_t smooth_pos = cleaned.find("\"cursor_smooth\":", display_pos);
-        if (smooth_pos != std::string::npos && smooth_pos < display_pos + 200) {
-            smooth_pos += 16;                                       // 跳过 "cursor_smooth":
-            std::string smooth_str = cleaned.substr(smooth_pos, 4); // "true" 或 "fals"
-            config_.display.cursor_smooth = (smooth_str.find("true") != std::string::npos);
-        }
+    // 解析 search 配置
+    size_t search_end =
+        (search_pos != std::string::npos) ? cleaned.find("}", search_pos + 1) : std::string::npos;
+    if (search_pos != std::string::npos && search_end != std::string::npos) {
+        config_.search.case_sensitive =
+            extractBool("case_sensitive", search_pos, search_end, false);
+        config_.search.whole_word = extractBool("whole_word", search_pos, search_end, false);
+        config_.search.regex = extractBool("regex", search_pos, search_end, false);
+        config_.search.wrap_around = extractBool("wrap_around", search_pos, search_end, true);
     }
 
     // 解析 themes 配置
@@ -298,6 +345,7 @@ std::string ConfigManager::generateJSON() const {
     std::ostringstream oss;
     oss << "{\n";
     oss << "  \"editor\": {\n";
+    oss << "    \"_comment\": \"Editor: theme, font, tab, indent, wrap\",\n";
     oss << "    \"theme\": \"" << config_.editor.theme << "\",\n";
     oss << "    \"font_size\": " << config_.editor.font_size << ",\n";
     oss << "    \"tab_size\": " << config_.editor.tab_size << ",\n";
@@ -306,6 +354,7 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"auto_indent\": " << (config_.editor.auto_indent ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"display\": {\n";
+    oss << "    \"_comment\": \"Display: line numbers, highlight, cursor style\",\n";
     oss << "    \"show_line_numbers\": " << (config_.display.show_line_numbers ? "true" : "false")
         << ",\n";
     oss << "    \"relative_line_numbers\": "
@@ -320,6 +369,7 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"cursor_smooth\": " << (config_.display.cursor_smooth ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"files\": {\n";
+    oss << "    \"_comment\": \"Files: encoding, line ending, auto save\",\n";
     oss << "    \"encoding\": \"" << config_.files.encoding << "\",\n";
     oss << "    \"line_ending\": \"" << config_.files.line_ending << "\",\n";
     oss << "    \"trim_trailing_whitespace\": "
@@ -330,6 +380,7 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"auto_save_interval\": " << config_.files.auto_save_interval << "\n";
     oss << "  },\n";
     oss << "  \"search\": {\n";
+    oss << "    \"_comment\": \"Search: case, whole word, regex, wrap\",\n";
     oss << "    \"case_sensitive\": " << (config_.search.case_sensitive ? "true" : "false")
         << ",\n";
     oss << "    \"whole_word\": " << (config_.search.whole_word ? "true" : "false") << ",\n";
@@ -337,6 +388,7 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"wrap_around\": " << (config_.search.wrap_around ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"themes\": {\n";
+    oss << "    \"_comment\": \"Themes: current theme, available list for reference\",\n";
     oss << "    \"current\": \"" << config_.current_theme << "\",\n";
     oss << "    \"available\": [\n";
     for (size_t i = 0; i < config_.available_themes.size(); ++i) {
@@ -345,9 +397,18 @@ std::string ConfigManager::generateJSON() const {
             oss << ",";
         oss << "\n";
     }
-    oss << "    ]\n";
+    oss << "    ],\n";
+    oss << "    \"_comment_available_themes_1\": \"monokai, dracula, solarized-dark, "
+        << "solarized-light, onedark, nord, gruvbox, tokyo-night, catppuccin, material\",\n";
+    oss << "    \"_comment_available_themes_2\": \"ayu, github, github-dark, markdown-dark, "
+        << "vscode-dark, night-owl, palenight, oceanic-next, kanagawa, tomorrow-night, "
+        << "tomorrow-night-blue, cobalt\",\n";
+    oss << "    \"_comment_available_themes_3\": \"zenburn, base16-dark, papercolor, rose-pine, "
+        << "everforest, jellybeans, desert, slate, atom-one-light, tokyo-night-day, "
+        << "blue-light, cyberpunk, hacker\"\n";
     oss << "  },\n";
     oss << "  \"plugins\": {\n";
+    oss << "    \"_comment\": \"Plugins: enabled plugin names\",\n";
     oss << "    \"enabled_plugins\": [\n";
     for (size_t i = 0; i < config_.plugins.enabled_plugins.size(); ++i) {
         oss << "      \"" << config_.plugins.enabled_plugins[i] << "\"";

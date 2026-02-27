@@ -4,7 +4,7 @@
 #include "input/event_parser.h"
 #include "input/key_action.h"
 #include "ui/icons.h"
-#include "utils/logger.h"
+#include "utils/text_utils.h"
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <iostream>
@@ -21,7 +21,6 @@ namespace core {
 void Editor::handleInput(Event event) {
     // 特殊处理Event::Custom（我们的渲染触发事件）
     if (event == Event::Custom) {
-        LOG("[DEBUG EVENT] Received Event::Custom - this should trigger a render update");
         // Event::Custom是我们手动触发的渲染更新事件，不需要额外处理
         // 直接返回，让FTXUI重新渲染
         return;
@@ -39,11 +38,51 @@ void Editor::handleInput(Event event) {
     region_manager_.setTerminalEnabled(terminal_.isVisible());
     region_manager_.setHelpWindowEnabled(show_help_);
 
+    // 优先处理符号导航弹窗的输入（在 InputRouter 之前，确保弹窗输入优先）
+#ifdef BUILD_LSP_SUPPORT
+    if (show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible()) {
+        if (symbol_navigation_popup_.handleInput(event)) {
+            // 如果按了Enter，跳转并关闭弹窗
+            if (event == Event::Return || event == Event::Character('\n')) {
+                const auto* symbol = symbol_navigation_popup_.getSelectedSymbol();
+                if (symbol) {
+                    jumpToSymbol(*symbol);
+                    hideSymbolNavigation();
+                    setStatusMessage("Jumped to symbol: " + symbol->name);
+                }
+            }
+            // 如果按了Escape，关闭弹窗
+            if (event == Event::Escape) {
+                hideSymbolNavigation();
+            }
+            return; // 符号导航弹窗打开时，这些键只用于导航，不继续处理
+        }
+    }
+
+    // Ctrl+B: 符号导航（优先处理，在 InputRouter 之前）
+    if (isCtrlKey(event, 'b')) {
+        if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+            showSymbolNavigation();
+            return;
+        }
+    }
+#endif
+
     // 使用 InputRouter 处理全局输入（如果已初始化）
     // 包括全局快捷键、分屏操作等
     if (input_router_) {
         if (input_router_->route(event, this)) {
-            LOG("InputRouter handled global event");
+            return;
+        }
+        // 终端可见且焦点在终端时的回退：确保 Return/Enter/Backspace 等始终到达 shell
+        if (terminal_.isVisible() && region_manager_.getCurrentRegion() == EditorRegion::TERMINAL &&
+            (event == Event::Return || event == Event::CtrlM || event == Event::Character('\n') ||
+             (event.is_character() && (event.character() == "\n" || event.character() == "\r")) ||
+             event == Event::Backspace || event == Event::Delete || event == Event::Tab ||
+             event == Event::CtrlH || // Ctrl+H 作为 Backspace 的替代
+             event == Event::ArrowUp || event == Event::ArrowDown || event == Event::ArrowLeft ||
+             event == Event::ArrowRight || event == Event::Home || event == Event::End)) {
+            handleTerminalInput(event);
             return;
         }
     }
@@ -77,19 +116,7 @@ void Editor::handleInput(Event event) {
         }
     }
 
-    // 调试信息：检查 Ctrl+P 事件
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
-    }
-
     KeyAction action = key_binding_manager_.getAction(event);
-
-    // 调试信息：检查 Ctrl+P 事件解析结果
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) +
-            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) +
-            ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-    }
 
     // Alt+A (另存为)、Alt+F (创建文件夹) 和 Alt+M (文件选择器) 应该能够在任何情况下工作
     // 包括在对话框中或文件浏览器打开时
@@ -362,14 +389,16 @@ void Editor::handleInput(Event event) {
 
     // 如果主题菜单打开，优先处理
     if (show_theme_menu_) {
+        // 使用 ThemeMenu 的 handleInput 处理搜索等功能
+        if (theme_menu_.handleInput(event)) {
+            return;
+        }
+
+        // 处理主题菜单的特定操作
         if (event == Event::Escape) {
             show_theme_menu_ = false;
             setStatusMessage("Theme selection cancelled | Region: " +
                              region_manager_.getRegionName());
-        } else if (event == Event::ArrowUp || event == Event::Character('k')) {
-            selectPreviousTheme();
-        } else if (event == Event::ArrowDown || event == Event::Character('j')) {
-            selectNextTheme();
         } else if (event == Event::Return) {
             applySelectedTheme();
             show_theme_menu_ = false;
@@ -512,39 +541,16 @@ void Editor::handleInput(Event event) {
             action == KeyAction::SELECT_ALL || action == KeyAction::SELECT_WORD ||
             action == KeyAction::SELECT_EXTEND_UP || action == KeyAction::SELECT_EXTEND_DOWN ||
             action == KeyAction::SELECT_EXTEND_LEFT || action == KeyAction::SELECT_EXTEND_RIGHT) {
-            LOG("[DEBUG COPY] Action detected: " + std::to_string(static_cast<int>(action)) +
-                " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) + ")");
-            LOG("[DEBUG COPY] Current region: " + std::to_string(static_cast<int>(current_region)) +
-                " (CODE_AREA=" + std::to_string(static_cast<int>(EditorRegion::CODE_AREA)) + ")");
-
             if (current_region != EditorRegion::CODE_AREA) {
-                // 不在代码区，忽略这些操作
-                LOG("[DEBUG COPY] Not in CODE_AREA, ignoring copy action");
                 return;
             }
-            // 确保有文档
             if (!getCurrentDocument()) {
-                LOG("[DEBUG COPY] No document available, ignoring copy action");
                 return;
             }
-            LOG("[DEBUG COPY] Region check passed, proceeding with copy");
         }
-
-        LOG("[DEBUG COPY] About to execute action: " + std::to_string(static_cast<int>(action)));
 
         if (action_executor_.execute(action)) {
-            LOG("[DEBUG COPY] ActionExecutor returned true");
             return;
-        } else {
-            LOG("[DEBUG COPY] ActionExecutor returned false");
-        }
-    } else {
-        if (event == ftxui::Event::CtrlP) {
-            LOG("[DEBUG COPY] Ctrl+P event but action is UNKNOWN or shortcuts skipped");
-            LOG("[DEBUG COPY] action: " + std::to_string(static_cast<int>(action)) +
-                " (UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-            LOG("[DEBUG COPY] should_skip_shortcuts: " +
-                std::string(should_skip_shortcuts ? "true" : "false"));
         }
     }
 
@@ -564,7 +570,6 @@ void Editor::handleInput(Event event) {
     // 检查是否有待处理的光标更新需要触发
     auto now = std::chrono::steady_clock::now();
     if (pending_cursor_update_ && (now - last_render_time_) >= CURSOR_UPDATE_DELAY) {
-        LOG("[DEBUG INCREMENTAL] Auto-triggering pending cursor update after delay");
         triggerPendingCursorUpdate();
     }
 
@@ -601,6 +606,28 @@ void Editor::handleNormalMode(Event event) {
     }
 
 #ifdef BUILD_LSP_SUPPORT
+    // 优先处理符号导航弹窗的输入（在补全弹窗之前，因为符号导航优先级更高）
+#ifdef BUILD_LSP_SUPPORT
+    if (show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible()) {
+        if (symbol_navigation_popup_.handleInput(event)) {
+            // 如果按了Enter，跳转并关闭弹窗
+            if (event == Event::Return || event == Event::Character('\n')) {
+                const auto* symbol = symbol_navigation_popup_.getSelectedSymbol();
+                if (symbol) {
+                    jumpToSymbol(*symbol);
+                    hideSymbolNavigation();
+                    setStatusMessage("Jumped to symbol: " + symbol->name);
+                }
+            }
+            // 如果按了Escape，关闭弹窗
+            if (event == Event::Escape) {
+                hideSymbolNavigation();
+            }
+            return; // 符号导航弹窗打开时，这些键只用于导航，不继续处理
+        }
+    }
+#endif
+
     // 优先处理补全弹窗的导航键，避免影响代码区光标
     // 必须在处理其他按键之前检查，确保补全导航优先
     if (completion_popup_.isVisible()) {
@@ -1207,10 +1234,8 @@ void Editor::handleNormalMode(Event event) {
     pnana::input::EventParser parser;
     std::string key_str = parser.eventToKey(event);
     if (key_str == "alt_0") {
-        LOG("EditorInput: Alt+0 detected, calling moveCursorPageUp()");
         moveCursorPageUp();
     } else if (key_str == "alt_9") {
-        LOG("EditorInput: Alt+9 detected, calling moveCursorPageDown()");
         moveCursorPageDown();
     } else if (event == Event::Backspace) {
         backspace();
@@ -1219,19 +1244,37 @@ void Editor::handleNormalMode(Event event) {
     } else if (event == Event::Return) {
         insertNewline();
     }
-    // 可打印字符 - 直接插入
+    // 可打印字符 - 直接插入（支持UTF-8多字节字符，如中文）
     else if (event.is_character()) {
         std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            // 只接受可打印ASCII字符（32-126），排除控制字符
-            // 注意：补全弹窗的导航键（上下键、Return、Tab、Escape）已在函数开头优先处理
-            if (c >= 32 && c < 127) {
+
+        if (!ch.empty()) {
+            // 检查是否为可打印字符
+            // 对于单字节字符，检查是否为ASCII可打印字符（32-126）
+            // 对于多字节UTF-8字符（如中文），直接接受
+            bool is_printable = false;
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // ASCII可打印字符
+                if (c >= 32 && c < 127) {
+                    is_printable = true;
+                }
+            } else {
+                // 多字节UTF-8字符（如中文、日文、韩文等）
+                // 检查是否为有效的UTF-8字符（首字节应该是0xC0-0xFF）
+                unsigned char first_byte = static_cast<unsigned char>(ch[0]);
+                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                    is_printable = true;
+                }
+            }
+
+            if (is_printable) {
                 // When in snippet session, typing should overwrite currently selected placeholder.
                 if (snippet_session_active_ && selection_active_) {
                     backspace(); // deletes selection and clears selection mode
                 }
-                insertChar(c);
+                // 使用 insertText 支持多字节字符
+                insertText(ch);
             }
         }
     }
@@ -1295,8 +1338,19 @@ void Editor::handleSearchMode(Event event) {
         }
     } else if (event == Event::Backspace) {
         if (search_cursor_pos_ > 0) {
-            search_input_.erase(search_cursor_pos_ - 1, 1);
-            search_cursor_pos_--;
+            // 计算需要删除的UTF-8字符的字节数
+            size_t bytes_to_delete =
+                utils::getUtf8CharBytesBefore(search_input_, search_cursor_pos_);
+
+            // 确保不会越界
+            if (bytes_to_delete > search_cursor_pos_) {
+                bytes_to_delete = search_cursor_pos_;
+            }
+
+            // 删除完整的UTF-8字符
+            search_input_.erase(search_cursor_pos_ - bytes_to_delete, bytes_to_delete);
+            search_cursor_pos_ -= bytes_to_delete;
+
             // 实时执行搜索（如果还有输入），使用当前选择的选项
             if (!search_input_.empty()) {
                 features::SearchOptions options = buildSearchOptions();
@@ -1318,18 +1372,30 @@ void Editor::handleSearchMode(Event event) {
     } else if (event == Event::End) {
         search_cursor_pos_ = search_input_.length();
     } else if (event.is_character()) {
-        // 只接受可打印字符
+        // 支持UTF-8多字节字符（如中文）
         std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            if (c >= 32 && c < 127) {
-                if (search_cursor_pos_ <= search_input_.length()) {
-                    search_input_.insert(search_cursor_pos_, 1, c);
-                    search_cursor_pos_++;
-                    // 实时执行搜索（不移动光标，只高亮），使用当前选择的选项
-                    features::SearchOptions options = buildSearchOptions();
-                    performSearch(search_input_, options);
+        if (!ch.empty()) {
+            bool is_printable = false;
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // ASCII可打印字符
+                if (c >= 32 && c < 127) {
+                    is_printable = true;
                 }
+            } else {
+                // 多字节UTF-8字符（如中文、日文、韩文等）
+                unsigned char first_byte = static_cast<unsigned char>(ch[0]);
+                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                    is_printable = true;
+                }
+            }
+
+            if (is_printable && search_cursor_pos_ <= search_input_.length()) {
+                search_input_.insert(search_cursor_pos_, ch);
+                search_cursor_pos_ += ch.length(); // 按字节数移动光标
+                // 实时执行搜索（不移动光标，只高亮），使用当前选择的选项
+                features::SearchOptions options = buildSearchOptions();
+                performSearch(search_input_, options);
             }
         }
     }
@@ -1388,8 +1454,18 @@ void Editor::handleReplaceMode(Event event) {
         }
     } else if (event == Event::Backspace) {
         if (replace_cursor_pos_ > 0) {
-            replace_input_.erase(replace_cursor_pos_ - 1, 1);
-            replace_cursor_pos_--;
+            // 计算需要删除的UTF-8字符的字节数
+            size_t bytes_to_delete =
+                utils::getUtf8CharBytesBefore(replace_input_, replace_cursor_pos_);
+
+            // 确保不会越界
+            if (bytes_to_delete > replace_cursor_pos_) {
+                bytes_to_delete = replace_cursor_pos_;
+            }
+
+            // 删除完整的UTF-8字符
+            replace_input_.erase(replace_cursor_pos_ - bytes_to_delete, bytes_to_delete);
+            replace_cursor_pos_ -= bytes_to_delete;
         }
     } else if (event == Event::ArrowLeft) {
         if (replace_cursor_pos_ > 0) {
@@ -1404,15 +1480,27 @@ void Editor::handleReplaceMode(Event event) {
     } else if (event == Event::End) {
         replace_cursor_pos_ = replace_input_.length();
     } else if (event.is_character()) {
-        // 只接受可打印字符
+        // 支持UTF-8多字节字符（如中文）
         std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            if (c >= 32 && c < 127) {
-                if (replace_cursor_pos_ <= replace_input_.length()) {
-                    replace_input_.insert(replace_cursor_pos_, 1, c);
-                    replace_cursor_pos_++;
+        if (!ch.empty()) {
+            bool is_printable = false;
+            if (ch.length() == 1) {
+                char c = ch[0];
+                // ASCII可打印字符
+                if (c >= 32 && c < 127) {
+                    is_printable = true;
                 }
+            } else {
+                // 多字节UTF-8字符（如中文、日文、韩文等）
+                unsigned char first_byte = static_cast<unsigned char>(ch[0]);
+                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                    is_printable = true;
+                }
+            }
+
+            if (is_printable && replace_cursor_pos_ <= replace_input_.length()) {
+                replace_input_.insert(replace_cursor_pos_, ch);
+                replace_cursor_pos_ += ch.length(); // 按字节数移动光标
             }
         }
     }
@@ -1420,40 +1508,18 @@ void Editor::handleReplaceMode(Event event) {
 }
 
 void Editor::handleFileBrowserInput(Event event) {
-    LOG("Event type check - Return: " + std::string(event == Event::Return ? "yes" : "no"));
-    LOG("Event type check - Escape: " + std::string(event == Event::Escape ? "yes" : "no"));
-    LOG("Event input string: '" + event.input() + "'");
-    LOG("Event is_character: " + std::string(event.is_character() ? "yes" : "no"));
-
     // 确保当前区域是文件浏览器
     if (region_manager_.getCurrentRegion() != EditorRegion::FILE_BROWSER) {
-        LOG("Setting region to FILE_BROWSER");
         region_manager_.setRegion(EditorRegion::FILE_BROWSER);
     }
-    LOG("Current region: " + region_manager_.getRegionName());
 
     // 首先检查是否是全局快捷键（Alt+A, Alt+F 等）
     // 这些快捷键应该在文件浏览器中也能工作
     using namespace pnana::input;
 
-    // 调试信息：检查 Ctrl+P 事件
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] Ctrl+P event detected at start of handleInput!");
-    }
-
     KeyAction action = key_binding_manager_.getAction(event);
-
-    // 调试信息：检查 Ctrl+P 事件解析结果
-    if (event == ftxui::Event::CtrlP) {
-        LOG("[DEBUG COPY] After getAction, action: " + std::to_string(static_cast<int>(action)) +
-            " (COPY=" + std::to_string(static_cast<int>(KeyAction::COPY)) +
-            ", UNKNOWN=" + std::to_string(static_cast<int>(KeyAction::UNKNOWN)) + ")");
-    }
-    LOG("Action resolved: " + std::to_string(static_cast<int>(action)));
     if (action == KeyAction::SAVE_AS || action == KeyAction::CREATE_FOLDER) {
-        LOG("Global shortcut detected, executing...");
         if (action_executor_.execute(action)) {
-            LOG("Global shortcut executed, returning");
             return;
         }
     }
@@ -1500,6 +1566,24 @@ void Editor::handleFileBrowserInput(Event event) {
         startSearch();
         return;
     }
+
+    // 处理符号导航弹窗输入
+#ifdef BUILD_LSP_SUPPORT
+    if (show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible()) {
+        if (symbol_navigation_popup_.handleInput(event)) {
+            // 如果按了Enter，跳转并关闭弹窗
+            if (event == Event::Return || event == Event::Character('\n')) {
+                const auto* symbol = symbol_navigation_popup_.getSelectedSymbol();
+                if (symbol) {
+                    jumpToSymbol(*symbol);
+                    hideSymbolNavigation();
+                    setStatusMessage("Jumped to symbol: " + symbol->name);
+                }
+            }
+            return;
+        }
+    }
+#endif
 
     // Ctrl+R: 替换
     if (isCtrlKey(event, 'r')) {
@@ -1611,80 +1695,45 @@ void Editor::handleFileBrowserInput(Event event) {
         setStatusMessage("File browser closed | Region: " + region_manager_.getRegionName());
     } else if (event == Event::Return) {
         // Enter: toggle expand/collapse for directories, or open file
-        LOG("=== File Browser: Return key pressed ===");
-        LOG("Current directory: " + file_browser_.getCurrentDirectory());
-        LOG("Calling file_browser_.toggleSelected()...");
         bool is_file = file_browser_.toggleSelected();
-        LOG("toggleSelected() returned: " +
-            std::string(is_file ? "true (file)" : "false (directory)"));
 
         if (is_file) {
-            LOG("Getting selected file...");
             std::string selected = file_browser_.getSelectedFile();
-            LOG("Selected file path: " + selected);
-            LOG("Selected file length: " + std::to_string(selected.length()));
-            LOG("Selected file empty check: " + std::string(selected.empty() ? "true" : "false"));
 
             if (!selected.empty()) {
-                // It's a file, open it but keep browser open
-                LOG("--- Starting file open process ---");
-                LOG("Calling openFile() with path: " + selected);
-
                 try {
                     bool open_result = openFile(selected);
-                    LOG("openFile() returned: " + std::string(open_result ? "true" : "false"));
 
                     if (open_result) {
                         Document* doc = getCurrentDocument();
                         if (doc) {
-                            LOG("File opened successfully, document pointer: " +
-                                std::to_string(reinterpret_cast<uintptr_t>(doc)));
-                            LOG("Document file name: " + doc->getFileName());
-                            LOG("Document file path: " + doc->getFilePath());
-                            LOG("Document line count: " + std::to_string(doc->lineCount()));
                             setStatusMessage(std::string(pnana::ui::icons::OPEN) +
                                              " Opened: " + doc->getFileName() +
                                              " | Press Ctrl+O to close browser | Region: " +
                                              region_manager_.getRegionName());
                         } else {
-                            LOG_ERROR("openFile() returned true but getCurrentDocument() is null!");
                             setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                                              " Failed to open file: Document is null");
                         }
                     } else {
-                        LOG_ERROR("openFile() returned false - file open failed");
                         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                                          " Failed to open file");
                     }
                 } catch (const std::exception& e) {
-                    LOG_ERROR("Exception in openFile(): " + std::string(e.what()));
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                                      " Exception: " + std::string(e.what()));
                 } catch (...) {
-                    LOG_ERROR("Unknown exception in openFile()");
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Unknown exception");
                 }
 
-                LOG("--- File open process completed ---");
-
-                // 文件打开后，关闭文件浏览器并切换到代码区域
                 file_browser_.setVisible(false);
                 region_manager_.setRegion(EditorRegion::CODE_AREA);
-                LOG("File browser closed and switched to CODE_AREA region after opening file");
-            } else {
-                LOG_WARNING("Selected file path is empty!");
             }
         } else {
-            // It's a directory, toggled expand/collapse
-            LOG("Directory toggled, current directory: " + file_browser_.getCurrentDirectory());
             setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " " +
                              file_browser_.getCurrentDirectory() +
                              " | Region: " + region_manager_.getRegionName());
         }
-        LOG("=== File Browser: Return key handling completed ===");
-        LOG("File browser visible: " + std::string(file_browser_.isVisible() ? "true" : "false"));
-        LOG("Current region: " + region_manager_.getRegionName());
-        LOG("Document count: " + std::to_string(document_manager_.getDocumentCount()));
     } else if (event == Event::Backspace) {
         // Go to parent directory
         if (file_browser_.goUp()) {
@@ -1717,7 +1766,6 @@ void Editor::handleFileBrowserInput(Event event) {
 
     // Delete: 删除文件/文件夹
     if (event == Event::Delete) {
-        LOG("Delete key in file browser - deleting file");
         handleDeleteFile();
         return;
     }

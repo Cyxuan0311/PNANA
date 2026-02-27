@@ -2,6 +2,7 @@
 
 #include "plugins/lua_engine.h"
 #include "utils/logger.h"
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -31,7 +32,137 @@ void LuaEngine::loadStandardLibs() {
     if (!L_)
         return;
 
-    luaL_openlibs(L_);
+    // 沙盒模式：只加载安全的库，移除危险的库
+    // 加载基础库（_G）
+    luaL_requiref(L_, "_G", luaopen_base, 1);
+    lua_pop(L_, 1);
+
+    // 加载数学库
+    luaL_requiref(L_, LUA_MATHLIBNAME, luaopen_math, 1);
+    lua_pop(L_, 1);
+
+    // 加载字符串库
+    luaL_requiref(L_, LUA_STRLIBNAME, luaopen_string, 1);
+    lua_pop(L_, 1);
+
+    // 加载表库
+    luaL_requiref(L_, LUA_TABLIBNAME, luaopen_table, 1);
+    lua_pop(L_, 1);
+
+    // 不加载以下危险的库：
+    // - os: 可以执行系统命令、访问环境变量、删除文件等
+    // - io: 可以读写任意文件
+    // - package: 可以加载动态库（loadlib）
+    // - debug: 可以访问和修改内部状态
+
+    // 创建受限的 package 表（仅支持 require 和路径设置，不支持 loadlib）
+    lua_newtable(L_);
+
+    // 设置 package.path（用于 require 查找）
+    lua_pushstring(L_, "?;?.lua");
+    lua_setfield(L_, -2, "path");
+
+    // 设置 package.loaded（用于缓存已加载的模块）
+    lua_newtable(L_);
+    lua_setfield(L_, -2, "loaded");
+
+    // 实现受限的 require 函数（只允许加载 Lua 文件，不允许 loadlib）
+    lua_pushcfunction(L_, [](lua_State* L) -> int {
+        const char* modname = luaL_checkstring(L, 1);
+        // 获取 package.loaded
+        lua_getfield(L, LUA_REGISTRYINDEX, "_LOADED");
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            lua_getglobal(L, "package");
+            lua_getfield(L, -1, "loaded");
+            lua_remove(L, -2);
+        }
+        lua_getfield(L, -1, modname);
+        if (!lua_isnil(L, -1)) {
+            // 模块已加载
+            lua_remove(L, -2);
+            return 1;
+        }
+        lua_pop(L, 1);
+
+        // 尝试加载模块（简化实现，使用 package.searchers）
+        // 这里只实现基本的文件搜索
+        lua_getglobal(L, "package");
+        lua_getfield(L, -1, "path");
+        const char* path = lua_tostring(L, -1);
+        lua_pop(L, 2);
+
+        if (path) {
+            // 简单的路径搜索实现
+            std::string modpath = modname;
+            std::replace(modpath.begin(), modpath.end(), '.', '/');
+            std::string search_path = modpath + ".lua";
+
+            if (luaL_loadfile(L, search_path.c_str()) == LUA_OK) {
+                lua_call(L, 0, 1);
+                // 将结果存储到 package.loaded
+                lua_pushvalue(L, -1);
+                lua_setfield(L, -3, modname);
+                lua_remove(L, -2);
+                return 1;
+            }
+        }
+
+        lua_pushnil(L);
+        lua_pushstring(L, ("module '" + std::string(modname) + "' not found").c_str());
+        return 2;
+    });
+    lua_setfield(L_, -2, "loadlib"); // 禁用 loadlib
+    lua_pushnil(L_);
+    lua_setfield(L_, -2, "loadlib"); // 确保 loadlib 为 nil
+
+    // 设置全局 require 函数
+    lua_getfield(L_, -1, "loaded");
+    lua_pushcfunction(L_, [](lua_State* L) -> int {
+        const char* modname = luaL_checkstring(L, 1);
+        lua_getglobal(L, "package");
+        lua_getfield(L, -1, "loaded");
+        lua_getfield(L, -1, modname);
+        if (!lua_isnil(L, -1)) {
+            lua_remove(L, -2);
+            lua_remove(L, -2);
+            return 1;
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "path");
+        const char* path = lua_tostring(L, -1);
+        lua_pop(L, 2);
+
+        if (path) {
+            std::string modpath = modname;
+            std::replace(modpath.begin(), modpath.end(), '.', '/');
+            std::string search_path = modpath + ".lua";
+
+            if (luaL_loadfile(L, search_path.c_str()) == LUA_OK) {
+                lua_call(L, 0, 1);
+                lua_pushvalue(L, -1);
+                lua_getglobal(L, "package");
+                lua_getfield(L, -1, "loaded");
+                lua_setfield(L, -1, modname);
+                lua_pop(L, 2);
+                return 1;
+            }
+        }
+
+        lua_pushnil(L);
+        lua_pushstring(L, ("module '" + std::string(modname) + "' not found").c_str());
+        return 2;
+    });
+    lua_setglobal(L_, "require");
+
+    // 将 package 表设置为全局
+    lua_setglobal(L_, "package");
+
+    // 设置 package.loaded 到注册表（供后续使用）
+    lua_getglobal(L_, "package");
+    lua_getfield(L_, -1, "loaded");
+    lua_setfield(L_, LUA_REGISTRYINDEX, "_LOADED");
+    lua_pop(L_, 1);
 
     // 重写 print 函数，禁用输出（避免插件输出干扰用户）
     lua_pushcfunction(L_, [](lua_State* L) -> int {
@@ -228,9 +359,9 @@ std::string LuaEngine::getGlobalString(const std::string& name) {
 
     lua_getglobal(L_, name.c_str());
     if (lua_isstring(L_, -1)) {
-        std::string result = lua_tostring(L_, -1);
+        const char* str = lua_tostring(L_, -1);
         lua_pop(L_, 1);
-        return result;
+        return str ? std::string(str) : "";
     }
     lua_pop(L_, 1);
     return "";
@@ -295,7 +426,8 @@ void LuaEngine::setPackagePath(const std::string& path) {
     lua_getglobal(L_, "package");
     lua_getfield(L_, -1, "path");
 
-    std::string current_path = lua_tostring(L_, -1);
+    const char* current_path_str = lua_tostring(L_, -1);
+    std::string current_path = current_path_str ? std::string(current_path_str) : "";
     lua_pop(L_, 1);
 
     // 添加新路径

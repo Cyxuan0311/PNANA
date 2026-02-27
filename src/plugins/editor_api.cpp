@@ -72,8 +72,8 @@ int EditorAPI::lua_api_get_current_line(lua_State* L) {
         return 1;
     }
 
-    // 简化处理：获取第一行（实际应该获取光标所在行）
-    size_t row = 0;
+    // 获取光标所在行
+    size_t row = editor->getCursorRowForLua();
     if (row < doc->lineCount()) {
         lua_pushstring(L, doc->getLine(row).c_str());
     } else {
@@ -106,19 +106,12 @@ int EditorAPI::lua_api_get_cursor_pos(lua_State* L) {
     lua_newtable(L);
 
     if (editor) {
-        core::Document* doc = editor->getCurrentDocumentForLua();
-        if (doc && doc->lineCount() > 0) {
-            // 简化：返回 (0, 0)，实际应该通过 API 获取
-            lua_pushinteger(L, 0);
-            lua_setfield(L, -2, "row");
-            lua_pushinteger(L, 0);
-            lua_setfield(L, -2, "col");
-        } else {
-            lua_pushinteger(L, 0);
-            lua_setfield(L, -2, "row");
-            lua_pushinteger(L, 0);
-            lua_setfield(L, -2, "col");
-        }
+        size_t row = editor->getCursorRowForLua();
+        size_t col = editor->getCursorColForLua();
+        lua_pushinteger(L, static_cast<lua_Integer>(row));
+        lua_setfield(L, -2, "row");
+        lua_pushinteger(L, static_cast<lua_Integer>(col));
+        lua_setfield(L, -2, "col");
     } else {
         lua_pushinteger(L, 0);
         lua_setfield(L, -2, "row");
@@ -138,10 +131,16 @@ int EditorAPI::lua_api_set_cursor_pos(lua_State* L) {
     lua_getfield(L, 1, "row");
     lua_getfield(L, 1, "col");
 
-    // TODO: 通过公共 API 设置光标位置
-    // int row = static_cast<int>(lua_tointeger(L, -2));
-    // int col = static_cast<int>(lua_tointeger(L, -1));
-    // editor->gotoLine(row);
+    int row = static_cast<int>(lua_tointeger(L, -2));
+    int col = static_cast<int>(lua_tointeger(L, -1));
+
+    // 确保非负
+    if (row < 0)
+        row = 0;
+    if (col < 0)
+        col = 0;
+
+    editor->setCursorPosForLua(static_cast<size_t>(row), static_cast<size_t>(col));
 
     lua_pop(L, 2);
 

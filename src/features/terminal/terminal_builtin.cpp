@@ -1,10 +1,15 @@
 #include "features/terminal/terminal_builtin.h"
 #include "features/terminal.h"
+#include "features/terminal/terminal_job.h"
 #include "features/terminal/terminal_utils.h"
 #include <algorithm>
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <signal.h>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -17,7 +22,8 @@ bool BuiltinCommandExecutor::isBuiltin(const std::string& command) {
     return (command == "help" || command == "h" || command == "clear" || command == "cls" ||
             command == "pwd" || command == "cd" || command == "ls" || command == "cat" ||
             command == "echo" || command == "whoami" || command == "hostname" ||
-            command == "exit" || command == "quit");
+            command == "exit" || command == "quit" || command == "jobs" || command == "fg" ||
+            command == "bg" || command == "kill");
 }
 
 std::string BuiltinCommandExecutor::execute(const std::string& command,
@@ -47,6 +53,14 @@ std::string BuiltinCommandExecutor::execute(const std::string& command,
         return executeWhoami();
     } else if (command == "hostname") {
         return executeHostname();
+    } else if (command == "jobs") {
+        return executeJobs();
+    } else if (command == "fg") {
+        return executeFg(args);
+    } else if (command == "bg") {
+        return executeBg(args);
+    } else if (command == "kill") {
+        return executeKill(args);
     } else if (command == "exit" || command == "quit") {
         // 这个命令由 Editor 处理，关闭终端
         return "";
@@ -66,6 +80,10 @@ std::string BuiltinCommandExecutor::executeHelp() {
            "  echo <text>      - Print text\n"
            "  whoami           - Print current user\n"
            "  hostname         - Print hostname\n"
+           "  jobs             - List all jobs\n"
+           "  fg [%n]          - Bring job to foreground\n"
+           "  bg [%n]          - Put job in background\n"
+           "  kill [%n|pid]    - Kill a job or process\n"
            "  exit, quit       - Close terminal";
 }
 
@@ -225,6 +243,164 @@ std::string BuiltinCommandExecutor::executeWhoami() {
 
 std::string BuiltinCommandExecutor::executeHostname() {
     return TerminalUtils::getHostname();
+}
+
+std::string BuiltinCommandExecutor::executeJobs() {
+    auto jobs = JobManager::listJobs();
+    if (jobs.empty()) {
+        return "";
+    }
+
+    std::ostringstream oss;
+    for (const auto& job : jobs) {
+        oss << "[" << job.job_id << "]";
+
+        std::string state_str;
+        switch (job.state) {
+            case JobState::Running:
+                state_str = "Running";
+                break;
+            case JobState::Stopped:
+                state_str = "Stopped";
+                break;
+            case JobState::Done:
+                state_str = "Done";
+                break;
+            case JobState::Terminated:
+                state_str = "Terminated";
+                break;
+        }
+
+        oss << " " << state_str;
+        if (job.state == JobState::Done || job.state == JobState::Terminated) {
+            oss << " (" << job.exit_code << ")";
+        }
+        oss << "  " << job.command << "\n";
+    }
+
+    std::string result = oss.str();
+    if (!result.empty() && result.back() == '\n') {
+        result.pop_back();
+    }
+    return result;
+}
+
+std::string BuiltinCommandExecutor::executeFg(const std::vector<std::string>& args) {
+    int job_id = -1;
+
+    if (args.empty()) {
+        // 如果没有参数，使用前台作业或最后一个作业
+        auto jobs = JobManager::listJobs();
+        if (jobs.empty()) {
+            return "fg: no current job";
+        }
+        // 找到最后一个作业
+        job_id = jobs.back().job_id;
+    } else {
+        // 解析作业 ID（支持 %n 格式）
+        std::string arg = args[0];
+        if (arg[0] == '%') {
+            arg = arg.substr(1);
+        }
+        try {
+            job_id = std::stoi(arg);
+        } catch (...) {
+            return "fg: " + args[0] + ": invalid job specification";
+        }
+    }
+
+    if (!JobManager::bringToForeground(job_id)) {
+        return "fg: " + std::to_string(job_id) + ": no such job";
+    }
+
+    return "";
+}
+
+std::string BuiltinCommandExecutor::executeBg(const std::vector<std::string>& args) {
+    int job_id = -1;
+
+    if (args.empty()) {
+        // 如果没有参数，使用最后一个暂停的作业
+        auto jobs = JobManager::listJobs();
+        for (auto it = jobs.rbegin(); it != jobs.rend(); ++it) {
+            if (it->state == JobState::Stopped) {
+                job_id = it->job_id;
+                break;
+            }
+        }
+        if (job_id < 0) {
+            return "bg: no current job";
+        }
+    } else {
+        // 解析作业 ID（支持 %n 格式）
+        std::string arg = args[0];
+        if (arg[0] == '%') {
+            arg = arg.substr(1);
+        }
+        try {
+            job_id = std::stoi(arg);
+        } catch (...) {
+            return "bg: " + args[0] + ": invalid job specification";
+        }
+    }
+
+    if (!JobManager::bringToBackground(job_id)) {
+        return "bg: " + std::to_string(job_id) + ": no such job";
+    }
+
+    return "";
+}
+
+std::string BuiltinCommandExecutor::executeKill(const std::vector<std::string>& args) {
+    if (args.empty()) {
+        return "kill: usage: kill [%n|pid] [signal]";
+    }
+
+    int signal = 15; // SIGTERM
+    std::string target = args[0];
+
+    // 检查是否有信号参数
+    if (args.size() > 1) {
+        std::string sig_str = args[1];
+        if (sig_str[0] == '-') {
+            sig_str = sig_str.substr(1);
+        }
+        try {
+            signal = std::stoi(sig_str);
+        } catch (...) {
+            return "kill: " + args[1] + ": invalid signal specification";
+        }
+    }
+
+    // 解析目标（作业 ID 或 PID）
+    if (target[0] == '%') {
+        // 作业 ID
+        target = target.substr(1);
+        int job_id;
+        try {
+            job_id = std::stoi(target);
+        } catch (...) {
+            return "kill: " + args[0] + ": invalid job specification";
+        }
+
+        if (!JobManager::killJob(job_id, signal)) {
+            return "kill: " + args[0] + ": no such job";
+        }
+    } else {
+        // PID
+        pid_t pid;
+        try {
+            pid = std::stoi(target);
+        } catch (...) {
+            return "kill: " + args[0] + ": invalid process ID";
+        }
+
+        if (kill(pid, signal) != 0) {
+            return "kill: " + args[0] + ": " + std::string(strerror(errno));
+        }
+    }
+
+    return "";
 }
 
 } // namespace terminal

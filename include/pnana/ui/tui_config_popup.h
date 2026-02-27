@@ -45,6 +45,9 @@ class TUIConfigPopup {
     // 设置配置打开回调
     void setConfigOpenCallback(std::function<void(const features::TUIConfig&)> callback);
 
+    // 设置光标颜色获取器（输入框光标跟随编辑器光标配置）
+    void setCursorColorGetter(std::function<ftxui::Color()> getter);
+
   private:
     Theme& theme_;
     bool is_open_;
@@ -53,7 +56,9 @@ class TUIConfigPopup {
     size_t selected_index_;
     size_t scroll_offset_; // 滚动偏移
     std::string input_;    // 搜索输入
+    size_t cursor_pos_;    // 输入框光标位置
 
+    std::function<ftxui::Color()> cursor_color_getter_;
     // 配置打开回调
     std::function<void(const features::TUIConfig&)> config_open_callback_;
 
@@ -63,6 +68,7 @@ class TUIConfigPopup {
     ftxui::Element renderConfigList() const;
     ftxui::Element renderConfigItem(const features::TUIConfig& config, size_t config_index,
                                     bool is_selected) const;
+    ftxui::Element renderConfigPreview() const;
     ftxui::Element renderHelpBar() const;
 
     // 搜索和过滤功能

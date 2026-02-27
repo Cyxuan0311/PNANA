@@ -152,9 +152,7 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
             editor_->cut();
             return true;
         case KeyAction::COPY:
-            LOG("[DEBUG COPY] ActionExecutor: COPY action executing");
             editor_->copy();
-            LOG("[DEBUG COPY] ActionExecutor: COPY action completed");
             return true;
         case KeyAction::PASTE:
             editor_->paste();
@@ -212,9 +210,7 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
             return true;
 #endif
         case KeyAction::TOGGLE_FOLD:
-            LOG("[DEBUG] ActionExecutor: Executing TOGGLE_FOLD");
             editor_->toggleFold();
-            LOG("[DEBUG] ActionExecutor: TOGGLE_FOLD completed");
             return true;
         case KeyAction::FOLD_ALL:
             editor_->foldAll();
@@ -304,7 +300,6 @@ bool ActionExecutor::executeViewOperation(KeyAction action) {
             editor_->showSSHDialog();
             return true;
         case KeyAction::TOGGLE_MARKDOWN_PREVIEW:
-            LOG("[DEBUG] ActionExecutor: TOGGLE_MARKDOWN_PREVIEW triggered");
             editor_->toggleMarkdownPreview();
             return true;
 #ifdef BUILD_LUA_SUPPORT

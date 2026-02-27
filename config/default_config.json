@@ -1,5 +1,6 @@
 {
   "editor": {
+    "_comment": "Editor: theme, font, tab, indent, wrap",
     "theme": "monokai",
     "font_size": 12,
     "tab_size": 4,
@@ -8,12 +9,18 @@
     "auto_indent": true
   },
   "display": {
+    "_comment": "Display: line numbers, highlight, cursor style",
     "show_line_numbers": true,
     "relative_line_numbers": false,
     "highlight_current_line": true,
-    "show_whitespace": false
+    "show_whitespace": false,
+    "cursor_style": "block",
+    "cursor_color": "255,255,255",
+    "cursor_blink_rate": 500,
+    "cursor_smooth": false
   },
   "files": {
+    "_comment": "Files: encoding, line ending, auto save",
     "encoding": "UTF-8",
     "line_ending": "LF",
     "trim_trailing_whitespace": true,
@@ -22,58 +29,22 @@
     "auto_save_interval": 60
   },
   "search": {
+    "_comment": "Search: case, whole word, regex, wrap",
     "case_sensitive": false,
     "whole_word": false,
     "regex": false,
     "wrap_around": true
   },
   "themes": {
+    "_comment": "Themes: current theme, available list for reference",
     "current": "monokai",
-    "available": [
-      "monokai",
-      "dracula",
-      "solarized-dark",
-      "solarized-light",
-      "onedark",
-      "nord",
-      "gruvbox",
-      "tokyo-night",
-      "catppuccin",
-      "material",
-      "ayu",
-      "github"
-    ],
-    "custom": {
-      "my-custom-theme": {
-        "background": [30, 30, 30],
-        "foreground": [255, 255, 255],
-        "current_line": [50, 50, 50],
-        "selection": [60, 60, 60],
-        "line_number": [150, 150, 150],
-        "line_number_current": [255, 255, 255],
-        "statusbar_bg": [40, 40, 40],
-        "statusbar_fg": [255, 255, 255],
-        "menubar_bg": [25, 25, 25],
-        "menubar_fg": [255, 255, 255],
-        "helpbar_bg": [40, 40, 40],
-        "helpbar_fg": [150, 150, 150],
-        "helpbar_key": [100, 200, 100],
-        "keyword": [255, 100, 100],
-        "string": [100, 255, 100],
-        "comment": [150, 150, 150],
-        "number": [255, 200, 100],
-        "function": [100, 150, 255],
-        "type": [200, 100, 255],
-        "operator_color": [255, 100, 100],
-        "error": [255, 50, 50],
-        "warning": [255, 200, 50],
-        "info": [50, 150, 255],
-        "success": [50, 255, 50]
-      }
-    }
+    "available": [],
+    "_comment_available_themes_1": "monokai, dracula, solarized-dark, solarized-light, onedark, nord, gruvbox, tokyo-night, catppuccin, material",
+    "_comment_available_themes_2": "ayu, github, github-dark, markdown-dark, vscode-dark, night-owl, palenight, oceanic-next, kanagawa, tomorrow-night, tomorrow-night-blue, cobalt",
+    "_comment_available_themes_3": "zenburn, base16-dark, papercolor, rose-pine, everforest, jellybeans, desert, slate, atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker, hatsune-miku"
   },
   "plugins": {
+    "_comment": "Plugins: enabled plugin names",
     "enabled_plugins": []
   }
 }
-

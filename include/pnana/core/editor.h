@@ -24,6 +24,7 @@
 #include "ui/extract_progress_dialog.h"
 #include "ui/file_picker.h"
 #include "ui/format_dialog.h"
+#include "ui/fzf_popup.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
 #include "ui/move_file_dialog.h"
@@ -71,6 +72,7 @@
 #include "features/lsp/snippet_manager.h"
 #include "ui/completion_popup.h"
 #include "ui/diagnostics_popup.h"
+#include "ui/symbol_navigation_popup.h"
 #endif
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
@@ -166,6 +168,7 @@ class Editor {
 
     // 编辑操作
     void insertChar(char ch);
+    void insertText(const std::string& text); // 支持UTF-8多字节字符（如中文）
     void insertNewline();
     void deleteChar();
     void backspace();
@@ -394,6 +397,7 @@ class Editor {
     pnana::ui::EncodingDialog encoding_dialog_;
     pnana::ui::FormatDialog format_dialog_;
     pnana::ui::RecentFilesPopup recent_files_popup_;
+    pnana::ui::FzfPopup fzf_popup_;
     pnana::ui::TUIConfigPopup tui_config_popup_;
     pnana::ui::ExtractDialog extract_dialog_;
     pnana::ui::ExtractPathDialog extract_path_dialog_;
@@ -439,6 +443,13 @@ class Editor {
         size_t cursor_col = 0;
         size_t view_offset_row = 0;
         size_t view_offset_col = 0;
+
+        // 单词高亮状态（每个区域独立）
+        bool word_highlight_active_ = false;
+        std::string current_word_;
+        std::vector<features::SearchMatch> word_matches_;
+        size_t word_highlight_row_ = 0;
+        size_t word_highlight_col_ = 0;
     };
     std::vector<RegionState> region_states_;
 
@@ -505,6 +516,10 @@ class Editor {
     // 诊断错误弹窗
     pnana::ui::DiagnosticsPopup diagnostics_popup_;
     bool show_diagnostics_popup_;
+#ifdef BUILD_LSP_SUPPORT
+    pnana::ui::SymbolNavigationPopup symbol_navigation_popup_;
+    bool show_symbol_navigation_popup_;
+#endif
     std::vector<features::Diagnostic> current_file_diagnostics_;
     std::mutex diagnostics_mutex_;
 
@@ -532,6 +547,7 @@ class Editor {
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理器
     std::unique_ptr<plugins::PluginManager> plugin_manager_;
+    bool plugin_manager_initialized_; // 标记插件管理器是否已初始化（用于延迟初始化）
 #endif
 
     // 编辑器状态
@@ -543,6 +559,8 @@ class Editor {
 
     // SSH连接状态
     pnana::ui::SSHConfig current_ssh_config_;
+    // 文档索引到SSH配置的映射（用于保存SSH文件）
+    std::map<size_t, pnana::ui::SSHConfig> document_ssh_configs_;
 
     // 主题选择
     bool show_theme_menu_;
@@ -647,7 +665,10 @@ class Editor {
     ftxui::Element renderSplitEditor(); // 分屏编辑器渲染
     ftxui::Element renderEditorRegion(const features::ViewRegion& region, Document* doc,
                                       size_t region_index); // 渲染单个区域
-    ftxui::Element renderLine(Document* doc, size_t line_num, bool is_current);
+    ftxui::Element renderLine(
+        Document* doc, size_t line_num, bool is_current, bool use_region_word_highlight = false,
+        bool region_word_highlight_active = false,
+        const std::vector<features::SearchMatch>* region_word_matches = nullptr);
     ftxui::Element renderLineNumber(Document* doc, size_t line_num, bool is_current);
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();
@@ -708,6 +729,10 @@ class Editor {
     void handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items);
     void handleSSHTransferCancel();
 
+    // SSH文件保存（内部方法）
+    bool saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config,
+                     const std::string& filepath = "");
+
     // 标签页管理
     void closeCurrentTab();
     void switchToNextTab();
@@ -758,6 +783,8 @@ class Editor {
     void handleCommandPaletteInput(ftxui::Event event);
     void initializeCommandPalette();
     void openRecentFilesDialog();
+    void openFzfPopup();
+    void handleFzfPopupInput(ftxui::Event event);
     void openTUIConfigDialog();
 
     // AI助手
@@ -822,6 +849,12 @@ class Editor {
     void jumpToDiagnostic(const features::Diagnostic& diagnostic);
     ftxui::Element renderDiagnosticsPopup();
 
+    // 符号导航相关方法
+    void showSymbolNavigation();
+    void hideSymbolNavigation();
+    void jumpToSymbol(const features::DocumentSymbol& symbol);
+    ftxui::Element renderSymbolNavigationPopup();
+
     // Snippet placeholders (Tab jump after snippet expansion)
     void startSnippetSession(std::vector<SnippetPlaceholderRange> ranges);
     void endSnippetSession();
@@ -839,6 +872,31 @@ class Editor {
     }
     void setStatusMessageForLua(const std::string& message) {
         setStatusMessage(message);
+    }
+    size_t getCursorRowForLua() const {
+        return cursor_row_;
+    }
+    size_t getCursorColForLua() const {
+        return cursor_col_;
+    }
+    void setCursorPosForLua(size_t row, size_t col) {
+        cursor_row_ = row;
+        cursor_col_ = col;
+        // 确保光标在有效范围内
+        Document* doc = getCurrentDocument();
+        if (doc) {
+            if (cursor_row_ >= doc->lineCount()) {
+                cursor_row_ = doc->lineCount() > 0 ? doc->lineCount() - 1 : 0;
+            }
+            if (cursor_row_ < doc->lineCount()) {
+                size_t line_len = doc->getLine(cursor_row_).length();
+                if (cursor_col_ > line_len) {
+                    cursor_col_ = line_len;
+                }
+            }
+        }
+        adjustCursor();
+        adjustViewOffset();
     }
 
     // 渲染批处理控制（方案1）
@@ -873,9 +931,14 @@ class Editor {
 #ifdef BUILD_LUA_SUPPORT
     // 插件系统
     void initializePlugins();
+    void ensurePluginManagerInitialized(); // 确保插件管理器已初始化（延迟初始化）
     plugins::PluginManager* getPluginManager() {
+        ensurePluginManagerInitialized();
         return plugin_manager_.get();
     }
+
+    // 触发插件事件（供内部使用）
+    void triggerPluginEvent(const std::string& event, const std::vector<std::string>& args = {});
 #endif
 };
 

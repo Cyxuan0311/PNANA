@@ -15,6 +15,7 @@
 #include "ui/terminal_ui.h"
 #include "ui/theme_menu.h"
 #include "ui/welcome_screen.h"
+#include "utils/file_type_detector.h"
 #include "utils/text_utils.h"
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
 #include "features/image_preview.h"
@@ -99,7 +100,6 @@ Element Editor::renderUI() {
         force_ui_update_ = true;
         markdown_preview_needs_update_ = false;
         last_markdown_preview_update_time_ = current_time;
-        LOG("[DEBUG MD PREVIEW] Triggering delayed markdown preview update");
     }
 
     // 增量渲染优化：抑制快速的光标移动渲染
@@ -283,6 +283,12 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setIsRecentFilesVisibleCallback([this]() {
         return recent_files_popup_.isOpen();
     });
+    overlay_manager_->setRenderFzfPopupCallback([this]() {
+        return fzf_popup_.render();
+    });
+    overlay_manager_->setIsFzfPopupVisibleCallback([this]() {
+        return fzf_popup_.isOpen();
+    });
     overlay_manager_->setRenderTUIConfigCallback([this]() {
         auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
         tui_config_popup_.setData(tui_config_popup_.isOpen(), available_configs,
@@ -311,6 +317,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setRenderDiagnosticsPopupCallback([this]() {
         return renderDiagnosticsPopup();
+    });
+    overlay_manager_->setRenderSymbolNavigationPopupCallback([this]() {
+        return renderSymbolNavigationPopup();
     });
 #endif
 
@@ -391,6 +400,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsDiagnosticsPopupVisibleCallback([this]() {
         return show_diagnostics_popup_;
+    });
+    overlay_manager_->setIsSymbolNavigationPopupVisibleCallback([this]() {
+        return show_symbol_navigation_popup_ && symbol_navigation_popup_.isVisible();
     });
 #endif
 
@@ -575,8 +587,9 @@ Element Editor::renderEditor() {
                                           color(theme_.getColors().foreground));
                     lines.push_back(hbox(simple_line));
                 } else {
-                    lines.push_back(
-                        renderLine(doc, actual_line_index, actual_line_index == cursor_row_));
+                    lines.push_back(renderLine(doc, actual_line_index,
+                                               actual_line_index == cursor_row_, false, false,
+                                               nullptr));
                 }
             } catch (const std::exception& e) {
                 // 如果渲染某一行失败，使用空行替代
@@ -706,11 +719,21 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     size_t start_line = region_view_offset_row;
     size_t max_lines = std::min(start_line + region_height, total_visible_lines);
 
+    // 获取该区域的单词高亮状态
+    bool region_word_highlight_active = false;
+    const std::vector<features::SearchMatch>* region_word_matches = nullptr;
+
+    if (region_index < region_states_.size()) {
+        region_word_highlight_active = region_states_[region_index].word_highlight_active_;
+        region_word_matches = &region_states_[region_index].word_matches_;
+    }
+
     // 渲染可见行
     for (size_t i = start_line; i < max_lines && i < start_line + region_height; ++i) {
         size_t actual_line_index = visible_lines[i];
         bool is_current = (region.is_active && actual_line_index == region_cursor_row);
-        lines.push_back(renderLine(doc, actual_line_index, is_current));
+        lines.push_back(renderLine(doc, actual_line_index, is_current, true,
+                                   region_word_highlight_active, region_word_matches));
     }
 
     // 填充空行
@@ -727,7 +750,9 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     return vbox(lines);
 }
 
-Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
+Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
+                           bool use_region_word_highlight, bool region_word_highlight_active,
+                           const std::vector<features::SearchMatch>* region_word_matches) {
     Elements line_elements;
 
     // 创建光标渲染器并配置
@@ -775,8 +800,6 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
                     }
                 }
             } catch (const std::exception& e) {
-                LOG_WARNING("[UI_RENDER] Exception in folding manager access: " +
-                            std::string(e.what()));
                 // 如果出现异常，回退到文档状态
                 if (is_folded_in_doc) {
                     can_fold = true;
@@ -834,10 +857,19 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
 
     // 获取当前行的单词高亮匹配（优先级低于搜索高亮）
     std::vector<features::SearchMatch> word_line_matches;
-    if (!search_highlight_active_ && word_highlight_active_ && !word_matches_.empty()) {
-        for (const auto& match : word_matches_) {
-            if (match.line == line_num) {
-                word_line_matches.push_back(match);
+    if (!search_highlight_active_) {
+        // 如果提供了区域特定的单词匹配，使用它；否则使用全局的
+        if (use_region_word_highlight && region_word_highlight_active && region_word_matches) {
+            for (const auto& match : *region_word_matches) {
+                if (match.line == line_num) {
+                    word_line_matches.push_back(match);
+                }
+            }
+        } else if (word_highlight_active_ && !word_matches_.empty()) {
+            for (const auto& match : word_matches_) {
+                if (match.line == line_num) {
+                    word_line_matches.push_back(match);
+                }
             }
         }
     }
@@ -1336,8 +1368,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current) {
 
     Element line_elem = hbox(line_elements);
 
-    // 高亮当前行背景
-    if (is_current) {
+    // 高亮当前行背景（可配置关闭）
+    if (is_current && config_manager_.getConfig().display.highlight_current_line) {
         line_elem = line_elem | bgcolor(theme_.getColors().current_line);
     }
 
@@ -1493,15 +1525,28 @@ Element Editor::renderStatusbar() {
         git_uncommitted_count = cached_git_uncommitted_count;
     }
 
-    // 检查到期的 todo 并添加闪烁提醒
+    // Check for due todos and add blinking reminder
     auto due_todos = todo_panel_.getTodoManager().getDueTodos();
     std::string todo_reminder = "";
     bool has_todo_reminder = false;
     if (!due_todos.empty()) {
-        // 始终显示提醒，但使用特殊标记以便状态栏识别并应用颜色变化
-        todo_reminder = "⚠ TODO: " + due_todos[0].content;
-        if (due_todos.size() > 1) {
-            todo_reminder += " (+" + std::to_string(due_todos.size() - 1) + " more)";
+        // Sort by priority, show highest priority todo first
+        std::vector<features::todo::TodoItem> sorted_todos = due_todos;
+        std::sort(sorted_todos.begin(), sorted_todos.end(),
+                  [](const features::todo::TodoItem& a, const features::todo::TodoItem& b) {
+                      return a.priority < b.priority; // Lower number = higher priority
+                  });
+
+        const auto& first_todo = sorted_todos[0];
+        std::string time_str =
+            features::todo::TodoManager::formatTimeRemaining(first_todo.due_time);
+
+        // Build reminder text: ⚠ P1 content (Overdue Xm)
+        todo_reminder = "⚠ P" + std::to_string(first_todo.priority) + " " + first_todo.content +
+                        " (" + time_str + ")";
+
+        if (sorted_todos.size() > 1) {
+            todo_reminder += " (+" + std::to_string(sorted_todos.size() - 1) + " more)";
         }
         has_todo_reminder = true;
     }
@@ -1526,8 +1571,12 @@ Element Editor::renderStatusbar() {
         }
     }
 
-    // If no document, show welcome status
-    if (getCurrentDocument() == nullptr) {
+    // 使用 getDocumentForActiveRegion：分屏时若当前激活区域无文档（welcome），应显示 Welcome
+    // 而非 getCurrentDocument() 可能返回的其他区域的文档
+    const Document* doc = getDocumentForActiveRegion();
+
+    // If no document in active region, show welcome status
+    if (doc == nullptr) {
         std::string welcome_msg =
             display_message.empty() ? "Press i to start editing" : display_message;
         return statusbar_.render(
@@ -1546,7 +1595,7 @@ Element Editor::renderStatusbar() {
 
     // 获取行尾类型
     std::string line_ending;
-    switch (getCurrentDocument()->getLineEnding()) {
+    switch (doc->getLineEnding()) {
         case Document::LineEnding::LF:
             line_ending = "LF";
             break;
@@ -1577,13 +1626,14 @@ Element Editor::renderStatusbar() {
                 : 0;
     }
 
-    return statusbar_.render(getCurrentDocument()->getFileName(),
-                             getCurrentDocument()->isModified(), getCurrentDocument()->isReadOnly(),
-                             cursor_row_, cursor_col_, getCurrentDocument()->lineCount(),
-                             getCurrentDocument()->getEncoding(), line_ending, getFileType(),
-                             display_message, region_manager_.getRegionName(), syntax_highlighting_,
-                             has_selection, selection_length, git_branch, git_uncommitted_count,
-                             current_ssh_config_.host, current_ssh_config_.user);
+    std::string file_type =
+        utils::FileTypeDetector::detectFileType(doc->getFileName(), doc->getFileExtension());
+
+    return statusbar_.render(
+        doc->getFileName(), doc->isModified(), doc->isReadOnly(), cursor_row_, cursor_col_,
+        doc->lineCount(), doc->getEncoding(), line_ending, file_type, display_message,
+        region_manager_.getRegionName(), syntax_highlighting_, has_selection, selection_length,
+        git_branch, git_uncommitted_count, current_ssh_config_.host, current_ssh_config_.user);
 }
 
 Element Editor::renderHelpbar() {
@@ -1749,7 +1799,14 @@ Element Editor::renderTerminal() {
         // 使用默认高度（屏幕高度的1/3）
         height = screen_.dimy() / 3;
     }
-    return pnana::ui::renderTerminal(terminal_, height);
+    // 复用编辑器光标配置，统一终端与代码区光标样式
+    pnana::ui::TerminalCursorOptions cursor_opts;
+    cursor_opts.config.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
+    cursor_opts.config.color = getCursorColor();
+    cursor_opts.config.smooth = getCursorSmooth();
+    cursor_opts.config.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+    cursor_opts.blink_rate_ms = getCursorBlinkRate();
+    return pnana::ui::renderTerminal(terminal_, height, &cursor_opts);
 }
 
 Element Editor::renderGitPanel() {

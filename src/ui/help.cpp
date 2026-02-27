@@ -1,5 +1,6 @@
 #include "ui/help.h"
 #include "ui/icons.h"
+#include <map>
 
 using namespace ftxui;
 
@@ -13,11 +14,11 @@ static inline Decorator borderWithColor(Color border_color) {
 namespace pnana {
 namespace ui {
 
-Help::Help(Theme& theme) : theme_(theme), scroll_offset_(0) {}
+Help::Help(Theme& theme) : theme_(theme), scroll_offset_(0), current_tab_index_(0) {}
 
 std::vector<HelpEntry> Help::getAllHelp() {
     return {
-        // 文件操作
+        // 文件操作（合并了 File Browser 和 Tabs）
         {"File Operations", "Ctrl+N", "New file"},
         {"File Operations", "Ctrl+O", "Toggle file browser"},
         {"File Operations", "Ctrl+S", "Save file"},
@@ -26,23 +27,32 @@ std::vector<HelpEntry> Help::getAllHelp() {
         {"File Operations", "Alt+F", "Create folder"},
         {"File Operations", "Alt+M", "Open file picker"},
         {"File Operations", "Ctrl+Q", "Quit editor"},
+        {"File Operations", "Alt+Tab / Ctrl+PageDown", "Next tab"},
+        {"File Operations", "Alt+Shift+Tab / Ctrl+PageUp", "Previous tab"},
+        {"File Operations", "↑↓", "Navigate files (in browser)"},
+        {"File Operations", "Enter", "Open file/folder"},
+        {"File Operations", "Backspace", "Go to parent folder"},
+        {"File Operations", "Tab", "Toggle type filter"},
+        {"File Operations", ":/", "Enter path input"},
 
-        // 编辑操作
+        // 编辑操作（合并了 Search 和 Selection）
         {"Editing", "Ctrl+Z", "Undo"},
         {"Editing", "Ctrl+Y / Ctrl+Shift+Z", "Redo"},
         {"Editing", "Ctrl+X", "Cut"},
-        {"Editing", "Ctrl+P", "Copy"},
+        {"Editing", "Ctrl+C", "Copy"},
         {"Editing", "Ctrl+V", "Paste"},
-        {"Editing", "Ctrl+P", "Select all"},
+        {"Editing", "Ctrl+A", "Select all"},
         {"Editing", "Alt+D", "Select word"},
         {"Editing", "Ctrl+D", "Duplicate line"},
         {"Editing", "Ctrl+L / Ctrl+Shift+K", "Delete line"},
-        //{"Editing", "Ctrl+Backspace", "Delete word"},
-        //{"Editing", "Alt+↑/↓", "Move line up/down"},
         {"Editing", "Tab", "Indent line"},
-        //{"Editing", "Shift+Tab", "Unindent line"},
-        //{"Editing", "Ctrl+/", "Toggle comment"},
         {"Editing", "Ctrl+→/←", "Free Select text"},
+        {"Editing", "Shift+↑↓←→", "Select text"},
+        {"Editing", "Alt+Shift+↑↓←→", "Extend selection"},
+        {"Editing", "Ctrl+F", "Search text"},
+        {"Editing", "Ctrl+H", "Replace text"},
+        {"Editing", "Ctrl+F3", "Find next match"},
+        {"Editing", "Ctrl+Shift+F3", "Find previous match"},
 #ifdef BUILD_LSP_SUPPORT
         {"Editing", "Ctrl+Space", "Trigger code completion"},
 #endif
@@ -56,76 +66,59 @@ std::vector<HelpEntry> Help::getAllHelp() {
         {"Navigation", "Ctrl+G", "Go to line number"},
         {"Navigation", "Page Up/Down", "Scroll page"},
 
-        // 搜索和替换
-        {"Search", "Ctrl+F", "Search text"},
-        {"Search", "Ctrl+H", "Replace text"},
-        {"Search", "Ctrl+F3", "Find next match"},
-        {"Search", "Ctrl+Shift+F3", "Find previous match"},
-        {"Search", "Ctrl+G", "Go to line number"},
-
-        // 选择
-        {"Selection", "Shift+↑↓←→", "Select text"},
-        {"Selection", "Alt+Shift+↑↓←→", "Extend selection"},
-
-        // 标签页
-        {"Tabs", "Alt+Tab / Ctrl+PageDown", "Next tab"},
-        {"Tabs", "Alt+Shift+Tab / Ctrl+PageUp", "Previous tab"},
-        {"Tabs", "Ctrl+W", "Close tab"},
-
-        // 视图
-        {"View", "Ctrl+T", "Toggle theme menu"},
-        {"View", "F1", "Show help"},
-        {"View", "Ctrl+Shift+L", "Toggle line numbers"},
-        {"View", "F3", "Command palette"},
-        {"View", "F4", "SSH remote file editor"},
+        // 视图和工具（合并了 View, Split View, Command Palette, Image Preview, Terminal, Plugin）
+        {"View & Tools", "Ctrl+T", "Toggle theme menu"},
+        {"View & Tools", "F1", "Show help"},
+        {"View & Tools", "Ctrl+Shift+L", "Toggle line numbers"},
+        {"View & Tools", "F3", "Command palette"},
+        {"View & Tools", "F4", "SSH remote file editor"},
+        {"View & Tools", "Ctrl+L", "Open split view dialog"},
+        {"View & Tools", "Ctrl+←→↑↓", "Navigate between regions"},
+        {"View & Tools", "Select image", "Auto preview in code area"},
+        {"View & Tools", "F3 → terminal", "Open integrated terminal"},
+        {"View & Tools", "+/-", "Adjust terminal height"},
 #ifdef BUILD_LUA_SUPPORT
-        {"View", "Alt+P", "Open plugin manager"},
+        {"View & Tools", "Alt+P", "Open plugin manager"},
 #endif
-
-        // 分屏
-        {"Split View", "Ctrl+L", "Open split view dialog"},
-        {"Split View", "Ctrl+←→↑↓", "Navigate between regions"},
-
-        // 文件浏览器
-        {"File Browser", "Ctrl+O", "Toggle file browser"},
-        {"File Browser", "↑↓", "Navigate files"},
-        {"File Browser", "Enter", "Open file/folder"},
-        {"File Browser", "Backspace", "Go to parent folder"},
-        {"File Browser", "Tab", "Toggle type filter"},
-        {"File Browser", "Ctrl+F", "Toggle text filter"},
-        {"File Browser", ":/", "Enter path input"},
-        {"File Browser", "Esc", "Close browser"},
-
-        // 命令面板
-        {"Command Palette", "F3", "Open command palette"},
-        {"Command Palette", "Type 'cursor'", "Open cursor config"},
-        {"Command Palette", "↑↓", "Navigate commands"},
-        {"Command Palette", "Enter", "Execute command"},
-        {"Command Palette", "Esc", "Close palette"},
-
-        // 图片预览
-        {"Image Preview", "Select image", "Auto preview in code area"},
-        {"Image Preview", "Supported", "JPG, PNG, GIF, BMP, WEBP"},
-
-        // 终端
-        {"Terminal", "F3 → terminal", "Open integrated terminal"},
-        {"Terminal", "Esc", "Close terminal"},
-        {"Terminal", "+/-", "Adjust terminal height"},
-        {"Terminal", "←→", "Switch between regions"},
-
-        //插件
-        {"Plugin", "Alt+P", "Open plugin manager"},
-        {"Plugin", "↑↓", "Navigate plugins"},
-        {"Plugin", "Enter", "Toggle plugin"},
-        {"Plugin", "Esc", "Close plugin manager"},
 
         // 帮助
         {"Help", "F1", "Show/hide help"},
+        {"Help", "Tab / ←→", "Switch tabs"},
         {"Help", "↑↓/j/k", "Scroll help"},
         {"Help", "Page Up/Down", "Page navigation"},
         {"Help", "Home/End", "Jump to top/bottom"},
         {"Help", "Esc", "Close help"},
     };
+}
+
+std::vector<std::string> Help::getCategories() {
+    return {"File Operations", "Editing", "Navigation", "View & Tools", "Help"};
+}
+
+Element Help::renderTabs() {
+    auto& colors = theme_.getColors();
+    auto categories = getCategories();
+
+    Elements tabs;
+    for (size_t i = 0; i < categories.size(); ++i) {
+        std::string tab_text = categories[i];
+        // 缩短长标签名以适应tab栏
+        if (tab_text.length() > 15) {
+            tab_text = tab_text.substr(0, 13) + "..";
+        }
+
+        if (i == current_tab_index_) {
+            // 当前选中的tab：使用更明显的背景色和加粗字体
+            tabs.push_back(text(" " + tab_text + " ") | bgcolor(colors.statusbar_bg) |
+                           color(colors.statusbar_fg) | bold);
+        } else {
+            // 未选中的tab：使用较淡的背景色
+            tabs.push_back(text(" " + tab_text + " ") | bgcolor(colors.background) |
+                           color(colors.foreground));
+        }
+    }
+
+    return hbox(tabs) | border;
 }
 
 Element Help::render(int width, int height) {
@@ -143,6 +136,8 @@ Element Help::render(int width, int height) {
                       }) |
                       bold | bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg));
 
+    // Tab栏
+    content.push_back(renderTabs());
     content.push_back(separator());
 
     // 分组帮助内容
@@ -155,35 +150,27 @@ Element Help::render(int width, int height) {
 
     Elements help_content;
 
-    // 按分类渲染
-    std::vector<std::string> categories = {"File Operations",
-                                           "Editing",
-                                           "Navigation",
-                                           "Search",
-                                           "Selection",
-                                           "Tabs",
-                                           "View",
-                                           "Split View",
-                                           "File Browser",
-                                           "Command Palette",
-                                           "Image Preview",
-                                           "Terminal",
-                                           "Help"};
+    // 只渲染当前选中的分类
+    auto categories = getCategories();
+    if (current_tab_index_ < categories.size()) {
+        std::string current_category = categories[current_tab_index_];
 
-    for (const auto& category : categories) {
-        if (grouped.find(category) != grouped.end()) {
+        if (grouped.find(current_category) != grouped.end()) {
+            // 显示分类标题
             help_content.push_back(text("") | color(colors.keyword) | bold);
-            help_content.push_back(text(" " + category) | color(colors.keyword) | bold);
+            help_content.push_back(text(" " + current_category) | color(colors.keyword) | bold);
             help_content.push_back(text(""));
 
-            for (const auto& entry : grouped[category]) {
+            // 显示该分类的所有条目
+            for (const auto& entry : grouped[current_category]) {
                 help_content.push_back(
                     hbox({text("  "),
                           text(entry.key) | color(colors.function) | bold | size(WIDTH, EQUAL, 22),
                           text(" "), text(entry.description) | color(colors.foreground)}));
             }
-
-            help_content.push_back(text(""));
+        } else {
+            help_content.push_back(text("  No help entries found for this category.") |
+                                   color(colors.foreground));
         }
     }
 
@@ -209,7 +196,8 @@ Element Help::render(int width, int height) {
     // 底部提示
     content.push_back(separator());
     content.push_back(
-        hbox({text(" "), text(icons::BULB), text(" Tip: Most shortcuts work in any mode! "),
+        hbox({text(" "), text(icons::BULB), text(" Tip: "),
+              text("Tab") | color(colors.function) | bold, text(": Switch tabs, "),
               text("↑↓") | color(colors.function) | bold, text(": Scroll, "),
               text("Page Up/Down") | color(colors.function) | bold, text(": Page navigation, "),
               text("Home/End") | color(colors.function) | bold, text(": Jump to top/bottom")}) |
@@ -237,6 +225,43 @@ Element Help::renderCategory(const std::string& category, const std::vector<Help
 }
 
 bool Help::handleInput(ftxui::Event event) {
+    auto categories = getCategories();
+
+    // Tab键切换tab
+    if (event == Event::Tab || event == Event::Character('\t')) {
+        current_tab_index_ = (current_tab_index_ + 1) % categories.size();
+        scroll_offset_ = 0; // 切换tab时重置滚动位置
+        return true;
+    }
+
+    // Shift+Tab反向切换tab
+    if (event == Event::TabReverse || (event.is_character() && event.character() == "\x1b[Z")) {
+        if (current_tab_index_ > 0) {
+            current_tab_index_--;
+        } else {
+            current_tab_index_ = categories.size() - 1;
+        }
+        scroll_offset_ = 0; // 切换tab时重置滚动位置
+        return true;
+    }
+
+    // 左右箭头键切换tab
+    if (event == Event::ArrowLeft || event == Event::Character('h')) {
+        if (current_tab_index_ > 0) {
+            current_tab_index_--;
+        } else {
+            current_tab_index_ = categories.size() - 1;
+        }
+        scroll_offset_ = 0;
+        return true;
+    }
+
+    if (event == Event::ArrowRight || event == Event::Character('l')) {
+        current_tab_index_ = (current_tab_index_ + 1) % categories.size();
+        scroll_offset_ = 0;
+        return true;
+    }
+
     if (event == Event::ArrowUp || event == Event::Character('k')) {
         if (scroll_offset_ > 0) {
             scroll_offset_--;
@@ -281,6 +306,7 @@ bool Help::handleInput(ftxui::Event event) {
 
 void Help::reset() {
     scroll_offset_ = 0;
+    current_tab_index_ = 0;
 }
 
 } // namespace ui

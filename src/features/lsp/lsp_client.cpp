@@ -609,6 +609,39 @@ std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
     return ranges;
 }
 
+std::vector<DocumentSymbol> LspClient::documentSymbol(const std::string& uri) {
+    std::vector<DocumentSymbol> symbols;
+    if (!isConnected()) {
+        return symbols;
+    }
+
+    try {
+        jsonrpccxx::json params;
+        params["textDocument"]["uri"] = uri;
+
+        int request_id = 1;
+        jsonrpccxx::named_parameter named_params;
+        for (auto& [key, value] : params.items()) {
+            named_params[key] = value;
+        }
+        jsonrpccxx::json result = rpc_client_->CallMethodNamed<jsonrpccxx::json>(
+            request_id, "textDocument/documentSymbol", named_params);
+
+        if (result.is_array()) {
+            for (const auto& item : result) {
+                DocumentSymbol symbol = jsonToDocumentSymbol(item, 0);
+                if (!symbol.name.empty()) {
+                    symbols.push_back(symbol);
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        LOG_WARNING("[LSP] documentSymbol failed for URI: " + uri + " - " + std::string(e.what()));
+    }
+
+    return symbols;
+}
+
 std::map<std::string, std::vector<LspRange>> LspClient::rename(const std::string& uri,
                                                                const LspPosition& position,
                                                                const std::string& new_name) {
@@ -875,6 +908,135 @@ FoldingRange LspClient::jsonToFoldingRange(const jsonrpccxx::json& json) {
     }
 
     return range;
+}
+
+DocumentSymbol LspClient::jsonToDocumentSymbol(const jsonrpccxx::json& json, int depth) {
+    DocumentSymbol symbol;
+    symbol.depth = depth;
+
+    // 解析名称
+    if (json.contains("name") && json["name"].is_string()) {
+        symbol.name = json["name"].get<std::string>();
+    }
+
+    // 解析类型（kind）
+    if (json.contains("kind")) {
+        if (json["kind"].is_number()) {
+            // LSP规范中kind是数字，需要转换为字符串
+            int kind_num = json["kind"].get<int>();
+            // 映射LSP符号类型到字符串
+            switch (kind_num) {
+                case 1:
+                    symbol.kind = "File";
+                    break;
+                case 2:
+                    symbol.kind = "Module";
+                    break;
+                case 3:
+                    symbol.kind = "Namespace";
+                    break;
+                case 4:
+                    symbol.kind = "Package";
+                    break;
+                case 5:
+                    symbol.kind = "Class";
+                    break;
+                case 6:
+                    symbol.kind = "Method";
+                    break;
+                case 7:
+                    symbol.kind = "Property";
+                    break;
+                case 8:
+                    symbol.kind = "Field";
+                    break;
+                case 9:
+                    symbol.kind = "Constructor";
+                    break;
+                case 10:
+                    symbol.kind = "Enum";
+                    break;
+                case 11:
+                    symbol.kind = "Interface";
+                    break;
+                case 12:
+                    symbol.kind = "Function";
+                    break;
+                case 13:
+                    symbol.kind = "Variable";
+                    break;
+                case 14:
+                    symbol.kind = "Constant";
+                    break;
+                case 15:
+                    symbol.kind = "String";
+                    break;
+                case 16:
+                    symbol.kind = "Number";
+                    break;
+                case 17:
+                    symbol.kind = "Boolean";
+                    break;
+                case 18:
+                    symbol.kind = "Array";
+                    break;
+                case 19:
+                    symbol.kind = "Object";
+                    break;
+                case 20:
+                    symbol.kind = "Key";
+                    break;
+                case 21:
+                    symbol.kind = "Null";
+                    break;
+                case 22:
+                    symbol.kind = "EnumMember";
+                    break;
+                case 23:
+                    symbol.kind = "Struct";
+                    break;
+                case 24:
+                    symbol.kind = "Event";
+                    break;
+                case 25:
+                    symbol.kind = "Operator";
+                    break;
+                case 26:
+                    symbol.kind = "TypeParameter";
+                    break;
+                default:
+                    symbol.kind = "Unknown";
+                    break;
+            }
+        } else if (json["kind"].is_string()) {
+            symbol.kind = json["kind"].get<std::string>();
+        }
+    }
+
+    // 解析范围
+    if (json.contains("range")) {
+        symbol.range = jsonToRange(json["range"]);
+    } else if (json.contains("location") && json["location"].is_object() &&
+               json["location"].contains("range")) {
+        symbol.range = jsonToRange(json["location"]["range"]);
+    }
+
+    // 解析详细信息
+    if (json.contains("detail") && json["detail"].is_string()) {
+        symbol.detail = json["detail"].get<std::string>();
+    }
+
+    // 解析子符号（children）
+    if (json.contains("children") && json["children"].is_array()) {
+        for (const auto& child : json["children"]) {
+            DocumentSymbol child_symbol = jsonToDocumentSymbol(child, depth + 1);
+            if (!child_symbol.name.empty()) {
+                symbol.children.push_back(child_symbol);
+            }
+        }
+    }
+
+    return symbol;
 }
 
 void LspClient::handleNotification(const std::string& notification) {

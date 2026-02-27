@@ -97,7 +97,8 @@ Element DiagnosticsPopup::render() const {
 
     for (size_t i = start_idx; i < end_idx; ++i) {
         bool is_selected = (i == selected_index_);
-        items.push_back(renderDiagnosticItem(diagnostics_[i], is_selected));
+        items.push_back(
+            renderDiagnosticItem(diagnostics_[i], is_selected, i + 1, diagnostics_.size()));
     }
 
     content.push_back(vbox(items) | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 12));
@@ -121,7 +122,15 @@ Element DiagnosticsPopup::render() const {
 }
 
 Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic& diagnostic,
-                                               bool is_selected) const {
+                                               bool is_selected, size_t index, size_t total) const {
+    // 序号：右对齐，格式 [1/10] 便于快速定位
+    size_t width = (total >= 100) ? 3 : (total >= 10) ? 2 : 1;
+    std::string index_str = std::to_string(index);
+    if (index_str.length() < width) {
+        index_str = std::string(width - index_str.length(), ' ') + index_str;
+    }
+    std::string index_prefix = "[" + index_str + "/" + std::to_string(total) + "] ";
+
     // 严重程度图标
     std::string severity_icon;
     Color severity_color = getSeverityColor(diagnostic.severity);
@@ -157,7 +166,8 @@ Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic
         message = message.substr(0, 77) + "...";
     }
 
-    std::string full_text = severity_icon + " " + severity_str + " " + location + message;
+    std::string full_text =
+        index_prefix + severity_icon + " " + severity_str + " " + location + message;
 
     // 应用样式
     Element element = text(full_text);

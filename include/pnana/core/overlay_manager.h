@@ -71,6 +71,9 @@ class OverlayManager {
     void setRenderDiagnosticsPopupCallback(std::function<ftxui::Element()> callback) {
         render_diagnostics_popup_callback_ = callback;
     }
+    void setRenderSymbolNavigationPopupCallback(std::function<ftxui::Element()> callback) {
+        render_symbol_navigation_popup_callback_ = callback;
+    }
     void setRenderFilePickerCallback(std::function<ftxui::Element()> callback) {
         render_file_picker_callback_ = callback;
     }
@@ -88,6 +91,9 @@ class OverlayManager {
     }
     void setRenderRecentFilesCallback(std::function<ftxui::Element()> callback) {
         render_recent_files_callback_ = callback;
+    }
+    void setRenderFzfPopupCallback(std::function<ftxui::Element()> callback) {
+        render_fzf_popup_callback_ = callback;
     }
     void setRenderTUIConfigCallback(std::function<ftxui::Element()> callback) {
         render_tui_config_callback_ = callback;
@@ -154,6 +160,9 @@ class OverlayManager {
     void setIsDiagnosticsPopupVisibleCallback(std::function<bool()> callback) {
         is_diagnostics_popup_visible_callback_ = callback;
     }
+    void setIsSymbolNavigationPopupVisibleCallback(std::function<bool()> callback) {
+        is_symbol_navigation_popup_visible_callback_ = callback;
+    }
     void setIsFilePickerVisibleCallback(std::function<bool()> callback) {
         is_file_picker_visible_callback_ = callback;
     }
@@ -171,6 +180,9 @@ class OverlayManager {
     }
     void setIsRecentFilesVisibleCallback(std::function<bool()> callback) {
         is_recent_files_visible_callback_ = callback;
+    }
+    void setIsFzfPopupVisibleCallback(std::function<bool()> callback) {
+        is_fzf_popup_visible_callback_ = callback;
     }
     void setIsTUIConfigVisibleCallback(std::function<bool()> callback) {
         is_tui_config_visible_callback_ = callback;
@@ -203,12 +215,14 @@ class OverlayManager {
     std::function<ftxui::Element()> render_package_manager_panel_callback_;
     std::function<ftxui::Element()> render_completion_popup_callback_;
     std::function<ftxui::Element()> render_diagnostics_popup_callback_;
+    std::function<ftxui::Element()> render_symbol_navigation_popup_callback_;
     std::function<ftxui::Element()> render_file_picker_callback_;
     std::function<ftxui::Element()> render_split_dialog_callback_;
     std::function<ftxui::Element()> render_ssh_transfer_callback_;
     std::function<ftxui::Element()> render_ssh_dialog_callback_;
     std::function<ftxui::Element()> render_encoding_dialog_callback_;
     std::function<ftxui::Element()> render_recent_files_callback_;
+    std::function<ftxui::Element()> render_fzf_popup_callback_;
     std::function<ftxui::Element()> render_tui_config_callback_;
     std::function<ftxui::Element()> render_dialog_callback_;
 
@@ -232,12 +246,14 @@ class OverlayManager {
     std::function<bool()> is_package_manager_panel_visible_callback_;
     std::function<bool()> is_completion_popup_visible_callback_;
     std::function<bool()> is_diagnostics_popup_visible_callback_;
+    std::function<bool()> is_symbol_navigation_popup_visible_callback_;
     std::function<bool()> is_file_picker_visible_callback_;
     std::function<bool()> is_split_dialog_visible_callback_;
     std::function<bool()> is_ssh_transfer_visible_callback_;
     std::function<bool()> is_ssh_dialog_visible_callback_;
     std::function<bool()> is_encoding_dialog_visible_callback_;
     std::function<bool()> is_recent_files_visible_callback_;
+    std::function<bool()> is_fzf_popup_visible_callback_;
     std::function<bool()> is_tui_config_visible_callback_;
     std::function<bool()> is_dialog_visible_callback_;
 };

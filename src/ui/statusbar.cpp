@@ -3,6 +3,7 @@
 #include "utils/logger.h"
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -91,7 +92,12 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
 
     // 文件 type icon and filename
     std::string file_display = filename.empty() ? "[Untitled]" : filename;
-    std::string file_icon = getFileTypeIcon(file_type);
+    std::string file_icon;
+    if (filename == "Welcome") {
+        file_icon = icons::ROCKET; // 欢迎界面使用火箭图标，不用文件类型图标
+    } else {
+        file_icon = getFileTypeIcon(file_type);
+    }
     if (!file_icon.empty()) {
         left_elements.push_back(text(file_icon + " ") | color(colors.keyword));
     }
@@ -166,19 +172,40 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
                 std::string after_todo = message.substr(todo_end + todo_marker_end.length());
                 std::string normal_message = before_todo + after_todo;
 
-                // 使用时间戳实现颜色闪烁效果（每500ms切换一次）
+                // Extract priority from todo text (format: P1, P2, ..., P5)
+                int priority = 5; // Default priority
+                size_t priority_pos = todo_text.find("P");
+                if (priority_pos != std::string::npos && priority_pos + 1 < todo_text.length()) {
+                    char priority_char = todo_text[priority_pos + 1];
+                    if (priority_char >= '1' && priority_char <= '5') {
+                        priority = priority_char - '0';
+                    }
+                }
+
+                // Use sine wave for smooth color transition effect (300ms period)
                 auto now = std::chrono::steady_clock::now();
                 auto ms =
                     std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
                         .count();
-                int blink_phase = (ms / 500) % 4; // 4个阶段：红->黄->红->黄
 
+                // 300ms period, use sine wave for smooth transition
+                const int blink_period_ms = 300;
+                double phase =
+                    (static_cast<double>(ms % blink_period_ms) / blink_period_ms) * 2.0 * M_PI;
+                double intensity = (std::sin(phase) + 1.0) / 2.0; // 0-1 range
+
+                // Adjust color intensity based on priority (higher priority = more intense)
+                // Priority 1-5 maps to intensity threshold adjustment: P1 more red (more
+                // noticeable), P5 more yellow
+                double priority_threshold = 0.3 + (priority - 1) * 0.1; // P1=0.3, P5=0.7
+
+                // Determine color based on sine wave intensity and priority
                 Color todo_color;
-                if (blink_phase == 0 || blink_phase == 2) {
-                    // 红色闪烁
+                if (intensity < priority_threshold) {
+                    // Red blink (more noticeable)
                     todo_color = colors.error;
                 } else {
-                    // 黄色闪烁
+                    // Yellow blink
                     todo_color = colors.warning;
                 }
 
@@ -277,23 +304,25 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     right_elements.push_back(text(total_oss.str()) | color(colors.comment) | dim);
 
     // 应用美化配置 - 增强视觉效果
-    if (beautify_config_.enabled && beautify_config_.bg_color.size() >= 3 &&
-        beautify_config_.fg_color.size() >= 3) {
-        // 应用美化背景和颜色效果
-        auto content = hbox(
-            {hbox(left_elements) | flex_grow, hbox(center_elements) | flex, hbox(right_elements)});
+    // 如果启用了美化配置且不跟随主题，使用自定义颜色
+    // 否则使用主题颜色（默认行为）
+    bool use_custom_colors = beautify_config_.enabled && !beautify_config_.follow_theme &&
+                             beautify_config_.bg_color.size() >= 3 &&
+                             beautify_config_.fg_color.size() >= 3;
 
-        // 应用美化背景和边框效果
+    auto content =
+        hbox({hbox(left_elements) | flex_grow, hbox(center_elements) | flex, hbox(right_elements)});
+
+    if (use_custom_colors) {
+        // 使用自定义颜色（美化配置）
         return content |
                bgcolor(ftxui::Color::RGB(beautify_config_.bg_color[0], beautify_config_.bg_color[1],
                                          beautify_config_.bg_color[2])) |
                color(ftxui::Color::RGB(beautify_config_.fg_color[0], beautify_config_.fg_color[1],
                                        beautify_config_.fg_color[2]));
     } else {
-        // 默认样式
-        return hbox({hbox(left_elements) | flex_grow, hbox(center_elements) | flex,
-                     hbox(right_elements)}) |
-               bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg);
+        // 使用主题颜色（默认行为，包括美化配置启用但 follow_theme = true 的情况）
+        return content | bgcolor(colors.statusbar_bg) | color(colors.statusbar_fg);
     }
 }
 

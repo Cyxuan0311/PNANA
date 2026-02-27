@@ -15,7 +15,6 @@
 #include "features/package_manager/yum_manager.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
-#include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
@@ -51,9 +50,10 @@ Editor::Editor()
       new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
       save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
       binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
-      recent_files_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
-      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
-      ai_config_dialog_(theme_), todo_panel_(theme_), package_manager_panel_(theme_),
+      recent_files_popup_(theme_), fzf_popup_(theme_), tui_config_popup_(theme_),
+      extract_dialog_(theme_), extract_path_dialog_(theme_), extract_progress_dialog_(theme_),
+      ai_assistant_panel_(theme_), ai_config_dialog_(theme_), todo_panel_(theme_),
+      package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -64,14 +64,18 @@ Editor::Editor()
       image_preview_(),
 #endif
       syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
-      split_view_manager_(), diagnostics_popup_(theme_), mode_(EditorMode::NORMAL), cursor_row_(0),
-      cursor_col_(0), view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false),
-      show_help_(false), show_create_folder_(false), show_save_as_(false), show_move_file_(false),
-      show_extract_dialog_(false), show_extract_path_dialog_(false),
-      show_extract_progress_dialog_(false), selection_active_(false), selection_start_row_(0),
-      selection_start_col_(0), show_line_numbers_(true), relative_line_numbers_(false),
-      syntax_highlighting_(true), zoom_level_(0), file_browser_width_(35), // 默认宽度35列
-      terminal_height_(0), // 0 表示使用默认值（屏幕高度的1/3）
+      split_view_manager_(), diagnostics_popup_(theme_),
+#ifdef BUILD_LSP_SUPPORT
+      symbol_navigation_popup_(theme_),
+#endif
+      mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
+      view_offset_col_(0), show_theme_menu_(false), show_help_(false), show_create_folder_(false),
+      show_save_as_(false), show_move_file_(false), show_extract_dialog_(false),
+      show_extract_path_dialog_(false), show_extract_progress_dialog_(false),
+      selection_active_(false), selection_start_row_(0), selection_start_col_(0),
+      show_line_numbers_(true), relative_line_numbers_(false), syntax_highlighting_(true),
+      zoom_level_(0), file_browser_width_(35), // 默认宽度35列
+      terminal_height_(0),                     // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""), search_input_(""), replace_input_(""), search_cursor_pos_(0),
       replace_cursor_pos_(0), current_search_match_(0), total_search_matches_(0),
       current_option_index_(0), search_options_{false, false, false, false},
@@ -90,8 +94,8 @@ Editor::Editor()
     // 加载配置文件（使用默认路径）
     loadConfig();
 
-    // 初始化文件浏览器到当前目录
-    file_browser_.openDirectory(".");
+    // 文件浏览器延迟加载：不在构造函数中加载目录，只在首次显示时才加载
+    // 这样可以避免启动时扫描大目录导致的延迟
 
     // 初始化包管理器注册表
     {
@@ -120,71 +124,62 @@ Editor::Editor()
         this->recent_files_manager_.openFile(index);
     });
 
-    // 设置文档切换回调，优化LSP诊断响应速度
-    document_manager_.setDocumentSwitchedCallback([this](size_t old_index, size_t new_index) {
-        try {
-            LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH START =====");
-            LOG("[DOC_SWITCH] Document switched from " + std::to_string(old_index) + " to " +
-                std::to_string(new_index));
+    // 初始化 FZF 模糊文件查找弹窗
+    fzf_popup_.setFileOpenCallback([this](const std::string& filepath) {
+        this->openFile(filepath);
+    });
+    fzf_popup_.setCursorColorGetter([this]() {
+        return getCursorColor();
+    });
+    fzf_popup_.setOnLoadComplete([this](std::vector<std::string> files,
+                                        std::vector<std::string> display_paths,
+                                        std::string root_path) {
+        screen_.Post([this, files = std::move(files), display_paths = std::move(display_paths),
+                      root_path = std::move(root_path)]() mutable {
+            fzf_popup_.receiveFiles(std::move(files), std::move(display_paths),
+                                    std::move(root_path));
+            force_ui_update_ = true;
+            screen_.PostEvent(Event::Custom);
+        });
+    });
 
-            // 安全检查：验证新文档索引有效
+    // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
+    // 必须设置 force_ui_update_=true，否则 renderUI 的渲染去抖可能跳过重绘，导致新输出不显示
+    terminal_.setOnOutputAdded([this]() {
+        screen_.Post([this]() {
+            force_ui_update_ = true;
+            needs_render_ = true; // 防止 force 被鼠标等事件提前消费后无法重绘
+            screen_.PostEvent(Event::Custom);
+        });
+    });
+
+    // 设置文档切换回调，优化LSP诊断响应速度
+    document_manager_.setDocumentSwitchedCallback([this](size_t /*old_index*/, size_t new_index) {
+        try {
             if (new_index >= document_manager_.getDocumentCount()) {
-                LOG_ERROR(
-                    "[DOC_SWITCH] Invalid new document index: " + std::to_string(new_index) +
-                    ", total documents: " + std::to_string(document_manager_.getDocumentCount()));
                 return;
             }
 
-            // 获取新文档信息
             Document* new_doc = document_manager_.getDocument(new_index);
             if (!new_doc) {
-                LOG_ERROR("[DOC_SWITCH] Failed to get document at index " +
-                          std::to_string(new_index));
                 return;
             }
 
             std::string filepath = new_doc->getFilePath();
-            LOG("[DOC_SWITCH] New document filepath: " + filepath);
 
-            // 安全检查：验证文档状态
             if (filepath.empty()) {
-                LOG_WARNING("[DOC_SWITCH] Document has empty filepath, skipping LSP updates");
-                // 对于无路径文档，只需要设置渲染标志
                 needs_render_ = true;
                 last_render_source_ = "document_switch";
                 return;
             }
 
-            // 立即更新当前文件的诊断信息，提升响应速度（不强制UI更新）
-            LOG("[DOC_SWITCH] Updating diagnostics...");
             updateCurrentFileDiagnostics();
-
-            // 检查诊断更新结果
-            {
-                std::lock_guard<std::mutex> lock(diagnostics_mutex_);
-                LOG("[DOC_SWITCH] Current diagnostics count: " +
-                    std::to_string(current_file_diagnostics_.size()));
-            }
-
-            // 立即更新折叠状态，提升响应速度（不强制UI更新）
-            LOG("[DOC_SWITCH] Updating folding...");
             updateCurrentFileFolding();
-
-            // 预加载相邻文档的诊断和折叠数据，提升后续切换响应速度
-            LOG("[DOC_SWITCH] Starting preload for adjacent documents...");
             preloadAdjacentDocuments(new_index);
 
-            // 设置渲染标志，避免强制UI更新导致的抖动
             needs_render_ = true;
             last_render_source_ = "document_switch";
-            LOG("[DOC_SWITCH] Set needs_render_=true, last_render_source=document_switch");
-
-            LOG("[DOC_SWITCH] ===== DOCUMENT SWITCH END =====");
-        } catch (const std::exception& e) {
-            LOG_ERROR("[DOC_SWITCH] Exception in document switch callback: " +
-                      std::string(e.what()));
         } catch (...) {
-            LOG_ERROR("[DOC_SWITCH] Unknown exception in document switch callback");
         }
     });
 
@@ -194,6 +189,9 @@ Editor::Editor()
     });
 
     // 初始化TUI配置弹窗
+    tui_config_popup_.setCursorColorGetter([this]() {
+        return getCursorColor();
+    });
     tui_config_popup_.setConfigOpenCallback([this](const features::TUIConfig& config) {
         this->tui_config_manager_.openConfig(config);
     });
@@ -207,7 +205,6 @@ Editor::Editor()
 
     // 日志系统不会在这里自动初始化
     // 只有在 main.cpp 中指定 -l/--log 参数时才会初始化
-    // LOG("Editor constructor started");  // 只有在启用日志时才记录
 
 #ifdef BUILD_LSP_SUPPORT
     // 初始化 LSP 客户端
@@ -222,8 +219,9 @@ Editor::Editor()
 #endif
 
 #ifdef BUILD_LUA_SUPPORT
-    // 初始化插件系统
-    initializePlugins();
+    // 插件系统延迟初始化：不在启动时初始化，只在首次需要时才初始化
+    // 这样可以避免启动时加载插件导致的延迟
+    plugin_manager_initialized_ = false;
 #endif
     // 启动光标闪烁刷新线程（轻量级，仅在启用闪烁时触发 UI 刷新）
     std::thread([this]() {
@@ -245,6 +243,28 @@ Editor::Editor()
             if (blink_on && rate > 0 && !rendering_paused_) {
                 // 触发一次自定义事件，让增量渲染逻辑根据时间重新绘制光标
                 screen_.PostEvent(ftxui::Event::Custom);
+            }
+        }
+    }).detach();
+
+    // Start todo reminder detection thread (periodically check for due todos and trigger UI updates
+    // to ensure blinking effect is visible)
+    std::thread([this]() {
+        using namespace std::chrono_literals;
+        while (!should_quit_) {
+            std::this_thread::sleep_for(
+                250ms); // 250ms check interval, coordinated with blink frequency (300ms)
+
+            try {
+                // Check if there are any due todos
+                auto due_todos = todo_panel_.getTodoManager().getDueTodos();
+                if (!due_todos.empty() && !rendering_paused_) {
+                    // There are due todos, trigger UI update to show blinking effect
+                    screen_.PostEvent(ftxui::Event::Custom);
+                }
+            } catch (...) {
+                // Avoid exceptions interrupting the thread
+                continue;
             }
         }
     }).detach();
@@ -384,6 +404,23 @@ void Editor::loadConfig(const std::string& config_path) {
     theme_.clearCustomThemes();
 
     theme_menu_.setAvailableThemes(available_themes);
+    theme_menu_.setCursorColorGetter([this]() {
+        return getCursorColor();
+    });
+
+    // 应用 display 配置
+    show_line_numbers_ = config.display.show_line_numbers;
+    relative_line_numbers_ = config.display.relative_line_numbers;
+
+    // 应用 search 配置（默认搜索选项）
+    search_options_[0] = config.search.case_sensitive;
+    search_options_[1] = config.search.whole_word;
+    search_options_[2] = config.search.regex;
+    search_options_[3] = config.search.wrap_around;
+    current_search_options_.case_sensitive = config.search.case_sensitive;
+    current_search_options_.whole_word = config.search.whole_word;
+    current_search_options_.regex = config.search.regex;
+    current_search_options_.wrap_around = config.search.wrap_around;
 
     // 加载光标配置
     const auto& display_config = config.display;
@@ -549,12 +586,10 @@ void Editor::selectPreviousTheme() {
 }
 
 void Editor::applySelectedTheme() {
-    const auto& themes = theme_menu_.getAvailableThemes();
-    size_t selected_index = theme_menu_.getSelectedIndex();
+    // 使用 getSelectedThemeName() 获取当前选中的主题名称（支持过滤后的列表）
+    std::string theme_name = theme_menu_.getSelectedThemeName();
 
-    if (selected_index < themes.size()) {
-        std::string theme_name = themes[selected_index];
-
+    if (!theme_name.empty()) {
         // 检查主题是否真的可用（预设主题或当前加载插件提供的主题）
         std::vector<std::string> available_themes = ::pnana::ui::Theme::getAvailableThemes();
         std::vector<std::string> custom_themes = theme_.getCustomThemeNames();
@@ -610,10 +645,8 @@ void Editor::toggleMarkdownPreview() {
     // Toggle lightweight preview flag and request UI update
     markdown_preview_enabled_ = !markdown_preview_enabled_;
     if (markdown_preview_enabled_) {
-        LOG("[DEBUG] Markdown preview enabled (lightweight)");
         setStatusMessage("Markdown preview enabled - Press Alt+W again to close");
     } else {
-        LOG("[DEBUG] Markdown preview disabled");
         setStatusMessage("Markdown preview closed");
     }
     force_ui_update_ = true;
@@ -699,7 +732,8 @@ void Editor::toggleGitPanel() {
 
 // 终端
 void Editor::toggleTerminal() {
-    terminal_.toggle();
+    // 使用 setVisible 而非 toggle，以便正确调用 startShellSession/stopShellSession
+    terminal_.setVisible(!terminal_.isVisible());
     if (terminal_.isVisible()) {
         // 启用终端区域（必须先启用，才能切换）
         region_manager_.setTerminalEnabled(true);
@@ -711,9 +745,6 @@ void Editor::toggleTerminal() {
         if (terminal_height_ <= 0) {
             terminal_height_ = screen_.dimy() / 3;
         }
-        // 清空终端输入，准备接收新输入
-        terminal_.handleInput("");
-        terminal_.setCursorPosition(0);
         setStatusMessage("Terminal opened | Region: " + region_manager_.getRegionName() +
                          " | Use +/- to adjust height, ←→ to switch panels");
     } else {
@@ -734,92 +765,106 @@ void Editor::handleTerminalInput(Event event) {
         region_manager_.setRegion(EditorRegion::TERMINAL);
     }
 
-    // 处理特殊键
+    // Escape: 关闭终端
     if (event == Event::Escape) {
         terminal_.setVisible(false);
         region_manager_.setRegion(EditorRegion::CODE_AREA);
         setStatusMessage("Terminal closed | Region: " + region_manager_.getRegionName());
         return;
-    } else if (event == Event::Return) {
-        std::string command = terminal_.getCurrentInput();
-        if (command == "exit" || command == "quit") {
-            terminal_.setVisible(false);
-            region_manager_.setRegion(EditorRegion::CODE_AREA);
-            setStatusMessage("Terminal closed | Region: " + region_manager_.getRegionName());
-            return;
-        }
-        terminal_.executeCommand(command);
-        terminal_.handleInput(""); // 清空输入
+    }
+
+    // 所有其他按键透传到 shell（含 Return/Enter/CtrlM/Character(\n)）
+    if (event == Event::Return || event == Event::CtrlM ||
+        (event.is_character() && (event.character() == "\n" || event.character() == "\r"))) {
+        terminal_.handleKeyEvent("return");
         return;
-    } else if (event == Event::ArrowUp) {
-        // 在终端顶部时，向上切换到代码区
-        // 否则处理命令历史
+    }
+    if (event == Event::Tab) {
+        terminal_.handleKeyEvent("tab");
+        return;
+    }
+    if (event == Event::ArrowUp) {
         terminal_.handleKeyEvent("ArrowUp");
         return;
-    } else if (event == Event::ArrowDown) {
-        // 在终端底部时，向下没有其他区域
-        // 否则处理命令历史
+    }
+    if (event == Event::ArrowDown) {
         terminal_.handleKeyEvent("ArrowDown");
         return;
-    } else if (event == Event::ArrowLeft) {
-        // 在终端左边界时，向左切换到文件浏览器或代码区
-        // 否则移动光标
-        if (terminal_.getCursorPosition() == 0 && file_browser_.isVisible()) {
-            if (region_manager_.navigateLeft()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                 " | →: Return to terminal");
-                return;
-            }
-        }
+    }
+    if (event == Event::ArrowLeft) {
         terminal_.handleKeyEvent("ArrowLeft");
         return;
-    } else if (event == Event::ArrowRight) {
-        // 在终端右边界时，向右切换到代码区
-        // 否则移动光标
-        std::string input = terminal_.getCurrentInput();
-        if (terminal_.getCursorPosition() >= input.length()) {
-            if (region_manager_.navigateRight()) {
-                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                 " | ←: Return to terminal");
-                return;
-            }
-        }
+    }
+    if (event == Event::ArrowRight) {
         terminal_.handleKeyEvent("ArrowRight");
         return;
-    } else if (event == Event::Home) {
+    }
+    if (event == Event::Home) {
         terminal_.handleKeyEvent("Home");
         return;
-    } else if (event == Event::End) {
+    }
+    if (event == Event::End) {
         terminal_.handleKeyEvent("End");
         return;
-    } else if (event == Event::Backspace) {
+    }
+    if (event == Event::Backspace) {
         terminal_.handleKeyEvent("Backspace");
         return;
-    } else if (event == Event::Delete) {
+    }
+    if (event == Event::Delete) {
         terminal_.handleKeyEvent("Delete");
         return;
-    } else if (event == Event::Tab) {
-        // Tab 补全
-        if (terminal_.handleTabCompletion()) {
-            setStatusMessage("Tab completion applied");
-        } else {
-            setStatusMessage("No completion found");
-        }
+    }
+    if (event == Event::PageUp) {
+        terminal_.scrollUp();
         return;
-    } else if (event.is_character()) {
-        std::string ch = event.character();
-        if (ch.length() == 1) {
-            char c = ch[0];
-            // 接受所有可打印字符
-            if (c >= 32 && c < 127) {
-                std::string current = terminal_.getCurrentInput();
-                size_t pos = terminal_.getCursorPosition();
-                std::string new_input = current.substr(0, pos) + c + current.substr(pos);
-                terminal_.handleInput(new_input);
-                // 移动光标到插入字符之后
-                terminal_.setCursorPosition(pos + 1);
-            }
-        }
+    }
+    if (event == Event::PageDown) {
+        terminal_.scrollDown();
+        return;
+    }
+    if (event == Event::CtrlC) {
+        terminal_.handleKeyEvent("ctrl_c");
+        return;
+    }
+    if (event == Event::CtrlD) {
+        terminal_.handleKeyEvent("ctrl_d");
+        return;
+    }
+    if (event == Event::CtrlZ) {
+        terminal_.handleKeyEvent("ctrl_z");
+        return;
+    }
+    if (event == Event::CtrlL) {
+        terminal_.handleKeyEvent("ctrl_l");
+        return;
+    }
+    if (event == Event::CtrlU) {
+        terminal_.handleKeyEvent("ctrl_u");
+        return;
+    }
+    if (event == Event::CtrlK) {
+        terminal_.handleKeyEvent("ctrl_k");
+        return;
+    }
+    if (event == Event::CtrlA) {
+        terminal_.handleKeyEvent("ctrl_a");
+        return;
+    }
+    if (event == Event::CtrlE) {
+        terminal_.handleKeyEvent("ctrl_e");
+        return;
+    }
+    if (event == Event::CtrlW) {
+        terminal_.handleKeyEvent("ctrl_w");
+        return;
+    }
+    if (event == Event::CtrlH) {
+        terminal_.handleKeyEvent("ctrl_h"); // Ctrl+H = Backspace（部分终端）
+        return;
+    }
+    if (event.is_character()) {
+        terminal_.handleKeyEvent(event.character());
         return;
     }
 }
@@ -907,6 +952,36 @@ void Editor::openRecentFilesDialog() {
     if (!recent_projects.empty()) {
         recent_files_popup_.setData(true, recent_projects, 0);
         recent_files_popup_.open();
+    }
+}
+
+void Editor::openFzfPopup() {
+    // 设置根目录：优先使用文件浏览器当前目录（含 Alt+M 切换后的目录），否则当前文档所在目录，最后 .
+    std::string root = ".";
+    std::string browser_dir = file_browser_.getCurrentDirectory();
+    if (!browser_dir.empty() && browser_dir != ".") {
+        root = browser_dir; // 用户通过 Alt+M 选文件夹切换后，FZF
+                            // 应显示该目录，与文件浏览器是否可见无关
+    } else if (getCurrentDocument() && !getCurrentDocument()->getFileName().empty()) {
+        try {
+            std::filesystem::path p(getCurrentDocument()->getFileName());
+            if (std::filesystem::exists(p)) {
+                root = std::filesystem::canonical(p).parent_path().string();
+            }
+        } catch (...) {
+        }
+    }
+    fzf_popup_.setRootDirectory(root);
+    fzf_popup_.open();
+    setStatusMessage("FZF - Type to filter, ↑↓ navigate, Enter to open");
+}
+
+void Editor::handleFzfPopupInput(Event event) {
+    if (fzf_popup_.handleInput(event)) {
+        if (!fzf_popup_.isOpen()) {
+            setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
+                             "Ctrl+O Files | F1 Help");
+        }
     }
 }
 
@@ -1559,23 +1634,14 @@ void Editor::formatSelectedFiles(const std::vector<std::string>& file_paths) {
 
     // 在后台线程执行格式化，避免阻塞UI
     std::thread([this, file_paths]() {
-        LOG("Async format: Starting background formatting thread");
         bool success = lsp_formatter_->formatFiles(file_paths);
-        LOG("Async format: Formatting completed, success: " +
-            std::string(success ? "true" : "false"));
-
-        // 在主线程中更新状态消息
-        LOG("Async format: Posting UI update to main thread");
         screen_.Post([this, success, count = file_paths.size()]() {
-            LOG("Async format: UI update callback executed");
             if (success) {
                 setStatusMessage("✓ Successfully formatted " + std::to_string(count) + " file(s)");
             } else {
                 setStatusMessage("✗ Failed to format some files. Check LSP server status.");
             }
-            LOG("Async format: Status message updated");
         });
-        LOG("Async format: Background thread completed");
     }).detach(); // 分离线程，让它在后台运行
 }
 
@@ -1635,6 +1701,65 @@ std::string Editor::getFileType() const {
 }
 
 bool Editor::isCtrlKey(const Event& event, char key) const {
+    // 首先检查 FTXUI 预定义的 Ctrl 事件
+    switch (key) {
+        case 'a':
+            return event == Event::CtrlA;
+        case 'b':
+            return event == Event::CtrlB;
+        case 'c':
+            return event == Event::CtrlC;
+        case 'd':
+            return event == Event::CtrlD;
+        case 'e':
+            return event == Event::CtrlE;
+        case 'f':
+            return event == Event::CtrlF;
+        case 'g':
+            return event == Event::CtrlG;
+        case 'h':
+            return event == Event::CtrlH;
+        case 'i':
+            return event == Event::CtrlI;
+        case 'j':
+            return event == Event::CtrlJ;
+        case 'k':
+            return event == Event::CtrlK;
+        case 'l':
+            return event == Event::CtrlL;
+        case 'm':
+            return event == Event::CtrlM;
+        case 'n':
+            return event == Event::CtrlN;
+        case 'o':
+            return event == Event::CtrlO;
+        case 'p':
+            return event == Event::CtrlP;
+        case 'q':
+            return event == Event::CtrlQ;
+        case 'r':
+            return event == Event::CtrlR;
+        case 's':
+            return event == Event::CtrlS;
+        case 't':
+            return event == Event::CtrlT;
+        case 'u':
+            return event == Event::CtrlU;
+        case 'v':
+            return event == Event::CtrlV;
+        case 'w':
+            return event == Event::CtrlW;
+        case 'x':
+            return event == Event::CtrlX;
+        case 'y':
+            return event == Event::CtrlY;
+        case 'z':
+            return event == Event::CtrlZ;
+        default:
+            break;
+    }
+
+    // 如果没有匹配预定义事件，检查字符事件（Ctrl+Key产生ASCII控制字符）
     if (!event.is_character()) {
         return false;
     }
@@ -1957,6 +2082,12 @@ void Editor::saveCurrentRegionState() {
         region_states_[region_index].cursor_col = 0;
         region_states_[region_index].view_offset_row = 0;
         region_states_[region_index].view_offset_col = 0;
+        // 初始化单词高亮状态
+        region_states_[region_index].word_highlight_active_ = false;
+        region_states_[region_index].current_word_.clear();
+        region_states_[region_index].word_matches_.clear();
+        region_states_[region_index].word_highlight_row_ = 0;
+        region_states_[region_index].word_highlight_col_ = 0;
     }
 
     // 保存当前状态
@@ -1964,6 +2095,9 @@ void Editor::saveCurrentRegionState() {
     region_states_[region_index].cursor_col = cursor_col_;
     region_states_[region_index].view_offset_row = view_offset_row_;
     region_states_[region_index].view_offset_col = view_offset_col_;
+
+    // 注意：单词高亮状态不需要在这里保存，因为 updateWordHighlight() 会直接更新区域状态
+    // 如果在这里保存全局状态，可能会覆盖区域状态中的正确值（因为全局状态在分屏模式下可能是空的）
 }
 
 void Editor::restoreRegionState(size_t region_index) {
@@ -1973,6 +2107,16 @@ void Editor::restoreRegionState(size_t region_index) {
         cursor_col_ = 0;
         view_offset_row_ = 0;
         view_offset_col_ = 0;
+        // 清除单词高亮
+        if (split_view_manager_.hasSplits()) {
+            // 分屏模式下，单词高亮由区域状态管理，不需要恢复全局状态
+        } else {
+            word_highlight_active_ = false;
+            current_word_.clear();
+            word_matches_.clear();
+            word_highlight_row_ = 0;
+            word_highlight_col_ = 0;
+        }
         return;
     }
 
@@ -1982,9 +2126,34 @@ void Editor::restoreRegionState(size_t region_index) {
     view_offset_row_ = region_states_[region_index].view_offset_row;
     view_offset_col_ = region_states_[region_index].view_offset_col;
 
+    // 恢复单词高亮状态（仅在分屏模式下）
+    if (split_view_manager_.hasSplits()) {
+        // 分屏模式下，切换区域时清除单词高亮状态，避免显示之前区域的高亮
+        // 用户移动光标时会自动触发 updateWordHighlight() 重新计算
+        region_states_[region_index].word_highlight_active_ = false;
+        region_states_[region_index].current_word_.clear();
+        region_states_[region_index].word_matches_.clear();
+        region_states_[region_index].word_highlight_row_ = 0;
+        region_states_[region_index].word_highlight_col_ = 0;
+        // 全局状态保持为空，避免影响其他区域
+    } else {
+        // 单视图模式下，恢复全局状态
+        word_highlight_active_ = region_states_[region_index].word_highlight_active_;
+        current_word_ = region_states_[region_index].current_word_;
+        word_matches_ = region_states_[region_index].word_matches_;
+        word_highlight_row_ = region_states_[region_index].word_highlight_row_;
+        word_highlight_col_ = region_states_[region_index].word_highlight_col_;
+    }
+
     // 调整光标位置以确保有效
     adjustCursor();
     adjustViewOffset();
+
+    // 在分屏模式下，切换区域后重新计算单词高亮（基于新区域的光标位置）
+    // 这样可以确保如果光标正好在单词上，会立即显示高亮
+    if (split_view_manager_.hasSplits()) {
+        updateWordHighlight();
+    }
 }
 
 bool Editor::resizeActiveSplitRegion(int delta) {
@@ -2259,15 +2428,24 @@ void Editor::focusDownRegion() {
 void Editor::initializePlugins() {
     plugin_manager_ = std::make_unique<plugins::PluginManager>(this);
     if (!plugin_manager_ || !plugin_manager_->initialize()) {
-        LOG_ERROR("Failed to initialize plugin system");
         plugin_manager_.reset();
     } else {
         // 设置插件管理对话框的插件管理器指针
         plugin_manager_dialog_.setPluginManager(plugin_manager_.get());
     }
+    plugin_manager_initialized_ = true;
+}
+
+void Editor::ensurePluginManagerInitialized() {
+    if (!plugin_manager_initialized_) {
+        initializePlugins();
+    }
 }
 
 void Editor::openPluginManager() {
+    // 延迟初始化插件系统
+    ensurePluginManagerInitialized();
+
     if (plugin_manager_) {
         plugin_manager_dialog_.open();
         setStatusMessage("Plugin Manager | ↑↓: Navigate, Space/Enter: Toggle, Esc: Close");
@@ -2315,7 +2493,6 @@ void Editor::resumeRendering() {
 // 强制触发待处理的光标更新
 void Editor::triggerPendingCursorUpdate() {
     if (pending_cursor_update_ && !rendering_paused_) {
-        LOG("[DEBUG INCREMENTAL] Triggering pending cursor update");
         pending_cursor_update_ = false;
         screen_.PostEvent(Event::Custom);
     }
@@ -2341,6 +2518,17 @@ std::string Editor::getCallStackInfo() {
 
     return info;
 }
+
+#ifdef BUILD_LUA_SUPPORT
+void Editor::triggerPluginEvent(const std::string& event, const std::vector<std::string>& args) {
+    // 延迟初始化插件系统
+    ensurePluginManagerInitialized();
+
+    if (plugin_manager_) {
+        plugin_manager_->triggerEvent(event, args);
+    }
+}
+#endif
 
 } // namespace core
 } // namespace pnana

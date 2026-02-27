@@ -79,10 +79,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
 
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理对话框
-    if (is_plugin_manager_visible_callback_ && is_plugin_manager_visible_callback_() &&
-        render_plugin_manager_callback_) {
-        Elements dialog_elements = {main_ui, render_plugin_manager_callback_() | center};
-        return dbox(dialog_elements);
+    if (is_plugin_manager_visible_callback_ && render_plugin_manager_callback_) {
+        bool is_visible = is_plugin_manager_visible_callback_();
+        if (is_visible) {
+            Elements dialog_elements = {main_ui, render_plugin_manager_callback_() | center};
+            return dbox(dialog_elements);
+        }
     }
 #endif
 
@@ -90,6 +92,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     if (is_command_palette_visible_callback_ && is_command_palette_visible_callback_() &&
         render_command_palette_callback_) {
         return dbox({main_ui, render_command_palette_callback_() | center});
+    }
+
+    // 如果 FZF 模糊文件查找弹窗打开，叠加显示
+    if (is_fzf_popup_visible_callback_ && is_fzf_popup_visible_callback_() &&
+        render_fzf_popup_callback_) {
+        return dbox({main_ui | dim, render_fzf_popup_callback_() | center});
     }
 
     // 如果格式化对话框打开，叠加显示
@@ -135,6 +143,15 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         Elements diagnostics_elements = {main_ui | dim,
                                          render_diagnostics_popup_callback_() | center};
         return dbox(diagnostics_elements);
+    }
+
+    // 如果符号导航弹窗打开，叠加显示
+    if (is_symbol_navigation_popup_visible_callback_ &&
+        is_symbol_navigation_popup_visible_callback_() &&
+        render_symbol_navigation_popup_callback_) {
+        Elements symbol_nav_elements = {main_ui | dim,
+                                        render_symbol_navigation_popup_callback_() | center};
+        return dbox(symbol_nav_elements);
     }
 #endif
 

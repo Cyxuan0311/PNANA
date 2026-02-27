@@ -100,6 +100,9 @@ void TUIConfigManager::initializeTUIConfigs() {
                  "terminal");
 
     // 编辑器配置
+    addTUIConfig("pnana", "pnana", "Modern terminal text editor with native shortcuts",
+                 {"~/.config/pnana/config.json"}, "editor");
+
     addTUIConfig(
         "neovim", "Neovim", "Hyperextensible Vim-based text editor",
         {"~/.config/nvim/init.lua", "~/.config/nvim/init.vim", "~/.vimrc", "~/.config/nvim/lua"},

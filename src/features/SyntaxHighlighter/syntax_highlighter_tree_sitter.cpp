@@ -118,6 +118,11 @@ TSLanguage* tree_sitter_swift();
 TSLanguage* tree_sitter_kotlin();
 #endif
 
+// C#
+#ifdef BUILD_TREE_SITTER_CSHARP
+TSLanguage* tree_sitter_c_sharp();
+#endif
+
 // Scala
 #ifdef BUILD_TREE_SITTER_SCALA
 TSLanguage* tree_sitter_scala();
@@ -161,6 +166,11 @@ TSLanguage* tree_sitter_toml();
 // Nim
 #ifdef BUILD_TREE_SITTER_NIM
 TSLanguage* tree_sitter_nim();
+#endif
+
+// Zig
+#ifdef BUILD_TREE_SITTER_ZIG
+TSLanguage* tree_sitter_zig();
 #endif
 
 // 函数式编程和编译器相关语言
@@ -483,6 +493,16 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
     }
 #endif
 
+// C#
+#ifdef BUILD_TREE_SITTER_CSHARP
+    TSLanguage* csharp_lang = tree_sitter_c_sharp();
+    if (csharp_lang) {
+        language_map_["cs"] = csharp_lang;
+        language_map_["csharp"] = csharp_lang;
+        language_map_["csx"] = csharp_lang;
+    }
+#endif
+
 // Scala
 #ifdef BUILD_TREE_SITTER_SCALA
     TSLanguage* scala_lang = tree_sitter_scala();
@@ -579,6 +599,14 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
         language_map_["nim"] = nim_lang;
         language_map_["nims"] = nim_lang;   // Nim script files
         language_map_["nimble"] = nim_lang; // Nimble package files
+    }
+#endif
+
+// Zig
+#ifdef BUILD_TREE_SITTER_ZIG
+    TSLanguage* zig_lang = tree_sitter_zig();
+    if (zig_lang) {
+        language_map_["zig"] = zig_lang;
     }
 #endif
 

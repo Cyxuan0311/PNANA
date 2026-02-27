@@ -19,7 +19,7 @@ namespace ui {
 
 TUIConfigPopup::TUIConfigPopup(Theme& theme)
     : theme_(theme), is_open_(false), original_configs_(), filtered_configs_(), selected_index_(0),
-      scroll_offset_(0), input_("") {}
+      scroll_offset_(0), input_(""), cursor_pos_(0) {}
 
 void TUIConfigPopup::setData(bool is_open, const std::vector<features::TUIConfig>& tui_configs,
                              size_t selected_index) {
@@ -42,31 +42,28 @@ ftxui::Element TUIConfigPopup::render() {
     const auto& colors = theme_.getColors();
     Elements dialog_content;
 
-    // 标题
     dialog_content.push_back(renderTitle());
-
     dialog_content.push_back(separator());
-
-    // 搜索输入框
-    dialog_content.push_back(text(""));
     dialog_content.push_back(renderInputBox());
-
-    dialog_content.push_back(text(""));
     dialog_content.push_back(separator());
 
-    // 配置文件列表
-    dialog_content.push_back(renderConfigList());
+    // 左右布局：配置列表 | 预览
+    Elements left_content;
+    left_content.push_back(renderConfigList());
 
-    dialog_content.push_back(text(""));
+    Elements main_row;
+    main_row.push_back(vbox(left_content) | size(WIDTH, EQUAL, 45) | flex);
+    main_row.push_back(separator());
+    main_row.push_back(renderConfigPreview() | flex);
+
+    dialog_content.push_back(hbox(main_row) | flex);
     dialog_content.push_back(separator());
-
-    // 帮助栏
     dialog_content.push_back(renderHelpBar());
 
     int height =
-        std::min(22, int(15 + static_cast<int>(std::min(filtered_configs_.size(), size_t(12)))));
+        std::min(28, int(12 + static_cast<int>(std::min(filtered_configs_.size(), size_t(18)))));
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 85) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 120) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }
@@ -91,9 +88,31 @@ bool TUIConfigPopup::handleInput(ftxui::Event event) {
         close();
         return true;
     } else if (event == ftxui::Event::Backspace) {
-        if (!input_.empty()) {
-            setInput(input_.substr(0, input_.size() - 1));
+        if (cursor_pos_ > 0) {
+            input_.erase(cursor_pos_ - 1, 1);
+            cursor_pos_--;
+            updateFilteredConfigs();
         }
+        return true;
+    } else if (event == ftxui::Event::Delete) {
+        if (cursor_pos_ < input_.size()) {
+            input_.erase(cursor_pos_, 1);
+            updateFilteredConfigs();
+        }
+        return true;
+    } else if (event == ftxui::Event::ArrowLeft) {
+        if (cursor_pos_ > 0)
+            cursor_pos_--;
+        return true;
+    } else if (event == ftxui::Event::ArrowRight) {
+        if (cursor_pos_ < input_.size())
+            cursor_pos_++;
+        return true;
+    } else if (event == ftxui::Event::Home) {
+        cursor_pos_ = 0;
+        return true;
+    } else if (event == ftxui::Event::End) {
+        cursor_pos_ = input_.size();
         return true;
     } else if (event == ftxui::Event::ArrowDown) {
         if (!filtered_configs_.empty()) {
@@ -113,8 +132,10 @@ bool TUIConfigPopup::handleInput(ftxui::Event event) {
         return true;
     } else if (event.is_character()) {
         std::string ch = event.character();
-        if (ch.length() == 1 && ch[0] >= 32 && ch[0] < 127) {
-            setInput(input_ + ch);
+        if (!ch.empty() && ch[0] >= 32) {
+            input_.insert(cursor_pos_, ch);
+            cursor_pos_ += ch.size();
+            updateFilteredConfigs();
         }
         return true;
     }
@@ -125,6 +146,7 @@ bool TUIConfigPopup::handleInput(ftxui::Event event) {
 void TUIConfigPopup::open() {
     is_open_ = true;
     input_ = "";
+    cursor_pos_ = 0;
     selected_index_ = 0;
     scroll_offset_ = 0;
     updateFilteredConfigs();
@@ -133,8 +155,13 @@ void TUIConfigPopup::open() {
 void TUIConfigPopup::close() {
     is_open_ = false;
     input_ = "";
+    cursor_pos_ = 0;
     selected_index_ = 0;
     scroll_offset_ = 0;
+}
+
+void TUIConfigPopup::setCursorColorGetter(std::function<ftxui::Color()> getter) {
+    cursor_color_getter_ = std::move(getter);
 }
 
 void TUIConfigPopup::setConfigOpenCallback(
@@ -170,6 +197,7 @@ void TUIConfigPopup::updateFilteredConfigs() {
 
 void TUIConfigPopup::setInput(const std::string& input) {
     input_ = input;
+    cursor_pos_ = input_.size();
     updateFilteredConfigs();
     selected_index_ = 0;
     scroll_offset_ = 0;
@@ -182,8 +210,7 @@ void TUIConfigPopup::adjustScrollOffset() {
         return;
     }
 
-    // 确保选中的项目可见
-    size_t max_visible = 12; // 最大可见项目数
+    size_t max_visible = 18;
     if (selected_index_ < scroll_offset_) {
         scroll_offset_ = selected_index_;
     } else if (selected_index_ >= scroll_offset_ + max_visible) {
@@ -205,14 +232,30 @@ Element TUIConfigPopup::renderTitle() const {
 
 Element TUIConfigPopup::renderInputBox() const {
     const auto& colors = theme_.getColors();
-    std::string input_display = input_.empty() ? "_" : input_ + "_";
-    return hbox({text("  > "),
-                 text(input_display) | bold | color(colors.dialog_fg) | bgcolor(colors.selection)});
+    std::string left = input_.substr(0, cursor_pos_);
+    std::string right = input_.substr(cursor_pos_);
+    ftxui::Color cursor_color = cursor_color_getter_ ? cursor_color_getter_() : colors.success;
+
+    return hbox({text("  > "), text(left) | color(colors.dialog_fg),
+                 text("█") | color(cursor_color) | bold, text(right) | color(colors.dialog_fg)}) |
+           bgcolor(colors.selection);
 }
 
 Element TUIConfigPopup::renderConfigList() const {
     const auto& colors = theme_.getColors();
     Elements list_elements;
+
+    size_t max_display = 18;
+    size_t start = scroll_offset_;
+    if (filtered_configs_.size() > max_display) {
+        if (selected_index_ >= filtered_configs_.size() - max_display) {
+            start = filtered_configs_.size() - max_display;
+        } else if (selected_index_ >= start + max_display) {
+            start = selected_index_ - max_display + 1;
+        } else if (selected_index_ < start) {
+            start = selected_index_;
+        }
+    }
 
     if (filtered_configs_.empty()) {
         std::string no_result_text = input_.empty() ? "No TUI configuration files found"
@@ -220,36 +263,15 @@ Element TUIConfigPopup::renderConfigList() const {
         list_elements.push_back(
             hbox({text("  "), text(no_result_text) | color(colors.comment) | dim}));
     } else {
-        // 显示过滤后的配置项列表（最多12个）
-        size_t max_display = std::min(filtered_configs_.size(), size_t(12));
-
-        for (size_t i = 0; i < max_display && (scroll_offset_ + i) < filtered_configs_.size();
-             ++i) {
-            size_t config_index = scroll_offset_ + i;
+        for (size_t i = 0; i < max_display && (start + i) < filtered_configs_.size(); ++i) {
+            size_t config_index = start + i;
             const auto& config = filtered_configs_[config_index];
             bool is_selected = (config_index == selected_index_);
-
             list_elements.push_back(renderConfigItem(config, config_index, is_selected));
-
-            // 如果选中，显示描述
-            if (is_selected && !config.description.empty()) {
-                list_elements.push_back(
-                    hbox({text("    "), text(config.description) | color(colors.comment) | dim}));
-            }
-        }
-
-        // 如果还有更多配置，显示提示
-        if (filtered_configs_.size() > max_display) {
-            list_elements.push_back(text(""));
-            std::string more_text = "... " +
-                                    std::to_string(filtered_configs_.size() - max_display) +
-                                    " more configurations";
-            list_elements.push_back(
-                hbox({text("  "), text(more_text) | color(colors.comment) | dim}));
         }
     }
 
-    return vbox(list_elements);
+    return vbox(list_elements) | flex;
 }
 
 Element TUIConfigPopup::renderConfigItem(const features::TUIConfig& config, size_t config_index,
@@ -530,6 +552,64 @@ Color TUIConfigPopup::getToolIconColor(const std::string& category) const {
 
     auto it = category_colors.find(category);
     return it != category_colors.end() ? it->second : colors.comment;
+}
+
+Element TUIConfigPopup::renderConfigPreview() const {
+    const auto& colors = theme_.getColors();
+    Elements preview_elements;
+
+    if (filtered_configs_.empty() || selected_index_ >= filtered_configs_.size()) {
+        return hbox({text("  "), text("Select a config") | color(colors.comment) | dim}) |
+               bgcolor(colors.background) | flex;
+    }
+
+    const auto& config = filtered_configs_[selected_index_];
+    std::string tool_icon = getToolIcon(config.name);
+    Color tool_color = getToolIconColor(config.category);
+
+    // 预览标题
+    preview_elements.push_back(hbox({text(" "), text(tool_icon) | color(tool_color), text(" "),
+                                     text(config.display_name) | bold | color(colors.foreground)}) |
+                               bgcolor(colors.dialog_title_bg));
+    preview_elements.push_back(separator());
+
+    // 描述
+    if (!config.description.empty()) {
+        preview_elements.push_back(
+            hbox({text("  "), paragraph(config.description) | color(colors.comment) | dim}));
+        preview_elements.push_back(text(""));
+    }
+
+    // 类别
+    std::string category_name = getCategoryDisplayName(config.category);
+    if (!category_name.empty()) {
+        preview_elements.push_back(hbox({text("  "), text("Category: ") | color(colors.foreground),
+                                         text(category_name) | color(colors.function)}));
+        preview_elements.push_back(text(""));
+    }
+
+    // 配置文件路径
+    preview_elements.push_back(
+        hbox({text("  "), text("Config paths:") | color(colors.foreground)}));
+    std::string path_display = getConfigPathDisplay(config);
+    bool has_config = !path_display.empty() && path_display != "Not found";
+    if (has_config) {
+        preview_elements.push_back(hbox({text("    "), text("● ") | color(colors.success),
+                                         text(path_display) | color(colors.string)}));
+    } else {
+        for (const auto& path : config.config_paths) {
+            std::string expanded = expandPath(path).string();
+            const char* home = std::getenv("HOME");
+            if (home && expanded.find(home) == 0) {
+                expanded = "~" + expanded.substr(std::string(home).size());
+            }
+            preview_elements.push_back(hbox({text("    "), text("○ ") | color(colors.comment),
+                                             text(expanded) | color(colors.comment) | dim}));
+        }
+    }
+
+    return vbox(preview_elements) | bgcolor(colors.background) | flex | size(WIDTH, EQUAL, 52) |
+           borderWithColor(colors.dialog_border);
 }
 
 Element TUIConfigPopup::renderHelpBar() const {

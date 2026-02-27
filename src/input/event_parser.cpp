@@ -295,16 +295,30 @@ std::string EventParser::parseAltKey(const ftxui::Event& event) const {
         if (input[0] == '\033' || input[0] == '\x1b') {
             // 提取字符部分
             std::string ch = input.substr(1);
-            // 只取第一个字符
+
+            // 过滤掉终端查询序列（如 DSR - Device Status Report）
+            // 这些序列通常以数字、$、?、P 等字符开头，不是 Alt+字符组合
             if (ch.length() >= 1) {
                 char c = ch[0];
+
+                // 跳过终端查询序列：
+                // - 数字开头的序列（如 "0$r" 是 DSR 响应）
+                // - '?' 开头的序列（DEC 私有模式查询）
+                // - 'P' 后跟数字的序列（可能是 DCS 序列）
+                // - '$' 开头的序列（可能是其他查询序列）
+                if (std::isdigit(c) || c == '?' || c == '$' ||
+                    (c == 'P' && ch.length() > 1 && std::isdigit(ch[1]))) {
+                    return ""; // 不是 Alt+字符组合，返回空
+                }
+
                 // 处理 Alt+Space（Space 字符是 ' '，ASCII 32）
                 if (c == ' ') {
                     return "alt_space";
                 }
                 c = std::tolower(c);
-                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '=' || c == '+' ||
-                    c == '-' || c == '_') {
+                // 只接受单个字母或数字，确保是真正的 Alt+字符组合
+                if (ch.length() == 1 && ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                                         c == '=' || c == '+' || c == '-' || c == '_')) {
                     return "alt_" + std::string(1, c);
                 }
             }

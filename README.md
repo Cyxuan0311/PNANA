@@ -26,7 +26,7 @@
 ## ✨ 核心特性
 
 ### 🎨 美观友好的界面
-- **28种精美主题**: Monokai（默认）、Dracula、Solarized Dark/Light、OneDark、Nord...
+- **多种主题**: Monokai（默认）、Dracula、Solarized Dark/Light、OneDark、Nord...
 - **三栏布局**: 顶部菜单栏、中间编辑区、底部帮助栏
 - **智能状态栏**: 显示文件信息、光标位置、编码、修改状态
 - **行号显示**: 绝对行号和相对行号切换

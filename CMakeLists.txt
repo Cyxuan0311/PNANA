@@ -351,6 +351,7 @@ set(SOURCES
     src/ui/completion_popup.cpp
     src/ui/command_palette_ui.cpp
     src/ui/diagnostics_popup.cpp
+    src/ui/symbol_navigation_popup.cpp
     src/ui/format_dialog.cpp
     src/ui/git_panel.cpp
     src/ui/todo_panel.cpp
@@ -374,6 +375,7 @@ set(SOURCES
     src/features/recent_files_manager.cpp
     src/features/tui_config_manager.cpp
     src/ui/recent_files_popup.cpp
+    src/ui/fzf_popup.cpp
     src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
     # Markdown 解析库
@@ -397,12 +399,15 @@ set(SOURCES
     src/features/package_manager/yum_manager.cpp
     src/features/package_manager/brew_manager.cpp
     src/features/terminal/terminal.cpp
+    src/features/terminal/terminal_line_buffer.cpp
     src/features/terminal/terminal_color.cpp
     src/features/terminal/terminal_parser.cpp
     src/features/terminal/terminal_builtin.cpp
     src/features/terminal/terminal_shell.cpp
     src/features/terminal/terminal_utils.cpp
     src/features/terminal/terminal_completion.cpp
+    src/features/terminal/terminal_pty.cpp
+    src/features/terminal/terminal_job.cpp
     src/features/split_view/split_view.cpp
     src/features/md_render/markdown_parser.cpp
     src/features/md_render/markdown_renderer.cpp
@@ -452,16 +457,10 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_completion_cache.cpp
         src/features/lsp/lsp_formatter.cpp
         src/features/lsp/snippet_manager.cpp
-        src/features/lsp/snippets/cpp_snippets.cpp
-        src/features/lsp/snippets/python_snippets.cpp
-        src/features/lsp/snippets/javascript_snippets.cpp
-        src/features/lsp/snippets/typescript_snippets.cpp
-        src/features/lsp/snippets/rust_snippets.cpp
-        src/features/lsp/snippets/go_snippets.cpp
-        src/features/lsp/snippets/java_snippets.cpp
-        src/features/lsp/snippets/ruby_snippets.cpp
-        src/features/lsp/snippets/php_snippets.cpp
     )
+    # 使用通配符自动添加所有 snippets 文件
+    file(GLOB SNIPPET_FILES "${CMAKE_SOURCE_DIR}/src/features/lsp/snippets/*_snippets.cpp")
+    list(APPEND SOURCES ${SNIPPET_FILES})
 endif()
 
 # 图片预览模块（如果启用）
@@ -479,9 +478,11 @@ endif()
 if(BUILD_LUA_SUPPORT)
     list(APPEND SOURCES
         src/ui/plugin_manager_dialog.cpp
+        src/plugins/path_validator.cpp
     )
     list(APPEND HEADERS
         include/pnana/ui/plugin_manager_dialog.h
+        include/pnana/plugins/path_validator.h
     )
     message(STATUS "Plugin system enabled with Lua support")
 endif()
@@ -534,6 +535,7 @@ set(HEADERS
     include/pnana/ui/icons.h
     include/pnana/ui/completion_popup.h
     include/pnana/ui/command_palette_ui.h
+    include/pnana/ui/symbol_navigation_popup.h
     include/pnana/ui/format_dialog.h
     include/pnana/ui/todo_panel.h
     include/pnana/ui/move_file_dialog.h
@@ -604,15 +606,26 @@ if(BUILD_GO_MODULE)
     set(GO_MODULE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/go)
     set(GO_MODULE_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libssh_client.a)
     
+    # Go SSH 模块源文件列表（重组后的结构）
+    set(GO_SSH_SOURCES
+        ${GO_MODULE_DIR}/ssh/types.go
+        ${GO_MODULE_DIR}/ssh/pool.go
+        ${GO_MODULE_DIR}/ssh/auth.go
+        ${GO_MODULE_DIR}/ssh/utils.go
+        ${GO_MODULE_DIR}/ssh/operations.go
+        ${GO_MODULE_DIR}/ssh/client.go
+    )
+    
     # 构建 Go 模块为静态库
-    # 注意：go.mod 在项目根目录，ssh_client.go 在 go/ 目录
+    # 注意：go.mod 在项目根目录，所有 Go 文件在 go/ssh/ 子目录
     add_custom_command(
         OUTPUT ${GO_MODULE_OUTPUT}
         COMMAND ${GO_EXECUTABLE} mod tidy
         COMMAND ${GO_EXECUTABLE} mod download
-        COMMAND ${GO_EXECUTABLE} build -buildmode=c-archive -o ${GO_MODULE_OUTPUT} ./go/ssh_client.go
+        COMMAND ${GO_EXECUTABLE} build -buildmode=c-archive -o ${GO_MODULE_OUTPUT} ./go/ssh
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Building Go SSH module"
+        DEPENDS ${GO_SSH_SOURCES}
     )
     
     add_custom_target(go_ssh_module DEPENDS ${GO_MODULE_OUTPUT})

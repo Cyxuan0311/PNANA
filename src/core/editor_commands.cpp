@@ -40,6 +40,12 @@ void Editor::initializeCommandPalette() {
                                                  openRecentFilesDialog();
                                              }));
 
+    command_palette_.registerCommand(Command("file.fzf", "FZF", "Fuzzy find and open files",
+                                             {"fzf", "fuzzy", "find", "file", "open", "search"},
+                                             [this]() {
+                                                 openFzfPopup();
+                                             }));
+
     command_palette_.registerCommand(
         Command("tools.tui", "TUI Config Files", "Open configuration files for TUI tools",
                 {"tui", "config", "terminal", "editor", "tools"}, [this]() {

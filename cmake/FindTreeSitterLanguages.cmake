@@ -84,6 +84,7 @@ find_tree_sitter_language(RUBY "tree-sitter-ruby;libtree-sitter-ruby" "Ruby")
 find_tree_sitter_language(PHP "tree-sitter-php;libtree-sitter-php" "PHP")
 find_tree_sitter_language(SWIFT "tree-sitter-swift;libtree-sitter-swift" "Swift")
 find_tree_sitter_language(KOTLIN "tree-sitter-kotlin;libtree-sitter-kotlin" "Kotlin")
+find_tree_sitter_language(CSHARP "tree-sitter-c-sharp;tree-sitter-csharp;libtree-sitter-c-sharp;libtree-sitter-csharp" "C#")
 find_tree_sitter_language(SCALA "tree-sitter-scala;libtree-sitter-scala" "Scala")
 find_tree_sitter_language(R "tree-sitter-r;libtree-sitter-r" "R")
 find_tree_sitter_language(PERL "tree-sitter-perl;libtree-sitter-perl" "Perl")
@@ -95,6 +96,7 @@ find_tree_sitter_language(POWERSHELL "tree-sitter-powershell;libtree-sitter-powe
 find_tree_sitter_language(MESON "tree-sitter-meson;libtree-sitter-meson" "Meson")
 find_tree_sitter_language(TOML "tree-sitter-toml;libtree-sitter-toml" "TOML")
 find_tree_sitter_language(NIM "tree-sitter-nim;libtree-sitter-nim" "Nim")
+find_tree_sitter_language(ZIG "tree-sitter-zig;libtree-sitter-zig" "Zig")
 
 # 函数式编程和编译器相关语言支持
 find_tree_sitter_language(LISP "tree-sitter-commonlisp;libtree-sitter-commonlisp" "Lisp")
@@ -128,6 +130,7 @@ mark_as_advanced(
     TreeSitter_PHP_LIBRARY
     TreeSitter_SWIFT_LIBRARY
     TreeSitter_KOTLIN_LIBRARY
+    TreeSitter_CSHARP_LIBRARY
     TreeSitter_SCALA_LIBRARY
     TreeSitter_R_LIBRARY
     TreeSitter_PERL_LIBRARY
@@ -137,6 +140,7 @@ mark_as_advanced(
     TreeSitter_MESON_LIBRARY
     TreeSitter_TOML_LIBRARY
     TreeSitter_NIM_LIBRARY
+    TreeSitter_ZIG_LIBRARY
     TreeSitter_LISP_LIBRARY
     TreeSitter_SML_LIBRARY
     TreeSitter_LLVM_LIBRARY
