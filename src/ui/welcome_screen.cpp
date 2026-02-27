@@ -92,7 +92,7 @@ Element WelcomeScreen::render() {
 
     welcome_content.push_back(text(""));
 
-    welcome_content.push_back(text("Press Ctrl+T to choose from 28 beautiful themes") |
+    welcome_content.push_back(text("Press Ctrl+T to choose from multiple themes") |
                               color(colors.comment) | dim | center);
 
     welcome_content.push_back(text(""));
