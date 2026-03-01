@@ -98,6 +98,31 @@ class FilePicker {
     // 缓存管理
     FileItemMetadata getItemMetadata(const std::string& item_path, const std::string& item_name);
     void clearMetadataCache(); // 清除元数据缓存
+
+    // 预览面板：文件夹树节点（仅一层，用于图形化展示）
+    struct FolderTreeEntry {
+        std::string name;
+        bool is_dir;
+    };
+    // 文件详情（大小、权限、修改时间、类型、所有者等）
+    struct FileDetail {
+        std::string size_str;
+        std::string permissions;
+        std::string last_modified;
+        std::string extension;
+        std::string file_type; // 检测到的类型，如 "cpp", "markdown"
+        std::string full_path;
+        std::string owner; // 文件所有者（操作人）
+    };
+
+    static const size_t kMaxPreviewTreeEntries = 60; // 预览树最大条目数，避免大目录卡顿
+
+    ftxui::Element renderPreviewPanel();
+    std::vector<FolderTreeEntry> getFolderTree(const std::string& dir_path);
+    FileDetail getFileDetail(const std::string& file_path);
+
+    std::unordered_map<std::string, std::vector<FolderTreeEntry>> folder_tree_cache_;
+    std::unordered_map<std::string, FileDetail> file_detail_cache_;
 };
 
 } // namespace ui

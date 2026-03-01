@@ -3,7 +3,16 @@
 #include "utils/file_type_detector.h"
 #include <algorithm>
 #include <cctype>
+#include <ctime>
 #include <ftxui/dom/elements.hpp>
+#include <sstream>
+
+#if defined(__linux__) || defined(__APPLE__) || defined(__unix__)
+#include <pwd.h>
+#include <sys/stat.h>
+#define PNANA_HAVE_STAT_MTIME 1
+#define PNANA_HAVE_OWNER 1
+#endif
 
 using namespace ftxui;
 
@@ -214,9 +223,9 @@ Element FilePicker::render() {
 
     auto& colors = theme_.getColors();
 
-    Elements content;
+    // ---------- 左侧：路径 + 文件列表 ----------
+    Elements left_content;
 
-    // 标题栏
     std::string title = "File Picker";
     std::string type_label = "[All]";
     if (picker_type_ == FilePickerType::FILE) {
@@ -227,113 +236,89 @@ Element FilePicker::render() {
         type_label = "[Folders Only]";
     }
 
-    content.push_back(hbox({text(" "), text(ui::icons::SEARCH) | color(Color::Cyan), text(" "),
-                            text(title) | bold | color(colors.foreground), text(" "),
-                            text(type_label) | color(colors.comment), filler(),
-                            text(" ") | color(colors.comment)}) |
-                      bgcolor(colors.menubar_bg));
+    left_content.push_back(hbox({text(" "), text(ui::icons::SEARCH) | color(Color::Cyan), text(" "),
+                                 text(title) | bold | color(colors.foreground), text(" "),
+                                 text(type_label) | color(colors.comment), filler(),
+                                 text(" ") | color(colors.comment)}) |
+                           bgcolor(colors.menubar_bg));
+    left_content.push_back(separator());
 
-    content.push_back(separator());
-
-    // 路径输入框（如果启用）
     if (show_path_input_) {
-        content.push_back(
+        left_content.push_back(
             hbox({text(" Path: ") | color(colors.keyword) | bold,
                   text(path_input_ + "_") | color(colors.foreground) | bgcolor(colors.selection)}));
-        content.push_back(separator());
+        left_content.push_back(separator());
     }
 
-    // 当前路径
-    content.push_back(hbox({text(" "), text(ui::icons::LOCATION) | color(colors.keyword), text(" "),
-                            text(current_path_) | color(colors.comment)}));
+    left_content.push_back(hbox({text(" "), text(ui::icons::LOCATION) | color(colors.keyword),
+                                 text(" "), text(current_path_) | color(colors.comment)}));
+    left_content.push_back(separator());
 
-    content.push_back(separator());
-
-    // 搜索框（始终可见）
     Element search_box;
     if (focus_in_search_) {
-        // 焦点在搜索框时高亮显示
         search_box = hbox(
             {text(" "), text(ui::icons::SEARCH) | color(colors.keyword) | bold,
              text(" Search: ") | color(colors.keyword) | bold,
              text(filter_input_ + "_") | color(colors.foreground) | bgcolor(colors.selection)});
     } else {
-        // 焦点不在搜索框时正常显示
         std::string search_display = filter_input_.empty() ? "Type to search..." : filter_input_;
         Color search_color = filter_input_.empty() ? colors.comment : colors.foreground;
         search_box = hbox({text(" "), text(ui::icons::SEARCH) | color(colors.comment),
                            text(" Search: ") | color(colors.comment),
                            text(search_display) | color(search_color)});
     }
-    content.push_back(search_box);
-    content.push_back(separator());
+    left_content.push_back(search_box);
+    left_content.push_back(separator());
 
-    // 文件列表
-    size_t visible_count = 15; // 显示15行
+    size_t visible_count = 15;
     size_t visible_start = 0;
-
-    if (selected_index_ >= visible_start + visible_count) {
+    if (selected_index_ >= visible_start + visible_count)
         visible_start = selected_index_ - visible_count + 1;
-    }
-    if (selected_index_ < visible_start) {
+    if (selected_index_ < visible_start)
         visible_start = selected_index_;
-    }
 
     for (size_t i = visible_start; i < items_.size() && i < visible_start + visible_count; ++i) {
         std::string item_path = items_[i];
         std::string item_name = getItemName(item_path);
-
-        // 使用缓存获取元数据
         FileItemMetadata metadata = getItemMetadata(item_path, item_name);
-
         std::string icon = metadata.icon;
         Color item_color = metadata.color;
         bool is_dir = metadata.is_dir;
-
-        if (is_dir) {
+        if (is_dir)
             item_name += "/";
-        }
-
-        // Icon and name color (use white when selected, otherwise use file type color)
         Color icon_color = (i == selected_index_) ? Color::White : item_color;
         Color name_color = (i == selected_index_) ? Color::White : item_color;
-
         Elements row_elements = {
             text(" "), text(icon) | color(icon_color) | ((i == selected_index_) ? bold : nothing),
             text(" "),
             text(item_name) | color(name_color) | ((i == selected_index_) ? bold : nothing),
             filler()};
-
         auto item_text = hbox(row_elements);
-
-        if (i == selected_index_) {
-            item_text = item_text | bgcolor(colors.selection);
-        } else {
-            item_text = item_text | bgcolor(colors.background);
-        }
-
-        content.push_back(item_text);
+        item_text = (i == selected_index_) ? (item_text | bgcolor(colors.selection))
+                                           : (item_text | bgcolor(colors.background));
+        left_content.push_back(item_text);
     }
 
-    // 填充空行
-    while (content.size() < 20) {
-        content.push_back(text(""));
-    }
+    while (left_content.size() < 20)
+        left_content.push_back(text(""));
 
-    content.push_back(separator());
-
-    // 底部提示
-    Elements hints = {text(" "),  text("↑↓: Navigate/Switch") | color(colors.comment),
+    left_content.push_back(separator());
+    Elements hints = {text(" "),  text("↑↓: Navigate") | color(colors.comment),
                       text("  "), text("Enter: Select") | color(colors.comment),
-                      text("  "), text("Tab: Type Filter") | color(colors.comment),
-                      text("  "), text(":/: Path Input") | color(colors.comment),
-                      text("  "), text("Type: Search") | color(colors.comment),
+                      text("  "), text("Tab: Filter") | color(colors.comment),
+                      text("  "), text(":/: Path") | color(colors.comment),
                       text("  "), text("Esc: Cancel") | color(colors.comment),
                       filler()};
-    content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
+    left_content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
 
-    return vbox(content) | borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
-           size(WIDTH, GREATER_THAN, 60) | size(HEIGHT, GREATER_THAN, 20) | center;
+    Element left_panel = vbox(std::move(left_content)) | size(WIDTH, EQUAL, 64);
+
+    // ---------- 右侧：预览面板 ----------
+    Element right_panel = renderPreviewPanel() | size(WIDTH, EQUAL, 60);
+
+    return hbox({left_panel, separator(), right_panel}) | borderWithColor(colors.dialog_border) |
+           bgcolor(colors.background) | size(WIDTH, GREATER_THAN, 124) |
+           size(HEIGHT, GREATER_THAN, 26) | center;
 }
 
 void FilePicker::reset() {
@@ -348,6 +333,8 @@ void FilePicker::reset() {
     type_filter_active_ = false;
     current_type_filter_ = FilePickerType::BOTH;
     clearMetadataCache();
+    folder_tree_cache_.clear();
+    file_detail_cache_.clear();
     on_select_ = nullptr;
     on_cancel_ = nullptr;
 }
@@ -775,6 +762,206 @@ FilePicker::FileItemMetadata FilePicker::getItemMetadata(const std::string& item
 void FilePicker::clearMetadataCache() {
     item_metadata_cache_.clear();
     cached_path_ = "";
+}
+
+std::vector<FilePicker::FolderTreeEntry> FilePicker::getFolderTree(const std::string& dir_path) {
+    auto it = folder_tree_cache_.find(dir_path);
+    if (it != folder_tree_cache_.end())
+        return it->second;
+
+    std::vector<FolderTreeEntry> entries;
+    try {
+        if (!fs::exists(dir_path) || !fs::is_directory(dir_path))
+            return entries;
+
+        std::vector<FolderTreeEntry> dirs, files;
+        size_t count = 0;
+        for (const auto& entry : fs::directory_iterator(dir_path)) {
+            if (count >= kMaxPreviewTreeEntries)
+                break;
+            std::string name = entry.path().filename().string();
+            bool is_dir = entry.is_directory();
+            if (is_dir)
+                dirs.push_back({name, true});
+            else
+                files.push_back({name, false});
+            ++count;
+        }
+        std::sort(dirs.begin(), dirs.end(), [](const FolderTreeEntry& a, const FolderTreeEntry& b) {
+            return a.name < b.name;
+        });
+        std::sort(files.begin(), files.end(),
+                  [](const FolderTreeEntry& a, const FolderTreeEntry& b) {
+                      return a.name < b.name;
+                  });
+        entries.reserve(dirs.size() + files.size());
+        entries.insert(entries.end(), dirs.begin(), dirs.end());
+        entries.insert(entries.end(), files.begin(), files.end());
+        folder_tree_cache_[dir_path] = entries;
+    } catch (...) {
+    }
+    return entries;
+}
+
+FilePicker::FileDetail FilePicker::getFileDetail(const std::string& file_path) {
+    auto it = file_detail_cache_.find(file_path);
+    if (it != file_detail_cache_.end())
+        return it->second;
+
+    FileDetail detail;
+    detail.size_str = detail.permissions = detail.last_modified = "—";
+    detail.extension = detail.file_type = detail.full_path = detail.owner = "—";
+
+    try {
+        if (!fs::exists(file_path) || !fs::is_regular_file(file_path))
+            return detail;
+
+        fs::path p(file_path);
+        try {
+            detail.full_path = fs::canonical(p).string();
+        } catch (...) {
+            detail.full_path = p.string();
+        }
+
+        std::string name = p.filename().string();
+        detail.extension = getFileExtension(name);
+        if (detail.extension.empty())
+            detail.extension = "(none)";
+        else
+            detail.extension = "." + detail.extension;
+
+        FileItemMetadata meta = getItemMetadata(file_path, name);
+        detail.file_type = meta.file_type;
+
+        uintmax_t size = fs::file_size(file_path);
+        std::ostringstream oss;
+        if (size >= 1024ULL * 1024 * 1024)
+            oss << (size / (1024.0 * 1024 * 1024)) << " GB";
+        else if (size >= 1024 * 1024)
+            oss << (size / (1024.0 * 1024)) << " MB";
+        else if (size >= 1024)
+            oss << (size / 1024.0) << " KB";
+        else
+            oss << size << " B";
+        detail.size_str = oss.str();
+
+        try {
+            fs::file_status status = fs::status(file_path);
+            fs::perms perm = status.permissions();
+            auto ch = [perm](fs::perms pm) {
+                return (perm & pm) != fs::perms::none;
+            };
+            detail.permissions.reserve(9);
+            detail.permissions += ch(fs::perms::owner_read) ? 'r' : '-';
+            detail.permissions += ch(fs::perms::owner_write) ? 'w' : '-';
+            detail.permissions += ch(fs::perms::owner_exec) ? 'x' : '-';
+            detail.permissions += ch(fs::perms::group_read) ? 'r' : '-';
+            detail.permissions += ch(fs::perms::group_write) ? 'w' : '-';
+            detail.permissions += ch(fs::perms::group_exec) ? 'x' : '-';
+            detail.permissions += ch(fs::perms::others_read) ? 'r' : '-';
+            detail.permissions += ch(fs::perms::others_write) ? 'w' : '-';
+            detail.permissions += ch(fs::perms::others_exec) ? 'x' : '-';
+        } catch (...) {
+        }
+
+#ifdef PNANA_HAVE_STAT_MTIME
+        struct stat st;
+        if (stat(file_path.c_str(), &st) == 0) {
+            std::time_t t = st.st_mtime;
+            std::tm* tm = std::localtime(&t);
+            if (tm) {
+                char buf[32];
+                if (std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", tm) > 0)
+                    detail.last_modified = buf;
+            }
+#ifdef PNANA_HAVE_OWNER
+            struct passwd* pw = getpwuid(st.st_uid);
+            if (pw && pw->pw_name)
+                detail.owner = pw->pw_name;
+#endif
+        }
+#endif
+        file_detail_cache_[file_path] = detail;
+    } catch (...) {
+    }
+    return detail;
+}
+
+Element FilePicker::renderPreviewPanel() {
+    auto& colors = theme_.getColors();
+    const size_t max_preview_lines = 18;
+
+    Element title = hbox({text(" Preview ") | bold | color(colors.keyword)});
+    Element content;
+
+    if (items_.empty()) {
+        content = vbox({
+            text("No items in current directory") | color(colors.comment),
+        });
+    } else if (selected_index_ >= items_.size()) {
+        content = text("Select a file or folder") | color(colors.comment);
+    } else {
+        std::string selected = items_[selected_index_];
+        bool is_dir = isDirectory(selected);
+
+        if (is_dir) {
+            auto entries = getFolderTree(selected);
+            Elements lines;
+            lines.push_back(hbox({text(ui::icons::FOLDER_OPEN) | color(colors.function),
+                                  text(" ") | color(colors.foreground),
+                                  text(getItemName(selected) + "/") | color(colors.function)}));
+            const char* branch = "├── ";
+            const char* last = "└── ";
+            for (size_t i = 0; i < entries.size() && i < max_preview_lines; ++i) {
+                const char* prefix =
+                    (i + 1 == entries.size() || i + 1 == max_preview_lines) ? last : branch;
+                std::string icon = entries[i].is_dir ? ui::icons::FOLDER : ui::icons::FILE;
+                Color c = entries[i].is_dir ? colors.function : colors.foreground;
+                std::string name = entries[i].name;
+                if (entries[i].is_dir)
+                    name += "/";
+                lines.push_back(hbox({text(prefix) | color(colors.comment), text(icon) | color(c),
+                                      text(" "), text(name) | color(c)}));
+            }
+            if (entries.size() > max_preview_lines)
+                lines.push_back(text("... and more") | color(colors.comment));
+            content = vbox(std::move(lines));
+        } else {
+            FileDetail d = getFileDetail(selected);
+            std::string name = getItemName(selected);
+            FileItemMetadata meta = getItemMetadata(selected, name);
+            Elements file_info = {
+                hbox({text(meta.icon) | color(meta.color), text(" "),
+                      text(name) | color(colors.foreground)}) |
+                    bold,
+                separator(),
+                hbox({text(" Type:        ") | color(colors.comment),
+                      text(d.file_type) | color(colors.foreground)}),
+                hbox({text(" Extension:   ") | color(colors.comment),
+                      text(d.extension) | color(colors.foreground)}),
+                hbox({text(" Size:        ") | color(colors.comment),
+                      text(d.size_str) | color(colors.foreground)}),
+                hbox({text(" Modified:    ") | color(colors.comment),
+                      text(d.last_modified) | color(colors.foreground)}),
+                hbox({text(" Owner:       ") | color(colors.comment),
+                      text(d.owner) | color(colors.foreground)}),
+                hbox({text(" Permissions: ") | color(colors.comment),
+                      text(d.permissions) | color(colors.foreground)}),
+                separator(),
+                hbox({text(" Path:") | color(colors.comment)}),
+                text(d.full_path) | color(colors.foreground) | dim,
+            };
+            content = vbox(std::move(file_info));
+        }
+    }
+
+    return vbox({
+               title,
+               separator(),
+               content,
+           }) |
+           borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
+           size(HEIGHT, EQUAL, 26);
 }
 
 } // namespace ui
