@@ -98,7 +98,7 @@ chmod +x ./build.sh
 ./build.sh
 
 # Run pnana
-./build/pnana/pnana
+./build/pnana
 
 # Or install to system
 cd build
@@ -115,17 +115,12 @@ pnana
 # Open single file
 pnana file.txt
 
-# Open multiple files
-pnana file1.txt file2.cpp file3.py
-
 # Specify config file
-pnana --config ~/.config/pnana/custom.json
+pnana --config ~/.config/pnana/config.json
 
 # Use specific theme
 pnana --theme dracula file.txt
 
-# Open in read-only mode
-pnana --readonly file.txt
 ```
 
 ## 📖 Documentation

@@ -98,7 +98,7 @@ chmod +x ./build.sh
 ./build.sh
 
 # 运行pnana
-./build/pnana/pnana
+./build/pnana
 
 # 或安装到系统
 cd build
@@ -115,17 +115,12 @@ pnana
 # 打开单个文件
 pnana file.txt
 
-# 打开多个文件
-pnana file1.txt file2.cpp file3.py
-
 # 指定配置文件
-pnana --config ~/.config/pnana/custom.json
+pnana --config ~/.config/pnana/config.json
 
 # 使用特定主题
 pnana --theme dracula file.txt
 
-# 只读模式打开
-pnana --readonly file.txt
 ```
 
 ## 📖 文档
