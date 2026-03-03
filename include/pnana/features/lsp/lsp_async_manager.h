@@ -18,6 +18,7 @@ namespace features {
 class LspAsyncManager {
   public:
     using CompletionCallback = std::function<void(std::vector<CompletionItem>)>;
+    using ResolveCallback = std::function<void(CompletionItem)>;
     using ErrorCallback = std::function<void(const std::string& error)>;
 
     LspAsyncManager();
@@ -27,10 +28,17 @@ class LspAsyncManager {
     LspAsyncManager(const LspAsyncManager&) = delete;
     LspAsyncManager& operator=(const LspAsyncManager&) = delete;
 
-    // 异步补全请求
+    // 异步补全请求（trigger_character: . : -> 等，用于成员访问等智能补全）
+    // completion_timeout_ms: 超时毫秒数，非 C/C++ LSP 可传 800 以放宽
     void requestCompletionAsync(LspClient* client, const std::string& uri,
                                 const LspPosition& position, CompletionCallback on_success,
-                                ErrorCallback on_error = nullptr);
+                                ErrorCallback on_error = nullptr,
+                                const std::string& trigger_character = "",
+                                int completion_timeout_ms = 500);
+
+    // 异步 resolve 补全项（获取 detail/documentation）
+    void requestResolveAsync(LspClient* client, const CompletionItem& item,
+                             ResolveCallback on_success, ErrorCallback on_error = nullptr);
 
     // 取消所有待处理的请求
     void cancelPendingRequests();
@@ -45,12 +53,16 @@ class LspAsyncManager {
 
   private:
     struct RequestTask {
-        enum Type { COMPLETION, HOVER, DEFINITION };
+        enum Type { COMPLETION, RESOLVE, HOVER, DEFINITION };
         Type type;
         LspClient* client;
         std::string uri;
         LspPosition position;
+        std::string trigger_character;
+        int completion_timeout_ms = 500;
+        CompletionItem resolve_item;
         CompletionCallback completion_callback;
+        ResolveCallback resolve_callback;
         ErrorCallback error_callback;
     };
 
