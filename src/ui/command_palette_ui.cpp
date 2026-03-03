@@ -84,7 +84,7 @@ Element CommandPaletteUI::renderCommandList() const {
     Elements list_elements;
 
     // 限制显示的命令数量（最多15个）
-    size_t max_display = std::min(filtered_commands_.size(), size_t(15));
+    size_t max_display = std::min(filtered_commands_.size(), size_t(20));
 
     if (filtered_commands_.empty()) {
         list_elements.push_back(

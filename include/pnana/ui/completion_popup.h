@@ -39,6 +39,9 @@ class CompletionPopup {
     // 获取当前选中的补全项
     const features::CompletionItem* getSelectedItem() const;
 
+    // 更新指定索引的补全项（用于 resolve 后刷新 detail/documentation）
+    void updateItem(size_t index, const features::CompletionItem& item);
+
     // 获取选中的索引
     size_t getSelectedIndex() const {
         return selected_index_;
