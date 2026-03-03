@@ -21,8 +21,8 @@ void UIRouter::initializeRegionRenderers() {
 }
 
 Element UIRouter::render(Editor* editor) {
-    // 构建主UI结构
-    Element main_ui = vbox({renderTabbar(editor), separator(), renderMainContent(editor),
+    // 构建主UI结构：主内容区使用 flex 占满中间空间，保证状态栏/帮助栏始终贴底
+    Element main_ui = vbox({renderTabbar(editor), separator(), renderMainContent(editor) | flex,
                             renderStatusAndHelp(editor)}) |
                       bgcolor(editor->getTheme().getColors().background);
 
