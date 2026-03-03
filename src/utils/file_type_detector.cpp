@@ -333,6 +333,10 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
     if (ext_lower == "vb" || ext_lower == "vbs")
         return "vb";
 
+    // LLVM IR (Intermediate Representation)
+    if (ext_lower == "ll" || ext_lower == "llvm")
+        return "llvm";
+
     // Assembly - 基于内容智能检测不同架构和语法
     if (ext_lower == "asm" || ext_lower == "s" || ext_lower == "S") {
         // 首先尝试基于文件名进行初步检测
