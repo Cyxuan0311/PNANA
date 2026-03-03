@@ -27,6 +27,9 @@ class LspServerManager {
     // 根据语言 ID 获取或创建对应的 LSP 客户端
     LspClient* getClientForLanguage(const std::string& language_id);
 
+    // 初始化指定文件对应的 LSP 客户端（传入 fallbackFlags 等 init options）
+    bool initializeClientForFile(const std::string& filepath, const std::string& root_path);
+
     // 初始化所有已配置的 LSP 服务器（可选，延迟初始化更高效）
     void initializeAll(const std::string& root_path);
 
