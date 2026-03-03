@@ -1,0 +1,12 @@
+[package]
+name = "language-examples"
+version = "0.1.0"
+edition = "2021"
+description = "Rust example for pnana editor"
+
+[dependencies]
+regex = "1.10"
+
+[[bin]]
+name = "hello"
+path = "hello.rs"
