@@ -15,21 +15,14 @@ FileBrowserHandler::FileBrowserHandler() = default;
 bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
     // 文件浏览器区域：处理文件浏览器特定的输入
     if (!editor->isFileBrowserVisible()) {
-        LOG("FileBrowserHandler: File browser not visible, ignoring input");
         return false;
     }
 
     // 确保当前区域是文件浏览器
     EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
     if (current_region != EditorRegion::FILE_BROWSER) {
-        LOG("FileBrowserHandler: Current region is " + editor->getRegionManager().getRegionName() +
-            ", switching to FILE_BROWSER");
         editor->getRegionManager().setRegion(EditorRegion::FILE_BROWSER);
     }
-
-    std::string is_char_str = event.is_character() ? "true" : "false";
-    LOG("FileBrowserHandler: Received event: " + event.input() + " (is_character=" + is_char_str +
-        ")");
 
     // 处理文件浏览器宽度调整：+ 增加宽度，- 减少宽度
     if (event == Event::Character('+') || event == Event::Character('=')) {
@@ -37,32 +30,22 @@ bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
         int current_width = editor->getFileBrowserWidth();
         int screen_width = editor->getScreenWidth();
         int new_width = current_width + 1;
-        LOG("FileBrowserHandler: + key pressed, current_width=" + std::to_string(current_width) +
-            ", screen_width=" + std::to_string(screen_width));
         // 限制最大宽度（保留至少20列给代码区）
         if (new_width < screen_width - 20) {
             editor->setFileBrowserWidth(new_width);
             editor->setStatusMessage("File browser width: " + std::to_string(new_width) +
                                      " columns (+: increase, -: decrease)");
-            LOG("FileBrowserHandler: Increased file browser width to " + std::to_string(new_width));
-        } else {
-            LOG("FileBrowserHandler: Cannot increase width, would exceed limit (max=" +
-                std::to_string(screen_width - 20) + ")");
         }
         return true;
     } else if (event == Event::Character('-') || event == Event::Character('_')) {
         // - 或 _ 键：减少文件浏览器宽度
         int current_width = editor->getFileBrowserWidth();
         int new_width = current_width - 1;
-        LOG("FileBrowserHandler: - key pressed, current_width=" + std::to_string(current_width));
         // 限制最小宽度（至少10列）
         if (new_width >= 10) {
             editor->setFileBrowserWidth(new_width);
             editor->setStatusMessage("File browser width: " + std::to_string(new_width) +
                                      " columns (+: increase, -: decrease)");
-            LOG("FileBrowserHandler: Decreased file browser width to " + std::to_string(new_width));
-        } else {
-            LOG("FileBrowserHandler: Cannot decrease width, would be below minimum (min=10)");
         }
         return true;
     }
@@ -81,8 +64,6 @@ bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
                 "Hiding hidden files and folders (press . to show them again)");
         }
 
-        LOG("FileBrowserHandler: Toggled show_hidden to " +
-            std::string(new_show_hidden ? "true" : "false"));
         return true;
     }
 
@@ -91,13 +72,11 @@ bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
 
     // F6: 移动文件/文件夹
     if (event == Event::F6) {
-        LOG("FileBrowserHandler: F6 detected, opening move file dialog");
         if (editor->file_browser_.hasSelection()) {
             editor->startMoveFile();
             return true;
         } else {
             editor->setStatusMessage("No file or folder selected");
-            LOG("FileBrowserHandler: No selection to move");
             return true;
         }
     }
@@ -150,7 +129,6 @@ bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
     }
 
     // 其他输入事件不在这里处理，返回 false 让其他处理器处理
-    LOG("FileBrowserHandler: Event not handled, returning false");
     return false;
 }
 
@@ -184,37 +162,30 @@ bool FileBrowserHandler::handleNavigation(Event event, Editor* editor) {
     pnana::input::EventParser parser;
     std::string key_str = parser.eventToKey(event);
     if (key_str == "alt_0") {
-        LOG("FileBrowserHandler: Alt+0 detected, calling pageUp()");
         editor->pageUp();
         return true;
     } else if (key_str == "alt_9") {
-        LOG("FileBrowserHandler: Alt+9 detected, calling pageDown()");
         editor->pageDown();
         return true;
     }
 
     // 检查 Ctrl+Z 组合键用于撤销删除
     if (event == Event::CtrlZ) {
-        LOG("FileBrowserHandler: Ctrl+Z detected, attempting to undo delete");
         if (editor->file_browser_.canUndoDelete()) {
             bool success = editor->file_browser_.undoDelete();
             if (success) {
                 editor->setStatusMessage("Restored: " + editor->file_browser_.getSelectedName());
-                LOG("FileBrowserHandler: Successfully restored deleted item");
             } else {
                 editor->setStatusMessage("Failed to restore deleted item");
-                LOG("FileBrowserHandler: Failed to restore deleted item");
             }
         } else {
             editor->setStatusMessage("Nothing to undo");
-            LOG("FileBrowserHandler: No delete operation to undo");
         }
         return true;
     }
 
     // Ctrl+上下键：批量选中
     if (event == Event::ArrowUpCtrl) {
-        LOG("FileBrowserHandler: Ctrl+Up detected, extending selection");
         size_t current_index = editor->file_browser_.getSelectedIndex();
         if (current_index > 0) {
             // 先确保当前项被选中（如果未选中则选中，已选中则保持）
@@ -231,7 +202,6 @@ bool FileBrowserHandler::handleNavigation(Event event, Editor* editor) {
         }
         return true;
     } else if (event == Event::ArrowDownCtrl) {
-        LOG("FileBrowserHandler: Ctrl+Down detected, extending selection");
         size_t current_index = editor->file_browser_.getSelectedIndex();
         size_t item_count = editor->file_browser_.getItemCount();
         if (current_index < item_count - 1) {
