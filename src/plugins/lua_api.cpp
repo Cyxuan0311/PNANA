@@ -83,11 +83,7 @@ LuaAPI* LuaAPI::getAPIFromLua(lua_State* L) {
 }
 
 void LuaAPI::triggerEvent(const std::string& event, const std::vector<std::string>& args) {
-    LOG("LuaAPI::triggerEvent: triggering event '" + event + "' with " +
-        std::to_string(args.size()) + " args");
-
     if (!engine_) {
-        LOG("LuaAPI::triggerEvent: engine is null");
         return;
     }
 
