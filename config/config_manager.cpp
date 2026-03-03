@@ -178,6 +178,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t search_pos = cleaned.find("\"search\":{");
     size_t themes_pos = cleaned.find("\"themes\":{");
     size_t plugins_pos = cleaned.find("\"plugins\":{");
+    size_t lsp_pos = cleaned.find("\"lsp\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
@@ -338,6 +339,132 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 lsp 配置
+    if (lsp_pos != std::string::npos) {
+        size_t lsp_end = cleaned.find("}", lsp_pos + 1);
+        if (lsp_end != std::string::npos) {
+            config_.lsp.enabled = extractBool("enabled", lsp_pos, lsp_end, true);
+
+            // 解析 servers 数组
+            size_t servers_pos = cleaned.find("\"servers\":[", lsp_pos);
+            if (servers_pos != std::string::npos && servers_pos < lsp_end) {
+                size_t array_start = servers_pos + 11; // 跳过 "servers":[
+                size_t array_end = cleaned.find("]", array_start);
+                if (array_end != std::string::npos) {
+                    size_t obj_start = array_start;
+                    while (obj_start < array_end) {
+                        size_t brace = cleaned.find("{", obj_start);
+                        if (brace == std::string::npos || brace >= array_end)
+                            break;
+                        size_t brace_end = brace + 1;
+                        int depth = 1;
+                        while (depth > 0 && brace_end < cleaned.size()) {
+                            char c = cleaned[brace_end++];
+                            if (c == '{')
+                                depth++;
+                            else if (c == '}')
+                                depth--;
+                        }
+                        if (depth == 0) {
+                            size_t obj_end = brace_end - 1;
+                            LspServerConfigEntry entry;
+                            entry.name = extractStr("name", brace, obj_end);
+                            entry.command = extractStr("command", brace, obj_end);
+                            entry.language_id = extractStr("language_id", brace, obj_end);
+
+                            // 解析 extensions 数组
+                            size_t ext_pos = cleaned.find("\"extensions\":[", brace);
+                            if (ext_pos != std::string::npos && ext_pos < obj_end) {
+                                ext_pos += 14;
+                                size_t ext_end = cleaned.find("]", ext_pos);
+                                std::string ext_content =
+                                    cleaned.substr(ext_pos, ext_end - ext_pos);
+                                size_t p = 0;
+                                while ((p = ext_content.find("\"", p)) != std::string::npos) {
+                                    p++;
+                                    size_t e = ext_content.find("\"", p);
+                                    if (e != std::string::npos) {
+                                        std::string ex = ext_content.substr(p, e - p);
+                                        if (!ex.empty())
+                                            entry.extensions.push_back(ex);
+                                        p = e + 1;
+                                    } else
+                                        break;
+                                }
+                            }
+
+                            // 解析 args 数组
+                            size_t args_pos = cleaned.find("\"args\":[", brace);
+                            if (args_pos != std::string::npos && args_pos < obj_end) {
+                                args_pos += 8;
+                                size_t args_end = cleaned.find("]", args_pos);
+                                std::string args_content =
+                                    cleaned.substr(args_pos, args_end - args_pos);
+                                size_t p = 0;
+                                while ((p = args_content.find("\"", p)) != std::string::npos) {
+                                    p++;
+                                    size_t e = args_content.find("\"", p);
+                                    if (e != std::string::npos) {
+                                        std::string ar = args_content.substr(p, e - p);
+                                        entry.args.push_back(ar);
+                                        p = e + 1;
+                                    } else
+                                        break;
+                                }
+                            }
+
+                            // 解析 env 对象
+                            size_t env_pos = cleaned.find("\"env\":{", brace);
+                            if (env_pos != std::string::npos && env_pos < obj_end) {
+                                env_pos += 7;
+                                size_t env_end = env_pos;
+                                int env_depth = 1;
+                                while (env_depth > 0 && env_end < cleaned.size()) {
+                                    char c = cleaned[env_end++];
+                                    if (c == '{')
+                                        env_depth++;
+                                    else if (c == '}')
+                                        env_depth--;
+                                }
+                                if (env_depth == 0) {
+                                    std::string env_content =
+                                        cleaned.substr(env_pos, env_end - env_pos - 1);
+                                    size_t p = 0;
+                                    while ((p = env_content.find("\"", p)) != std::string::npos) {
+                                        p++;
+                                        size_t key_end = env_content.find("\"", p);
+                                        if (key_end == std::string::npos)
+                                            break;
+                                        std::string key = env_content.substr(p, key_end - p);
+                                        p = key_end + 1;
+                                        size_t colon = env_content.find(":", p);
+                                        if (colon == std::string::npos)
+                                            break;
+                                        p = env_content.find("\"", colon);
+                                        if (p == std::string::npos)
+                                            break;
+                                        p++;
+                                        size_t val_end = env_content.find("\"", p);
+                                        if (val_end == std::string::npos)
+                                            break;
+                                        std::string val = env_content.substr(p, val_end - p);
+                                        entry.env[key] = val;
+                                        p = val_end + 1;
+                                    }
+                                }
+                            }
+
+                            if (!entry.name.empty() && !entry.command.empty() &&
+                                !entry.language_id.empty())
+                                config_.lsp.servers.push_back(entry);
+                        }
+                        obj_start = brace_end;
+                    }
+                }
+            }
+        }
+    }
+
     return true;
 }
 
@@ -413,6 +540,40 @@ std::string ConfigManager::generateJSON() const {
     for (size_t i = 0; i < config_.plugins.enabled_plugins.size(); ++i) {
         oss << "      \"" << config_.plugins.enabled_plugins[i] << "\"";
         if (i < config_.plugins.enabled_plugins.size() - 1)
+            oss << ",";
+        oss << "\n";
+    }
+    oss << "    ]\n";
+    oss << "  },\n";
+    oss << "  \"lsp\": {\n";
+    oss << "    \"_comment\": \"LSP: built-in configs always apply. Add servers to extend (new "
+           "language_id); conflicts use code config\",\n";
+    oss << "    \"enabled\": " << (config_.lsp.enabled ? "true" : "false") << ",\n";
+    oss << "    \"servers\": [\n";
+    for (size_t i = 0; i < config_.lsp.servers.size(); ++i) {
+        const auto& s = config_.lsp.servers[i];
+        oss << "      {\"name\":\"" << s.name << "\",\"command\":\"" << s.command
+            << "\",\"language_id\":\"" << s.language_id << "\",\"extensions\":[";
+        for (size_t j = 0; j < s.extensions.size(); ++j) {
+            oss << "\"" << s.extensions[j] << "\"";
+            if (j < s.extensions.size() - 1)
+                oss << ",";
+        }
+        oss << "],\"args\":[";
+        for (size_t j = 0; j < s.args.size(); ++j) {
+            oss << "\"" << s.args[j] << "\"";
+            if (j < s.args.size() - 1)
+                oss << ",";
+        }
+        oss << "],\"env\":{";
+        size_t env_idx = 0;
+        for (const auto& [k, v] : s.env) {
+            oss << "\"" << k << "\":\"" << v << "\"";
+            if (++env_idx < s.env.size())
+                oss << ",";
+        }
+        oss << "}}";
+        if (i < config_.lsp.servers.size() - 1)
             oss << ",";
         oss << "\n";
     }

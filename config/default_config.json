@@ -40,11 +40,18 @@
     "current": "monokai",
     "available": [],
     "_comment_available_themes_1": "monokai, dracula, solarized-dark, solarized-light, onedark, nord, gruvbox, tokyo-night, catppuccin, material",
-    "_comment_available_themes_2": "ayu, github, github-dark, markdown-dark, vscode-dark, night-owl, palenight, oceanic-next, kanagawa, tomorrow-night, tomorrow-night-blue, cobalt",
-    "_comment_available_themes_3": "zenburn, base16-dark, papercolor, rose-pine, everforest, jellybeans, desert, slate, atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker, hatsune-miku"
+    "_comment_available_themes_2": "ayu, github, github-dark, markdown-dark, vscode-dark, night-owl, palenight, oceanic-next, kanagawa, tomorrow-night",
+    "_comment_available_themes_3": "tomorrow-night-blue, cobalt, zenburn, base16-dark, papercolor, rose-pine, everforest, jellybeans, desert, slate",
+    "_comment_available_themes_4": "atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker, hatsune-miku, minions, batman, spongebob"
   },
   "plugins": {
     "_comment": "Plugins: enabled plugin names",
     "enabled_plugins": []
+  },
+  "lsp": {
+    "_comment": "LSP: built-in configs (C/C++/Python/Go/Rust/Java/TS/JS/HTML/CSS/JSON/YAML/MD/Shell) always apply. Add entries to extend (new language_id only; conflicts use code config)",
+    "_comment_format": "servers: [{name,command,language_id,extensions:[],args:[],env:{}}]",
+    "enabled": true,
+    "servers": []
   }
 }

@@ -93,6 +93,22 @@ struct PluginConfig {
     std::vector<std::string> enabled_plugins; // 已启用的插件列表
 };
 
+// LSP 服务器配置项（用于配置文件）
+struct LspServerConfigEntry {
+    std::string name;
+    std::string command;
+    std::string language_id;
+    std::vector<std::string> extensions;
+    std::vector<std::string> args;
+    std::map<std::string, std::string> env;
+};
+
+// LSP 配置结构
+struct LspConfig {
+    bool enabled = true;
+    std::vector<LspServerConfigEntry> servers; // 为空时使用内置默认配置
+};
+
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
@@ -100,6 +116,7 @@ struct AppConfig {
     FileConfig files;
     SearchConfig search;
     PluginConfig plugins;
+    LspConfig lsp;
 
     // 主题配置
     std::string current_theme = "monokai";
