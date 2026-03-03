@@ -368,6 +368,7 @@ set(SOURCES
     src/utils/text_utils.cpp
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
+    src/utils/project_root_finder.cpp
     src/utils/file_type_icon_mapper.cpp
     src/utils/file_type_color_mapper.cpp
     src/utils/archive_validator.cpp
