@@ -80,6 +80,17 @@ Terminal::Terminal(ui::Theme& theme)
     }
 }
 
+Terminal::~Terminal() {
+    // 析构时清空回调，避免输出线程或 Post 的 lambda 使用已析构的 Editor*
+    on_shell_exit_ = nullptr;
+    on_output_added_ = nullptr;
+    output_thread_running_ = false;
+    if (output_thread_.joinable()) {
+        output_thread_.join();
+    }
+    cleanupShell();
+}
+
 void Terminal::setVisible(bool visible) {
     if (visible_ == visible)
         return;
@@ -329,6 +340,9 @@ void Terminal::readPTYOutput(int pty_fd) {
         if (current_pid_ > 0 && !terminal::PTYExecutor::isProcessRunning(current_pid_)) {
             drainAndAdd();
             shell_running_ = false;
+            if (on_shell_exit_) {
+                on_shell_exit_();
+            }
             break;
         }
     }

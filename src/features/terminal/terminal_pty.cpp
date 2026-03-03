@@ -472,8 +472,17 @@ bool PTYExecutor::isProcessRunning(pid_t pid) {
         return false;
     }
 
-    // 发送信号 0 来检查进程是否存在
-    return kill(pid, 0) == 0;
+    // kill(pid, 0) 对僵尸进程仍返回 0，无法区分“仍在运行”和“已退出成僵尸”
+    // 用 waitpid(WNOHANG) 检测：若返回 pid 说明子进程已退出（含僵尸）
+    int status = 0;
+    pid_t w = waitpid(pid, &status, WNOHANG);
+    if (w == pid) {
+        return false; // 已退出（或刚被 reap）
+    }
+    if (w < 0 && errno != ECHILD) {
+        return false;
+    }
+    return kill(pid, 0) == 0; // 无子进程可 wait 时，用 kill 判断是否存在
 }
 
 bool PTYExecutor::setNonBlocking(int fd) {

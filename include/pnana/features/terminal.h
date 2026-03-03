@@ -28,6 +28,7 @@ struct TerminalLine {
 class Terminal {
   public:
     explicit Terminal(ui::Theme& theme);
+    ~Terminal();
 
     // 显示/隐藏
     void setVisible(bool visible);
@@ -77,6 +78,11 @@ class Terminal {
         on_output_added_ = std::move(cb);
     }
 
+    // 当 shell 进程退出时调用的回调（如用户输入 exit 后关闭终端面板）
+    void setOnShellExit(std::function<void()> cb) {
+        on_shell_exit_ = std::move(cb);
+    }
+
   private:
     ui::Theme& theme_;
     bool visible_;
@@ -110,6 +116,8 @@ class Terminal {
 
     // 新输出时触发 UI 刷新的回调
     std::function<void()> on_output_added_;
+    // shell 进程退出时回调（如用户输入 exit 后关闭面板）
+    std::function<void()> on_shell_exit_;
 
     // 刷新节流：避免每字符都触发 UI 更新
     std::chrono::steady_clock::time_point last_refresh_time_;
