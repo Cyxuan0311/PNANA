@@ -2,7 +2,6 @@
 #include "utils/logger.h"
 #include <algorithm>
 #include <cctype>
-#include <chrono>
 #include <future>
 #include <iostream>
 #include <sstream>
@@ -12,7 +11,6 @@ namespace pnana {
 namespace features {
 
 LspClient::LspClient(const std::string& server_command) {
-    LOG("[LSP DEBUG] Creating LspClient with command: " + server_command);
     connector_ = std::make_unique<LspStdioConnector>(server_command);
     rpc_client_ = std::make_unique<jsonrpccxx::JsonRpcClient>(*connector_, jsonrpccxx::version::v2);
 
@@ -20,12 +18,10 @@ LspClient::LspClient(const std::string& server_command) {
     connector_->setNotificationCallback([this](const std::string& notification) {
         handleNotification(notification);
     });
-    LOG("[LSP DEBUG] LspClient created successfully");
 }
 
 LspClient::LspClient(const std::string& server_command,
                      const std::map<std::string, std::string>& env_vars) {
-    LOG("[LSP DEBUG] Creating LspClient with command: " + server_command + " and env vars");
     connector_ = std::make_unique<LspStdioConnector>(server_command, env_vars);
     rpc_client_ = std::make_unique<jsonrpccxx::JsonRpcClient>(*connector_, jsonrpccxx::version::v2);
 
@@ -33,23 +29,17 @@ LspClient::LspClient(const std::string& server_command,
     connector_->setNotificationCallback([this](const std::string& notification) {
         handleNotification(notification);
     });
-    LOG("[LSP DEBUG] LspClient created successfully with env vars");
 }
 
 LspClient::~LspClient() {
     shutdown();
 }
 
-bool LspClient::initialize(const std::string& root_path) {
-    LOG("[LSP DEBUG] Initializing LSP client with root_path: " + root_path);
-
+bool LspClient::initialize(const std::string& root_path, const nlohmann::json* init_options) {
     if (!connector_->start()) {
         LOG_WARNING("Failed to start LSP connector (server may not be installed)");
-        LOG("[LSP DEBUG] Connector start failed - server may not be available");
         return false;
     }
-
-    LOG("[LSP DEBUG] LSP connector started successfully, waiting for server readiness");
 
     // 等待一小段时间，确保服务器已准备好
     usleep(50000); // 50ms
@@ -66,6 +56,10 @@ bool LspClient::initialize(const std::string& root_path) {
             params["rootUri"] = root_uri;
         }
 
+        if (init_options != nullptr) {
+            params["initializationOptions"] = *init_options;
+        }
+
         // 简化客户端能力 - 只包含最基本的
         jsonrpccxx::json capabilities;
         capabilities["textDocument"]["formatting"] = jsonrpccxx::json::object();
@@ -73,51 +67,39 @@ bool LspClient::initialize(const std::string& root_path) {
 
         params["capabilities"] = capabilities;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
         }
 
         // 调用 initialize 方法
-        LOG("[LSP DEBUG] Sending initialize request to server");
         jsonrpccxx::json result =
             rpc_client_->CallMethodNamed<jsonrpccxx::json>(request_id, "initialize", named_params);
-
-        LOG("[LSP DEBUG] Received initialize response from server");
 
         // 保存服务器能力
         if (result.contains("capabilities")) {
             server_capabilities_ = result["capabilities"];
-            LOG("[LSP DEBUG] Server capabilities saved successfully");
         } else {
             LOG_WARNING("Initialize response missing capabilities");
         }
 
         // 发送 initialized 通知
-        LOG("[LSP DEBUG] Sending initialized notification");
         rpc_client_->CallNotificationNamed("initialized", jsonrpccxx::named_parameter());
 
         // 启动通知监听线程
-        LOG("[LSP DEBUG] Starting notification listener");
         connector_->startNotificationListener();
 
-        LOG("[LSP DEBUG] LSP client initialization completed successfully");
         return true;
     } catch (const jsonrpccxx::JsonRpcException& e) {
         LOG_ERROR("LspClient::initialize() JsonRpcException: " + std::string(e.what()) +
                   " (code: " + std::to_string(e.Code()) + ")");
-        LOG("[LSP DEBUG] JsonRpcException during initialization - connection may be kept for "
-            "debugging");
-        // 不立即关闭连接，让用户知道问题
         return false;
     } catch (const std::exception& e) {
         LOG_ERROR("LspClient::initialize() exception: " + std::string(e.what()));
-        LOG("[LSP DEBUG] Standard exception during initialization");
         return false;
     } catch (...) {
         LOG_ERROR("LspClient::initialize() unknown exception");
-        LOG("[LSP DEBUG] Unknown exception during initialization");
         return false;
     }
 }
@@ -128,7 +110,7 @@ void LspClient::shutdown() {
 
     if (isConnected()) {
         try {
-            int request_id = 1;
+            int request_id = next_request_id_++;
             rpc_client_->CallMethodNamed<jsonrpccxx::json>(request_id, "shutdown",
                                                            jsonrpccxx::named_parameter());
 
@@ -149,17 +131,12 @@ void LspClient::shutdown() {
 
 void LspClient::didOpen(const std::string& uri, const std::string& language_id,
                         const std::string& content, int version) {
-    LOG("[LSP DEBUG] didOpen called for URI: " + uri + ", language: " + language_id +
-        ", version: " + std::to_string(version));
-
     if (!isConnected()) {
-        LOG("[LSP DEBUG] Client not connected, skipping didOpen for: " + uri);
         return;
     }
 
     try {
         document_versions_[uri] = version;
-        LOG("[LSP DEBUG] Document version set to " + std::to_string(version) + " for: " + uri);
 
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
@@ -171,11 +148,8 @@ void LspClient::didOpen(const std::string& uri, const std::string& language_id,
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
         }
-        LOG("[LSP DEBUG] Sending textDocument/didOpen notification");
         rpc_client_->CallNotificationNamed("textDocument/didOpen", named_params);
-        LOG("[LSP DEBUG] textDocument/didOpen notification sent successfully");
     } catch (const std::exception& e) {
-        LOG("[LSP DEBUG] Exception in didOpen for URI: " + uri + ", error: " + e.what());
         // 静默处理错误
     }
 }
@@ -300,7 +274,8 @@ void LspClient::didSave(const std::string& uri) {
 }
 
 std::vector<CompletionItem> LspClient::completion(const std::string& uri,
-                                                  const LspPosition& position) {
+                                                  const LspPosition& position,
+                                                  const std::string& trigger_character) {
     std::vector<CompletionItem> items;
     if (!isConnected()) {
         return items;
@@ -311,12 +286,15 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
         params["textDocument"]["uri"] = uri;
         params["position"] = positionToJson(position);
 
-        // 添加上下文信息（可选，但有助于提高补全质量）
+        // CompletionContext：参考 VS Code，区分手动触发 vs 字符触发（. : -> 等）
         jsonrpccxx::json context;
-        context["triggerKind"] = 1; // Invoked (手动触发) 或 2 (TriggerCharacter)
+        context["triggerKind"] = trigger_character.empty() ? 1 : 2; // 1=Invoked, 2=TriggerCharacter
+        if (!trigger_character.empty()) {
+            context["triggerCharacter"] = trigger_character;
+        }
         params["context"] = context;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -325,7 +303,7 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
         jsonrpccxx::json result = rpc_client_->CallMethodNamed<jsonrpccxx::json>(
             request_id, "textDocument/completion", named_params);
 
-        if (result.contains("items") && result["items"].is_array()) {
+        if (!result.is_null() && result.contains("items") && result["items"].is_array()) {
             for (const auto& item : result["items"]) {
                 items.push_back(jsonToCompletionItem(item));
             }
@@ -335,9 +313,21 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
             }
         }
 
-        // 按相关性排序：优先显示更相关的项
+        // [clangd debug] 记录解析后的补全项（前 25 个 label，便于排查 vector/string 等）
+        // 排序：优先使用 sortText（LSP 服务器推荐），否则按类型+字母
         std::sort(items.begin(), items.end(), [](const CompletionItem& a, const CompletionItem& b) {
-            // 获取类型优先级
+            // 1. 有 sortText 时优先按 sortText（服务器通常按 当前文档 > 项目 > 标准库 排序）
+            if (!a.sortText.empty() && !b.sortText.empty()) {
+                if (a.sortText != b.sortText) {
+                    return a.sortText < b.sortText;
+                }
+            } else if (!a.sortText.empty()) {
+                return true; // a 有 sortText 排前面
+            } else if (!b.sortText.empty()) {
+                return false;
+            }
+
+            // 2. 类型优先级：Method/Function > Field/Variable > Class > Constant > Other
             auto getPriority = [](const std::string& kind) -> int {
                 if (kind == "2" || kind == "3")
                     return 1; // Method, Function
@@ -349,23 +339,89 @@ std::vector<CompletionItem> LspClient::completion(const std::string& uri,
                     return 4; // Constant
                 return 5;     // Other
             };
-
             int prio_a = getPriority(a.kind);
             int prio_b = getPriority(b.kind);
-
             if (prio_a != prio_b) {
                 return prio_a < prio_b;
             }
-
-            // 相同优先级，按字母顺序
             return a.label < b.label;
         });
 
     } catch (const std::exception& e) {
-        LOG_ERROR("LSP completion failed: " + std::string(e.what()));
+        (void)e;
     }
 
     return items;
+}
+
+bool LspClient::supportsCompletionResolve() const {
+    try {
+        if (!server_capabilities_.contains("completionProvider")) {
+            return false;
+        }
+        const auto& cp = server_capabilities_["completionProvider"];
+        return cp.is_object() && cp.contains("resolveProvider") &&
+               cp["resolveProvider"].get<bool>();
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+CompletionItem LspClient::resolveCompletionItem(const CompletionItem& item) {
+    CompletionItem result = item;
+    if (!isConnected() || !supportsCompletionResolve()) {
+        return result;
+    }
+    if (item.resolved) {
+        return result;
+    }
+
+    try {
+        jsonrpccxx::json params;
+        params["label"] = item.label;
+        if (!item.kind.empty()) {
+            try {
+                params["kind"] = std::stoi(item.kind);
+            } catch (...) {
+                params["kind"] = item.kind;
+            }
+        }
+        params["detail"] = item.detail;
+        params["documentation"] = item.documentation;
+        params["insertText"] = item.insertText;
+        params["insertTextFormat"] = item.insertTextFormat;
+        if (!item.sortText.empty()) {
+            params["sortText"] = item.sortText;
+        }
+        if (!item.filterText.empty()) {
+            params["filterText"] = item.filterText;
+        }
+        if (!item.data.empty()) {
+            try {
+                params["data"] = jsonrpccxx::json::parse(item.data);
+            } catch (...) {
+                // 解析失败则跳过 data
+            }
+        }
+
+        jsonrpccxx::named_parameter named_params;
+        for (auto& [key, value] : params.items()) {
+            named_params[key] = value;
+        }
+
+        int request_id = next_request_id_++;
+        jsonrpccxx::json resolved = rpc_client_->CallMethodNamed<jsonrpccxx::json>(
+            request_id, "completionItem/resolve", named_params);
+
+        CompletionItem resolved_item = jsonToCompletionItem(resolved);
+        result.detail = resolved_item.detail;
+        result.documentation = resolved_item.documentation;
+        result.resolved = true;
+    } catch (const std::exception& e) {
+        LOG_ERROR("LSP completionItem/resolve failed: " + std::string(e.what()));
+    }
+
+    return result;
 }
 
 std::vector<Location> LspClient::gotoDefinition(const std::string& uri,
@@ -379,7 +435,7 @@ std::vector<Location> LspClient::gotoDefinition(const std::string& uri,
         params["textDocument"]["uri"] = uri;
         params["position"] = positionToJson(position);
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -411,7 +467,7 @@ HoverInfo LspClient::hover(const std::string& uri, const LspPosition& position) 
         params["textDocument"]["uri"] = uri;
         params["position"] = positionToJson(position);
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -439,7 +495,7 @@ std::vector<Location> LspClient::findReferences(const std::string& uri, const Ls
         params["position"] = positionToJson(position);
         params["context"]["includeDeclaration"] = include_declaration;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -532,7 +588,7 @@ std::string LspClient::formatDocument(const std::string& uri, const std::string&
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -552,20 +608,16 @@ std::string LspClient::formatDocument(const std::string& uri, const std::string&
 }
 
 std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
-    LOG("[LSP DEBUG] foldingRange called for URI: " + uri);
     std::vector<FoldingRange> ranges;
     if (!isConnected()) {
-        LOG("[LSP DEBUG] Client not connected, returning empty folding ranges for: " + uri);
         return ranges;
     }
 
     try {
-        auto start_time = std::chrono::steady_clock::now();
-        LOG("[LSP] foldingRange request start for URI: " + uri);
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -575,35 +627,18 @@ std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
             request_id, "textDocument/foldingRange", named_params);
 
         if (result.is_array()) {
-            LOG("[LSP DEBUG] Processing " + std::to_string(result.size()) +
-                " folding range items from server");
             for (const auto& item : result) {
                 FoldingRange range = jsonToFoldingRange(item);
                 if (range.isValid()) {
                     ranges.push_back(range);
-                } else {
-                    LOG("[LSP DEBUG] Invalid folding range received, skipping");
                 }
             }
-            LOG("[LSP DEBUG] Valid folding ranges extracted: " + std::to_string(ranges.size()));
-        } else {
-            LOG("[LSP DEBUG] Server returned non-array result for folding ranges");
         }
-        auto end_time = std::chrono::steady_clock::now();
-        auto ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-        LOG("[LSP] foldingRange request completed for URI: " + uri + " - returned " +
-            std::to_string(ranges.size()) + " ranges in " + std::to_string(ms) + "ms");
     } catch (const std::exception& e) {
         std::string err = e.what();
-        // For known "non-added document" errors we silently ignore to avoid noisy logs
-        if (err.find("non-added document") != std::string::npos ||
-            err.find("trying to compute folding ranges") != std::string::npos ||
-            err.find("-32602") != std::string::npos) {
-            LOG("[LSP DEBUG] foldingRange skipped for URI: " + uri + " - " + err);
-        } else {
-            LOG_WARNING("[LSP] foldingRange failed for URI: " + uri + " - " + err);
-        }
+        (void)uri;
+        (void)err;
+        // Silently ignore known non-critical errors (non-added document, -32602, etc.)
     }
 
     return ranges;
@@ -619,7 +654,7 @@ std::vector<DocumentSymbol> LspClient::documentSymbol(const std::string& uri) {
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -636,7 +671,7 @@ std::vector<DocumentSymbol> LspClient::documentSymbol(const std::string& uri) {
             }
         }
     } catch (const std::exception& e) {
-        LOG_WARNING("[LSP] documentSymbol failed for URI: " + uri + " - " + std::string(e.what()));
+        (void)e;
     }
 
     return symbols;
@@ -655,7 +690,7 @@ std::map<std::string, std::vector<LspRange>> LspClient::rename(const std::string
         params["position"] = positionToJson(position);
         params["newName"] = new_name;
 
-        int request_id = 1;
+        int request_id = next_request_id_++;
         jsonrpccxx::named_parameter named_params;
         for (auto& [key, value] : params.items()) {
             named_params[key] = value;
@@ -726,7 +761,6 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
 
     // insertTextFormat: 1=PlainText, 2=Snippet
     int insert_text_format = 1;
-    bool has_insert_text_format = json.contains("insertTextFormat");
     if (json.contains("insertTextFormat")) {
         try {
             if (json["insertTextFormat"].is_number()) {
@@ -760,11 +794,9 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
 
     // 处理insertText / textEdit.newText（优先 textEdit.newText）
     std::string new_text;
-    bool has_text_edit = false;
     if (json.contains("textEdit") && json["textEdit"].is_object()) {
         if (json["textEdit"].contains("newText") && json["textEdit"]["newText"].is_string()) {
             new_text = json["textEdit"]["newText"].get<std::string>();
-            has_text_edit = true;
         }
     }
     if (json.contains("insertText") && json["insertText"].is_string()) {
@@ -784,16 +816,15 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
         item.snippet_body = new_text;
     }
 
-    // 调试日志：记录从服务器解析出的 completion 关键信息（截断以防过长）
-    auto truncate = [](const std::string& s, size_t max_len = 120) {
-        if (s.size() <= max_len)
-            return s;
-        return s.substr(0, max_len) + "...";
-    };
-    LOG("[LSP COMPLETION PARSE] label='" + truncate(item.label) + "' fmt=" +
-        std::to_string(item.insertTextFormat) + " hasTextEdit=" + (has_text_edit ? "1" : "0") +
-        " hasInsertTextFormat=" + (has_insert_text_format ? "1" : "0") +
-        " isSnippet=" + (item.isSnippet ? "1" : "0") + " newText='" + truncate(new_text) + "'");
+    // sortText/filterText：用于排序和过滤，提升补全质量（VS Code 四类提示依赖此）
+    if (json.contains("sortText") && json["sortText"].is_string()) {
+        item.sortText = json["sortText"].get<std::string>();
+    }
+    if (json.contains("filterText") && json["filterText"].is_string()) {
+        item.filterText = json["filterText"].get<std::string>();
+    } else {
+        item.filterText = item.label;
+    }
 
     // 处理documentation（支持多种格式）
     if (json.contains("documentation")) {
@@ -810,6 +841,15 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
                        json["documentation"]["value"].is_string()) {
                 item.documentation = json["documentation"]["value"].get<std::string>();
             }
+        }
+    }
+
+    // 保存 data 字段，resolve 时需原样回传
+    if (json.contains("data")) {
+        try {
+            item.data = json["data"].dump();
+        } catch (...) {
+            // 忽略序列化失败
         }
     }
 
@@ -1045,39 +1085,26 @@ void LspClient::handleNotification(const std::string& notification) {
 
         if (json.contains("method") && json["method"].is_string()) {
             std::string method = json["method"].get<std::string>();
-            LOG("[LSP DEBUG] Received notification: " + method);
 
             if (method == "textDocument/publishDiagnostics") {
-                LOG("[LSP DEBUG] Processing diagnostics notification");
                 if (json.contains("params")) {
                     jsonrpccxx::json params = json["params"];
                     std::string uri = params.value("uri", std::string(""));
-                    LOG("[LSP DEBUG] Diagnostics for URI: " + uri);
 
                     std::vector<Diagnostic> diagnostics;
                     if (params.contains("diagnostics") && params["diagnostics"].is_array()) {
-                        size_t diag_count = params["diagnostics"].size();
-                        LOG("[LSP DEBUG] Found " + std::to_string(diag_count) + " diagnostics");
-
                         for (const auto& diag : params["diagnostics"]) {
                             diagnostics.push_back(jsonToDiagnostic(diag));
                         }
                     }
 
                     if (diagnostics_callback_) {
-                        LOG("[LSP DEBUG] Calling diagnostics callback for URI: " + uri);
                         diagnostics_callback_(uri, diagnostics);
-                        LOG("[LSP DEBUG] Diagnostics callback completed");
-                    } else {
-                        LOG("[LSP DEBUG] No diagnostics callback set");
                     }
-                } else {
-                    LOG("[LSP DEBUG] Diagnostics notification missing params");
                 }
             }
         }
-    } catch (const std::exception& e) {
-        LOG("[LSP DEBUG] Exception in handleNotification: " + std::string(e.what()));
+    } catch (const std::exception&) {
         // 静默处理通知错误，避免影响界面
     }
 }
