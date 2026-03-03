@@ -94,6 +94,9 @@ class Theme {
     static ThemeColors Cyberpunk();         // Cyberpunk - 赛博朋克霓虹风
     static ThemeColors Hacker();            // Hacker - 黑客/Matrix 终端风
     static ThemeColors HatsuneMiku();       // 初音未来 - 葱色/粉/金黄
+    static ThemeColors Minions();           // 小黄人 - 黄蓝配色
+    static ThemeColors Batman();            // 蝙蝠侠 - 黑金/哥谭风
+    static ThemeColors SpongeBob();         // 海绵宝宝 - 海底黄蓝珊瑚风
 
     void setTheme(const std::string& name);
 

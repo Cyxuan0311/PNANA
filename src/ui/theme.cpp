@@ -1561,6 +1561,135 @@ ThemeColors Theme::HatsuneMiku() {
     return colors;
 }
 
+ThemeColors Theme::Minions() {
+    ThemeColors colors;
+    // 小黄人主题：深蓝牛仔布基底 + 明黄/蓝色点缀（小黄人黄身子 + 蓝色背带裤）
+    colors.background = Color::RGB(28, 40, 65);     // #1c2841 深蓝灰（牛仔布感）
+    colors.foreground = Color::RGB(255, 248, 220);  // #fff8dc 玉米丝色（柔和白黄）
+    colors.current_line = Color::RGB(38, 55, 88);   // #263758
+    colors.selection = Color::RGB(65, 105, 225);    // #4169e1 皇家蓝（背带裤蓝）
+    colors.line_number = Color::RGB(130, 150, 190); // 灰蓝
+    colors.line_number_current = Color::RGB(255, 224, 102); // #ffe066 小黄人黄
+
+    colors.statusbar_bg = Color::RGB(30, 50, 85);
+    colors.statusbar_fg = Color::RGB(255, 248, 220);
+
+    colors.menubar_bg = Color::RGB(25, 38, 62);
+    colors.menubar_fg = Color::RGB(255, 248, 220);
+
+    colors.helpbar_bg = Color::RGB(30, 50, 85);
+    colors.helpbar_fg = Color::RGB(130, 150, 190);
+    colors.helpbar_key = Color::RGB(255, 224, 102); // 小黄人黄
+
+    // 小黄人配色：黄关键字/蓝字符串/黄函数/蓝类型
+    colors.keyword = Color::RGB(255, 224, 102); // #ffe066 小黄人黄
+    colors.string = Color::RGB(135, 206, 250);  // #87ceeb 天蓝
+    colors.comment = Color::RGB(150, 170, 200);
+    colors.number = Color::RGB(255, 215, 0);     // #ffd700 金黄
+    colors.function = Color::RGB(100, 149, 237); // #6495ed 矢车菊蓝
+    colors.type = Color::RGB(70, 130, 180);      // #4682b4 钢青蓝
+    colors.operator_color = Color::RGB(255, 224, 102);
+
+    colors.error = Color::RGB(255, 99, 71);   // #ff6347 番茄红（眼镜/反派）
+    colors.warning = Color::RGB(255, 215, 0); // 金黄
+    colors.info = Color::RGB(100, 149, 237);
+    colors.success = Color::RGB(154, 205, 50); // #9acd32 黄绿（香蕉）
+
+    colors.dialog_bg = Color::RGB(38, 55, 88);
+    colors.dialog_fg = Color::RGB(255, 248, 220);
+    colors.dialog_title_bg = Color::RGB(65, 105, 225); // 背带裤蓝
+    colors.dialog_title_fg = Color::RGB(255, 248, 220);
+    colors.dialog_border = Color::RGB(255, 224, 102); // 小黄人黄
+
+    return colors;
+}
+
+ThemeColors Theme::Batman() {
+    ThemeColors colors;
+    // 蝙蝠侠主题：纯黑/深灰基底 + 金黄点缀（蝙蝠标志、腰带、哥谭夜色）
+    colors.background = Color::RGB(18, 18, 18);           // #121212 近黑
+    colors.foreground = Color::RGB(220, 218, 210);        // 柔和灰白
+    colors.current_line = Color::RGB(28, 28, 28);         // #1c1c1c
+    colors.selection = Color::RGB(45, 45, 48);            // 深灰
+    colors.line_number = Color::RGB(90, 90, 90);          // 中灰
+    colors.line_number_current = Color::RGB(255, 193, 7); // #ffc107 蝙蝠金
+
+    colors.statusbar_bg = Color::RGB(25, 25, 25);
+    colors.statusbar_fg = Color::RGB(220, 218, 210);
+
+    colors.menubar_bg = Color::RGB(15, 15, 15);
+    colors.menubar_fg = Color::RGB(220, 218, 210);
+
+    colors.helpbar_bg = Color::RGB(25, 25, 25);
+    colors.helpbar_fg = Color::RGB(90, 90, 90);
+    colors.helpbar_key = Color::RGB(255, 193, 7); // 蝙蝠金
+
+    // 蝙蝠侠配色：金关键字/琥珀字符串/灰注释/金数字
+    colors.keyword = Color::RGB(255, 193, 7); // #ffc107 蝙蝠金
+    colors.string = Color::RGB(255, 213, 79); // #ffd54f 琥珀黄
+    colors.comment = Color::RGB(100, 100, 100);
+    colors.number = Color::RGB(255, 193, 7);
+    colors.function = Color::RGB(255, 213, 79);
+    colors.type = Color::RGB(187, 134, 252); // 淡紫（哥谭霓虹）
+    colors.operator_color = Color::RGB(255, 193, 7);
+
+    colors.error = Color::RGB(244, 67, 54);   // 红（警灯/危险）
+    colors.warning = Color::RGB(255, 152, 0); // 橙
+    colors.info = Color::RGB(33, 150, 243);   // 蓝（夜空/信号）
+    colors.success = Color::RGB(255, 193, 7); // 蝙蝠金
+
+    colors.dialog_bg = Color::RGB(28, 28, 28);
+    colors.dialog_fg = Color::RGB(220, 218, 210);
+    colors.dialog_title_bg = Color::RGB(45, 45, 45);  // 深灰
+    colors.dialog_title_fg = Color::RGB(255, 193, 7); // 蝙蝠金
+    colors.dialog_border = Color::RGB(255, 193, 7);
+
+    return colors;
+}
+
+ThemeColors Theme::SpongeBob() {
+    ThemeColors colors;
+    // 海绵宝宝主题：深海蓝基底 + 海绵黄/珊瑚粉/海青点缀（比奇堡海底风）
+    colors.background = Color::RGB(13, 61, 110);           // #0d3d6e 深海蓝
+    colors.foreground = Color::RGB(255, 250, 205);         // #fffacd 柠檬绸（海绵黄白）
+    colors.current_line = Color::RGB(20, 80, 130);         // #145082
+    colors.selection = Color::RGB(30, 100, 160);           // #1e64a0 海蓝
+    colors.line_number = Color::RGB(100, 170, 220);        // #64aadc 浅海蓝
+    colors.line_number_current = Color::RGB(255, 217, 61); // #ffd93d 海绵黄
+
+    colors.statusbar_bg = Color::RGB(18, 75, 125);
+    colors.statusbar_fg = Color::RGB(255, 250, 205);
+
+    colors.menubar_bg = Color::RGB(10, 55, 95);
+    colors.menubar_fg = Color::RGB(255, 250, 205);
+
+    colors.helpbar_bg = Color::RGB(18, 75, 125);
+    colors.helpbar_fg = Color::RGB(100, 170, 220);
+    colors.helpbar_key = Color::RGB(255, 217, 61); // 海绵黄
+
+    // 比奇堡配色：黄关键字/珊瑚粉字符串/海青函数/黄绿类型
+    colors.keyword = Color::RGB(255, 217, 61);  // #ffd93d 海绵黄
+    colors.string = Color::RGB(255, 107, 107);  // #ff6b6b 珊瑚粉（派大星屋）
+    colors.comment = Color::RGB(116, 185, 255); // #74b9ff 浅海蓝
+    colors.number = Color::RGB(255, 183, 77);   // #ffb74d 橙黄
+    colors.function = Color::RGB(0, 184, 148);  // #00b894 海绿（珊迪）
+    colors.type = Color::RGB(85, 239, 196);     // #55efc4 薄荷青
+    colors.operator_color = Color::RGB(255, 217, 61);
+
+    colors.error = Color::RGB(255, 107, 107);  // 珊瑚红
+    colors.warning = Color::RGB(255, 183, 77); // 橙黄
+    colors.info = Color::RGB(116, 185, 255);   // 海蓝
+    colors.success = Color::RGB(0, 184, 148);  // 海绿
+
+    colors.dialog_bg = Color::RGB(20, 80, 130);
+    colors.dialog_fg = Color::RGB(255, 250, 205);
+    colors.dialog_title_bg = Color::RGB(30, 100, 160); // 海蓝
+    colors.dialog_title_fg = Color::RGB(255, 217, 61); // 海绵黄
+    colors.dialog_border = Color::RGB(255, 217, 61);
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -1643,6 +1772,12 @@ void Theme::setTheme(const std::string& name) {
         colors_ = Hacker();
     } else if (name == "hatsune-miku") {
         colors_ = HatsuneMiku();
+    } else if (name == "minions") {
+        colors_ = Minions();
+    } else if (name == "batman") {
+        colors_ = Batman();
+    } else if (name == "spongebob") {
+        colors_ = SpongeBob();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -1791,7 +1926,10 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "blue-light",
             "cyberpunk",
             "hacker",
-            "hatsune-miku"};
+            "hatsune-miku",
+            "minions",
+            "batman",
+            "spongebob"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {
