@@ -1,243 +1,53 @@
-# Pnana 插件开发指南
+# pnana 插件开发指南
 
-Pnana 提供了强大的插件系统，支持 Lua 脚本插件和 C++ 插件。本文档将指导您如何开发自己的插件。
+> 中文 | [English](PLUGIN_DEVELOPMENT_EN.md)
 
-## 架构概述
+本文档基于 `src/plugins` 实现，介绍如何为 pnana 开发 Lua 插件。需启用 Lua 支持（`-DBUILD_LUA=ON`）才能使用插件系统。
 
-Pnana 的插件系统采用了分层架构：
+## 目录
 
-1. **插件接口层** - 定义标准插件接口
-2. **插件加载器** - 负责加载不同类型的插件
-3. **插件注册表** - 管理已加载的插件
-4. **服务总线** - 插件间通信
-5. **生命周期管理器** - 管理插件生命周期
+- [插件结构](#插件结构)
+- [插件元信息](#插件元信息)
+- [API 概览](#api-概览)
+- [命令注册](#命令注册)
+- [事件（autocmd）](#事件autocmd)
+- [键位映射](#键位映射)
+- [主题 API](#主题-api)
+- [编辑器 API](#编辑器-api)
+- [文件 API](#文件-api)
+- [沙盒与限制](#沙盒与限制)
+- [示例插件](#示例插件)
 
-## Lua 插件开发
+---
 
-### 基本结构
+## 插件结构
 
-每个 Lua 插件都应该是一个包含 `init.lua` 文件的目录。插件的基本结构如下：
+插件为包含 `init.lua` 的目录，放置在插件目录下。
+
+### 插件目录查找顺序
+
+1. `~/.config/pnana/plugins`
+2. `./plugins`
+3. `./lua`
+4. `./.pnana/plugins`
+
+### 目录结构
 
 ```
 your-plugin/
-├── init.lua          # 主插件文件
-├── plugin.lua        # 可选：插件配置
-└── assets/           # 可选：资源文件
+├── init.lua          # 主入口（必需）
+├── plugin.lua        # 可选，也用于元信息
+└── lua/              # 可选，自动加载该目录下所有 .lua 文件
+    └── ...
 ```
 
-### 插件对象
+加载顺序：优先 `init.lua`，否则 `plugin.lua`，或 `lua/` 下所有 `.lua`。
 
-插件应该定义一个包含以下方法的表：
+---
 
-```lua
-local plugin = {
-    name = "your-plugin-name",
-    version = "1.0.0",
-    description = "Your plugin description",
-    author = "Your Name"
-}
-```
+## 插件元信息
 
-### 生命周期方法
-
-```lua
--- 插件初始化
-function plugin.initialize()
-    -- 初始化代码
-    return true  -- 返回 true 表示初始化成功
-end
-
--- 插件启动
-function plugin.start()
-    -- 启动代码
-    return true
-end
-
--- 插件停止
-function plugin.stop()
-    -- 停止代码
-    return true
-end
-
--- 插件卸载
-function plugin.unload()
-    -- 清理代码
-    return true
-end
-```
-
-### 配置管理
-
-```lua
--- 加载配置
-function plugin.load_config(config)
-    -- 处理配置
-    return true
-end
-
--- 获取配置
-function plugin.get_config()
-    return {
-        setting1 = "value1",
-        setting2 = "value2"
-    }
-end
-```
-
-### API 使用
-
-#### 主题管理
-
-```lua
--- 添加主题
-local theme_config = {
-    background = {r = 30, g = 30, b = 46},
-    foreground = {r = 202, g = 211, b = 245},
-    keyword = {r = 137, g = 180, b = 250},
-    string = {r = 166, g = 227, b = 161},
-    comment = {r = 128, g = 128, b = 128},
-    selection = {r = 68, g = 71, b = 90}
-}
-vim.api.add_theme("your_theme", theme_config)
-
--- 移除主题
-vim.api.remove_theme("your_theme")
-```
-
-#### 命令注册
-
-```lua
--- 注册命令
-vim.api.register_command("YourCommand", function(args)
-    -- 命令实现
-    vim.api.set_status_message("Command executed!")
-end)
-
--- 注销命令
-vim.api.unregister_command("YourCommand")
-```
-
-#### 键位映射
-
-```lua
--- 注册键位映射
-vim.api.register_keymap("normal", "<leader>yc", ":YourCommand<CR>")
-
--- 注销键位映射
-vim.api.unregister_keymap("normal", "<leader>yc")
-```
-
-#### 事件系统
-
-```lua
--- 订阅事件
-vim.api.subscribe_event("BufferOpened", function(args)
-    vim.api.set_status_message("Buffer opened: " .. args[1])
-end)
-
--- 发布事件
-vim.api.publish_event("CustomEvent", {"arg1", "arg2"})
-```
-
-#### 服务系统
-
-```lua
--- 注册服务
-vim.api.register_service("YourService", {
-    get_data = function()
-        return "service data"
-    end
-})
-
--- 获取服务
-local service = vim.api.get_service("YourService")
-if service then
-    local data = service.get_data()
-end
-```
-
-### 状态消息
-
-```lua
--- 显示状态消息
-vim.api.set_status_message("Your plugin message")
-```
-
-### 注册插件
-
-最后，使用以下代码注册插件：
-
-```lua
-vim.api.register_plugin(plugin)
-return plugin
-```
-
-## C++ 插件开发
-
-### 基本结构
-
-C++ 插件需要实现 `PluginInterface`：
-
-```cpp
-#include "plugins/plugin_interface.h"
-
-class YourPlugin : public pnana::plugins::PluginInterface {
-public:
-    const PluginMetadata& getMetadata() const override {
-        static PluginMetadata metadata = {
-            "your-plugin",
-            "1.0.0",
-            "Your C++ plugin description",
-            "Your Name"
-        };
-        return metadata;
-    }
-
-    PluginState getState() const override {
-        return state_;
-    }
-
-    bool initialize(std::shared_ptr<PluginContext> context) override {
-        context_ = context;
-        // 初始化代码
-        return true;
-    }
-
-    bool start() override {
-        // 启动代码
-        return true;
-    }
-
-    bool stop() override {
-        // 停止代码
-        return true;
-    }
-
-    bool unload() override {
-        // 清理代码
-        return true;
-    }
-
-    // 实现其他必要方法...
-};
-
-// 导出函数
-extern "C" {
-    pnana::plugins::PluginInterface* CreatePlugin() {
-        return new YourPlugin();
-    }
-}
-```
-
-### 编译和安装
-
-1. 编译插件为动态库（.so/.dll/.dylib）
-2. 将动态库文件放在插件目录中
-3. 确保导出 `CreatePlugin` 函数
-
-## 插件配置
-
-插件可以通过 `plugin.lua` 文件提供配置：
+在 `init.lua` 或 `plugin.lua` 中定义全局变量：
 
 ```lua
 plugin_name = "your-plugin"
@@ -245,27 +55,269 @@ plugin_version = "1.0.0"
 plugin_description = "Your plugin description"
 plugin_author = "Your Name"
 
--- 其他配置...
+-- 可选：在 PluginUnload 事件中自行调用，用于插件禁用时的清理
+function on_disable()
+    -- 撤销插件所做的修改
+end
 ```
 
-## 最佳实践
+---
 
-1. **错误处理** - 始终检查操作的返回值
-2. **资源清理** - 在 `unload` 方法中清理所有资源
-3. **向后兼容** - 保持 API 稳定
-4. **文档化** - 为您的插件编写清晰的文档
-5. **测试** -  thoroughly 测试您的插件
+## API 概览
+
+插件通过 `vim` 全局表访问 API，风格类似 Neovim。
+
+| 命名空间 | 说明 |
+|----------|------|
+| `vim.api` | 编辑器、主题、文件等核心 API |
+| `vim.fn` | 工具函数（如 readfile、writefile） |
+| `vim.cmd` | 注册命令（便捷别名） |
+| `vim.autocmd` | 注册事件回调 |
+| `vim.keymap` | 注册键位映射 |
+
+---
+
+## 命令注册
+
+### 便捷方式：`vim.cmd(name, callback)`
+
+```lua
+vim.cmd("MyCommand", function()
+    vim.api.set_status_message("Command executed!")
+end)
+```
+
+### 标准方式：`vim.api.create_user_command(name, callback, opts?)`
+
+```lua
+vim.api.create_user_command("InsertDate", function(opts)
+    local date = os.date("%Y-%m-%d")
+    local pos = vim.api.get_cursor_pos()
+    vim.api.insert_text(pos.row, pos.col, date)
+end, { desc = "Insert current date" })
+```
+
+### 删除命令：`vim.api.del_user_command(name)`
+
+```lua
+vim.api.del_user_command("MyCommand")
+```
+
+---
+
+## 事件（autocmd）
+
+### 便捷方式：`vim.autocmd(event, callback)`
+
+```lua
+vim.autocmd("FileOpened", function(args)
+    local path = (type(args) == "table" and args.file) or "unknown"
+    vim.api.set_status_message("File opened: " .. path)
+end)
+
+vim.autocmd("FileSaved", function(args)
+    local path = (type(args) == "table" and args.file) or "unknown"
+    vim.api.set_status_message("File saved: " .. path)
+end)
+
+vim.autocmd("PluginUnload", function(args)
+    -- 插件卸载时清理（args.file 为插件名）
+    if args and args.file == "your-plugin" then
+        -- 清理逻辑
+    end
+end)
+```
+
+### 标准方式：`vim.api.create_autocmd(event, opts?, callback)`
+
+```lua
+vim.api.create_autocmd("FileOpened", {
+    pattern = "*.py",  -- 可选：文件匹配
+    once = false,       -- 可选：是否只执行一次
+}, function(args)
+    vim.api.set_status_message("Python file: " .. (args.file or ""))
+end)
+```
+
+### 支持的事件
+
+| 事件 | 说明 |
+|------|------|
+| `FileOpened` | 文件打开（`args.file` 为路径） |
+| `BufEnter` | 缓冲区切换（`args.file` 为路径） |
+| `FileSaved` | 文件保存（`args.file` 为路径） |
+| `BufWrite` | 缓冲区写入（`args.file` 为路径） |
+| `PluginUnload` | 插件卸载（`args.file` 为插件名） |
+
+### 清除 autocmd：`vim.api.clear_autocmds(opts)`
+
+```lua
+vim.api.clear_autocmds({ event = "FileOpened", pattern = "*.py" })
+```
+
+---
+
+## 键位映射
+
+### 便捷方式：`vim.keymap(mode, lhs, callback)`
+
+```lua
+vim.keymap("n", "<F2>", function()
+    local filepath = vim.api.get_filepath()
+    vim.api.set_status_message("File: " .. (filepath or "none"))
+end)
+```
+
+### 标准方式：`vim.keymap.set(mode, lhs, rhs, opts?)`
+
+```lua
+-- rhs 为函数
+vim.keymap.set("n", "<F2>", function()
+    vim.api.set_status_message("F2 pressed")
+end, { desc = "Show file path" })
+
+-- rhs 为命令字符串
+vim.keymap.set("n", "<F3>", ":FileInfo<CR>")
+```
+
+### 删除映射：`vim.keymap.del(mode, lhs)`
+
+```lua
+vim.keymap.del("n", "<F2>")
+```
+
+### 模式说明
+
+- `n`：普通模式（代码编辑区默认）
+- 其他模式由编辑器支持情况决定
+
+---
+
+## 主题 API
+
+```lua
+-- 获取当前主题
+local current = vim.api.get_current_theme()
+
+-- 设置主题
+vim.api.set_theme("monokai")
+
+-- 添加自定义主题
+vim.api.add_theme("my_theme", {
+    background = {30, 30, 46},
+    foreground = {202, 211, 245},
+    keyword = {137, 180, 250},
+    string = {166, 227, 161},
+    comment = {128, 128, 128},
+    -- 其他字段：selection, line_number, statusbar_bg/fg, menubar_*, helpbar_*,
+    -- function, type, number, operator_color, error, warning, info, success
+})
+
+-- 移除主题
+vim.api.remove_theme("my_theme")
+```
+
+### 状态栏美化
+
+```lua
+vim.api.set_statusbar_beautify({
+    enabled = true,
+    bg_color = {50, 60, 80},
+    fg_color = {240, 245, 255},
+    icon_enhancement = { file_icons = {...}, region_icons = {...} },
+    color_enhancement = { elements = {...} },
+    layout_enhancement = { spacing = 1, padding = 1 }
+})
+```
+
+---
+
+## 编辑器 API
+
+| API | 说明 |
+|-----|------|
+| `vim.api.get_current_line()` | 获取当前行内容 |
+| `vim.api.get_line(row)` | 获取指定行 |
+| `vim.api.set_line(row, text)` | 设置指定行 |
+| `vim.api.get_line_count()` | 获取行数 |
+| `vim.api.get_cursor_pos()` | 获取光标位置 `{row, col}`（0-based） |
+| `vim.api.set_cursor_pos({row, col})` | 设置光标位置 |
+| `vim.api.insert_text(row, col, text)` | 在指定位置插入文本 |
+| `vim.api.delete_line(row)` | 删除指定行 |
+| `vim.api.set_status_message(msg)` | 设置状态栏消息 |
+
+---
+
+## 文件 API
+
+| API | 说明 |
+|-----|------|
+| `vim.api.get_filepath()` | 当前文件路径 |
+| `vim.api.open_file(path)` | 打开文件 |
+| `vim.api.save_file()` | 保存当前文件 |
+
+### 文件读写：`vim.fn.readfile` / `vim.fn.writefile`
+
+```lua
+local lines = vim.fn.readfile("/path/to/file")
+if lines then
+    for i, line in ipairs(lines) do
+        print(i, line)
+    end
+end
+
+vim.fn.writefile("/path/to/file", {"line1", "line2", "line3"})
+```
+
+**注意**：文件读写受沙盒限制，仅允许访问配置和插件相关路径。
+
+---
+
+## 沙盒与限制
+
+- **`vim.fn.system(command)`**：被禁用，返回 `nil, "System command execution is disabled in sandbox mode"`
+- **文件访问**：`vim.fn.readfile` / `vim.fn.writefile` 仅允许访问白名单路径（如 `~/.config/pnana/`、插件目录等）
+
+---
 
 ## 示例插件
 
-查看 `plugins/example-plugin/` 目录中的示例插件，了解完整的实现。
+参考 `plugins/` 目录：
 
-## 插件加载顺序
+- **example-plugin**：命令、事件、键位映射
+- **theme-pro-plugin**：主题添加与卸载清理
+- **statusbar-beautify-plugin**：状态栏美化
 
-插件按照以下优先级加载：
+### 最小示例
 
-1. 核心插件
-2. 用户自定义插件
-3. 依赖关系解析
+```lua
+plugin_name = "hello-plugin"
+plugin_version = "1.0.0"
+plugin_description = "Minimal example"
+plugin_author = "You"
 
-插件加载器会自动解析依赖关系并按正确顺序加载插件。
+vim.cmd("Hello", function()
+    vim.api.set_status_message("Hello from " .. plugin_name)
+end)
+```
+
+---
+
+## 启用与配置
+
+1. 编译时启用 Lua：`cmake -DBUILD_LUA=ON ..`
+2. 在编辑器配置 `config.json` 中启用插件：
+
+```json
+{
+  "plugins": {
+    "enabled_plugins": ["example-plugin", "statusbar-beautify-plugin"]
+  }
+}
+```
+
+3. 通过 `Alt+P` 打开插件管理器，启用/禁用插件
+
+---
+
+*文档与 `src/plugins` 实现同步，如有更新以代码为准。*

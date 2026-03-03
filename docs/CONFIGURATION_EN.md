@@ -10,9 +10,9 @@ This document describes pnana's configuration system and usage.
 
 - [Configuration File Location](#configuration-file-location)
 - [Configuration Options](#configuration-options)
+- [LSP Configuration](#lsp-configuration)
 - [Configuration Examples](#configuration-examples)
 - [Configuration File Format](#configuration-file-format)
-- [Command-Line Arguments](#command-line-arguments)
 
 ---
 
@@ -30,7 +30,7 @@ On first run, if the configuration file does not exist, pnana will create it wit
 
 ## Configuration Options
 
-The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, and `plugins`.
+The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, and `lsp`.
 
 ### editor
 
@@ -78,6 +78,134 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 
 ---
 
+## LSP Configuration
+
+pnana supports customizing LSP (Language Server Protocol) servers via the configuration file. Built-in configs always apply; entries in `servers` are **appended** to the built-in list. If a `language_id` conflicts with built-in config, the code's built-in config takes precedence.
+
+### lsp (Language Servers)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable or disable LSP. Set to `false` to disable all language servers |
+| `servers` | array | `[]` | Additional server configurations. Appended to built-in; conflicts use built-in |
+
+### Server Entry Format
+
+Each element in the `servers` array is an object with these fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Server name (for identification) |
+| `command` | string | yes | Command to start the server (e.g. `clangd`, `python3`) |
+| `language_id` | string | yes | LSP language ID (e.g. `cpp`, `python`, `go`) |
+| `extensions` | array | yes | Supported file extensions, e.g. `[".cpp", ".c", ".h"]` |
+| `args` | array | no | Command-line arguments, e.g. `["-m", "pylsp"]` |
+| `env` | object | no | Environment variables. If empty, defaults like `XDG_CACHE_HOME` and `TMPDIR` are used |
+
+### Built-in Default Servers (always applied; config entries are appended)
+
+| Language | Command | Extensions |
+|----------|---------|------------|
+| C/C++ | `clangd` | `.cpp`, `.c`, `.h`, `.hpp`, `.cc`, `.cxx`, etc. |
+| Python | `python3` | `.py`, `.pyw`, `.pyi` |
+| Go | `gopls` | `.go` |
+| Rust | `rust-analyzer` | `.rs` |
+| Java | `jdtls` | `.java` |
+| TypeScript | `typescript-language-server` | `.ts`, `.tsx`, `.mts`, `.cts` |
+| JavaScript | `typescript-language-server` | `.js`, `.jsx`, `.mjs`, `.cjs` |
+| HTML | `html-languageserver` | `.html`, `.htm` |
+| CSS | `css-languageserver` | `.css`, `.scss`, `.less`, `.sass` |
+| JSON | `json-languageserver` | `.json`, `.jsonc` |
+| YAML | `yaml-language-server` | `.yaml`, `.yml` |
+| Markdown | `marksman` | `.md`, `.markdown` |
+| Shell | `bash-language-server` | `.sh`, `.bash`, `.zsh` |
+
+### LSP Configuration Examples
+
+**Use built-in defaults (recommended for first-time setup):**
+
+```json
+"lsp": {
+  "enabled": true,
+  "servers": []
+}
+```
+
+**Override Python command (e.g. use virtual environment):**
+
+```json
+"lsp": {
+  "enabled": true,
+  "servers": [
+    {
+      "name": "pylsp",
+      "command": "/path/to/venv/bin/python",
+      "language_id": "python",
+      "extensions": [".py", ".pyw", ".pyi"],
+      "args": ["-m", "pylsp"],
+      "env": {}
+    }
+  ]
+}
+```
+
+**Enable only specific language servers:**
+
+```json
+"lsp": {
+  "enabled": true,
+  "servers": [
+    {
+      "name": "clangd",
+      "command": "clangd",
+      "language_id": "cpp",
+      "extensions": [".cpp", ".c", ".h", ".hpp", ".cc", ".cxx"],
+      "args": [],
+      "env": {}
+    },
+    {
+      "name": "pylsp",
+      "command": "python3",
+      "language_id": "python",
+      "extensions": [".py", ".pyw", ".pyi"],
+      "args": ["-m", "pylsp"],
+      "env": {}
+    }
+  ]
+}
+```
+
+**Disable LSP entirely:**
+
+```json
+"lsp": {
+  "enabled": false,
+  "servers": []
+}
+```
+
+**Add a custom language server (e.g. Lua):**
+
+```json
+"lsp": {
+  "enabled": true,
+  "servers": [
+    {
+      "name": "lua-language-server",
+      "command": "lua-language-server",
+      "language_id": "lua",
+      "extensions": [".lua"],
+      "args": [],
+      "env": {}
+    }
+  ]
+}
+```
+
+> **Note**: When using custom `servers`, you must install the corresponding language servers (e.g. `clangd`, `pylsp`, `gopls`). Reload the configuration or restart pnana for changes to take effect.
+
+---
+
 ## Configuration Examples
 
 ### Basic Configuration
@@ -117,7 +245,8 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
     "wrap_around": true
   },
   "themes": { "current": "monokai", "available": [] },
-  "plugins": { "enabled_plugins": [] }
+  "plugins": { "enabled_plugins": [] },
+  "lsp": { "enabled": true, "servers": [] }
 }
 ```
 
@@ -188,55 +317,12 @@ On startup, pnana validates the configuration:
 
 ---
 
-## Command-Line Arguments
-
-Command-line arguments override configuration file settings:
-
-### Basic Usage
-
-```bash
-# Use default configuration
-pnana
-
-# Open file
-pnana file.txt
-
-# Open multiple files
-pnana file1.txt file2.cpp file3.py
-```
-
-### Configuration Arguments
-
-```bash
-# Specify config file
-pnana --config ~/.config/pnana/custom.json
-
-# Use specific theme
-pnana --theme dracula file.txt
-
-# Read-only mode
-pnana --readonly file.txt
-```
-
-### Argument Reference
-
-| Argument | Description | Example |
-|----------|-------------|---------|
-| `--config <path>` | Config file path | `--config ~/.config/pnana/custom.json` |
-| `--theme <name>` | Theme name | `--theme dracula` |
-| `--readonly` | Open file read-only | `--readonly file.txt` |
-| `--help` | Show help | `--help` |
-| `--version` | Show version | `--version` |
-
----
-
 ## Configuration Priority
 
 Priority (highest to lowest):
 
-1. **Command-line arguments**
-2. **User config** (`~/.config/pnana/config.json`)
-3. **Default configuration**
+1. **User config** (`~/.config/pnana/config.json`)
+2. **Default configuration**
 
 ---
 
@@ -264,7 +350,7 @@ A: Delete or rename the configuration file. pnana will recreate it on next start
 
 ### Q: Can I use multiple configuration files?
 
-A: Use `--config` to specify a different file, but only one is active at a time.
+A: Only one configuration file is active at a time.
 
 ### Q: Can I add comments in the configuration file?
 
@@ -274,13 +360,17 @@ A: Standard JSON does not support comments. Use external documentation for notes
 
 A: Copy `~/.config/pnana/config.json`.
 
+### Q: LSP is not working. What should I check?
+
+A: 1) Ensure `lsp.enabled` is `true`; 2) If using custom `servers`, install the corresponding language servers (e.g. `clangd`, `pylsp`); 3) When `servers` is empty, built-in defaults are used—ensure the default commands are in your system PATH.
+
 ---
 
 ## Changelog
 
 - **v0.0.5**: Initial configuration system
 - JSON configuration file support
-- Command-line argument override
+- **LSP configuration**: Support for `lsp` section to configure language servers (command, extensions, args, env)
 
 ---
 
