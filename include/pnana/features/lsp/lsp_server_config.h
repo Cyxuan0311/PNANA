@@ -1,10 +1,14 @@
 #ifndef PNANA_FEATURES_LSP_SERVER_CONFIG_H
 #define PNANA_FEATURES_LSP_SERVER_CONFIG_H
 
+#include "core/config_manager.h"
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 namespace pnana {
 namespace features {
@@ -20,6 +24,8 @@ struct LspServerConfig {
     std::set<std::string> file_extensions; // 支持的文件扩展名（如 {".cpp", ".h", ".c"}）
     std::vector<std::string> args;         // 额外的命令行参数
     std::map<std::string, std::string> env_vars; // 环境变量配置
+    std::optional<nlohmann::json>
+        initialization_options; // LSP 初始化参数（如 clangd fallbackFlags）
 
     LspServerConfig() = default;
 
@@ -59,6 +65,9 @@ class LspServerConfigManager {
 
     // 添加自定义配置
     void addConfig(const LspServerConfig& config);
+
+    // 从配置文件加载（core::LspConfig），空 servers 时使用内置默认
+    void loadFromConfig(const pnana::core::LspConfig& lsp_config);
 
     // 获取所有配置
     const std::vector<LspServerConfig>& getAllConfigs() const {
