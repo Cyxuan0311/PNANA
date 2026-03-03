@@ -334,11 +334,11 @@ Element FormatDialog::render() {
             Elements file_elements;
             file_elements.push_back(text("  "));
 
-            // 选中标记
+            // 选中/未选中：用不同颜色的圆圈区分（● 选中 = 主题成功色，○ 未选中 = 灰色）
             if (is_selected) {
-                file_elements.push_back(text("☑ ") | color(Color::Green));
+                file_elements.push_back(text("● ") | color(colors.success));
             } else {
-                file_elements.push_back(text("☐ ") | color(Color::GrayDark));
+                file_elements.push_back(text("○ ") | color(colors.comment));
             }
 
             // 当前选中高亮

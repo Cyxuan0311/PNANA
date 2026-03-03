@@ -3,7 +3,6 @@
 
 #include "ui/theme.h"
 #include "utils/file_type_icon_mapper.h"
-#include "utils/logger.h"
 #include "utils/version_detector.h"
 #include <algorithm>
 #include <chrono>
@@ -57,12 +56,6 @@ class Statusbar {
     // 设置美化配置
     void setBeautifyConfig(const StatusbarBeautifyConfig& config) {
         beautify_config_ = config;
-        // 调试信息
-        if (config.enabled) {
-            pnana::utils::Logger::getInstance().log("Statusbar beautify config set: ENABLED");
-        } else {
-            pnana::utils::Logger::getInstance().log("Statusbar beautify config set: DISABLED");
-        }
 
         // 更新图标映射器
         icon_mapper_.clearCustomIcons();
