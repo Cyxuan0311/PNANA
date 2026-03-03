@@ -191,9 +191,7 @@ bool ActionExecutor::executeEditOperation(KeyAction action) {
             editor_->moveLineDown();
             return true;
         case KeyAction::INDENT_LINE:
-            LOG("ActionExecutor: Executing INDENT_LINE");
             editor_->indentLine();
-            LOG("ActionExecutor: indentLine() completed");
             return true;
         case KeyAction::UNINDENT_LINE:
             editor_->unindentLine();
