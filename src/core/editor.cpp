@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -150,6 +151,21 @@ Editor::Editor()
             force_ui_update_ = true;
             needs_render_ = true; // 防止 force 被鼠标等事件提前消费后无法重绘
             screen_.PostEvent(Event::Custom);
+        });
+    });
+
+    // 用户输入 exit 导致 shell 退出时，关闭终端面板并切回代码区
+    terminal_.setOnShellExit([this]() {
+        screen_.Post([this]() {
+            if (!terminal_.isVisible()) {
+                return;
+            }
+            terminal_.setVisible(false);
+            region_manager_.setTerminalEnabled(false);
+            if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                region_manager_.setRegion(EditorRegion::CODE_AREA);
+            }
+            setStatusMessage("Terminal closed (shell exited)");
         });
     });
 
@@ -445,6 +461,13 @@ void Editor::loadConfig(const std::string& config_path) {
     cursor_config_dialog_.setOnApply([this]() {
         applyCursorConfig();
     });
+
+#ifdef BUILD_LSP_SUPPORT
+    // 重新加载 LSP 服务器配置
+    if (lsp_manager_) {
+        lsp_manager_->getConfigManager().loadFromConfig(config.lsp);
+    }
+#endif
 }
 
 void Editor::openCursorConfig() {

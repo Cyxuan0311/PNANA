@@ -818,10 +818,13 @@ class Editor {
     void cleanupLocalCacheFiles();
     std::string detectLanguageId(const std::string& filepath);
     std::string filepathToUri(const std::string& filepath);
+    std::vector<features::CompletionItem> getDocumentBasedCompletions(Document* doc,
+                                                                      const std::string& prefix);
     void triggerCompletion();
     void handleCompletionInput(ftxui::Event event);
+    void triggerCompletionResolveIfNeeded();
     void applyCompletion();
-    void updateLspDocument();
+    void updateLspDocument(bool force_sync_for_completion = false);
     void updateCurrentFileDiagnostics();
     void updateCurrentFileFolding();
     void preloadAdjacentDocuments(size_t current_index);
