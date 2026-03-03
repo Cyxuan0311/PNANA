@@ -161,9 +161,6 @@ void SnippetManager::expandSnippet(const Snippet& snippet, core::Editor& editor)
         return;
     }
 
-    LOG("[SNIPPET] expandSnippet: prefix='" + snippet.prefix +
-        "' body.size=" + std::to_string(snippet.body.size()));
-
     pnana::core::Document* doc = editor.getCurrentDocument();
     size_t cursor_row = editor.cursor_row_;
     size_t cursor_col = editor.cursor_col_;
@@ -211,9 +208,6 @@ void SnippetManager::expandSnippet(const Snippet& snippet, core::Editor& editor)
     };
 
     const std::string pre_body = unescapeSnippetText(snippet.body);
-    if (pre_body != snippet.body) {
-        LOG("[SNIPPET] unescape applied (body had escape sequences)");
-    }
 
     // 1) 将 ${n:default} / ${n} 转换为 default 文本，并记录占位符在展开后文本中的位置
     std::string expanded;
@@ -281,13 +275,11 @@ void SnippetManager::expandSnippet(const Snippet& snippet, core::Editor& editor)
                 }
             }
             expanded.swap(indented);
-            LOG("[SNIPPET] applied indent prefix len=" + std::to_string(indent.size()));
         }
     }
 
     // 2) 插入展开后的文本
     doc->insertText(cursor_row, cursor_col, expanded);
-    LOG("[SNIPPET] inserted text len=" + std::to_string(expanded.size()));
 
     // 3) 将 out_offset 转换为 (row,col)，按 index 排序并启动 snippet session
     if (!occs.empty()) {

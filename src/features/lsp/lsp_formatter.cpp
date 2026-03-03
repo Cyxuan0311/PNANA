@@ -144,7 +144,7 @@ bool LspFormatter::formatFile(const std::string& file_path) {
             std::string root_path = std::filesystem::current_path().string();
 
             // Initialize LSP client (blocking until complete or fail)
-            bool init_success = lsp_client->initialize(root_path);
+            bool init_success = lsp_manager_->initializeClientForFile(file_path, root_path);
 
             if (!init_success) {
                 LOG_ERROR("LSP client initialization failed for file: " + file_path +

@@ -17,7 +17,6 @@ void FoldingManager::initializeFoldingRanges(const std::string& uri) {
     // LOG("[LSP DEBUG] FoldingManager::initializeFoldingRanges called for URI: " + uri);
 
     if (!lsp_client_) {
-        LOG("[LSP DEBUG] No LSP client available for folding");
         return;
     }
 

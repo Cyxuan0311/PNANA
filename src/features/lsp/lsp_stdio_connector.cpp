@@ -27,40 +27,67 @@ namespace bp = boost::process;
 namespace pnana {
 namespace features {
 
-// 检查命令是否存在（在 PATH 中）
-static bool checkCommandExists(const std::string& command) {
-    // 解析命令，获取第一个参数（可执行文件名）
+// 解析命令，获取可执行文件名（第一个 token）
+static std::string getExecutableName(const std::string& command) {
     std::istringstream iss(command);
     std::string executable;
     iss >> executable;
+    return executable;
+}
 
-    // 如果命令包含路径分隔符，直接检查文件是否存在
+// 检查路径是否存在且可执行
+static bool isExecutable(const std::string& path) {
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && (st.st_mode & S_IXUSR);
+}
+
+// 解析命令路径：在 PATH 和常用目录中查找，返回完整路径（用于 exec）
+// 这样即使 GUI 启动时 PATH 不含 ~/.cargo/bin，rust-analyzer 等也能找到
+static std::string resolveCommandPath(const std::string& command) {
+    std::string executable = getExecutableName(command);
+    if (executable.empty()) {
+        return "";
+    }
+
+    // 如果已是绝对路径，直接检查
     if (executable.find('/') != std::string::npos) {
-        struct stat st;
-        return stat(executable.c_str(), &st) == 0 && (st.st_mode & S_IXUSR);
+        return isExecutable(executable) ? executable : "";
     }
 
-    // 否则，在 PATH 中查找
+    // 1. 在 PATH 中查找
     const char* path_env = getenv("PATH");
-    if (!path_env || path_env[0] == '\0') {
-        return false;
-    }
-
-    std::string path_str(path_env);
-    std::istringstream path_stream(path_str);
-    std::string path_dir;
-    while (std::getline(path_stream, path_dir, ':')) {
-        if (path_dir.empty()) {
-            continue;
-        }
-        std::string full_path = path_dir + "/" + executable;
-        struct stat st;
-        if (stat(full_path.c_str(), &st) == 0 && (st.st_mode & S_IXUSR)) {
-            return true;
+    if (path_env && path_env[0] != '\0') {
+        std::string path_str(path_env);
+        std::istringstream path_stream(path_str);
+        std::string path_dir;
+        while (std::getline(path_stream, path_dir, ':')) {
+            if (path_dir.empty()) {
+                continue;
+            }
+            std::string full_path = path_dir + "/" + executable;
+            if (isExecutable(full_path)) {
+                return full_path;
+            }
         }
     }
 
-    return false;
+    // 2. 在常用目录中查找（如 rust-analyzer 在 ~/.cargo/bin）
+    const char* home = getenv("HOME");
+    if (home) {
+        std::vector<std::string> fallback_dirs = {
+            std::string(home) + "/.cargo/bin", // rust-analyzer, cargo
+            std::string(home) + "/.local/bin", // user-installed tools
+            "/usr/local/bin",
+        };
+        for (const auto& dir : fallback_dirs) {
+            std::string full_path = dir + "/" + executable;
+            if (isExecutable(full_path)) {
+                return full_path;
+            }
+        }
+    }
+
+    return "";
 }
 
 LspStdioConnector::LspStdioConnector(const std::string& server_command)
@@ -99,11 +126,22 @@ bool LspStdioConnector::start() {
         return true;
     }
 
-    // 检查服务器命令是否存在
-    if (!checkCommandExists(server_command_)) {
+    // 解析命令路径（PATH + ~/.cargo/bin 等），确保 rust-analyzer 等可被找到
+    std::string executable_path = resolveCommandPath(server_command_);
+    if (executable_path.empty()) {
         LOG_WARNING("LSP server command not found: " + server_command_ +
                     ", skipping LSP initialization");
         return false;
+    }
+
+    // 构建用于执行的命令：用解析出的完整路径替换可执行文件名
+    std::string exec_command = server_command_;
+    std::string exe_name = getExecutableName(server_command_);
+    if (!exe_name.empty() && executable_path != exe_name) {
+        size_t pos = exec_command.find(exe_name);
+        if (pos != std::string::npos) {
+            exec_command.replace(pos, exe_name.length(), executable_path);
+        }
     }
 
     try {
@@ -113,7 +151,7 @@ bool LspStdioConnector::start() {
         stdin_stream_ = std::make_unique<bp::opstream>();
 
         server_process_ =
-            std::make_unique<bp::child>(server_command_, bp::std_out > *stdout_stream_,
+            std::make_unique<bp::child>(exec_command, bp::std_out > *stdout_stream_,
                                         bp::std_in<*stdin_stream_, bp::std_err> bp::null);
 
         running_ = true;
@@ -158,9 +196,9 @@ bool LspStdioConnector::start() {
                 setenv(key.c_str(), value.c_str(), 1); // 1 = overwrite existing
             }
 
-            // 解析命令字符串为参数数组
+            // 解析命令字符串为参数数组（使用已解析出完整路径的 exec_command）
             std::vector<std::string> args;
-            std::istringstream iss(server_command_);
+            std::istringstream iss(exec_command);
             std::string arg;
             while (iss >> arg) {
                 args.push_back(arg);
@@ -170,16 +208,16 @@ bool LspStdioConnector::start() {
                 _exit(1);
             }
 
-            // 转换为 char* 数组，用于 execvp
+            // 转换为 char* 数组，用于 execv
             std::vector<char*> argv;
             for (auto& a : args) {
                 argv.push_back(const_cast<char*>(a.c_str()));
             }
             argv.push_back(nullptr); // NULL 终止符
 
-            // 执行语言服务器
-            // 如果 execvp 成功，不会返回；如果失败，会继续执行
-            execvp(argv[0], argv.data());
+            // 执行语言服务器（execv 使用完整路径，不依赖 PATH）
+            // 如果 execv 成功，不会返回；如果失败，会继续执行
+            execv(argv[0], argv.data());
             // 如果执行到这里，说明 execvp 失败了
             // 在子进程中，我们不能使用 Logger（因为文件描述符已关闭）
             // 直接退出
@@ -509,7 +547,7 @@ std::string LspStdioConnector::Send(const std::string& request) {
 
             } catch (const std::exception& e) {
                 // JSON 解析或其他错误时，返回原始响应以便上层处理
-                LOG(std::string("LSP <- Exception while handling response: ") + e.what());
+                (void)e;
                 return response;
             }
         }
@@ -535,10 +573,6 @@ void LspStdioConnector::writeLspMessage(const std::string& message) {
     stdin_stream_->flush();
 #else
     std::string full_message = header.str() + message;
-    // 记录写入的头部和消息（限长以避免日志过大）
-    std::string preview =
-        message.size() > 512 ? message.substr(0, 512) + "...(truncated)" : message;
-    LOG("LSP -> Writing message (header + preview):\n" + header.str() + preview);
     fwrite(full_message.c_str(), 1, full_message.size(), stdin_file_);
     fflush(stdin_file_);
 #endif
@@ -824,19 +858,26 @@ std::string LspStdioConnector::readLspMessage() {
         }
 
         size_t to_read = expected - total_read;
-        size_t read = fread(&message[total_read], 1, to_read, stdout_file_);
+        // 必须使用 read(fd) 与头部读取一致，避免混用 read(fd) 和 fread(FILE*) 导致流错位
+        ssize_t n = read(stdout_fd_, &message[total_read], to_read);
 
-        if (read == 0) {
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                continue;
+            }
+            throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,
+                                               "Read error while reading message body");
+        }
+        if (n == 0) {
             if (feof(stdout_file_)) {
                 throw jsonrpccxx::JsonRpcException(
                     jsonrpccxx::error_type::internal_error,
                     "Unexpected EOF while reading message body: expected " +
                         std::to_string(expected) + " bytes, got " + std::to_string(total_read));
             }
-            // 可能是暂时没有数据，继续等待
             continue;
         }
-        total_read += read;
+        total_read += static_cast<size_t>(n);
     }
 
     if (total_read != expected) {
@@ -846,19 +887,8 @@ std::string LspStdioConnector::readLspMessage() {
                                                std::to_string(total_read));
     }
 #endif
-    // 若花括号不平衡（'{'>'}'），尝试补足缺失的右花括号（最多补 8 个），作为最后的容错措施
-    int open_braces = 0, close_braces = 0;
-    for (char c : message) {
-        if (c == '{')
-            open_braces++;
-        else if (c == '}')
-            close_braces++;
-    }
-    if (open_braces > close_braces) {
-        int need = open_braces - close_braces;
-        int to_append = std::min(need, 8);
-        message.append(to_append, '}');
-    }
+    // 移除花括号“修复”逻辑：JSON 字符串内部可含 '{' '}'，简单计数会误判并追加多余的 '}'
+    // 导致 "unexpected '}'; expected end of input" 解析错误（如 rust-analyzer 的 initialize 响应）
 
     std::string preview = message;
     if (preview.size() > 1024) {
@@ -937,10 +967,7 @@ void LspStdioConnector::startNotificationListener() {
                                 notification_callback_(message);
                             }
                         } else {
-                            // 这是请求响应，不应该被通知监听线程读取
-                            // 这种情况不应该发生，因为 Send() 应该已经读取了
-                            // 但为了安全，我们将其放回（实际上无法放回，所以记录错误）
-                            LOG_ERROR("[LspConnector] Notification thread read a request response");
+                            // 这是请求响应，不应该被通知监听线程读取，跳过即可
                         }
                     } catch (const std::exception& e) {
                         // JSON 解析失败，可能是格式错误，跳过
