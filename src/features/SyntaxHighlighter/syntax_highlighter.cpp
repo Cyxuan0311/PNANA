@@ -566,11 +566,13 @@ void SyntaxHighlighter::initializeLanguages() {
                         "endif",
                         "endswitch",
                         "endwhile",
+                        "enum",
                         "eval",
                         "exit",
                         "extends",
                         "final",
                         "finally",
+                        "fn",
                         "for",
                         "foreach",
                         "function",
@@ -585,6 +587,7 @@ void SyntaxHighlighter::initializeLanguages() {
                         "interface",
                         "isset",
                         "list",
+                        "match",
                         "namespace",
                         "new",
                         "or",
@@ -592,6 +595,7 @@ void SyntaxHighlighter::initializeLanguages() {
                         "private",
                         "protected",
                         "public",
+                        "readonly",
                         "require",
                         "require_once",
                         "return",
@@ -615,14 +619,69 @@ void SyntaxHighlighter::initializeLanguages() {
                         "__METHOD__",
                         "__NAMESPACE__",
                         "__TRAIT__",
+                        "__COMPILER_HALT_OFFSET__",
+                        "__DEFAULT__",
                         "true",
                         "false",
                         "null"};
 
-    types_["php"] = {
-        "int",  "float",  "string", "bool",     "array",     "object", "callable",       "iterable",
-        "void", "mixed",  "never",  "stdClass", "Exception", "Error",  "Throwable",      "DateTime",
-        "PDO",  "mysqli", "curl",   "json",     "xml",       "zip",    "ReflectionClass"};
+    types_["php"] = {"int",
+                     "float",
+                     "string",
+                     "bool",
+                     "array",
+                     "object",
+                     "callable",
+                     "iterable",
+                     "void",
+                     "mixed",
+                     "never",
+                     "null",
+                     "false",
+                     "true",
+                     "stdClass",
+                     "Exception",
+                     "Error",
+                     "Throwable",
+                     "DateTime",
+                     "DateTimeImmutable",
+                     "DateInterval",
+                     "DatePeriod",
+                     "PDO",
+                     "PDOStatement",
+                     "mysqli",
+                     "mysqli_result",
+                     "ReflectionClass",
+                     "ReflectionMethod",
+                     "ReflectionProperty",
+                     "ReflectionFunction",
+                     "SplFileObject",
+                     "SplStack",
+                     "SplQueue",
+                     "SplHeap",
+                     "ArrayObject",
+                     "Iterator",
+                     "IteratorAggregate",
+                     "Countable",
+                     "ArrayAccess",
+                     "Serializable",
+                     "Closure",
+                     "Generator",
+                     "WeakReference",
+                     "WeakMap",
+                     "SimpleXMLElement",
+                     "DOMDocument",
+                     "DOMElement",
+                     "DOMNode",
+                     "curl",
+                     "json",
+                     "xml",
+                     "zip",
+                     "mbstring",
+                     "intl",
+                     "finfo",
+                     "SoapClient",
+                     "SoapServer"};
 
     // Swift
     keywords_["swift"] = {
@@ -641,6 +700,66 @@ void SyntaxHighlighter::initializeLanguages() {
                        "Bool",     "String", "Character", "Array",    "Dictionary", "Set",
                        "Optional", "Any",    "AnyObject", "AnyClass", "Void",       "Never",
                        "Error",    "Result", "URL",       "Data",     "Date",       "UUID"};
+
+    // Java
+    keywords_["java"] = {
+        "abstract", "assert", "boolean",    "break",     "byte",       "case",      "catch",
+        "char",     "class",  "const",      "continue",  "default",    "do",        "double",
+        "else",     "enum",   "extends",    "final",     "finally",    "float",     "for",
+        "goto",     "if",     "implements", "import",    "instanceof", "int",       "interface",
+        "long",     "native", "new",        "package",   "private",    "protected", "public",
+        "return",   "short",  "static",     "strictfp",  "super",      "switch",    "synchronized",
+        "this",     "throw",  "throws",     "transient", "try",        "void",      "volatile",
+        "while",    "true",   "false",      "null",      "record",     "sealed",    "permits",
+        "var",      "yield",  "module",     "requires",  "exports",    "opens",     "uses",
+        "provides", "with",   "transitive", "open",      "to"};
+
+    types_["java"] = {
+        "Object",     "String",        "Integer",    "Long",        "Short",         "Byte",
+        "Float",      "Double",        "Boolean",    "Character",   "Void",          "Number",
+        "Class",      "Enum",          "Exception",  "Error",       "Throwable",     "Runnable",
+        "Comparable", "Iterable",      "Collection", "List",        "Set",           "Map",
+        "ArrayList",  "LinkedList",    "HashMap",    "HashSet",     "Optional",      "Stream",
+        "LocalDate",  "LocalDateTime", "BigInteger", "BigDecimal",  "StringBuilder", "StringBuffer",
+        "System",     "Math",          "Arrays",     "Collections", "Scanner",       "PrintStream"};
+
+    // Go
+    keywords_["go"] = {"break",  "case",        "chan", "const",   "continue", "default", "defer",
+                       "else",   "fallthrough", "for",  "func",    "go",       "goto",    "if",
+                       "import", "interface",   "map",  "package", "range",    "return",  "select",
+                       "struct", "switch",      "type", "var",     "true",     "false",   "nil",
+                       "iota",   "append",      "cap",  "close",   "complex",  "copy",    "delete",
+                       "imag",   "len",         "make", "new",     "panic",    "print",   "println",
+                       "real",   "recover"};
+
+    types_["go"] = {"int",     "int8",      "int16",      "int32",      "int64",   "uint",
+                    "uint8",   "uint16",    "uint32",     "uint64",     "uintptr", "float32",
+                    "float64", "complex64", "complex128", "byte",       "rune",    "string",
+                    "bool",    "error",     "any",        "comparable", "Context", "Reader",
+                    "Writer",  "Buffer",    "Error",      "Duration",   "Time",    "Ticker",
+                    "Timer",   "WaitGroup", "Mutex",      "RWMutex",    "Channel", "Slice",
+                    "Map"};
+
+    // Rust
+    keywords_["rust"] = {
+        "as",      "async",  "await",  "break", "const",    "continue", "crate",    "dyn",
+        "else",    "enum",   "extern", "false", "fn",       "for",      "if",       "impl",
+        "in",      "let",    "loop",   "match", "mod",      "move",     "mut",      "pub",
+        "ref",     "return", "self",   "Self",  "static",   "struct",   "super",    "trait",
+        "true",    "type",   "unsafe", "use",   "where",    "while",    "abstract", "become",
+        "box",     "do",     "final",  "macro", "override", "priv",     "typeof",   "unsized",
+        "virtual", "yield",  "try",    "gen"};
+
+    types_["rust"] = {
+        "i8",       "i16",      "i32",         "i64",          "i128",         "isize",
+        "u8",       "u16",      "u32",         "u64",          "u128",         "usize",
+        "f32",      "f64",      "bool",        "char",         "str",          "String",
+        "Option",   "Result",   "Vec",         "Box",          "Rc",           "Arc",
+        "RefCell",  "Mutex",    "RwLock",      "Cell",         "HashMap",      "HashSet",
+        "BTreeMap", "BTreeSet", "Iterator",    "IntoIterator", "FromIterator", "Clone",
+        "Copy",     "Send",     "Sync",        "Debug",        "Display",      "Default",
+        "Drop",     "Fn",       "FnMut",       "FnOnce",       "Sized",        "Error",
+        "io",       "fmt",      "collections", "std"};
 
     // Kotlin
     keywords_["kotlin"] = {
@@ -1105,13 +1224,16 @@ ftxui::Element SyntaxHighlighter::highlightLine(const std::string& line) {
         // 检查 Tree-sitter 是否支持当前文件类型
         if (tree_sitter_highlighter_->supportsFileType(current_file_type_)) {
             try {
-                return tree_sitter_highlighter_->highlightLine(line);
+                // 合并 Tree-sitter 与内置高亮：TS 未识别的部分用原生高亮补充
+                std::vector<HighlightSegment> ts_segments;
+                tree_sitter_highlighter_->parseAndHighlightToSegments(line, ts_segments);
+                std::vector<HighlightSegment> native_segments;
+                getNativeSegments(line, native_segments);
+                return mergeAndHighlight(line, ts_segments, native_segments);
             } catch (...) {
-                // Tree-sitter 处理失败，回退到原生实现
                 return highlightLineNative(line);
             }
         } else {
-            // Tree-sitter 不支持该文件类型，直接使用本地语法高亮
             return highlightLineNative(line);
         }
     }
@@ -1162,6 +1284,76 @@ ftxui::Element SyntaxHighlighter::highlightLineNative(const std::string& line) {
     return hbox(elements);
 }
 
+#ifdef BUILD_TREE_SITTER_SUPPORT
+void SyntaxHighlighter::getNativeSegments(const std::string& line,
+                                          std::vector<HighlightSegment>& segments) {
+    segments.clear();
+    if (line.empty())
+        return;
+
+    const size_t max_len = 10000;
+    std::string processed = line.length() > max_len ? line.substr(0, max_len) : line;
+    std::vector<Token> tokens = tokenize(processed);
+
+    for (const auto& tok : tokens) {
+        segments.push_back({tok.start, tok.end, getColorForToken(tok.type)});
+    }
+    if (line.length() > max_len) {
+        segments.push_back({max_len, line.length(), theme_.getColors().foreground});
+    }
+}
+
+ftxui::Element SyntaxHighlighter::mergeAndHighlight(
+    const std::string& line, const std::vector<HighlightSegment>& ts_segments,
+    const std::vector<HighlightSegment>& native_segments) {
+    const ftxui::Color fg = theme_.getColors().foreground;
+    const size_t max_len = 10000;
+    const size_t len = std::min(line.length(), max_len);
+    if (len == 0)
+        return text("");
+
+    // 收集所有边界点
+    std::vector<size_t> bounds = {0, len};
+    for (const auto& s : ts_segments) {
+        if (s.start < len && s.start > 0)
+            bounds.push_back(s.start);
+        if (s.end < len && s.end > 0)
+            bounds.push_back(s.end);
+    }
+    for (const auto& s : native_segments) {
+        if (s.start < len && s.start > 0)
+            bounds.push_back(s.start);
+        if (s.end < len && s.end > 0)
+            bounds.push_back(s.end);
+    }
+    std::sort(bounds.begin(), bounds.end());
+    bounds.erase(std::unique(bounds.begin(), bounds.end()), bounds.end());
+
+    auto colorAt = [&](const std::vector<HighlightSegment>& segs, size_t pos) -> ftxui::Color {
+        for (const auto& s : segs) {
+            if (pos >= s.start && pos < s.end)
+                return s.color;
+        }
+        return fg;
+    };
+
+    Elements elements;
+    for (size_t i = 0; i + 1 < bounds.size(); ++i) {
+        size_t a = bounds[i], b = bounds[i + 1];
+        ftxui::Color ts_c = colorAt(ts_segments, a);
+        ftxui::Color nat_c = colorAt(native_segments, a);
+        ftxui::Color merged = (ts_c != fg) ? ts_c : nat_c;
+        std::string chunk = line.substr(a, b - a);
+        if (!chunk.empty())
+            elements.push_back(text(chunk) | color(merged));
+    }
+    if (line.length() > max_len) {
+        elements.push_back(text("...") | color(theme_.getColors().comment));
+    }
+    return hbox(std::move(elements));
+}
+#endif
+
 std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
     if (current_file_type_ == "cpp" || current_file_type_ == "c") {
         return tokenizeCpp(line);
@@ -1206,6 +1398,12 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizePHP(line);
     } else if (current_file_type_ == "swift") {
         return tokenizeSwift(line);
+    } else if (current_file_type_ == "java") {
+        return tokenizeJava(line);
+    } else if (current_file_type_ == "go") {
+        return tokenizeGo(line);
+    } else if (current_file_type_ == "rust" || current_file_type_ == "rs") {
+        return tokenizeRust(line);
     } else if (current_file_type_ == "kotlin" || current_file_type_ == "kt") {
         return tokenizeKotlin(line);
     } else if (current_file_type_ == "scala") {
@@ -3979,6 +4177,18 @@ std::vector<Token> SyntaxHighlighter::tokenizeSwift(const std::string& line) {
     return tokens;
 }
 
+std::vector<Token> SyntaxHighlighter::tokenizeJava(const std::string& line) {
+    return tokenizeGeneric(line);
+}
+
+std::vector<Token> SyntaxHighlighter::tokenizeGo(const std::string& line) {
+    return tokenizeGeneric(line);
+}
+
+std::vector<Token> SyntaxHighlighter::tokenizeRust(const std::string& line) {
+    return tokenizeGeneric(line);
+}
+
 std::vector<Token> SyntaxHighlighter::tokenizeKotlin(const std::string& line) {
     std::vector<Token> tokens;
     size_t i = 0;
@@ -5662,13 +5872,14 @@ std::vector<Token> SyntaxHighlighter::tokenizeLLVMIR(const std::string& line) {
             continue;
         }
 
-        // 类型和指令
+        // 类型和指令（含 %局部变量 @全局符号）
         if (std::isalpha(line[i]) || line[i] == '_' || line[i] == '%' || line[i] == '@') {
             size_t start = i;
             char prefix = line[i]; // 记住前缀
 
-            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '_' ||
-                                         line[i] == '.' || line[i] == '-' || line[i] == ':')) {
+            while (i < line.length() &&
+                   (line[i] == '%' || line[i] == '@' || std::isalnum(line[i]) || line[i] == '_' ||
+                    line[i] == '.' || line[i] == '-' || line[i] == ':')) {
                 i++;
             }
             std::string word = line.substr(start, i - start);
