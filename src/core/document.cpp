@@ -411,17 +411,11 @@ void Document::replaceLine(size_t row, const std::string& content) {
 
 bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_type) {
     if (undo_stack_.empty()) {
-        LOG("[UNDO] No operations to undo");
         return false;
     }
 
     DocumentChange change = undo_stack_.back();
     undo_stack_.pop_back();
-    LOG("[UNDO] Applying undo for operation: type=" +
-        std::to_string(static_cast<int>(change.type)) + " row=" + std::to_string(change.row) +
-        " col=" + std::to_string(change.col) +
-        " old_len=" + std::to_string(change.old_content.length()) +
-        " new_len=" + std::to_string(change.new_content.length()));
 
     // VSCode 风格的撤销逻辑：原子性操作，直接应用反向操作
     // 每个撤销点都是完整的、不可分割的操作
@@ -445,21 +439,11 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                             change.new_content.substr(0, erase_len)) {
                             current_line.erase(change.col, erase_len);
                             success = true;
-                            LOG("[UNDO] Successfully undid INSERT operation");
-                        } else {
-                            LOG("[UNDO] Content mismatch during INSERT undo - possible data "
-                                "corruption");
                         }
                     } else {
-                        LOG("[UNDO] No content to erase for INSERT undo");
                         success = true; // 空操作也算成功
                     }
-                } else {
-                    LOG("[UNDO] Invalid column position for INSERT undo: " +
-                        std::to_string(change.col) + " > " + std::to_string(line_len));
                 }
-            } else {
-                LOG("[UNDO] Invalid row for INSERT undo: " + std::to_string(change.row));
             }
 
             // 撤销后的光标位置：回到插入开始的位置
@@ -471,19 +455,14 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         }
 
         case DocumentChange::Type::DELETE: {
-            // 撤销删除操作：恢复之前删除的内容
             if (change.row >= lines_.size()) {
-                LOG("[UNDO] Invalid row for DELETE undo: " + std::to_string(change.row));
                 break;
             }
 
             std::string& current_line = lines_[change.row];
             size_t line_len = current_line.length();
 
-            // 边界检查：确保删除位置有效
             if (change.col > line_len) {
-                LOG("[UNDO] Invalid column for DELETE undo: " + std::to_string(change.col) + " > " +
-                    std::to_string(line_len));
                 break;
             }
 
@@ -532,13 +511,11 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                     }
 
                     success = true;
-                    LOG("[UNDO] Successfully undid multiline DELETE operation");
                 }
             } else {
                 // 单行删除的撤销：直接在指定位置插入内容
                 current_line.insert(change.col, change.old_content);
                 success = true;
-                LOG("[UNDO] Successfully undid single-line DELETE operation");
             }
 
             // 撤销后的光标位置：回到删除开始的位置
@@ -557,13 +534,7 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 if (lines_[change.row] == change.new_content) {
                     lines_[change.row] = change.old_content;
                     success = true;
-                    LOG("[UNDO] Successfully undid REPLACE operation");
-                } else {
-                    LOG("[UNDO] Content mismatch during REPLACE undo - expected: '" +
-                        change.new_content + "', found: '" + lines_[change.row] + "'");
                 }
-            } else {
-                LOG("[UNDO] Invalid row for REPLACE undo: " + std::to_string(change.row));
             }
 
             // 撤销后的光标位置：回到替换开始的位置
@@ -598,10 +569,6 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 lines_[target_row] = change.old_content;
                 lines_.erase(lines_.begin() + target_row + 1);
                 success = true;
-                LOG("[UNDO] Successfully undid NEWLINE operation");
-            } else {
-                LOG("[UNDO] Could not find valid NEWLINE operation to undo at row " +
-                    std::to_string(target_row));
             }
 
             // 撤销后的光标位置：回到换行前的位置
@@ -628,28 +595,15 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                         current_line.replace(replace_start, completion_text.length(),
                                              change.old_content);
                         success = true;
-                        LOG("[UNDO] Successfully undid COMPLETION operation");
-
                     } else {
-                        // 回退策略：在行中搜索补全文本
                         size_t found_pos = current_line.find(completion_text, replace_start);
                         if (found_pos != std::string::npos) {
                             current_line.replace(found_pos, completion_text.length(),
                                                  change.old_content);
                             success = true;
-                            LOG("[UNDO] Successfully undid COMPLETION operation (fallback search)");
-                        } else {
-                            LOG("[UNDO] Could not find completion text to undo: '" +
-                                completion_text + "'");
                         }
                     }
-                } else {
-                    LOG("[UNDO] Invalid position for COMPLETION undo: col=" +
-                        std::to_string(replace_start) +
-                        " > line_length=" + std::to_string(current_line.length()));
                 }
-            } else {
-                LOG("[UNDO] Invalid row for COMPLETION undo: " + std::to_string(change.row));
             }
 
             // 撤销后的光标位置：回到补全开始的位置
@@ -664,27 +618,17 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
     // 确保文档至少有一行（边界情况处理）
     if (lines_.empty()) {
         lines_.push_back("");
-        LOG("[UNDO] Added empty line to maintain document integrity");
     }
 
     // 将操作移到重做栈（用于重做功能）
     redo_stack_.push_back(change);
 
-    // 返回操作类型（用于智能光标定位）
     if (out_type) {
         *out_type = change.type;
     }
 
-    // 详细的撤销完成日志
-    std::string cursor_pos = "(" + std::to_string(out_row ? *out_row : 0) + "," +
-                             std::to_string(out_col ? *out_col : 0) + ")";
-    LOG("[UNDO] Completed undo operation: type=" + std::to_string(static_cast<int>(change.type)) +
-        " success=" + (success ? "true" : "false") + " cursor=" + cursor_pos);
-
-    // VSCode 行为：如果撤销栈为空，说明回到了初始状态，清除修改标志
     if (undo_stack_.empty()) {
         modified_ = false;
-        LOG("[UNDO] Reached initial state, cleared modified flag");
     }
 
     return success;
@@ -697,10 +641,6 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
 
     DocumentChange change = redo_stack_.back();
     redo_stack_.pop_back();
-    LOG("[REDO] Popped change: type=" + std::to_string(static_cast<int>(change.type)) +
-        " row=" + std::to_string(change.row) + " col=" + std::to_string(change.col) +
-        " old_len=" + std::to_string(change.old_content.length()) +
-        " new_len=" + std::to_string(change.new_content.length()));
 
     // 重新应用操作
     switch (change.type) {
@@ -808,21 +748,11 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
 }
 
 void Document::pushChange(const DocumentChange& change) {
-    // VSCode 风格的智能合并策略（优化版）
-    // 核心原则：连续的相同类型操作会被合并，不同类型操作创建新的撤销点
     constexpr auto MERGE_THRESHOLD = std::chrono::milliseconds(500);
 
-    LOG("[PUSHCHANGE] Incoming change: type=" + std::to_string(static_cast<int>(change.type)) +
-        " row=" + std::to_string(change.row) + " col=" + std::to_string(change.col) +
-        " old_len=" + std::to_string(change.old_content.length()) +
-        " new_len=" + std::to_string(change.new_content.length()));
-
-    // 原子操作：这些操作类型永远不会合并，必须创建新的撤销点
     if (change.type == DocumentChange::Type::COMPLETION ||
         change.type == DocumentChange::Type::REPLACE ||
         change.type == DocumentChange::Type::NEWLINE) {
-        LOG("[PUSHCHANGE] Atomic operation: adding new undo point for " +
-            std::to_string(static_cast<int>(change.type)));
         undo_stack_.push_back(change);
         if (undo_stack_.size() > MAX_UNDO_STACK) {
             undo_stack_.pop_front();
@@ -845,17 +775,12 @@ void Document::pushChange(const DocumentChange& change) {
                 // 检查是否是连续插入（新插入位置正好在上次插入结束位置）
                 size_t last_insert_end = last_change.col + last_change.new_content.length();
                 if (change.col == last_insert_end) {
-                    LOG("[PUSHCHANGE] Merging consecutive INSERT operations at row=" +
-                        std::to_string(change.row));
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     return; // 合并完成，不创建新撤销点
                 }
                 // 或者是在同一位置的插入（覆盖输入）
                 else if (change.col == last_change.col) {
-                    LOG("[PUSHCHANGE] Merging overlapping INSERT operations at row=" +
-                        std::to_string(change.row) + " col=" + std::to_string(change.col));
-                    // 这种情况较少见，但可能发生在快速输入时
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     return;
@@ -867,15 +792,12 @@ void Document::pushChange(const DocumentChange& change) {
                      last_change.type == DocumentChange::Type::DELETE) {
                 // 向后删除（Delete键）：在同一位置连续删除
                 if (change.col == last_change.col) {
-                    LOG("[PUSHCHANGE] Merging consecutive forward DELETE operations");
                     last_change.old_content += change.old_content;
                     last_change.timestamp = change.timestamp;
                     return;
                 }
                 // 向前删除（Backspace键）：位置连续
                 else if (change.col + change.old_content.length() == last_change.col) {
-                    LOG("[PUSHCHANGE] Merging consecutive backward DELETE operations");
-                    // 将新的删除内容插入到开头
                     last_change.old_content = change.old_content + last_change.old_content;
                     last_change.col = change.col; // 更新删除起始位置
                     last_change.timestamp = change.timestamp;
@@ -885,9 +807,6 @@ void Document::pushChange(const DocumentChange& change) {
         }
     }
 
-    // 创建新的撤销点
-    LOG("[PUSHCHANGE] Creating new undo point for operation type=" +
-        std::to_string(static_cast<int>(change.type)));
     undo_stack_.push_back(change);
     if (undo_stack_.size() > MAX_UNDO_STACK) {
         undo_stack_.pop_front();

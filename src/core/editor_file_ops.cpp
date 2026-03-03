@@ -18,20 +18,14 @@ namespace core {
 
 // 文件操作
 bool Editor::openFile(const std::string& filepath) {
-    LOG("=== openFile() START ===");
-    LOG("Opening file: " + filepath);
-
     try {
-        LOG("Step 1: Opening document...");
         document_manager_.openDocument(filepath);
-        LOG("Document opened successfully");
 
         cursor_row_ = 0;
         cursor_col_ = 0;
-        view_offset_row_ = 0; // 打开文件时，总是从文件头部开始显示
+        view_offset_row_ = 0;
         view_offset_col_ = 0;
 
-        LOG("Step 2: Getting current document...");
         Document* doc = getCurrentDocument();
         if (!doc) {
             LOG_ERROR("getCurrentDocument() returned null!");
@@ -39,30 +33,15 @@ bool Editor::openFile(const std::string& filepath) {
             return false;
         }
 
-        LOG("Document obtained, line count: " + std::to_string(doc->lineCount()));
-        LOG("Step 3: Detecting Chinese content (limited check)...");
-
-        // 检测文件是否包含大量中文字符（排除注释）
-        // 限制检测行数和字符数，避免大文件卡住
         bool has_chinese = false;
         try {
             std::string file_type = getFileType();
-            LOG("File type: " + file_type);
-
-            // 只检测前50行，避免大文件卡住
             size_t max_check_lines = std::min(doc->lineCount(), static_cast<size_t>(50));
-            LOG("Checking first " + std::to_string(max_check_lines) + " lines");
-
             std::vector<std::string> lines;
             for (size_t i = 0; i < max_check_lines; ++i) {
                 lines.push_back(doc->getLine(i));
             }
-
-            LOG("Lines collected, checking Chinese content...");
-            // 限制检测字符数为500，加快处理速度
             has_chinese = utils::TextAnalyzer::hasChineseContent(lines, file_type, 500, 10);
-            LOG("Chinese detection completed, result: " +
-                std::string(has_chinese ? "true" : "false"));
         } catch (const std::exception& e) {
             LOG_WARNING("Chinese detection exception: " + std::string(e.what()));
             has_chinese = false; // 检测失败，默认不禁用语法高亮
@@ -71,18 +50,14 @@ bool Editor::openFile(const std::string& filepath) {
             has_chinese = false;
         }
 
-        LOG("Step 4: Setting syntax highlighter...");
-        // 更新语法高亮器（中文文件禁用语法高亮）
         try {
             if (has_chinese) {
                 syntax_highlighting_ = false;
                 syntax_highlighter_.setFileType("text");
-                LOG("Syntax highlighting disabled (Chinese file)");
             } else {
                 std::string file_type = getFileType();
                 syntax_highlighter_.setFileType(file_type);
-                syntax_highlighting_ = true; // 确保语法高亮开启
-                LOG("Syntax highlighting enabled, file type: " + file_type);
+                syntax_highlighting_ = true;
             }
         } catch (const std::exception& e) {
             LOG_WARNING("Syntax highlighter exception: " + std::string(e.what()));
@@ -97,28 +72,15 @@ bool Editor::openFile(const std::string& filepath) {
 #endif
 
 #ifdef BUILD_LSP_SUPPORT
-        LOG("Step 5: Updating LSP document...");
-        // 通知 LSP 服务器文件已打开
-        // 注意：如果 LSP 初始化失败或文件类型不支持，不应该阻塞文件打开
         try {
-            // 定期清理过期缓存
             static int file_open_count = 0;
-            if (++file_open_count % 10 == 0) { // 每打开10个文件清理一次缓存
+            if (++file_open_count % 10 == 0) {
                 cleanupExpiredCaches();
-                LOG("Expired caches cleaned (file_open_count: " + std::to_string(file_open_count) +
-                    ")");
             }
 
-            // 先从缓存加载诊断信息，提升响应速度
             updateCurrentFileDiagnostics();
-            LOG("Current file diagnostics updated from cache");
-
-            // 立即开始折叠初始化，提升响应速度
             updateCurrentFileFolding();
-            LOG("Current file folding updated from cache");
-
             updateLspDocument();
-            LOG("LSP document updated");
         } catch (const std::exception& e) {
             LOG_WARNING("LSP update failed: " + std::string(e.what()) +
                         " (file will open without LSP features)");
@@ -128,18 +90,12 @@ bool Editor::openFile(const std::string& filepath) {
                 "LSP update failed: Unknown exception (file will open without LSP features)");
             // LSP 更新失败不影响文件打开
         }
-#else
-        LOG("Step 5: LSP support not compiled");
 #endif
 
-        LOG("Step 6: Setting status message...");
-        // 使用之前已获取的doc变量
         if (doc) {
             setStatusMessage(std::string(pnana::ui::icons::OPEN) +
                              " Opened: " + doc->getFileName());
-            LOG("Status message set: " + doc->getFileName());
         } else {
-            LOG_ERROR("getCurrentDocument() returned null after openFile()!");
             setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + filepath);
         }
 
@@ -173,17 +129,12 @@ bool Editor::openFile(const std::string& filepath) {
             }
         }
 
-        LOG("=== openFile() SUCCESS ===");
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("=== openFile() EXCEPTION ===");
-        LOG_ERROR("Exception type: std::exception");
-        LOG_ERROR("Exception message: " + std::string(e.what()));
         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                          " Failed to open file: " + std::string(e.what()));
         return false;
     } catch (...) {
-        LOG_ERROR("=== openFile() UNKNOWN EXCEPTION ===");
         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
                          " Failed to open file: Unknown error");
         return false;

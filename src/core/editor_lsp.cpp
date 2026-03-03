@@ -1,11 +1,15 @@
 // LSP 集成相关实现
 #include "core/editor.h"
+#include "features/cursor/cursor_renderer.h"
+#include "features/lsp/lsp_client.h"
 #include "features/lsp/lsp_request_manager.h"
 #include "features/lsp/lsp_server_manager.h"
 #include "features/lsp/lsp_types.h"
 #include "features/lsp/lsp_worker_pool.h"
 #include "ui/icons.h"
 #include "utils/clipboard.h"
+#include "utils/logger.h"
+#include "utils/project_root_finder.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -15,6 +19,7 @@
 #include <ftxui/component/event.hpp>
 #include <iostream>
 #include <mutex>
+#include <set>
 #include <thread>
 
 using namespace ftxui;
@@ -81,9 +86,57 @@ std::string Editor::getTriggerCharacter(const std::string& line_content, size_t 
     return "";
 }
 
+std::vector<features::CompletionItem> Editor::getDocumentBasedCompletions(
+    Document* doc, const std::string& prefix) {
+    std::vector<features::CompletionItem> items;
+    if (!doc || prefix.empty()) {
+        return items;
+    }
+
+    std::set<std::string> seen;
+    const size_t max_lines = std::min(doc->lineCount(), static_cast<size_t>(2000));
+    const size_t max_items = 80;
+
+    for (size_t i = 0; i < max_lines && items.size() < max_items; ++i) {
+        const std::string& line = doc->getLine(i);
+        for (size_t j = 0; j < line.length();) {
+            if (!(std::isalpha(static_cast<unsigned char>(line[j])) ||
+                  (line[j] == '_' && j + 1 < line.length() &&
+                   (std::isalnum(static_cast<unsigned char>(line[j + 1])) ||
+                    line[j + 1] == '_')))) {
+                j++;
+                continue;
+            }
+            size_t start = j;
+            while (j < line.length() &&
+                   (std::isalnum(static_cast<unsigned char>(line[j])) || line[j] == '_')) {
+                j++;
+            }
+            std::string word = line.substr(start, j - start);
+            if (word.length() >= 1 && word.length() <= 64 && !prefix.empty() &&
+                word.size() >= prefix.size() && word.compare(0, prefix.size(), prefix) == 0 &&
+                seen.find(word) == seen.end()) {
+                seen.insert(word);
+                features::CompletionItem item;
+                item.label = word;
+                item.kind = "variable";
+                item.detail = "(current document)";
+                item.filterText = word;
+                items.push_back(item);
+            }
+        }
+    }
+    return items;
+}
+
 void Editor::initializeLsp() {
     // 创建 LSP 服务器管理器
     lsp_manager_ = std::make_unique<features::LspServerManager>();
+
+#ifdef BUILD_LSP_SUPPORT
+    // 从配置文件加载 LSP 服务器配置
+    lsp_manager_->getConfigManager().loadFromConfig(config_manager_.getConfig().lsp);
+#endif
 
     // 初始化诊断弹窗状态
     show_diagnostics_popup_ = false;
@@ -590,7 +643,7 @@ void Editor::updateCurrentFileFolding() {
     last_render_source_ = "folding_update";
 }
 
-void Editor::updateLspDocument() {
+void Editor::updateLspDocument(bool force_sync_for_completion) {
     if (!lsp_enabled_ || !lsp_manager_) {
         return;
     }
@@ -616,7 +669,9 @@ void Editor::updateLspDocument() {
         auto time_since_last_update =
             std::chrono::duration_cast<std::chrono::milliseconds>(now - last_document_update_time_);
 
-        if (time_since_last_update < document_update_debounce_interval_) {
+        // 补全前强制同步：避免 300ms 防抖导致 rust-analyzer 等收到过期文档而返回 null
+        if (!force_sync_for_completion &&
+            time_since_last_update < document_update_debounce_interval_) {
             return;
         }
 
@@ -648,10 +703,17 @@ void Editor::updateLspDocument() {
 
         if (!is_connected) {
             try {
-                std::thread([client]() {
+                std::thread([this, filepath]() {
                     try {
                         std::string root_path = fs::current_path().string();
-                        client->initialize(root_path);
+                        if (filepath.size() >= 3 &&
+                            filepath.compare(filepath.size() - 3, 3, ".rs") == 0) {
+                            std::string rust_root = pnana::utils::findRustProjectRoot(filepath);
+                            if (!rust_root.empty()) {
+                                root_path = rust_root;
+                            }
+                        }
+                        lsp_manager_->initializeClientForFile(filepath, root_path);
                     } catch (...) {
                     }
                 }).detach();
@@ -842,30 +904,7 @@ void Editor::triggerCompletion() {
         filepath = "/tmp/pnana_unsaved_" + std::to_string(reinterpret_cast<uintptr_t>(doc));
     }
 
-    features::LspClient* client = lsp_manager_->getClientForFile(filepath);
-    if (!client) {
-        completion_popup_.hide();
-        return;
-    }
-
-    if (!client->isConnected()) {
-        std::thread([client, filepath]() {
-            try {
-                std::string root_path = fs::current_path().string();
-                client->initialize(root_path);
-            } catch (...) {
-                // 初始化失败，静默处理
-            }
-        }).detach();
-        completion_popup_.hide();
-        return;
-    }
-
-    std::string uri = filepathToUri(filepath);
-
-    features::LspPosition pos(static_cast<int>(cursor_row_), static_cast<int>(cursor_col_));
-
-    // 获取当前行的光标位置之前的文本，用于过滤和排序
+    // 提前计算 prefix 和屏幕位置（供 fallback 和后续使用）
     const std::string& line = doc->getLine(cursor_row_);
     std::string prefix = "";
     if (cursor_col_ > 0 && static_cast<size_t>(cursor_col_) <= line.length()) {
@@ -886,6 +925,79 @@ void Editor::triggerCompletion() {
             prefix = line.substr(start, static_cast<size_t>(cursor_col_) - start);
         }
     }
+
+    int screen_width = screen_.dimx();
+    int screen_height = screen_.dimy();
+    int editor_left_offset = 0;
+    if (file_browser_.isVisible()) {
+        editor_left_offset += file_browser_width_ + 1;
+    }
+    int line_number_width = show_line_numbers_ ? 6 : 0;
+    int relative_col = static_cast<int>(cursor_col_) - static_cast<int>(view_offset_col_);
+    if (relative_col < 0)
+        relative_col = 0;
+    int cursor_screen_col = editor_left_offset + line_number_width + relative_col;
+    if (cursor_screen_col > screen_width - 10) {
+        cursor_screen_col = std::max(0, screen_width - 10);
+    }
+
+    features::LspClient* client = lsp_manager_ ? lsp_manager_->getClientForFile(filepath) : nullptr;
+    if (!client || !client->isConnected()) {
+        if (client) {
+            std::thread([this, filepath]() {
+                try {
+                    std::string root_path = fs::current_path().string();
+                    if (filepath.size() >= 3 &&
+                        filepath.compare(filepath.size() - 3, 3, ".rs") == 0) {
+                        std::string rust_root = pnana::utils::findRustProjectRoot(filepath);
+                        if (!rust_root.empty()) {
+                            root_path = rust_root;
+                        }
+                    }
+                    lsp_manager_->initializeClientForFile(filepath, root_path);
+                } catch (...) {
+                    // 初始化失败，静默处理
+                }
+            }).detach();
+        }
+        // 无 LSP 配置或未连接时：使用当前文档符号 + 代码片段作为补全
+        std::vector<features::CompletionItem> fallback_items =
+            getDocumentBasedCompletions(doc, prefix);
+        std::set<std::string> doc_labels;
+        for (const auto& it : fallback_items) {
+            doc_labels.insert(it.label);
+        }
+        if (snippet_manager_ && !prefix.empty()) {
+            std::string language_id = lsp_manager_ ? detectLanguageId(filepath) : "plaintext";
+            auto snippets = snippet_manager_->findMatchingSnippets(prefix, language_id);
+            for (const auto& s : snippets) {
+                if (doc_labels.find(s.prefix) == doc_labels.end()) {
+                    features::CompletionItem item;
+                    item.label = s.prefix;
+                    item.kind = "snippet";
+                    item.detail = s.description;
+                    item.documentation = "Code snippet: " + s.description;
+                    item.isSnippet = true;
+                    item.snippet_body = s.body;
+                    item.snippet_placeholders = s.placeholders;
+                    fallback_items.push_back(item);
+                }
+            }
+        }
+        if (!fallback_items.empty()) {
+            showCompletionPopupIfChanged(fallback_items, static_cast<int>(cursor_row_),
+                                         cursor_screen_col, screen_width, screen_height, prefix);
+        } else {
+            completion_popup_.hide();
+        }
+        return;
+    }
+
+    // 补全前强制同步文档，确保 rust-analyzer 等收到最新内容
+    updateLspDocument(/* force_sync_for_completion */ true);
+    std::string uri = filepathToUri(filepath);
+    features::LspPosition pos(static_cast<int>(cursor_row_), static_cast<int>(cursor_col_));
+
     // 初始化补全缓存
     if (!completion_cache_) {
         completion_cache_ = std::make_unique<features::LspCompletionCache>();
@@ -917,28 +1029,9 @@ void Editor::triggerCompletion() {
     cache_key.trigger_character = "";
     cache_key.prefix = "";
 
-    int screen_width = screen_.dimx();
-    int screen_height = screen_.dimy();
-
-    // 计算光标在屏幕上的列位置（近似）：考虑侧边栏和行号宽度
-    int editor_left_offset = 0;
-    if (file_browser_.isVisible()) {
-        editor_left_offset += file_browser_width_ + 1; // file browser + separator
-    }
-    int line_number_width = show_line_numbers_ ? 6 : 0; // 估算行号宽度（包含空格）
-    int relative_col = static_cast<int>(cursor_col_) - static_cast<int>(view_offset_col_);
-    if (relative_col < 0)
-        relative_col = 0;
-    int cursor_screen_col = editor_left_offset + line_number_width + relative_col;
-    // 限制列到屏幕宽度范围，避免计算出过大的值导致弹窗遮挡其他UI
-    if (cursor_screen_col > screen_width - 10) {
-        cursor_screen_col = std::max(0, screen_width - 10);
-    }
-
     auto cached = completion_cache_->get(cache_key);
 
     if (cached.has_value() && !cached->empty()) {
-        // 限制显示数量
         std::vector<features::CompletionItem> limited_items = *cached;
         if (limited_items.size() > 50) {
             limited_items.resize(50);
@@ -948,18 +1041,38 @@ void Editor::triggerCompletion() {
         return;
     }
 
+    // 缓存未命中时，尝试用 filterByPrefix 从同文件缓存中过滤（前缀变化时复用）
+    // 前缀为 1-2 字符时跳过 filterByPrefix，直接请求 LSP，否则短名称（如 a、x、pi）可能被漏掉
+    std::vector<features::CompletionItem> filtered;
+    if (prefix.length() >= 3) {
+        filtered = completion_cache_->filterByPrefix(cache_key, prefix);
+    }
+    if (!filtered.empty()) {
+        if (filtered.size() > 50) {
+            filtered.resize(50);
+        }
+        showCompletionPopupIfChanged(filtered, static_cast<int>(cursor_row_), cursor_screen_col,
+                                     screen_width, screen_height, prefix);
+        return;
+    }
+
     if (!lsp_async_manager_) {
         lsp_async_manager_ = std::make_unique<features::LspAsyncManager>();
     }
+
+    // 取消陈旧的补全/解析请求，避免队列堆积导致卡顿（非 C/C++ LSP 尤其明显）
+    lsp_async_manager_->cancelPendingRequests();
 
     int req_row = static_cast<int>(cursor_row_);
     int req_col = cursor_screen_col;
     int req_screen_w = screen_.dimx();
     int req_screen_h = screen_.dimy();
 
+    // 非 C/C++ LSP 响应较慢，放宽超时以减少误超时
+    int completion_timeout_ms = (language_id == "cpp" || language_id == "c") ? 500 : 800;
+
     lsp_async_manager_->requestCompletionAsync(
         client, uri, pos,
-        // on_success - 在主线程中更新UI
         [this, cache_key, req_row, req_col, req_screen_w, req_screen_h, prefix,
          filepath](const std::vector<features::CompletionItem>& items) {
             screen_.Post([this, items, cache_key, req_row, req_col, req_screen_w, req_screen_h,
@@ -992,51 +1105,46 @@ void Editor::triggerCompletion() {
 
                     std::vector<features::CompletionItem> sorted_items = all_items;
 
+                    // 排序：参考 VS Code 四类（标准库/当前文档/项目/智能补全）
+                    // 1. 有 sortText 时优先按 sortText（服务器通常按 当前文档>项目>标准库）
+                    // 2. 前缀匹配 + 类型优先级
                     std::sort(
                         sorted_items.begin(), sorted_items.end(),
-                        [this, prefix = prefix](const features::CompletionItem& a,
-                                                const features::CompletionItem& b) {
-                            // 计算评分：相关性、使用频率、上下文匹配、类型优先级、位置接近度
-                            auto calculate_score =
-                                [prefix](const features::CompletionItem& item) -> int {
+                        [prefix](const features::CompletionItem& a,
+                                 const features::CompletionItem& b) {
+                            auto get_match_score = [&prefix](const features::CompletionItem& item) {
+                                const std::string& text =
+                                    !item.filterText.empty() ? item.filterText : item.label;
                                 int score = 0;
-
-                                // 1. 前缀匹配评分 (最高权重)
                                 if (!prefix.empty()) {
-                                    if (item.label.find(prefix) == 0) {
-                                        score += 100; // 完全匹配前缀
-                                    } else if (item.label.find(prefix) != std::string::npos) {
-                                        score += 50; // 包含前缀
+                                    if (text.find(prefix) == 0) {
+                                        score += 100;
+                                    } else if (text.find(prefix) != std::string::npos) {
+                                        score += 50;
                                     }
                                 }
-
-                                // 2. 类型优先级评分
-                                if (item.kind == "method" || item.kind == "function") {
+                                if (item.kind == "2" || item.kind == "3" || item.kind == "method" ||
+                                    item.kind == "function")
                                     score += 30;
-                                } else if (item.kind == "variable" || item.kind == "property") {
+                                else if (item.kind == "5" || item.kind == "6" ||
+                                         item.kind == "variable" || item.kind == "property")
                                     score += 20;
-                                } else if (item.kind == "class" || item.kind == "interface") {
+                                else if (item.kind == "7" || item.kind == "8" ||
+                                         item.kind == "class" || item.kind == "interface")
                                     score += 40;
-                                }
-
-                                // 3. 长度评分（较短的通常更常用）
-                                if (item.label.length() <= 10) {
-                                    score += 10;
-                                } else if (item.label.length() <= 20) {
-                                    score += 5;
-                                }
-
                                 return score;
                             };
-
-                            int score_a = calculate_score(a);
-                            int score_b = calculate_score(b);
-
-                            if (score_a != score_b) {
-                                return score_a > score_b; // 分数高的在前
-                            }
-
-                            return a.label < b.label; // 相同分数按字母顺序
+                            if (!a.sortText.empty() && !b.sortText.empty()) {
+                                if (a.sortText != b.sortText)
+                                    return a.sortText < b.sortText;
+                            } else if (!a.sortText.empty())
+                                return true;
+                            else if (!b.sortText.empty())
+                                return false;
+                            int sa = get_match_score(a), sb = get_match_score(b);
+                            if (sa != sb)
+                                return sa > sb;
+                            return a.label < b.label;
                         });
                     std::vector<features::CompletionItem> limited = sorted_items;
                     if (limited.size() > 50) {
@@ -1046,16 +1154,93 @@ void Editor::triggerCompletion() {
                     showCompletionPopupIfChanged(limited, req_row, req_col, req_screen_w,
                                                  req_screen_h, prefix);
                 } else {
-                    completion_popup_.hide();
+                    // LSP 返回空时，回退到文档符号+片段（rust-analyzer 对关键字如 const/static
+                    // 可能不补全）
+                    Document* doc = getCurrentDocument();
+                    std::vector<features::CompletionItem> fallback_items;
+                    if (doc && doc->getFilePath() == filepath) {
+                        fallback_items = getDocumentBasedCompletions(doc, prefix);
+                        if (snippet_manager_ && !prefix.empty()) {
+                            std::string language_id = detectLanguageId(filepath);
+                            std::set<std::string> doc_labels;
+                            for (const auto& it : fallback_items) {
+                                doc_labels.insert(it.label);
+                            }
+                            auto snippets =
+                                snippet_manager_->findMatchingSnippets(prefix, language_id);
+                            for (const auto& s : snippets) {
+                                if (doc_labels.find(s.prefix) == doc_labels.end()) {
+                                    features::CompletionItem item;
+                                    item.label = s.prefix;
+                                    item.kind = "snippet";
+                                    item.detail = s.description;
+                                    item.documentation = "Code snippet: " + s.description;
+                                    item.isSnippet = true;
+                                    item.snippet_body = s.body;
+                                    item.snippet_placeholders = s.placeholders;
+                                    fallback_items.push_back(item);
+                                }
+                            }
+                        }
+                    }
+                    if (!fallback_items.empty()) {
+                        showCompletionPopupIfChanged(fallback_items, req_row, req_col, req_screen_w,
+                                                     req_screen_h, prefix);
+                    } else {
+                        completion_popup_.hide();
+                    }
                 }
             });
         },
-        // on_error - 隐藏弹窗
-        [this](const std::string&) {
+        [this](const std::string& err) {
+            (void)err;
             screen_.Post([this]() {
                 completion_popup_.hide();
             });
-        });
+        },
+        last_completion_trigger_, completion_timeout_ms);
+}
+
+void Editor::triggerCompletionResolveIfNeeded() {
+    const auto* item = completion_popup_.getSelectedItem();
+    if (!item || item->resolved || item->isSnippet) {
+        return;
+    }
+    if (!item->detail.empty() || !item->documentation.empty()) {
+        return; // 已有描述，无需 resolve
+    }
+
+    Document* doc = getCurrentDocument();
+    if (!doc || !lsp_manager_) {
+        return;
+    }
+    if (!lsp_async_manager_) {
+        lsp_async_manager_ = std::make_unique<features::LspAsyncManager>();
+    }
+
+    std::string filepath = doc->getFilePath();
+    if (filepath.empty()) {
+        filepath = "/tmp/pnana_unsaved_" + std::to_string(reinterpret_cast<uintptr_t>(doc));
+    }
+
+    features::LspClient* client = lsp_manager_->getClientForFile(filepath);
+    if (!client || !client->isConnected() || !client->supportsCompletionResolve()) {
+        return;
+    }
+
+    size_t selected_idx = completion_popup_.getSelectedIndex();
+    lsp_async_manager_->requestResolveAsync(
+        client, *item,
+        [this, selected_idx](features::CompletionItem resolved_item) {
+            screen_.Post([this, selected_idx, resolved_item]() {
+                if (completion_popup_.isVisible() &&
+                    selected_idx == completion_popup_.getSelectedIndex()) {
+                    completion_popup_.updateItem(selected_idx, resolved_item);
+                    screen_.PostEvent(Event::Custom); // 触发重绘
+                }
+            });
+        },
+        nullptr);
 }
 
 void Editor::handleCompletionInput(ftxui::Event event) {
@@ -1065,8 +1250,10 @@ void Editor::handleCompletionInput(ftxui::Event event) {
 
     if (event == Event::ArrowDown) {
         completion_popup_.selectNext();
+        triggerCompletionResolveIfNeeded();
     } else if (event == Event::ArrowUp) {
         completion_popup_.selectPrevious();
+        triggerCompletionResolveIfNeeded();
     } else if (event == Event::Return || event == Event::Tab) {
         applyCompletion();
     } else if (event == Event::Escape) {
@@ -1267,6 +1454,9 @@ void Editor::showCompletionPopupIfChanged(const std::vector<features::Completion
 
     completion_popup_.show(items, static_cast<size_t>(row), static_cast<size_t>(col), screen_w,
                            screen_h, query);
+
+    // 首次显示或切换后，为选中项触发 resolve 以获取 detail/documentation
+    triggerCompletionResolveIfNeeded();
 }
 
 void Editor::showDiagnosticsPopup() {
@@ -1376,6 +1566,14 @@ void Editor::showSymbolNavigation() {
                 setStatusMessage("No symbols found in this file.");
                 return;
             }
+
+            // 同步光标配置（搜索框使用块状光标与主题色）
+            pnana::ui::CursorConfig cfg;
+            cfg.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
+            cfg.color = getCursorColor();
+            cfg.smooth = getCursorSmooth();
+            cfg.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+            symbol_navigation_popup_.setCursorConfig(cfg, getCursorBlinkRate());
 
             // 设置跳转回调（用于预览跳转）
             symbol_navigation_popup_.setJumpCallback(

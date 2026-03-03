@@ -69,6 +69,22 @@ static void updateGitInfo() {
     // 异步更新git信息（非阻塞）
     updateGitInfoAsync();
 }
+
+// 将制表符按 tab_size 展开为空格，用于正确显示缩进（如 Go 等用 tab 缩进的文件）
+static std::string expandTabsForDisplay(const std::string& s, int tab_size) {
+    if (tab_size <= 0)
+        tab_size = 4;
+    std::string out;
+    out.reserve(s.size() * 2); // 粗略预留
+    for (char c : s) {
+        if (c == '\t')
+            out.append(static_cast<size_t>(tab_size), ' ');
+        else
+            out.push_back(c);
+    }
+    return out;
+}
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -191,7 +207,8 @@ Element Editor::renderUILegacy() {
         main_content = editor_content;
     }
 
-    auto main_ui = vbox({renderTabbar(), separator(), main_content, renderStatusbar(),
+    // 主内容区使用 flex，避免终端高度变化时状态栏位置上下移动
+    auto main_ui = vbox({renderTabbar(), separator(), main_content | flex, renderStatusbar(),
                          renderInputBox(), renderHelpbar()}) |
                    bgcolor(theme_.getColors().background);
 
@@ -916,32 +933,47 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
         }
     }
 
+    // 制表符显示宽度，用于展开 \t 以正确显示缩进（如 Go 文件）
+    int tab_size = std::max(1, std::min(8, config_manager_.getConfig().editor.tab_size));
+
     // 渲染带搜索高亮和选中高亮的行内容
-    auto renderLineWithHighlights = [&](const std::string& line_content, size_t cursor_pos,
-                                        bool has_cursor) -> Element {
+    auto renderLineWithHighlights = [&, tab_size](const std::string& line_content,
+                                                  size_t cursor_pos, bool has_cursor) -> Element {
         Elements parts;
         auto& colors = theme_.getColors();
+
+        // 光标在 \t 上时只画单列块，后补 (tab_size-1) 空格，既保持行宽又不让光标变“大块”
+        auto pushCursorPart = [&](const std::string& cursor_char, Element cursor_elem) {
+            parts.push_back(std::move(cursor_elem));
+            if (cursor_char == "\t" && tab_size > 1)
+                parts.push_back(ftxui::text(std::string(static_cast<size_t>(tab_size - 1), ' ')));
+        };
+        auto cursorCharForBlock = [](const std::string& ch) -> const std::string& {
+            static const std::string space = " ";
+            return (ch == "\t") ? space : ch;
+        };
 
         // 性能优化：如果行太长，限制语法高亮处理
         const size_t MAX_HIGHLIGHT_LENGTH = 5000; // 最多处理5000字符
         bool line_too_long = line_content.length() > MAX_HIGHLIGHT_LENGTH;
 
-        // 辅助函数：渲染文本段，应用选中高亮
-        auto renderSegment = [&](const std::string& segment_text, size_t /* start_pos */,
-                                 bool is_selected) -> Element {
+        // 辅助函数：渲染文本段，应用选中高亮（段内 \t 按 tab_size 展开以对齐缩进）
+        auto renderSegment = [&, tab_size](const std::string& segment_text, size_t /* start_pos */,
+                                           bool is_selected) -> Element {
             if (segment_text.empty()) {
                 return ftxui::text("");
             }
+            std::string display_text = expandTabsForDisplay(segment_text, tab_size);
 
             Element elem;
             if (syntax_highlighting_ && !line_too_long) {
                 try {
-                    elem = syntax_highlighter_.highlightLine(segment_text);
+                    elem = syntax_highlighter_.highlightLine(display_text);
                 } catch (...) {
-                    elem = ftxui::text(segment_text) | color(colors.foreground);
+                    elem = ftxui::text(display_text) | color(colors.foreground);
                 }
             } else {
-                elem = ftxui::text(segment_text) | color(colors.foreground);
+                elem = ftxui::text(display_text) | color(colors.foreground);
             }
 
             // 如果这段文本在选中范围内，添加选中背景色
@@ -977,9 +1009,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                         if (!before.empty()) {
                             parts.push_back(renderSegment(before, pos, false));
                         }
-                        parts.push_back(cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background));
+                        pushCursorPart(cursor_char, cursor_renderer.renderCursorElement(
+                                                        cursorCharForBlock(cursor_char), cursor_pos,
+                                                        line_content.length(), colors.foreground,
+                                                        colors.background));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(after, cursor_pos + 1, false));
                         }
@@ -1009,10 +1042,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                         }
                         // 光标在选中部分，也需要选中背景色
                         Element cursor_elem = cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background);
+                            cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                            colors.foreground, colors.background);
                         cursor_elem = cursor_elem | bgcolor(colors.selection);
-                        parts.push_back(cursor_elem);
+                        pushCursorPart(cursor_char, std::move(cursor_elem));
                         if (!after.empty()) {
                             Element after_elem = renderSegment(after, cursor_pos + 1, true);
                             parts.push_back(after_elem);
@@ -1040,9 +1073,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                         if (!before.empty()) {
                             parts.push_back(renderSegment(before, pos, false));
                         }
-                        parts.push_back(cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background));
+                        pushCursorPart(cursor_char, cursor_renderer.renderCursorElement(
+                                                        cursorCharForBlock(cursor_char), cursor_pos,
+                                                        line_content.length(), colors.foreground,
+                                                        colors.background));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(after, cursor_pos + 1, false));
                         }
@@ -1094,8 +1128,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             std::string cursor_char =
                                 pnana::utils::getUtf8CharAt(line_content, cursor_pos);
                             Element cursor_elem = cursor_renderer.renderCursorElement(
-                                cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                                colors.background);
+                                cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                                colors.foreground, colors.background);
                             // 选中高亮优先于单词高亮
                             if (match_in_selection && cursor_pos >= selection_start_col &&
                                 cursor_pos < selection_end_col) {
@@ -1103,7 +1137,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             } else {
                                 cursor_elem = cursor_elem | bgcolor(Color::GrayDark);
                             }
-                            parts.push_back(cursor_elem);
+                            pushCursorPart(cursor_char, std::move(cursor_elem));
 
                             if (after_cursor > 1) {
                                 std::string after =
@@ -1168,13 +1202,13 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                 before, pos, segment_in_selection && pos >= selection_start_col));
                         }
                         Element cursor_elem = cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background);
+                            cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                            colors.foreground, colors.background);
                         if (segment_in_selection && cursor_pos >= selection_start_col &&
                             cursor_pos < selection_end_col) {
                             cursor_elem = cursor_elem | bgcolor(colors.selection);
                         }
-                        parts.push_back(cursor_elem);
+                        pushCursorPart(cursor_char, std::move(cursor_elem));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(
                                 after, cursor_pos + 1,
@@ -1203,9 +1237,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                     parts.push_back(renderSegment(before, 0, false));
                 }
                 // 使用配置的光标样式渲染
-                parts.push_back(cursor_renderer.renderCursorElement(
-                    cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                    colors.background));
+                pushCursorPart(cursor_char,
+                               cursor_renderer.renderCursorElement(
+                                   cursorCharForBlock(cursor_char), cursor_pos,
+                                   line_content.length(), colors.foreground, colors.background));
                 if (!after.empty()) {
                     parts.push_back(renderSegment(after, cursor_pos + 1, false));
                 }
@@ -1255,8 +1290,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             std::string cursor_char =
                                 pnana::utils::getUtf8CharAt(line_content, cursor_pos);
                             Element cursor_elem = cursor_renderer.renderCursorElement(
-                                cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                                colors.background);
+                                cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                                colors.foreground, colors.background);
                             // 选中高亮优先于搜索高亮
                             if (match_in_selection && cursor_pos >= selection_start_col &&
                                 cursor_pos < selection_end_col) {
@@ -1264,7 +1299,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             } else {
                                 cursor_elem = cursor_elem | bgcolor(Color::GrayDark);
                             }
-                            parts.push_back(cursor_elem);
+                            pushCursorPart(cursor_char, std::move(cursor_elem));
 
                             if (after_cursor > 1) {
                                 std::string after =
@@ -1329,13 +1364,13 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                 before, pos, segment_in_selection && pos >= selection_start_col));
                         }
                         Element cursor_elem = cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background);
+                            cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                            colors.foreground, colors.background);
                         if (segment_in_selection && cursor_pos >= selection_start_col &&
                             cursor_pos < selection_end_col) {
                             cursor_elem = cursor_elem | bgcolor(colors.selection);
                         }
-                        parts.push_back(cursor_elem);
+                        pushCursorPart(cursor_char, std::move(cursor_elem));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(
                                 after, cursor_pos + 1,
