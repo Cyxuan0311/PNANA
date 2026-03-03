@@ -22,10 +22,6 @@ void Logger::initialize(const std::string& log_file) {
     log_file_.open(log_file, std::ios::app);
     if (log_file_.is_open()) {
         initialized_ = true;
-        // 直接写入，避免递归调用log()
-        std::string timestamp = getTimestamp();
-        log_file_ << "[" << timestamp << "] [INFO] Logger initialized" << std::endl;
-        log_file_.flush();
     }
 }
 
@@ -37,10 +33,6 @@ void Logger::close() {
     std::lock_guard<std::mutex> lock(log_mutex_);
 
     if (log_file_.is_open()) {
-        // 直接写入，避免递归调用log()
-        std::string timestamp = getTimestamp();
-        log_file_ << "[" << timestamp << "] [INFO] Logger closing" << std::endl;
-        log_file_.flush();
         log_file_.close();
     }
     initialized_ = false;
