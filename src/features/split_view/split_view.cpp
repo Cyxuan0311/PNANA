@@ -686,7 +686,8 @@ ftxui::Element SplitViewManager::renderSplitEditor(
     std::function<void(size_t)> switch_document_func,
     std::function<size_t()> get_document_count_func,
     std::function<ftxui::Element(const ViewRegion&, void*, size_t)> render_region_func,
-    int screen_width, int screen_height) {
+    int screen_width, int screen_height, ftxui::Color separator_default,
+    ftxui::Color separator_active) {
     // 更新分屏视图的尺寸
     updateRegionSizes(screen_width, screen_height);
 
@@ -768,11 +769,23 @@ ftxui::Element SplitViewManager::renderSplitEditor(
 
             col_elements.push_back(region_content);
 
-            // 如果不是最后一个，添加竖直分屏线
+            // 如果不是最后一个，添加竖直分屏线（tmux 风格：激活侧一半高亮）
             if (i < row_regions.size() - 1) {
+                size_t right_region_index = 0;
+                for (size_t j = 0; j < regions_.size(); ++j) {
+                    if (&regions_[j] == row_regions[i + 1]) {
+                        right_region_index = j;
+                        break;
+                    }
+                }
+                const bool left_active = (region_index == active_region_index_);
+                const bool right_active = (right_region_index == active_region_index_);
+                const int half_h = region->height / 2;
                 Elements line_chars;
                 for (int j = 0; j < region->height; ++j) {
-                    line_chars.push_back(text("│") | color(Color::GrayDark));
+                    bool use_active = (j < half_h) ? left_active : right_active;
+                    line_chars.push_back(text("│") |
+                                         color(use_active ? separator_active : separator_default));
                 }
                 col_elements.push_back(vbox(line_chars) | size(WIDTH, EQUAL, 1));
             }
@@ -780,20 +793,39 @@ ftxui::Element SplitViewManager::renderSplitEditor(
 
         row_elements.push_back(hbox(col_elements));
 
-        // 如果不是最后一行，添加横向分屏线
+        // 如果不是最后一行，添加横向分屏线（tmux 风格：上半/下半对应区域激活则高亮）
         auto next_row = rows.upper_bound(y);
         if (next_row != rows.end()) {
-            // 找到所有区域的边界来确定线长度
             int min_x = INT_MAX, max_x = 0;
             for (const auto& region : regions_) {
                 min_x = std::min(min_x, region.x);
                 max_x = std::max(max_x, region.x + region.width);
             }
-
+            bool upper_has_active = false;
+            for (const auto* r : row_regions) {
+                for (size_t k = 0; k < regions_.size(); ++k) {
+                    if (&regions_[k] == r && k == active_region_index_) {
+                        upper_has_active = true;
+                        break;
+                    }
+                }
+            }
+            bool lower_has_active = false;
+            for (const auto* r : next_row->second) {
+                for (size_t k = 0; k < regions_.size(); ++k) {
+                    if (&regions_[k] == r && k == active_region_index_) {
+                        lower_has_active = true;
+                        break;
+                    }
+                }
+            }
+            const int line_width = max_x - min_x;
+            const int half_w = line_width / 2;
             Elements line_chars;
-            int line_width = max_x - min_x;
             for (int j = 0; j < line_width; ++j) {
-                line_chars.push_back(text("─") | color(Color::GrayDark));
+                bool use_active = (j < half_w) ? upper_has_active : lower_has_active;
+                line_chars.push_back(text("─") |
+                                     color(use_active ? separator_active : separator_default));
             }
             row_elements.push_back(hbox(line_chars) | size(HEIGHT, EQUAL, 1));
         }
