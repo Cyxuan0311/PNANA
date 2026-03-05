@@ -82,6 +82,15 @@ std::vector<TodoItem> TodoManager::getDueTodos() const {
     return due;
 }
 
+bool TodoManager::isDueWithinBlinkWindow(const std::chrono::system_clock::time_point& due_time) {
+    auto now = std::chrono::system_clock::now();
+    if (due_time > now) {
+        return false; // 未到期不闪烁
+    }
+    auto overdue = now - due_time;
+    return overdue <= std::chrono::minutes(1); // 仅到期后 1 分钟内闪烁
+}
+
 std::string TodoManager::formatTimeRemaining(
     const std::chrono::system_clock::time_point& due_time) {
     auto now = std::chrono::system_clock::now();

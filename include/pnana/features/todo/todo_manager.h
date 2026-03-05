@@ -62,6 +62,9 @@ class TodoManager {
     // 获取需要提醒的 todo（当前时间已到达）
     std::vector<TodoItem> getDueTodos() const;
 
+    // 是否处于“到期后 1 分钟内”的窗口（用于 UI 闪烁，过期超过 1 分钟不再闪烁）
+    static bool isDueWithinBlinkWindow(const std::chrono::system_clock::time_point& due_time);
+
     // 格式化剩余时间或过期时间（辅助方法）
     static std::string formatTimeRemaining(const std::chrono::system_clock::time_point& due_time);
 
