@@ -313,6 +313,7 @@ set(SOURCES
     src/core/editor_file_ops.cpp
     src/core/editor_cursor.cpp
     src/core/editor_edit.cpp
+    src/core/editor_comment.cpp
     src/core/editor_ui.cpp
     src/core/editor_word_highlight.cpp
     src/core/overlay_manager.cpp
@@ -379,6 +380,7 @@ set(SOURCES
     src/ui/fzf_popup.cpp
     src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
+    src/utils/clangd_flags.cpp
     # Markdown 解析库
     third-party/md4c/md4c.c
     # 功能模块
@@ -388,6 +390,7 @@ set(SOURCES
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/todo/todo_manager.cpp
+    src/features/comment/comment_syntax.cpp
     src/features/vgit/git_manager.cpp
     src/features/package_manager/package_manager_registry.cpp
     src/features/package_manager/pip_manager.cpp
@@ -572,6 +575,7 @@ set(HEADERS
     include/pnana/utils/archive_validator.h
     include/pnana/utils/version_detector.h
     include/pnana/utils/assembly_analyzer.h
+    include/pnana/utils/clangd_flags.h
 )
 
 # Tree-sitter 模块头文件（如果启用）
