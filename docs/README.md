@@ -12,7 +12,6 @@
 
 ### 🔧 开发与扩展
 - **[插件开发指南](PLUGIN_DEVELOPMENT.md)** - 基于 src/plugins 的 Lua 插件 API 与示例（[English](PLUGIN_DEVELOPMENT_EN.md)）
-- **[LSP 支持](LSP.md)** - 语言服务器协议使用说明
 - **[依赖文档](DEPENDENCIES.md)** - 项目依赖说明和安装指南（[English](DEPENDENCIES_EN.md)）
 
 ### 📊 参考信息
@@ -32,10 +31,6 @@
 ### 我想开发插件
 1. 阅读 [插件开发指南](PLUGIN_DEVELOPMENT.md)
 2. 参考示例插件代码
-
-### 我想使用 LSP
-1. 查看 [LSP 支持文档](LSP.md)
-2. 安装对应的 LSP 服务器
 
 ### 我想发布版本
 1. 阅读 [发布工作流教程](RELEASE_WORKFLOW_TUTORIAL.md)

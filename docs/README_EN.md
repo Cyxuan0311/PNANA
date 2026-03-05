@@ -12,7 +12,6 @@ Welcome to the pnana documentation! This index helps you find what you need quic
 
 ### 🔧 Development & Extension
 - **[Plugin Development](PLUGIN_DEVELOPMENT_EN.md)** - Lua plugin API and examples ([中文](PLUGIN_DEVELOPMENT.md))
-- **[LSP Support](LSP.md)** - Language Server Protocol usage
 - **[Dependencies](DEPENDENCIES_EN.md)** - Dependencies and installation ([中文](DEPENDENCIES.md))
 
 ### 📊 Reference
@@ -32,10 +31,6 @@ Welcome to the pnana documentation! This index helps you find what you need quic
 ### I want to develop plugins
 1. Read the [Plugin Development Guide](PLUGIN_DEVELOPMENT_EN.md)
 2. Refer to example plugins
-
-### I want to use LSP
-1. See [LSP Support](LSP.md)
-2. Install the corresponding LSP server(s)
 
 ### I want to release a version
 1. Read the [Release Workflow Tutorial](RELEASE_WORKFLOW_TUTORIAL_EN.md)
