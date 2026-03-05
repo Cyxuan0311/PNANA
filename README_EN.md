@@ -67,7 +67,7 @@ Supports multiple programming languages: C/C++, Python, JavaScript/TypeScript, J
 - **Symbol Search**: Quickly find functions, classes, variables, and more
 - **Auto Configuration**: Automatically detects and configures LSP servers
 
-**Detailed LSP Guide**: See [LSP Documentation](docs/LSP.md)
+**LSP**: Built-in LSP client for completion, diagnostics, navigation
 
 #### Lua Plugin System （Planed）
 - **Powerful Extensibility**: Write plugins in Lua to easily extend editor functionality
@@ -129,7 +129,7 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 
 - **[Keyboard Shortcuts Reference](docs/KEYBINDINGS.md)** - Complete shortcut list and usage instructions
 - **[Configuration Documentation](docs/CONFIGURATION.md)** - Detailed configuration options and examples
-- **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Lua plugin API & examples | **[LSP Support](docs/LSP.md)**
+- **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Lua plugin API & examples
 - **[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation guide
 - **[Development Roadmap](docs/ROADMAP.md)** - Version plans and feature roadmap
 - **[Product Comparison](docs/COMPARISON.md)** - Detailed comparison with similar products

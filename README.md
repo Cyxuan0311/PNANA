@@ -67,7 +67,7 @@
 - **符号搜索**：快速查找函数、类、变量等符号
 - **自动配置**：自动检测并配置 LSP 服务器
 
-**详细 LSP 说明**：请查看 [LSP 支持文档](docs/LSP.md)
+**LSP**：编辑器内置 LSP 客户端，支持代码补全、诊断、跳转等
 
 #### Lua 插件系统 （计划中）
 - **强大的扩展能力**：使用 Lua 编写插件，轻松扩展编辑器功能
@@ -129,7 +129,7 @@ pnana --theme dracula file.txt
 
 - **[快捷键参考](docs/KEYBINDINGS.md)** - 完整的快捷键列表和使用说明
 - **[配置文档](docs/CONFIGURATION.md)** - 详细的配置选项和示例
-- **[插件开发指南](docs/PLUGIN_DEVELOPMENT.md)** - Lua 插件系统 API 与示例 | **[LSP 支持](docs/LSP.md)**
+- **[插件开发指南](docs/PLUGIN_DEVELOPMENT.md)** - Lua 插件系统 API 与示例
 - **[依赖文档](docs/DEPENDENCIES.md)** - 项目依赖说明和安装指南
 - **[开发路线图](docs/ROADMAP.md)** - 版本计划和功能路线图
 - **[产品对比](docs/COMPARISON.md)** - 与同类产品的详细对比
