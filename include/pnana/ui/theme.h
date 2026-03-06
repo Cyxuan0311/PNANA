@@ -97,6 +97,37 @@ class Theme {
     static ThemeColors Minions();           // 小黄人 - 黄蓝配色
     static ThemeColors Batman();            // 蝙蝠侠 - 黑金/哥谭风
     static ThemeColors SpongeBob();         // 海绵宝宝 - 海底黄蓝珊瑚风
+    static ThemeColors ModusVivendi();      // Modus Vivendi - 高对比度护眼深色
+    static ThemeColors ModusOperandi();     // Modus Operandi - 高对比度护眼浅色
+    static ThemeColors Horizon();           // Horizon - 暖色深色粉橙风
+    static ThemeColors Oxocarbon();         // Oxocarbon - IBM Carbon 风格深灰蓝
+    static ThemeColors Poimandres();        // Poimandres - 紫青深色主题
+    static ThemeColors Terafox();           // Terafox - 暖棕深色主题
+    static ThemeColors Mellow();            // Mellow - 柔和 pastel 深色
+    static ThemeColors Fleet();             // Fleet - JetBrains Fleet 风格深色
+    static ThemeColors Luna();              // Luna - 柔和紫蓝深色
+    static ThemeColors Retro();             // Retro - 复古 CRT 琥珀荧光屏
+    static ThemeColors Sunset();            // Sunset - 日落暖橙红风
+    static ThemeColors Forest();            // Forest - 森林绿深色
+    static ThemeColors Ocean();             // Ocean - 深海蓝青
+    static ThemeColors TangoDark();         // Tango Dark - Tango 调色板深色
+    static ThemeColors Synthwave();         // Synthwave - 80 年代霓虹紫青粉
+    static ThemeColors Decay();             // Decay - 冷灰蓝低饱和
+    static ThemeColors RiderDark();         // Rider Dark - JetBrains 灰底紫蓝
+    static ThemeColors ParchmentDark();     // Parchment Dark - 深褐羊皮纸风
+    static ThemeColors Crimson();           // Crimson - 深红黑绯红主色
+    static ThemeColors Frost();             // Frost - 冷冽冰蓝深色
+    static ThemeColors Lavender();          // Lavender - 薰衣草浅色
+    static ThemeColors Matcha();            // Matcha - 日式抹茶绿主题
+    static ThemeColors Aurora();            // Aurora - 极光青紫粉霓虹主题
+    static ThemeColors Amber();             // Amber - 暖黑琥珀金
+    static ThemeColors Mint();              // Mint - 深灰薄荷青终端风
+    static ThemeColors Obsidian();          // Obsidian - 深黑蓝灰冷静风
+    static ThemeColors Coffee();            // Coffee - 咖啡棕深色护眼
+    static ThemeColors Ink();               // Ink - 墨色深靛蓝+金/米色
+    static ThemeColors Sakura();            // Sakura - 樱浅粉白+玫瑰灰
+    static ThemeColors SakuraDark();        // Sakura Dark - 樱暗色版深玫底
+    static ThemeColors Monochrome();        // Monochrome - 黑白灰无彩色
 
     void setTheme(const std::string& name);
 
