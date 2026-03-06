@@ -53,12 +53,13 @@ std::pair<std::string, std::string> getCommentSyntax(const std::string& file_typ
         return {"/* ", " */"};
     }
 
-    // // 注释：C/C++, JavaScript, TypeScript, Java, Go, Rust, C#, PHP, Swift, Kotlin, Dart 等
-    if (ft == "cpp" || ft == "c" || ft == "javascript" || ft == "typescript" || ft == "java" ||
-        ft == "go" || ft == "rust" || ft == "csharp" || ft == "php" || ft == "swift" ||
-        ft == "kotlin" || ft == "dart" || ft == "zig" || ft == "odin" || ft == "v" ||
-        ft == "objective-c" || ft == "objective-cpp" || ft == "jsonc" || ft == "glsl" ||
-        ft == "hlsl" || ft == "wgsl" || ft == "proto" || ft == "thrift" || ft == "text") {
+    // // 注释：C/C++, C3, JavaScript, TypeScript, Java, Go, Rust, C#, PHP, Swift, Kotlin, Dart 等
+    if (ft == "cpp" || ft == "c" || ft == "c3" || ft == "javascript" || ft == "typescript" ||
+        ft == "java" || ft == "go" || ft == "rust" || ft == "csharp" || ft == "php" ||
+        ft == "swift" || ft == "kotlin" || ft == "dart" || ft == "zig" || ft == "odin" ||
+        ft == "v" || ft == "objective-c" || ft == "objective-cpp" || ft == "jsonc" ||
+        ft == "glsl" || ft == "hlsl" || ft == "wgsl" || ft == "proto" || ft == "thrift" ||
+        ft == "text") {
         return {"//", ""};
     }
 
