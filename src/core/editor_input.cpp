@@ -4,6 +4,7 @@
 #include "input/event_parser.h"
 #include "input/key_action.h"
 #include "ui/icons.h"
+#include "utils/logger.h"
 #include "utils/text_utils.h"
 #include <filesystem>
 #include <ftxui/component/event.hpp>
@@ -25,8 +26,6 @@ void Editor::handleInput(Event event) {
         // 直接返回，让FTXUI重新渲染
         return;
     }
-
-    // 记录事件处理开始（仅对关键事件）
 
     // GOTO_LINE 模式：完全参考搜索模式的实现，不做任何特殊处理
     // 搜索模式在 handleInput() 中没有任何特殊处理，直接路由到 handleSearchMode()
@@ -685,9 +684,19 @@ void Editor::handleNormalMode(Event event) {
             } else {
                 region_manager_.nextTab();
             }
+            int doc_count = static_cast<int>(document_manager_.getDocumentCount());
             int new_index = region_manager_.getTabIndex();
-            if (new_index != old_index && new_index >= 0 &&
-                new_index < static_cast<int>(document_manager_.getDocumentCount())) {
+            // 将 tab 索引限制在 [0, doc_count-1]，避免在最后一个标签按 Right 后越界导致界面异常
+            if (doc_count > 0) {
+                if (new_index >= doc_count) {
+                    region_manager_.setTabIndex(doc_count - 1);
+                    new_index = doc_count - 1;
+                } else if (new_index < 0) {
+                    region_manager_.setTabIndex(0);
+                    new_index = 0;
+                }
+            }
+            if (new_index != old_index && new_index >= 0 && new_index < doc_count) {
                 document_manager_.switchToDocument(new_index);
 
                 // 如果在分屏模式下，显式更新当前激活区域的文档索引（避免在 Tab 区域混淆 active
@@ -1011,9 +1020,18 @@ void Editor::handleNormalMode(Event event) {
                 // 标签区：左右键切换标签
                 int old_index = region_manager_.getTabIndex();
                 region_manager_.previousTab();
+                int doc_count = static_cast<int>(document_manager_.getDocumentCount());
                 int new_index = region_manager_.getTabIndex();
-                if (new_index != old_index && new_index >= 0 &&
-                    new_index < static_cast<int>(document_manager_.getDocumentCount())) {
+                if (doc_count > 0) {
+                    if (new_index >= doc_count) {
+                        region_manager_.setTabIndex(doc_count - 1);
+                        new_index = doc_count - 1;
+                    } else if (new_index < 0) {
+                        region_manager_.setTabIndex(0);
+                        new_index = 0;
+                    }
+                }
+                if (new_index != old_index && new_index >= 0 && new_index < doc_count) {
                     document_manager_.switchToDocument(new_index);
                     cursor_row_ = 0;
                     cursor_col_ = 0;
@@ -1121,9 +1139,18 @@ void Editor::handleNormalMode(Event event) {
                 // 标签区：左右键切换标签
                 int old_index = region_manager_.getTabIndex();
                 region_manager_.nextTab();
+                int doc_count = static_cast<int>(document_manager_.getDocumentCount());
                 int new_index = region_manager_.getTabIndex();
-                if (new_index != old_index && new_index >= 0 &&
-                    new_index < static_cast<int>(document_manager_.getDocumentCount())) {
+                if (doc_count > 0) {
+                    if (new_index >= doc_count) {
+                        region_manager_.setTabIndex(doc_count - 1);
+                        new_index = doc_count - 1;
+                    } else if (new_index < 0) {
+                        region_manager_.setTabIndex(0);
+                        new_index = 0;
+                    }
+                }
+                if (new_index != old_index && new_index >= 0 && new_index < doc_count) {
                     document_manager_.switchToDocument(new_index);
                     cursor_row_ = 0;
                     cursor_col_ = 0;
@@ -1285,11 +1312,18 @@ void Editor::handleSearchMode(Event event) {
     const int NUM_OPTIONS = 4;
     const char* option_names[] = {"Case sensitive", "Whole word", "Regex", "Wrap around"};
 
-    // 检查Ctrl+G键，用于跳转到下一个匹配项
+    // Ctrl+G：下一个匹配项
     if (event == Event::CtrlG) {
-        // Ctrl+G：跳转到下一个匹配项
         if (search_highlight_active_ && search_engine_.hasMatches()) {
             searchNext();
+            return;
+        }
+    }
+
+    // Ctrl+I：上一个匹配项
+    if (event == Event::CtrlI) {
+        if (search_highlight_active_ && search_engine_.hasMatches()) {
+            searchPrevious();
             return;
         }
     }
@@ -1408,6 +1442,16 @@ void Editor::handleReplaceMode(Event event) {
     const int NUM_OPTIONS = 4;
     const char* option_names[] = {"Case sensitive", "Whole word", "Regex", "Wrap around"};
 
+    // Ctrl+G / Ctrl+I：在替换模式下也可在匹配项间导航
+    if (event == Event::CtrlG && search_highlight_active_ && search_engine_.hasMatches()) {
+        searchNext();
+        return;
+    }
+    if (event == Event::CtrlI && search_highlight_active_ && search_engine_.hasMatches()) {
+        searchPrevious();
+        return;
+    }
+
     if (event == Event::Return) {
         // 执行替换（替换所有匹配项）
         if (!search_input_.empty()) {
@@ -1508,6 +1552,14 @@ void Editor::handleReplaceMode(Event event) {
 }
 
 void Editor::handleFileBrowserInput(Event event) {
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        std::string ev = event.is_character() ? ("char='" + event.character() + "'") : "non-char";
+        bool is_minus = (event == Event::Character('-'));
+        bool is_plus = (event == Event::Character('+'));
+        LOG("[FB_INPUT] handleFileBrowserInput entry: " + ev + " is_minus=" +
+            (is_minus ? "true" : "false") + " is_plus=" + (is_plus ? "true" : "false"));
+    }
+
     // 确保当前区域是文件浏览器
     if (region_manager_.getCurrentRegion() != EditorRegion::FILE_BROWSER) {
         region_manager_.setRegion(EditorRegion::FILE_BROWSER);
@@ -1782,10 +1834,24 @@ void Editor::startSearch() {
     mode_ = EditorMode::SEARCH;
     search_input_.clear();
     search_cursor_pos_ = 0;
+
+    // 若有选中文本，或当前有高亮单词（光标下/选中单词高亮），则填入搜索框
+    std::string initial = getSelectedText();
+    if (initial.empty() && word_highlight_active_ && !current_word_.empty()) {
+        initial = current_word_;
+    }
+    if (!initial.empty()) {
+        search_input_ = initial;
+        search_cursor_pos_ = search_input_.length();
+    }
+
     current_search_match_ = 0;
     total_search_matches_ = 0;
     current_option_index_ = 0; // 重置选项索引
     clearSearchHighlight();
+    if (!search_input_.empty()) {
+        performSearch(search_input_, buildSearchOptions());
+    }
     setStatusMessage(
         "Search: (type to search, ↑↓ select options, Space toggle, Tab to replace, Esc to cancel)");
     force_ui_update_ = true;

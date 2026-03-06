@@ -952,46 +952,5 @@ void Editor::unindentLine() {
     }
 }
 
-void Editor::toggleComment() {
-    auto& lines = getCurrentDocument()->getLines();
-    if (cursor_row_ >= lines.size())
-        return;
-
-    std::string& line = lines[cursor_row_];
-    std::string file_type = getFileType();
-
-    // 根据文件类型选择注释符号
-    std::string comment_prefix = "//";
-    if (file_type == "python" || file_type == "shell") {
-        comment_prefix = "#";
-    } else if (file_type == "lua") {
-        comment_prefix = "--";
-    } else if (file_type == "html" || file_type == "xml") {
-        comment_prefix = "<!--";
-        // HTML注释需要特殊处理，这里简化处理
-    }
-
-    // 检查是否已注释
-    size_t first_non_space = line.find_first_not_of(" \t");
-    if (first_non_space != std::string::npos &&
-        line.substr(first_non_space, comment_prefix.length()) == comment_prefix) {
-        // 取消注释
-        line.erase(first_non_space, comment_prefix.length());
-        if (cursor_col_ >= first_non_space + comment_prefix.length()) {
-            cursor_col_ -= comment_prefix.length();
-        }
-    } else {
-        // 添加注释
-        if (first_non_space == std::string::npos) {
-            first_non_space = 0;
-        }
-        line.insert(first_non_space, comment_prefix + " ");
-        cursor_col_ += comment_prefix.length() + 1;
-    }
-
-    getCurrentDocument()->setModified(true);
-    setStatusMessage("Comment toggled");
-}
-
 } // namespace core
 } // namespace pnana
