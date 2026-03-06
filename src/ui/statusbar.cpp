@@ -153,66 +153,61 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
 
     // 状态消息（如果有，居中显示）
     if (!message.empty()) {
-        // 检查是否包含 todo 提醒（使用特殊标记）
-        std::string todo_marker_start = "[[TODO_REMINDER]]";
-        std::string todo_marker_end = "[[/TODO_REMINDER]]";
-        size_t todo_start = message.find(todo_marker_start);
+        // 检查是否包含 todo 提醒：TODO_REMINDER = 到期后 1 分钟内闪烁，TODO_REMINDER_STATIC =
+        // 过期超过 1 分钟仅红色不闪烁
+        const std::string todo_blink_start = "[[TODO_REMINDER]]";
+        const std::string todo_blink_end = "[[/TODO_REMINDER]]";
+        const std::string todo_static_start = "[[TODO_REMINDER_STATIC]]";
+        const std::string todo_static_end = "[[/TODO_REMINDER_STATIC]]";
+
+        size_t todo_start = message.find(todo_blink_start);
+        std::string todo_marker_end = todo_blink_end;
+        bool use_blink = true;
+        if (todo_start == std::string::npos) {
+            todo_start = message.find(todo_static_start);
+            todo_marker_end = todo_static_end;
+            use_blink = false;
+        }
+
+        const std::string todo_marker_start = use_blink ? todo_blink_start : todo_static_start;
 
         if (todo_start != std::string::npos) {
-            // 包含 todo 提醒，需要分别渲染
             size_t todo_end = message.find(todo_marker_end, todo_start);
             if (todo_end != std::string::npos) {
-                // 提取 todo 提醒文本
                 std::string todo_text =
                     message.substr(todo_start + todo_marker_start.length(),
                                    todo_end - todo_start - todo_marker_start.length());
 
-                // 提取普通消息（todo 之前和之后的部分）
                 std::string before_todo = message.substr(0, todo_start);
                 std::string after_todo = message.substr(todo_end + todo_marker_end.length());
                 std::string normal_message = before_todo + after_todo;
 
-                // Extract priority from todo text (format: P1, P2, ..., P5)
-                int priority = 5; // Default priority
-                size_t priority_pos = todo_text.find("P");
-                if (priority_pos != std::string::npos && priority_pos + 1 < todo_text.length()) {
-                    char priority_char = todo_text[priority_pos + 1];
-                    if (priority_char >= '1' && priority_char <= '5') {
-                        priority = priority_char - '0';
+                Color todo_color = colors.error;
+                if (use_blink) {
+                    int priority = 5;
+                    size_t priority_pos = todo_text.find("P");
+                    if (priority_pos != std::string::npos &&
+                        priority_pos + 1 < todo_text.length()) {
+                        char priority_char = todo_text[priority_pos + 1];
+                        if (priority_char >= '1' && priority_char <= '5') {
+                            priority = priority_char - '0';
+                        }
                     }
+                    auto now = std::chrono::steady_clock::now();
+                    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  now.time_since_epoch())
+                                  .count();
+                    const int blink_period_ms = 300;
+                    double phase = (static_cast<double>(ms % blink_period_ms) /
+                                    static_cast<double>(blink_period_ms)) *
+                                   2.0 * M_PI;
+                    double intensity = (std::sin(phase) + 1.0) / 2.0;
+                    double priority_threshold = 0.3 + (priority - 1) * 0.1;
+                    todo_color = intensity < priority_threshold ? colors.error : colors.warning;
                 }
 
-                // Use sine wave for smooth color transition effect (300ms period)
-                auto now = std::chrono::steady_clock::now();
-                auto ms =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
-                        .count();
-
-                // 300ms period, use sine wave for smooth transition
-                const int blink_period_ms = 300;
-                double phase =
-                    (static_cast<double>(ms % blink_period_ms) / blink_period_ms) * 2.0 * M_PI;
-                double intensity = (std::sin(phase) + 1.0) / 2.0; // 0-1 range
-
-                // Adjust color intensity based on priority (higher priority = more intense)
-                // Priority 1-5 maps to intensity threshold adjustment: P1 more red (more
-                // noticeable), P5 more yellow
-                double priority_threshold = 0.3 + (priority - 1) * 0.1; // P1=0.3, P5=0.7
-
-                // Determine color based on sine wave intensity and priority
-                Color todo_color;
-                if (intensity < priority_threshold) {
-                    // Red blink (more noticeable)
-                    todo_color = colors.error;
-                } else {
-                    // Yellow blink
-                    todo_color = colors.warning;
-                }
-
-                // 渲染普通消息（如果有）
                 if (!normal_message.empty()) {
                     std::string clean_normal = normal_message;
-                    // 移除多余的分隔符
                     if (clean_normal.find(" | ") == 0) {
                         clean_normal = clean_normal.substr(3);
                     }
@@ -223,16 +218,13 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
                     }
                 }
 
-                // 渲染 todo 提醒（带闪烁颜色）
                 center_elements.push_back(text(todo_text) | color(todo_color) | bold);
             } else {
-                // 标记不完整，使用普通渲染
                 std::string clean_message = message;
                 center_elements.push_back(text(" " + clean_message) | color(colors.foreground) |
                                           dim);
             }
         } else {
-            // 普通消息，正常渲染
             std::string clean_message = message;
             center_elements.push_back(text(" " + clean_message) | color(colors.foreground) | dim);
         }

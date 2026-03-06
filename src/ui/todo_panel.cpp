@@ -1,7 +1,9 @@
 #include "ui/todo_panel.h"
+#include "features/todo/todo_manager.h"
 #include "ui/icons.h"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <ftxui/component/event.hpp>
 #include <iomanip>
 #include <sstream>
@@ -36,7 +38,7 @@ Element TodoPanel::render() {
 
     Elements content;
     content.push_back(renderHeader());
-    content.push_back(separator());
+    content.push_back(separator() | color(colors.dialog_border));
 
     if (is_creating_todo_) {
         content.push_back(renderCreateDialog());
@@ -46,12 +48,17 @@ Element TodoPanel::render() {
         content.push_back(renderTodoList());
     }
 
-    content.push_back(separator());
+    content.push_back(separator() | color(colors.dialog_border));
     content.push_back(renderHelpBar());
 
-    return window(text(" Todo List ") | color(colors.success) | bold, vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, 80) | size(HEIGHT, GREATER_THAN, 20) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
+    const int panel_min_width = 72;
+    const int panel_min_height = 18;
+    return window(text(" " + std::string(icons::CHECKLIST) + " Todo List ") |
+                      color(colors.success) | bold,
+                  vbox(std::move(content))) |
+           size(WIDTH, GREATER_THAN, panel_min_width) |
+           size(HEIGHT, GREATER_THAN, panel_min_height) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 Component TodoPanel::getComponent() {
@@ -237,8 +244,8 @@ bool TodoPanel::handleInput(Event event) {
     if (event == Event::ArrowDown) {
         if (selected_index_ < todos.size() - 1) {
             selected_index_++;
-            if (selected_index_ >= scroll_offset_ + 15) {
-                scroll_offset_ = selected_index_ - 14;
+            if (selected_index_ >= scroll_offset_ + 12) {
+                scroll_offset_ = selected_index_ - 11;
             }
         }
         return true;
@@ -278,10 +285,15 @@ Element TodoPanel::renderHeader() const {
     size_t due_count = todo_manager_.getDueTodos().size();
 
     Elements header;
-    header.push_back(text(" Total: " + std::to_string(todos.size()) +
-                          " | Active: " + std::to_string(active_count)));
+    header.push_back(text("  "));
+    header.push_back(text(std::to_string(todos.size())) | bold);
+    header.push_back(text(" total  "));
+    header.push_back(text(std::to_string(active_count)));
+    header.push_back(text(" active"));
     if (due_count > 0) {
-        header.push_back(text(" | Due: " + std::to_string(due_count)) | color(colors.error) | bold);
+        header.push_back(text("  "));
+        header.push_back(text(std::to_string(due_count)) | color(colors.error) | bold);
+        header.push_back(text(" due") | color(colors.error));
     }
 
     return hbox(std::move(header)) | bgcolor(colors.dialog_title_bg) |
@@ -294,10 +306,21 @@ Element TodoPanel::renderTodoList() const {
     Elements list_elements;
 
     if (todos.empty()) {
-        list_elements.push_back(hbox({text("  "), text("No todos. Press Space to create one.") |
-                                                      color(colors.comment) | dim}));
+        list_elements.push_back(text(""));
+        list_elements.push_back(hbox({
+            filler(),
+            text("No todos yet") | color(colors.comment) | dim,
+            filler(),
+        }));
+        list_elements.push_back(hbox({
+            filler(),
+            text("Press Space to create one") | color(colors.comment) | dim,
+            filler(),
+        }));
+        list_elements.push_back(text(""));
     } else {
-        size_t max_display = std::min(todos.size(), size_t(15));
+        list_elements.push_back(text(""));
+        size_t max_display = std::min(todos.size(), size_t(12));
         for (size_t i = 0; i < max_display && (scroll_offset_ + i) < todos.size(); ++i) {
             size_t index = scroll_offset_ + i;
             const auto& todo = todos[index];
@@ -308,55 +331,72 @@ Element TodoPanel::renderTodoList() const {
         // 滚动提示
         if (scroll_offset_ > 0 || (scroll_offset_ + max_display) < todos.size()) {
             list_elements.push_back(text(""));
-            std::string scroll_text = "... " + std::to_string(todos.size() - max_display) + " more";
+            std::string scroll_text = "↑↓ " + std::to_string(todos.size()) + " items";
             list_elements.push_back(
                 hbox({text("  "), text(scroll_text) | color(colors.comment) | dim}));
         }
     }
 
-    return vbox(list_elements);
+    return vbox(list_elements) | flex_grow;
 }
 
 Element TodoPanel::renderTodoItem(const features::todo::TodoItem& todo, size_t /*index*/,
                                   bool is_selected) const {
     const auto& colors = theme_.getColors();
-    Elements item_elements;
+    const int time_width = 17; // "YYYY-MM-DD HH:MM"
 
-    // 选中标记
-    if (is_selected) {
-        item_elements.push_back(text("► ") | color(colors.success) | bold);
-    } else {
-        item_elements.push_back(text("  "));
-    }
+    // 选中标记 + 优先级
+    std::string priority_str = "[" + std::to_string(todo.priority) + "] ";
+    Element left = is_selected
+                       ? (hbox({text("► ") | color(colors.success) | bold,
+                                text(priority_str) | color(colors.keyword) | dim}))
+                       : (hbox({text("  "), text(priority_str) | color(colors.keyword) | dim}));
 
-    // 优先级显示
-    std::string priority_str = "[" + std::to_string(todo.priority) + "]";
-    item_elements.push_back(text(priority_str) | color(colors.keyword) | dim);
-
-    // 内容
+    // 内容（弹性，截断）
     std::string content_display = todo.content;
-    if (content_display.length() > 50) {
-        content_display = content_display.substr(0, 47) + "...";
+    const size_t max_content_len = 42;
+    if (content_display.length() > max_content_len) {
+        content_display = content_display.substr(0, max_content_len - 3) + "...";
     }
     Color content_color = is_selected ? colors.dialog_fg : colors.foreground;
     if (todo.completed) {
         content_color = colors.comment;
         content_display = "✓ " + content_display;
     }
-    Element content_text = text(" " + content_display) | color(content_color);
+    Element content_el = text(content_display) | color(content_color);
     if (is_selected) {
-        content_text = content_text | bold;
+        content_el = content_el | bold;
     }
-    item_elements.push_back(content_text);
+    content_el = content_el | flex_grow;
 
-    // 时间显示
-    item_elements.push_back(filler());
+    // 时间（右对齐固定宽度）：到期后 1 分钟内闪烁，超过 1 分钟仅高亮不闪烁
     std::string time_str = formatTime(todo.due_time);
     bool is_due = isTimeDue(todo.due_time);
-    Color time_color = is_due ? colors.error : colors.comment;
-    item_elements.push_back(text(time_str) | color(time_color) | (is_due ? bold : dim));
+    bool should_blink = features::todo::TodoManager::isDueWithinBlinkWindow(todo.due_time);
+    Color time_color = colors.comment;
+    if (is_due) {
+        if (should_blink) {
+            auto now = std::chrono::steady_clock::now();
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+                          .count();
+            const int blink_period_ms = 500;
+            double phase =
+                (static_cast<double>(ms % blink_period_ms) / static_cast<double>(blink_period_ms)) *
+                2.0 * M_PI;
+            double intensity = (std::sin(phase) + 1.0) / 2.0;
+            time_color = intensity > 0.5 ? colors.error : colors.warning;
+        } else {
+            time_color = colors.error;
+        }
+    }
+    Element time_el =
+        text(time_str) | color(time_color) | (is_due ? bold : dim) | size(WIDTH, EQUAL, time_width);
 
-    Element item_line = hbox(item_elements);
+    Element item_line = hbox({
+        left,
+        content_el,
+        time_el,
+    });
     if (is_selected) {
         item_line = item_line | bgcolor(colors.selection);
     }
@@ -382,55 +422,60 @@ Element TodoPanel::renderHelpBar() const {
 
 Element TodoPanel::renderCreateDialog() const {
     const auto& colors = theme_.getColors();
-    Elements dialog;
+    const int label_width = 10;
 
-    dialog.push_back(text("  Create New Todo") | bold | color(colors.dialog_fg));
+    Elements dialog;
+    dialog.push_back(text(""));
+    dialog.push_back(text("  New todo") | bold | color(colors.dialog_fg));
     dialog.push_back(text(""));
 
     // 内容输入
     std::string content_display = new_todo_content_;
     if (current_field_ == 0) {
-        // 在当前字段显示光标
         if (cursor_position_ <= content_display.length()) {
-            content_display.insert(cursor_position_, "_");
+            content_display.insert(cursor_position_, "|");
         } else {
-            content_display += "_";
+            content_display += "|";
         }
     }
     Color content_bg = (current_field_ == 0) ? colors.selection : colors.background;
-    dialog.push_back(hbox({text("  Content: "),
-                           text(content_display) | color(colors.dialog_fg) | bgcolor(content_bg)}));
+    dialog.push_back(hbox({
+        text("  Content  ") | size(WIDTH, EQUAL, label_width + 2),
+        text(content_display) | color(colors.dialog_fg) | bgcolor(content_bg) | flex_grow,
+    }));
     dialog.push_back(text(""));
 
     // 时间输入
     std::string time_display = new_todo_time_input_;
     if (current_field_ == 1) {
-        // 在当前字段显示光标
         if (cursor_position_ <= time_display.length()) {
-            time_display.insert(cursor_position_, "_");
+            time_display.insert(cursor_position_, "|");
         } else {
-            time_display += "_";
+            time_display += "|";
         }
     }
     Color time_bg = (current_field_ == 1) ? colors.selection : colors.background;
-    dialog.push_back(hbox({text("  Time (YYYY-MM-DD HH:MM): "),
-                           text(time_display) | color(colors.dialog_fg) | bgcolor(time_bg)}));
+    dialog.push_back(hbox({
+        text("  Due       ") | size(WIDTH, EQUAL, label_width + 2),
+        text(time_display) | color(colors.dialog_fg) | bgcolor(time_bg) | flex_grow,
+    }));
     dialog.push_back(text(""));
 
     // 优先级输入
     std::string priority_display = priority_input_.empty() ? "5" : priority_input_;
     if (current_field_ == 2) {
-        // 在当前字段显示光标
         if (cursor_position_ <= priority_display.length()) {
-            priority_display.insert(cursor_position_, "_");
+            priority_display.insert(cursor_position_, "|");
         } else {
-            priority_display += "_";
+            priority_display += "|";
         }
     }
     Color priority_bg = (current_field_ == 2) ? colors.selection : colors.background;
-    dialog.push_back(
-        hbox({text("  Priority (1-9): "),
-              text(priority_display) | color(colors.dialog_fg) | bgcolor(priority_bg)}));
+    dialog.push_back(hbox({
+        text("  Priority  ") | size(WIDTH, EQUAL, label_width + 2),
+        text(priority_display) | color(colors.dialog_fg) | bgcolor(priority_bg),
+    }));
+    dialog.push_back(text(""));
 
     return vbox(dialog);
 }
@@ -442,14 +487,20 @@ Element TodoPanel::renderPriorityEdit() const {
 
     if (selected_index_ < todos.size()) {
         const auto& todo = todos[selected_index_];
-        dialog.push_back(text("  Edit Priority for: " + todo.content) | bold |
-                         color(colors.dialog_fg));
+        std::string title_content = todo.content;
+        if (title_content.length() > 40) {
+            title_content = title_content.substr(0, 37) + "...";
+        }
+        dialog.push_back(text(""));
+        dialog.push_back(text("  Edit priority: " + title_content) | color(colors.dialog_fg));
         dialog.push_back(text(""));
         std::string priority_display =
-            priority_input_.empty() ? std::to_string(todo.priority) + "_" : priority_input_ + "_";
-        dialog.push_back(
-            hbox({text("  Priority (1-9): "),
-                  text(priority_display) | color(colors.dialog_fg) | bgcolor(colors.selection)}));
+            priority_input_.empty() ? std::to_string(todo.priority) + "|" : priority_input_ + "|";
+        dialog.push_back(hbox({
+            text("  Priority (1-9)  "),
+            text(priority_display) | color(colors.dialog_fg) | bgcolor(colors.selection),
+        }));
+        dialog.push_back(text(""));
     }
 
     return vbox(dialog);

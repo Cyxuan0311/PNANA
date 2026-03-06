@@ -84,6 +84,27 @@ bool ThemeMenu::handleInput(ftxui::Event event) {
             selected_index_++;
         }
         return true;
+    } else if (event == Event::PageUp) {
+        if (!filtered_themes_.empty()) {
+            const size_t page_size = 20; // 与 renderThemeList 中 max_display 一致
+            if (selected_index_ >= page_size) {
+                selected_index_ -= page_size;
+            } else {
+                selected_index_ = 0;
+            }
+        }
+        return true;
+    } else if (event == Event::PageDown) {
+        if (!filtered_themes_.empty()) {
+            const size_t page_size = 20;
+            size_t next = selected_index_ + page_size;
+            if (next >= filtered_themes_.size()) {
+                selected_index_ = filtered_themes_.size() - 1;
+            } else {
+                selected_index_ = next;
+            }
+        }
+        return true;
     } else if (event.is_character()) {
         std::string ch = event.character();
         if (!ch.empty() && ch[0] >= 32) {
@@ -302,7 +323,8 @@ Element ThemeMenu::render() {
     // 底部提示
     Element help_bar =
         hbox({text(" "), text("↑↓") | color(current_colors.helpbar_key) | bold,
-              text(": Navigate  "), text("Enter") | color(current_colors.helpbar_key) | bold,
+              text(": Navigate  "), text("PgUp/PgDn") | color(current_colors.helpbar_key) | bold,
+              text(": Page  "), text("Enter") | color(current_colors.helpbar_key) | bold,
               text(": Apply  "), text("Type") | color(current_colors.helpbar_key) | bold,
               text(": Filter  "), text("Esc") | color(current_colors.helpbar_key) | bold,
               text(": Cancel"), filler()}) |

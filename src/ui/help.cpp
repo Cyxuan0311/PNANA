@@ -29,6 +29,7 @@ std::vector<HelpEntry> Help::getAllHelp() {
         {"File Operations", "Ctrl+Q", "Quit editor"},
         {"File Operations", "Alt+Tab / Ctrl+PageDown", "Next tab"},
         {"File Operations", "Alt+Shift+Tab / Ctrl+PageUp", "Previous tab"},
+        {"File Operations", "Alt+T", "Focus tab bar"},
         {"File Operations", "↑↓", "Navigate files (in browser)"},
         {"File Operations", "Enter", "Open file/folder"},
         {"File Operations", "Backspace", "Go to parent folder"},
