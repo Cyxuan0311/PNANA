@@ -55,6 +55,41 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
     queue_cv_.notify_all();
 }
 
+void LspAsyncManager::requestDocumentOpenAsync(LspClient* client, const std::string& uri,
+                                               const std::string& language_id,
+                                               const std::string& content) {
+    if (!client || !running_)
+        return;
+    RequestTask task;
+    task.type = RequestTask::DOCUMENT_OPEN;
+    task.client = client;
+    task.uri = uri;
+    task.doc_language_id = language_id;
+    task.doc_content = content;
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        request_queue_.push(task);
+    }
+    queue_cv_.notify_all();
+}
+
+void LspAsyncManager::requestDocumentChangeAsync(LspClient* client, const std::string& uri,
+                                                 const std::string& content, int version) {
+    if (!client || !running_)
+        return;
+    RequestTask task;
+    task.type = RequestTask::DOCUMENT_CHANGE;
+    task.client = client;
+    task.uri = uri;
+    task.doc_content = content;
+    task.doc_version = version;
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        request_queue_.push(task);
+    }
+    queue_cv_.notify_all();
+}
+
 void LspAsyncManager::requestResolveAsync(LspClient* client, const CompletionItem& item,
                                           ResolveCallback on_success, ErrorCallback on_error) {
     if (!client || !running_) {
@@ -142,6 +177,20 @@ void LspAsyncManager::workerThread() {
                         }
                     } else if (task.error_callback) {
                         task.error_callback("LSP client is not connected");
+                    }
+                } else if (task.type == RequestTask::DOCUMENT_OPEN) {
+                    if (task.client && task.client->isConnected()) {
+                        try {
+                            task.client->didOpen(task.uri, task.doc_language_id, task.doc_content);
+                        } catch (...) {
+                        }
+                    }
+                } else if (task.type == RequestTask::DOCUMENT_CHANGE) {
+                    if (task.client && task.client->isConnected()) {
+                        try {
+                            task.client->didChange(task.uri, task.doc_content, task.doc_version);
+                        } catch (...) {
+                        }
                     }
                 }
             } catch (const std::exception& e) {

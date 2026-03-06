@@ -40,6 +40,12 @@ class LspAsyncManager {
     void requestResolveAsync(LspClient* client, const CompletionItem& item,
                              ResolveCallback on_success, ErrorCallback on_error = nullptr);
 
+    // 异步发送文档打开/变更到 LSP（在 worker 中执行 didOpen/didChange，避免主线程阻塞）
+    void requestDocumentOpenAsync(LspClient* client, const std::string& uri,
+                                  const std::string& language_id, const std::string& content);
+    void requestDocumentChangeAsync(LspClient* client, const std::string& uri,
+                                    const std::string& content, int version);
+
     // 取消所有待处理的请求
     void cancelPendingRequests();
 
@@ -53,7 +59,7 @@ class LspAsyncManager {
 
   private:
     struct RequestTask {
-        enum Type { COMPLETION, RESOLVE, HOVER, DEFINITION };
+        enum Type { COMPLETION, RESOLVE, HOVER, DEFINITION, DOCUMENT_OPEN, DOCUMENT_CHANGE };
         Type type;
         LspClient* client;
         std::string uri;
@@ -64,6 +70,10 @@ class LspAsyncManager {
         CompletionCallback completion_callback;
         ResolveCallback resolve_callback;
         ErrorCallback error_callback;
+        // DOCUMENT_OPEN / DOCUMENT_CHANGE
+        std::string doc_content;
+        std::string doc_language_id;
+        int doc_version = 0;
     };
 
     void workerThread();
