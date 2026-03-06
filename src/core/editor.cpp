@@ -181,14 +181,25 @@ Editor::Editor()
                 return;
             }
 
+            // 切换文档时更新语法高亮，避免沿用上一个文件的语法规则
+            syntax_highlighter_.setFileType(getFileType());
+
             std::string filepath = new_doc->getFilePath();
 
             if (filepath.empty()) {
+#ifdef BUILD_LSP_SUPPORT
+                updateCurrentFileDiagnostics();
+                updateCurrentFileFolding();
+#endif
                 needs_render_ = true;
                 last_render_source_ = "document_switch";
                 return;
             }
 
+#ifdef BUILD_LSP_SUPPORT
+            // 先同步 LSP 文档并可能替换 folding_manager_（切换不同语言时需对应 client）
+            updateLspDocument(/* force_sync */ true);
+#endif
             updateCurrentFileDiagnostics();
             updateCurrentFileFolding();
             preloadAdjacentDocuments(new_index);
@@ -2348,6 +2359,17 @@ void Editor::focusLeftRegion() {
     setStatusMessage("Focus left region");
 
     // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
+    force_ui_update_ = true;
+}
+
+void Editor::focusTabBar() {
+    if (!region_manager_.isTabAreaEnabled()) {
+        setStatusMessage("Tab bar: open more than one file to focus");
+        return;
+    }
+    region_manager_.setTabIndex(static_cast<int>(document_manager_.getCurrentIndex()));
+    region_manager_.setRegion(EditorRegion::TAB_AREA);
+    setStatusMessage("Region: " + region_manager_.getRegionName());
     force_ui_update_ = true;
 }
 

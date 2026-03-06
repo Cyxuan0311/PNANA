@@ -242,6 +242,7 @@ class Editor {
 
     // 分屏大小调整
     bool resizeActiveSplitRegion(int delta);
+    void focusTabBar();
     void focusLeftRegion();
     void focusRightRegion();
     void focusUpRegion();
@@ -348,6 +349,8 @@ class Editor {
     }
     int getScreenHeight() const;
     int getScreenWidth() const;
+    // 根据文档行数返回行号区域所需字符宽度（用于光标位置等计算）
+    int getLineNumberWidth(Document* doc) const;
 
     // 退出
     void quit();
@@ -469,8 +472,9 @@ class Editor {
     // LSP 格式化器
     std::unique_ptr<features::LspFormatter> lsp_formatter_;
 
-    // 代码折叠管理器
+    // 代码折叠管理器（按 language_id 绑定，切换不同语言文件时需替换）
     std::unique_ptr<features::FoldingManager> folding_manager_;
+    std::string folding_manager_language_id_; // 当前 folding_manager_ 绑定的 language_id
 
     // 文档更新防抖（阶段1优化）
     std::chrono::steady_clock::time_point last_document_update_time_;
