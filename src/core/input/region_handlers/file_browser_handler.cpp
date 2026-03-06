@@ -39,6 +39,9 @@ bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
         return true;
     } else if (event == Event::Character('-') || event == Event::Character('_')) {
         // - 或 _ 键：减少文件浏览器宽度
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            LOG("[FB_HANDLER] minus/underscore branch: decreasing width");
+        }
         int current_width = editor->getFileBrowserWidth();
         int new_width = current_width - 1;
         // 限制最小宽度（至少10列）

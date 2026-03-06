@@ -71,7 +71,7 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
         // F2在终端区域用于减少终端高度，但F2没有被绑定为全局快捷键，所以不需要特殊处理
     }
 
-    // 全局快捷键：文件操作、视图操作等
+    // 全局快捷键：文件操作、视图操作、标签栏聚焦等
     if (action == pnana::input::KeyAction::SAVE_AS ||
         action == pnana::input::KeyAction::CREATE_FOLDER ||
         action == pnana::input::KeyAction::FILE_PICKER ||
@@ -86,7 +86,8 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
         action == pnana::input::KeyAction::TOGGLE_MARKDOWN_PREVIEW ||
         action == pnana::input::KeyAction::OPEN_PLUGIN_MANAGER ||
         action == pnana::input::KeyAction::SSH_CONNECT ||
-        action == pnana::input::KeyAction::TOGGLE_THEME_MENU) {
+        action == pnana::input::KeyAction::TOGGLE_THEME_MENU ||
+        action == pnana::input::KeyAction::FOCUS_TAB_BAR) {
         return editor->getActionExecutor().execute(action);
     }
 
