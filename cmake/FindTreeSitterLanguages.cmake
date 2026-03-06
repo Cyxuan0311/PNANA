@@ -97,6 +97,7 @@ find_tree_sitter_language(MESON "tree-sitter-meson;libtree-sitter-meson" "Meson"
 find_tree_sitter_language(TOML "tree-sitter-toml;libtree-sitter-toml" "TOML")
 find_tree_sitter_language(NIM "tree-sitter-nim;libtree-sitter-nim" "Nim")
 find_tree_sitter_language(ZIG "tree-sitter-zig;libtree-sitter-zig" "Zig")
+find_tree_sitter_language(C3 "tree-sitter-c3;libtree-sitter-c3" "C3")
 
 # 函数式编程和编译器相关语言支持
 find_tree_sitter_language(LISP "tree-sitter-commonlisp;libtree-sitter-commonlisp" "Lisp")
@@ -141,6 +142,7 @@ mark_as_advanced(
     TreeSitter_TOML_LIBRARY
     TreeSitter_NIM_LIBRARY
     TreeSitter_ZIG_LIBRARY
+    TreeSitter_C3_LIBRARY
     TreeSitter_LISP_LIBRARY
     TreeSitter_SML_LIBRARY
     TreeSitter_LLVM_LIBRARY

@@ -206,6 +206,11 @@ if(BUILD_TREE_SITTER_SUPPORT)
         target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_ZIG)
         message(STATUS "  ✓ Tree-sitter Zig language support enabled")
     endif()
+    if(TREE_SITTER_C3_LIB)
+        target_link_libraries(pnana PRIVATE ${TREE_SITTER_C3_LIB})
+        target_compile_definitions(pnana PRIVATE BUILD_TREE_SITTER_C3)
+        message(STATUS "  ✓ Tree-sitter C3 language support enabled")
+    endif()
 
     # 函数式编程和编译器相关语言支持
     if(TREE_SITTER_LISP_LIB)
