@@ -89,6 +89,8 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
         return "cpp";
     if (ext_lower == "c")
         return "c";
+    if (ext_lower == "c3")
+        return "c3";
 
     // Python
     if (ext_lower == "py" || ext_lower == "pyw" || ext_lower == "pyi")
