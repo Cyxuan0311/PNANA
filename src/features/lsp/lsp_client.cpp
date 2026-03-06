@@ -635,9 +635,8 @@ std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
             }
         }
     } catch (const std::exception& e) {
-        std::string err = e.what();
+        (void)e;
         (void)uri;
-        (void)err;
         // Silently ignore known non-critical errors (non-added document, -32602, etc.)
     }
 

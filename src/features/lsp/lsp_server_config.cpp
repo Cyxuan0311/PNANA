@@ -1,36 +1,10 @@
 #include "features/lsp/lsp_server_config.h"
+#include "utils/clangd_flags.h"
 #include <algorithm>
 #include <cstdlib>
 #include <map>
-#include <sys/stat.h>
 
 #include <nlohmann/json.hpp>
-
-namespace {
-// 检测 C++ 标准库 include 路径，用于 clangd fallbackFlags
-std::vector<std::string> getClangdFallbackFlags() {
-    std::vector<std::string> flags = {"-std=c++17", "-xc++"};
-    const char* cxx_bases[] = {"/usr/include/c++", "/usr/local/include/c++"};
-    const char* versions[] = {"17", "16", "15", "14", "13", "12", "11", "10", "9"};
-    for (const char* base : cxx_bases) {
-        for (const char* ver : versions) {
-            std::string path = std::string(base) + "/" + ver;
-            struct stat st;
-            if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
-                flags.push_back("-isystem");
-                flags.push_back(path);
-                std::string arch_path = path + "/x86_64-linux-gnu";
-                if (stat(arch_path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
-                    flags.push_back("-isystem");
-                    flags.push_back(arch_path);
-                }
-                return flags; // 找到就返回
-            }
-        }
-    }
-    return flags; // 未找到时仍返回基础 flags
-}
-} // namespace
 
 namespace pnana {
 namespace features {
@@ -52,7 +26,7 @@ std::vector<LspServerConfig> LspServerConfigManager::getDefaultConfigs() {
         std::vector<std::string>{"--query-driver=/usr/bin/g++", "--query-driver=/usr/bin/gcc"},
         std::map<std::string, std::string>{{"XDG_CACHE_HOME", cache_dir},
                                            {"TMPDIR", cache_dir + "/tmp"}});
-    auto cxx_fallback = getClangdFallbackFlags();
+    auto cxx_fallback = utils::getClangdFallbackFlags();
     configs.back().initialization_options = nlohmann::json{{"fallbackFlags", cxx_fallback}};
 
     // C - clangd（.c/.h 仅 C 头文件补全：stdio.h、stdlib.h 等，不提示 vector 等）

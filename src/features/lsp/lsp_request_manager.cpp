@@ -73,12 +73,24 @@ bool LspRequestManager::cancelRequest(int request_id) {
 int LspRequestManager::postOrReplace(const std::string& dedup_key, Priority priority,
                                      RequestTask task, CancelCallback on_cancel) {
     std::lock_guard<std::mutex> lock(mutex_);
-    // If a request with same key exists, cancel it
+    // If a request with same key exists, cancel it (inline to avoid deadlock - we already hold
+    // lock)
     auto existing_it = dedup_map_.find(dedup_key);
     if (existing_it != dedup_map_.end()) {
         int old_id = existing_it->second;
-        // cancelRequest will remove from active_map_ and dedup_map_ entry
-        cancelRequest(old_id);
+        dedup_map_.erase(existing_it);
+        auto old_it = active_map_.find(old_id);
+        if (old_it != active_map_.end()) {
+            if (old_it->second.on_cancel) {
+                try {
+                    old_it->second.on_cancel();
+                } catch (...) {
+                    LOG_WARNING("Exception in cancel callback for request id=" +
+                                std::to_string(old_id));
+                }
+            }
+            active_map_.erase(old_it);
+        }
     }
 
     Request req;
@@ -94,7 +106,6 @@ int LspRequestManager::postOrReplace(const std::string& dedup_key, Priority prio
     dedup_map_[dedup_key] = req.id;
     cv_.notify_one();
 
-    // Request posted or replaced
     return req.id;
 }
 
