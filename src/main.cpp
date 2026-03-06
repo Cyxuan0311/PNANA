@@ -16,14 +16,14 @@ void printHelp() {
     std::cout << "  -t, --theme THEME       Set theme (monokai, dracula, nord, etc.)\n";
     std::cout << "  -c, --config PATH       Specify custom configuration file path\n";
     std::cout << "  -r, --readonly          Open file in read-only mode\n";
-    std::cout << "  -l, --log               Enable logging to pnana.log file\n";
+    std::cout << "  -l, --log [FILE]        Enable logging (default: pnana.log)\n";
     std::cout << "\nExamples:\n";
     std::cout << "  pnana                        Start with empty file\n";
     std::cout << "  pnana file.txt               Open file.txt\n";
     std::cout << "  pnana file1 file2            Open multiple files\n";
     std::cout << "  pnana -t dracula file.txt    Open with Dracula theme\n";
     std::cout << "  pnana -c ~/.config/pnana/custom.json  Use custom config file\n";
-    std::cout << "  pnana -l file.txt            Open file with logging enabled\n";
+    std::cout << "  pnana -l ./pnana.log         Log to ./pnana.log\n";
     std::cout << "\nKeyboard Shortcuts:\n";
     std::cout << "  Ctrl+S    Save file\n";
     std::cout << "  Ctrl+Q    Quit\n";
@@ -106,6 +106,7 @@ int main(int argc, char* argv[]) {
         std::vector<std::string> files;
         std::string theme = "monokai";
         std::string config_path = "";
+        std::string log_file = "pnana.log";
         bool enable_logging = false;
 
         // 解析命令行参数
@@ -137,6 +138,10 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Warning: readonly mode not yet implemented\n";
             } else if (arg == "-l" || arg == "--log") {
                 enable_logging = true;
+                // -l 可带可选参数指定日志路径，如: -l ./pnana.log
+                if (i + 1 < argc && argv[i + 1][0] != '-') {
+                    log_file = argv[++i];
+                }
             } else if (arg[0] == '-') {
                 std::cerr << "Error: Unknown option: " << arg << "\n";
                 std::cerr << "Try 'pnana --help' for more information.\n";
@@ -148,7 +153,9 @@ int main(int argc, char* argv[]) {
 
         // 只有在指定 --log 选项时才初始化日志系统
         if (enable_logging) {
-            pnana::utils::Logger::getInstance().initialize("pnana.log");
+            pnana::utils::Logger::getInstance().initialize(log_file);
+            pnana::utils::Logger::getInstance().log("[main] Logger 已初始化，日志文件: " +
+                                                    log_file);
         }
 
         // 创建编辑器（会自动加载默认配置）
