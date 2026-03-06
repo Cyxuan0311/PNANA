@@ -1355,7 +1355,7 @@ ftxui::Element SyntaxHighlighter::mergeAndHighlight(
 #endif
 
 std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
-    if (current_file_type_ == "cpp" || current_file_type_ == "c") {
+    if (current_file_type_ == "cpp" || current_file_type_ == "c" || current_file_type_ == "c3") {
         return tokenizeCpp(line);
     } else if (current_file_type_ == "python") {
         return tokenizePython(line);

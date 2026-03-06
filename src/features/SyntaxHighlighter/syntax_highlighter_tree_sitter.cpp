@@ -173,6 +173,11 @@ TSLanguage* tree_sitter_nim();
 TSLanguage* tree_sitter_zig();
 #endif
 
+// C3
+#ifdef BUILD_TREE_SITTER_C3
+TSLanguage* tree_sitter_c3();
+#endif
+
 // 函数式编程和编译器相关语言
 // Lisp
 #ifdef BUILD_TREE_SITTER_LISP
@@ -607,6 +612,14 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
     TSLanguage* zig_lang = tree_sitter_zig();
     if (zig_lang) {
         language_map_["zig"] = zig_lang;
+    }
+#endif
+
+// C3
+#ifdef BUILD_TREE_SITTER_C3
+    TSLanguage* c3_lang = tree_sitter_c3();
+    if (c3_lang) {
+        language_map_["c3"] = c3_lang;
     }
 #endif
 
