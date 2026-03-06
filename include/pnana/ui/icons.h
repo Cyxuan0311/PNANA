@@ -598,6 +598,9 @@ inline std::string getFileTypeIcon(const std::string& file_type) {
     if (file_type == "c") {
         return std::string(C);
     }
+    if (file_type == "c3") {
+        return std::string(C); // C3 与 C 同族，复用 C 图标
+    }
     if (file_type == "python" || file_type == "py") {
         return std::string(PYTHON);
     }
