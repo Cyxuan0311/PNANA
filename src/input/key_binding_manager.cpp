@@ -1,6 +1,5 @@
 #include "input/key_binding_manager.h"
 #include "input/key_action.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <iostream>
 
@@ -99,6 +98,7 @@ void KeyBindingManager::initializeTabOperationBindings() {
     bindKeyAliases({"ctrl_pagedown"}, KeyAction::NEXT_TAB);
     bindKey("alt_shift_tab", KeyAction::PREV_TAB);
     bindKeyAliases({"ctrl_pageup"}, KeyAction::PREV_TAB);
+    bindKey("alt_t", KeyAction::FOCUS_TAB_BAR);
 }
 
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {

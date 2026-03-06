@@ -1,6 +1,5 @@
 #include "input/action_executor.h"
 #include "core/editor.h"
-#include "utils/logger.h"
 #include <iostream>
 
 namespace pnana {
@@ -85,6 +84,7 @@ bool ActionExecutor::execute(KeyAction action) {
 
         case KeyAction::NEXT_TAB:
         case KeyAction::PREV_TAB:
+        case KeyAction::FOCUS_TAB_BAR:
             return executeTabOperation(action);
 
         case KeyAction::FOCUS_LEFT_REGION:
@@ -336,6 +336,9 @@ bool ActionExecutor::executeTabOperation(KeyAction action) {
             return true;
         case KeyAction::PREV_TAB:
             editor_->switchToPreviousTab();
+            return true;
+        case KeyAction::FOCUS_TAB_BAR:
+            editor_->focusTabBar();
             return true;
         default:
             return false;
