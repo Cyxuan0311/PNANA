@@ -108,8 +108,9 @@ void TUIConfigManager::initializeTUIConfigs() {
         {"~/.config/nvim/init.lua", "~/.config/nvim/init.vim", "~/.vimrc", "~/.config/nvim/lua"},
         "editor");
 
+    // Vim 主配置为 ~/.vimrc，其余为备选路径
     addTUIConfig("vim", "Vim", "Vi IMproved, a programmer's text editor",
-                 {"~/.vimrc", "~/.config/vim/vimrc", "~/.vim/vimrc"}, "editor");
+                 {"~/.vimrc", "~/.vim/vimrc", "~/.config/vim/vimrc"}, "editor");
 
     addTUIConfig(
         "helix", "Helix", "A post-modern modal text editor",
