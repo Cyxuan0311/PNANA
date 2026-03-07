@@ -2,9 +2,11 @@
 #define PNANA_VGIT_GIT_MANAGER_H
 
 #include <chrono>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -67,8 +69,22 @@ struct GitBranchStatus {
 
 class GitManager {
   public:
+    // SSH 远程执行器：cmd -> {success, stdout}
+    using RemoteExecutor = std::function<std::pair<bool, std::string>(const std::string&)>;
+
     GitManager(const std::string& repo_path = ".");
     ~GitManager() = default;
+
+    // SSH 远程支持
+    void setRemoteExecutor(RemoteExecutor executor, const std::string& label,
+                           const std::string& remote_path);
+    void clearRemoteContext(const std::string& local_path = ".");
+    bool isRemote() const {
+        return remote_executor_ != nullptr;
+    }
+    const std::string& getRemoteLabel() const {
+        return remote_label_;
+    }
 
     // Repository operations
     bool isGitRepository() const;
@@ -128,6 +144,10 @@ class GitManager {
     std::string repo_root_;
     std::vector<GitFile> current_status_;
     std::string last_error_;
+
+    // SSH 远程执行
+    RemoteExecutor remote_executor_;
+    std::string remote_label_;
 
     // Status caching for performance optimization
     std::chrono::steady_clock::time_point last_status_refresh_;

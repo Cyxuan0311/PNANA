@@ -19,13 +19,33 @@ namespace pnana {
 namespace vgit {
 
 GitManager::GitManager(const std::string& repo_path) : repo_path_(repo_path) {
-    // Find repository root
     repo_root_ = getRepositoryRoot();
-    // Initialize cache timestamps
-    last_repo_check_ =
-        std::chrono::steady_clock::now() - repo_cache_timeout_; // Force initial check
-    last_status_refresh_ =
-        std::chrono::steady_clock::now() - status_cache_timeout_; // Force initial refresh
+    last_repo_check_ = std::chrono::steady_clock::now() - repo_cache_timeout_;
+    last_status_refresh_ = std::chrono::steady_clock::now() - status_cache_timeout_;
+}
+
+void GitManager::setRemoteExecutor(RemoteExecutor executor, const std::string& label,
+                                   const std::string& remote_path) {
+    remote_executor_ = std::move(executor);
+    remote_label_ = label;
+    repo_path_ = remote_path;
+    repo_root_ = remote_path; // 先假设 remote_path 就是 repo 根；isGitRepository 会重新确认
+    // 全量清除缓存，让下次调用重新检测远程 git
+    invalidateRepoStatusCache();
+    current_status_.clear();
+    last_status_refresh_ = std::chrono::steady_clock::now() - status_cache_timeout_;
+    last_error_.clear();
+}
+
+void GitManager::clearRemoteContext(const std::string& local_path) {
+    remote_executor_ = nullptr;
+    remote_label_.clear();
+    repo_path_ = local_path;
+    repo_root_ = local_path;
+    invalidateRepoStatusCache();
+    current_status_.clear();
+    last_status_refresh_ = std::chrono::steady_clock::now() - status_cache_timeout_;
+    last_error_.clear();
 }
 
 void GitManager::invalidateRepoStatusCache() {
@@ -82,10 +102,12 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
         return false;
     }
 
-    // Check if target directory already exists and is not empty
-    if (fs::exists(path) && !fs::is_empty(path)) {
-        last_error_ = "Target directory is not empty: " + path;
-        return false;
+    // 远程模式下跳过本地 fs 检查
+    if (!remote_executor_) {
+        if (fs::exists(path) && !fs::is_empty(path)) {
+            last_error_ = "Target directory is not empty: " + path;
+            return false;
+        }
     }
 
     clearError();
@@ -96,21 +118,26 @@ bool GitManager::clone(const std::string& url, const std::string& path) {
     std::string escaped_path = escapePath(path);
     std::string cmd = "git clone --quiet \"" + escaped_url + "\" \"" + escaped_path + "\" 2>&1";
 
-    // Execute clone command
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        last_error_ = "Failed to execute git clone command";
-        return false;
-    }
-
-    // Read error output (stderr redirected to stdout, stdout redirected to /dev/null)
-    std::array<char, 256> buffer;
+    // Execute clone command（远程模式走 SSH executor，本地模式走 popen）
     std::string error_output;
-    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        error_output += buffer.data();
-    }
+    int status = 0;
 
-    int status = pclose(pipe);
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_(cmd);
+        error_output = out;
+        status = ok ? 0 : 1;
+    } else {
+        FILE* pipe = popen(cmd.c_str(), "r");
+        if (!pipe) {
+            last_error_ = "Failed to execute git clone command";
+            return false;
+        }
+        std::array<char, 256> buffer;
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+            error_output += buffer.data();
+        }
+        status = pclose(pipe);
+    }
 
     if (status != 0) {
         // Extract meaningful error message from git output
@@ -358,20 +385,16 @@ bool GitManager::stageAll() {
         return false;
     }
 
-    std::string cmd = "git -C \"" + repo_root_ + "\" add .";
-
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        last_error_ = "Failed to execute git add command";
+    std::string cmd = "git -C \"" + repo_root_ + "\" add . 2>&1";
+    std::string output = executeGitCommand(cmd);
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+    if (lower.find("fatal") != std::string::npos || lower.find("error") != std::string::npos) {
+        last_error_ = "Failed to stage all files: " + output;
         return false;
     }
-
-    int status = pclose(pipe);
-    if (status != 0) {
-        last_error_ = "Failed to stage all files (exit code: " + std::to_string(status) + ")";
-        return false;
-    }
-
     return true;
 }
 
@@ -381,20 +404,16 @@ bool GitManager::unstageAll() {
         return false;
     }
 
-    std::string cmd = "git -C \"" + repo_root_ + "\" reset HEAD";
-
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        last_error_ = "Failed to execute git reset command";
+    std::string cmd = "git -C \"" + repo_root_ + "\" reset HEAD 2>&1";
+    std::string output = executeGitCommand(cmd);
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+    if (lower.find("fatal") != std::string::npos || lower.find("error") != std::string::npos) {
+        last_error_ = "Failed to unstage all files: " + output;
         return false;
     }
-
-    int status = pclose(pipe);
-    if (status != 0) {
-        last_error_ = "Failed to unstage all files (exit code: " + std::to_string(status) + ")";
-        return false;
-    }
-
     return true;
 }
 
@@ -754,6 +773,14 @@ std::vector<std::string> GitManager::getDiff(const std::string& path) {
 // Private helper methods
 
 std::string GitManager::executeGitCommand(const std::string& command) const {
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_(command);
+        // 移除尾部换行
+        while (!out.empty() && (out.back() == '\n' || out.back() == '\r'))
+            out.pop_back();
+        return out;
+    }
+
     std::array<char, 128> buffer;
     std::string result;
     std::unique_ptr<FILE, int (*)(FILE*)> pipe(popen(command.c_str(), "r"), pclose);
@@ -766,7 +793,6 @@ std::string GitManager::executeGitCommand(const std::string& command) const {
         result += buffer.data();
     }
 
-    // Remove trailing newline
     if (!result.empty() && result.back() == '\n') {
         result.pop_back();
     }
@@ -775,34 +801,41 @@ std::string GitManager::executeGitCommand(const std::string& command) const {
 }
 
 std::vector<std::string> GitManager::executeGitCommandLines(const std::string& command) const {
-    std::array<char, 128> buffer;
-    std::vector<std::string> lines;
-    std::unique_ptr<FILE, int (*)(FILE*)> pipe(popen(command.c_str(), "r"), pclose);
+    std::string raw_output;
 
-    if (!pipe) {
-        return lines;
-    }
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_(command);
+        raw_output = std::move(out);
+    } else {
+        std::array<char, 128> buffer;
+        std::unique_ptr<FILE, int (*)(FILE*)> pipe(popen(command.c_str(), "r"), pclose);
+        if (!pipe)
+            return {};
 
-    std::string current_line;
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        current_line += buffer.data();
-
-        // Check if we have a complete line
-        if (!current_line.empty() && current_line.back() == '\n') {
-            // Remove trailing newline
-            current_line.pop_back();
-            if (!current_line.empty()) {
-                lines.push_back(current_line);
+        std::string current_line;
+        while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+            current_line += buffer.data();
+            if (!current_line.empty() && current_line.back() == '\n') {
+                current_line.pop_back();
+                if (!current_line.empty())
+                    raw_output += current_line + "\n";
+                current_line.clear();
             }
-            current_line.clear();
         }
+        if (!current_line.empty())
+            raw_output += current_line + "\n";
     }
 
-    // Handle last line if it doesn't end with newline
-    if (!current_line.empty()) {
-        lines.push_back(current_line);
+    // 统一按行拆分
+    std::vector<std::string> lines;
+    std::istringstream iss(raw_output);
+    std::string line;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (!line.empty())
+            lines.push_back(line);
     }
-
     return lines;
 }
 
