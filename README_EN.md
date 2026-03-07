@@ -132,7 +132,6 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 - **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Lua plugin API & examples
 - **[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation guide
 - **[Development Roadmap](docs/ROADMAP.md)** - Version plans and feature roadmap
-- **[Product Comparison](docs/COMPARISON.md)** - Detailed comparison with similar products
 - **[Quick Start Guide](QUICKSTART.md)** - 5-minute quick start guide
 
 
@@ -156,8 +155,6 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 | Plugin System | ✅ | ❌ | ✅ | ✅ |
 | LSP Support | ✅ | ❌ | ✅ | ✅ |
 | Simple Configuration | ✅ | ✅ | ✅ | ❌ |
-
-**Detailed Comparison**: See [Product Comparison Documentation](docs/COMPARISON.md)
 
 ## 📚 References and Inspiration
 

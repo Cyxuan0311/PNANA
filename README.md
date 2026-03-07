@@ -132,7 +132,6 @@ pnana --theme dracula file.txt
 - **[插件开发指南](docs/PLUGIN_DEVELOPMENT.md)** - Lua 插件系统 API 与示例
 - **[依赖文档](docs/DEPENDENCIES.md)** - 项目依赖说明和安装指南
 - **[开发路线图](docs/ROADMAP.md)** - 版本计划和功能路线图
-- **[产品对比](docs/COMPARISON.md)** - 与同类产品的详细对比
 - **[快速入门](QUICKSTART.md)** - 5分钟快速上手指南
 
 
@@ -156,8 +155,6 @@ pnana --theme dracula file.txt
 | 插件系统 | ✅ | ❌ | ✅ | ✅ |
 | LSP支持 | ✅ | ❌ | ✅ | ✅ |
 | 配置简单 | ✅ | ✅ | ✅ | ❌ |
-
-**详细对比**：请查看 [产品对比文档](docs/COMPARISON.md)
 
 ## 📚 参考和灵感
 
