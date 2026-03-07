@@ -1,5 +1,4 @@
 #include "features/package_manager/pacman_manager.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
@@ -40,8 +39,6 @@ std::vector<Package> PacmanManager::getInstalledPackages() {
             std::lock_guard<std::mutex> lock(this->cache_mutex_);
             this->cache_entry_.is_fetching = false;
             this->cache_entry_.error_message = std::string("Error fetching packages: ") + e.what();
-            pnana::utils::Logger::getInstance().log("[PACMAN] Error fetching packages: " +
-                                                    std::string(e.what()));
         }
     }).detach();
 
@@ -67,36 +64,34 @@ bool PacmanManager::isCacheValid() const {
 }
 
 bool PacmanManager::isAvailable() const {
-    std::string command = "which pacman > /dev/null 2>&1";
-    int result = system(command.c_str());
-    return result == 0;
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_("which pacman 2>/dev/null");
+        return ok && !out.empty();
+    }
+    return system("which pacman > /dev/null 2>&1") == 0;
 }
 
 std::vector<Package> PacmanManager::fetchPackagesFromSystem() {
-    std::vector<Package> packages;
-    std::string command = "pacman -Q 2>&1";
-
-    FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) {
-        throw std::runtime_error("Failed to execute pacman command");
-    }
-
-    char buffer[4096];
     std::string output;
-    output.reserve(2 * 1024 * 1024);
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        output += buffer;
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_("pacman -Q 2>&1");
+        if (!ok)
+            throw std::runtime_error("pacman command failed on remote: " + out);
+        output = out;
+    } else {
+        FILE* pipe = popen("pacman -Q 2>&1", "r");
+        if (!pipe)
+            throw std::runtime_error("Failed to execute pacman command");
+        char buffer[4096];
+        output.reserve(2 * 1024 * 1024);
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+            output += buffer;
+        int exit_code = pclose(pipe);
+        if (exit_code != 0)
+            throw std::runtime_error("pacman command failed with exit code " +
+                                     std::to_string(exit_code));
     }
-
-    int exit_code = pclose(pipe);
-
-    if (exit_code != 0) {
-        throw std::runtime_error("pacman command failed with exit code " +
-                                 std::to_string(exit_code));
-    }
-
-    packages = parsePacmanOutput(output);
-    return packages;
+    return parsePacmanOutput(output);
 }
 
 std::vector<Package> PacmanManager::parsePacmanOutput(const std::string& output) {
@@ -135,14 +130,24 @@ std::vector<Package> PacmanManager::parsePacmanOutput(const std::string& output)
 }
 
 bool PacmanManager::updatePackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // pacman -Syu 更新特定包（需要 sudo）
     std::string command = "sudo pacman -Syu " + package_name + " --noconfirm 2>&1";
-
-    // 异步执行更新命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to update package: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -150,37 +155,41 @@ bool PacmanManager::updatePackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pacman command (may need sudo)";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message =
                 "Failed to update package: " + package_name + " (may need sudo)";
-            if (!output.empty() && output.find("Permission denied") == std::string::npos) {
+            if (!output.empty() && output.find("Permission denied") == std::string::npos)
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 
 bool PacmanManager::updateAllDependencies(const std::string& /*package_name*/) {
-    // pacman -Syu 更新所有包（需要 sudo）
     std::string command = "sudo pacman -Syu --noconfirm 2>&1";
-
-    // 异步执行更新命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message = "Failed to update all packages - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -188,40 +197,43 @@ bool PacmanManager::updateAllDependencies(const std::string& /*package_name*/) {
             this->cache_entry_.error_message = "Failed to execute pacman command (may need sudo)";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to update all packages (may need sudo)";
-            if (!output.empty() && output.find("Permission denied") == std::string::npos) {
+            if (!output.empty() && output.find("Permission denied") == std::string::npos)
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 
 bool PacmanManager::removePackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // pacman -R 删除包（需要 sudo）
     std::string command = "sudo pacman -R " + package_name + " --noconfirm 2>&1";
-
-    // 异步执行删除命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to remove package: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -229,41 +241,44 @@ bool PacmanManager::removePackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pacman command (may need sudo)";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message =
                 "Failed to remove package: " + package_name + " (may need sudo)";
-            if (!output.empty() && output.find("Permission denied") == std::string::npos) {
+            if (!output.empty() && output.find("Permission denied") == std::string::npos)
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 
 bool PacmanManager::installPackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // pacman -S 安装包（需要 sudo）
     std::string command = "sudo pacman -S " + package_name + " --noconfirm 2>&1";
-
-    // 异步执行安装命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to install package: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -271,29 +286,22 @@ bool PacmanManager::installPackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pacman command (may need sudo)";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message =
                 "Failed to install package: " + package_name + " (may need sudo)";
-            if (!output.empty() && output.find("Permission denied") == std::string::npos) {
+            if (!output.empty() && output.find("Permission denied") == std::string::npos)
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 

@@ -33,6 +33,11 @@ class PackageManagerRegistry {
     // 清除所有管理器的缓存
     void clearAllCaches();
 
+    // SSH 远程支持：为所有管理器注入 / 清除 remote executor
+    void setRemoteExecutorForAll(PackageManagerBase::RemoteExecutor executor,
+                                 const std::string& remote_label);
+    void clearRemoteContextForAll();
+
   private:
     PackageManagerRegistry() = default;
     ~PackageManagerRegistry() = default;

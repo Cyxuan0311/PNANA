@@ -2,6 +2,7 @@
 #define PNANA_FEATURES_PACKAGE_MANAGER_PACKAGE_MANAGER_BASE_H
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -71,6 +72,34 @@ class PackageManagerBase {
 
     // 安装包
     virtual bool installPackage(const std::string& package_name) = 0;
+
+    // 注入远程 executor：执行命令并返回 stdout；成功时 success=true，失败时 success=false
+    // executor(cmd) -> { success, output }
+    using RemoteExecutor = std::function<std::pair<bool, std::string>(const std::string&)>;
+
+    virtual void setRemoteExecutor(RemoteExecutor executor, const std::string& remote_label) {
+        remote_executor_ = std::move(executor);
+        remote_label_ = remote_label;
+        clearCache();
+    }
+
+    virtual void clearRemoteContext() {
+        remote_executor_ = nullptr;
+        remote_label_.clear();
+        clearCache();
+    }
+
+    bool isRemote() const {
+        return remote_executor_ != nullptr;
+    }
+
+    const std::string& getRemoteLabel() const {
+        return remote_label_;
+    }
+
+  protected:
+    RemoteExecutor remote_executor_;
+    std::string remote_label_;
 };
 
 } // namespace package_manager
