@@ -110,7 +110,6 @@ func (p *connectionPool) getConnection(host string, port int, user string, passw
 		lastUsed: time.Now(),
 		refCount: 1,
 	}
-
 	return client, nil
 }
 

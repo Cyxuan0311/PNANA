@@ -159,6 +159,103 @@ func DownloadFile(config *C.SSHConfig_C, remotePath *C.char, localPath *C.char) 
 	return result
 }
 
+//export ConnectAndListDir
+func ConnectAndListDir(config *C.SSHConfig_C) *C.SSHResult_C {
+	result := createSSHResult()
+	result.success = 0
+	result.content = nil
+	result.error = nil
+
+	opConfig := parseSSHConfig(config)
+
+	client, err := getSSHConnection(opConfig.host, opConfig.port, opConfig.user, opConfig.password, opConfig.keyPath)
+	if err != nil {
+		setResultError(result, fmt.Errorf("failed to connect: %v", err))
+		return result
+	}
+	defer releaseSSHConnection(opConfig.host, opConfig.port, opConfig.user)
+
+	content, err := listRemoteDir(client, opConfig.remotePath)
+	if err != nil {
+		setResultError(result, err)
+		return result
+	}
+
+	setResultSuccess(result, content)
+	return result
+}
+
+//export ConnectAndGetPathType
+func ConnectAndGetPathType(config *C.SSHConfig_C) *C.SSHResult_C {
+	result := createSSHResult()
+	result.success = 0
+	result.content = nil
+	result.error = nil
+
+	opConfig := parseSSHConfig(config)
+
+	client, err := getSSHConnection(opConfig.host, opConfig.port, opConfig.user, opConfig.password, opConfig.keyPath)
+	if err != nil {
+		setResultError(result, fmt.Errorf("failed to connect: %v", err))
+		return result
+	}
+	defer releaseSSHConnection(opConfig.host, opConfig.port, opConfig.user)
+
+	pathType, err := getRemotePathType(client, opConfig.remotePath)
+	if err != nil {
+		setResultError(result, err)
+		return result
+	}
+
+	setResultSuccess(result, pathType)
+	return result
+}
+
+//export ConnectAndRunCommand
+func ConnectAndRunCommand(config *C.SSHConfig_C, command *C.char) *C.SSHResult_C {
+	result := createSSHResult()
+	result.success = 0
+	result.content = nil
+	result.error = nil
+
+	opConfig := parseSSHConfig(config)
+	cmdStr := C.GoString(command)
+	if cmdStr == "" {
+		setResultError(result, fmt.Errorf("command cannot be empty"))
+		return result
+	}
+
+	client, err := getSSHConnection(opConfig.host, opConfig.port, opConfig.user, opConfig.password, opConfig.keyPath)
+	if err != nil {
+		setResultError(result, fmt.Errorf("failed to connect: %v", err))
+		return result
+	}
+	defer releaseSSHConnection(opConfig.host, opConfig.port, opConfig.user)
+
+	cwd := opConfig.remotePath
+	if cwd == "" {
+		cwd = "."
+	}
+	stdout, stderr, exitCode, err := runRemoteCommand(client, cwd, cmdStr)
+	if err != nil {
+		setResultError(result, err)
+		return result
+	}
+	if exitCode != 0 {
+		result.success = 0
+		result.content = C.CString(stdout)
+		errMsg := stderr
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", exitCode)
+		}
+		result.error = C.CString(errMsg)
+		return result
+	}
+	result.success = 1
+	result.content = C.CString(stdout)
+	return result
+}
+
 //export FreeSSHResult
 func FreeSSHResult(result *C.SSHResult_C) {
 	if result != nil {
