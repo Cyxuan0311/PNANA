@@ -54,6 +54,11 @@ class Terminal {
     // 中断 shell（发送 SIGINT）
     void interruptCommand();
 
+    // 启动 SSH 会话（替换当前 shell）；断开后需调用 restoreLocalShell()
+    void startSSHSession(const std::string& host, const std::string& user, int port,
+                         const std::string& key_path, const std::string& password);
+    void restoreLocalShell();
+
     // 获取方法（供 UI 使用）
     ui::Theme& getTheme() const {
         return theme_;
