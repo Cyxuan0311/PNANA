@@ -73,34 +73,35 @@ void printVersion() {
     std::cout << BLUE << "  Website: https://github.com/Cyxuan0311/PNANA.git" << RESET << std::endl;
 }
 
-// 空的信号处理器，用于屏蔽系统信号
-static void ignoreSignal(int sig) {
-    (void)sig; // 避免未使用参数警告
-    // 不执行任何操作，屏蔽信号
-}
-
-// 设置信号处理，屏蔽 Ctrl+Z (SIGTSTP) 和 Ctrl+C (SIGINT)
+// 屏蔽编辑器运行期间不应生效的 Unix 信号。
+// 真正的 Ctrl+C / Ctrl+Z 拦截由 FTXUI 的
+// ForceHandleCtrlC(false) / ForceHandleCtrlZ(false) 完成（见 Editor::run()）；
+// 此处的 sigprocmask 作为兜底，防止其他路径下信号被意外投递。
 void setupSignalHandlers() {
     struct sigaction sa;
     std::memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = ignoreSignal;
+    sa.sa_handler = SIG_IGN;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    sa.sa_flags = SA_RESTART;
 
-    // 屏蔽 SIGTSTP (Ctrl+Z) - 防止程序被暂停
-    sigaction(SIGTSTP, &sa, nullptr);
+    sigaction(SIGTSTP, &sa, nullptr); // Ctrl+Z：暂停
+    sigaction(SIGINT, &sa, nullptr);  // Ctrl+C：中断
+    sigaction(SIGQUIT, &sa, nullptr); // Ctrl+\：退出+coredump
+    sigaction(SIGTTIN, &sa, nullptr); // 后台终端输入控制
+    sigaction(SIGTTOU, &sa, nullptr); // 后台终端输出控制
 
-    // 屏蔽 SIGINT (Ctrl+C) - 防止程序被终止（Ctrl+C 在编辑器中用于复制）
-    sigaction(SIGINT, &sa, nullptr);
-
-    // 可选：也屏蔽其他可能干扰的信号
-    sigaction(SIGTTIN, &sa, nullptr); // 终端输入控制
-    sigaction(SIGTTOU, &sa, nullptr); // 终端输出控制
+    sigset_t block_mask;
+    sigemptyset(&block_mask);
+    sigaddset(&block_mask, SIGTSTP);
+    sigaddset(&block_mask, SIGINT);
+    sigaddset(&block_mask, SIGQUIT);
+    sigaddset(&block_mask, SIGTTIN);
+    sigaddset(&block_mask, SIGTTOU);
+    sigprocmask(SIG_BLOCK, &block_mask, nullptr);
 }
 
 int main(int argc, char* argv[]) {
     try {
-        // 首先设置信号处理，屏蔽 Ctrl+Z 和 Ctrl+C 的系统默认行为
         setupSignalHandlers();
 
         std::vector<std::string> files;
@@ -109,7 +110,6 @@ int main(int argc, char* argv[]) {
         std::string log_file = "pnana.log";
         bool enable_logging = false;
 
-        // 解析命令行参数
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
 
@@ -138,7 +138,6 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Warning: readonly mode not yet implemented\n";
             } else if (arg == "-l" || arg == "--log") {
                 enable_logging = true;
-                // -l 可带可选参数指定日志路径，如: -l ./pnana.log
                 if (i + 1 < argc && argv[i + 1][0] != '-') {
                     log_file = argv[++i];
                 }
@@ -151,35 +150,28 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // 只有在指定 --log 选项时才初始化日志系统
         if (enable_logging) {
             pnana::utils::Logger::getInstance().initialize(log_file);
             pnana::utils::Logger::getInstance().log("[main] Logger 已初始化，日志文件: " +
                                                     log_file);
         }
 
-        // 创建编辑器（会自动加载默认配置）
         pnana::core::Editor editor;
 
-        // 如果指定了自定义配置文件路径，加载它（如果不存在会自动创建）
         if (!config_path.empty()) {
             editor.loadConfig(config_path);
         }
 
-        // 设置主题（如果通过命令行指定，会覆盖配置文件中的主题）
         if (theme != "monokai") {
             editor.setTheme(theme);
         }
 
-        // 打开文件
         if (!files.empty()) {
             editor.openFile(files[0]);
         }
 
-        // 运行编辑器
         editor.run();
 
-        // 关闭日志（如果已启用）
         if (enable_logging) {
             pnana::utils::Logger::getInstance().close();
         }
