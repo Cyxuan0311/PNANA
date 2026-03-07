@@ -1,5 +1,6 @@
 #include "features/tui_config_manager.h"
 #include <algorithm>
+#include <sstream>
 
 namespace pnana {
 namespace features {
@@ -10,17 +11,34 @@ TUIConfigManager::TUIConfigManager() {
 
 std::vector<TUIConfig> TUIConfigManager::getAvailableTUIConfigs() const {
     std::vector<TUIConfig> available_configs;
-
     for (const auto& config : tui_configs_) {
         if (configExists(config)) {
             available_configs.push_back(config);
         }
     }
-
     return available_configs;
 }
 
 bool TUIConfigManager::configExists(const TUIConfig& config) const {
+    if (remote_path_checker_) {
+        for (const auto& path : config.config_paths) {
+            // 优先查缓存（由 prefetchAvailableRemoteConfigs 填充）
+            if (remote_cache_populated_) {
+                auto it = remote_availability_cache_.find(path);
+                if (it != remote_availability_cache_.end()) {
+                    if (it->second)
+                        return true;
+                    continue;
+                }
+            }
+            // 缓存未命中时回退到单次 SSH 检查，并写入缓存
+            bool exists = remote_path_checker_(path);
+            remote_availability_cache_[path] = exists;
+            if (exists)
+                return true;
+        }
+        return false;
+    }
     for (const auto& path : config.config_paths) {
         try {
             std::filesystem::path config_path = expandPath(path);
@@ -28,7 +46,6 @@ bool TUIConfigManager::configExists(const TUIConfig& config) const {
                 return true;
             }
         } catch (...) {
-            // 忽略路径解析错误
             continue;
         }
     }
@@ -36,6 +53,13 @@ bool TUIConfigManager::configExists(const TUIConfig& config) const {
 }
 
 std::string TUIConfigManager::getFirstAvailableConfigPath(const TUIConfig& config) const {
+    if (remote_path_checker_ && remote_path_resolver_) {
+        for (const auto& path : config.config_paths) {
+            if (remote_path_checker_(path))
+                return remote_path_resolver_(path);
+        }
+        return "";
+    }
     for (const auto& path : config.config_paths) {
         try {
             std::filesystem::path config_path = expandPath(path);
@@ -43,11 +67,85 @@ std::string TUIConfigManager::getFirstAvailableConfigPath(const TUIConfig& confi
                 return config_path.string();
             }
         } catch (...) {
-            // 忽略路径解析错误
             continue;
         }
     }
     return "";
+}
+
+void TUIConfigManager::setRemotePathChecker(std::function<bool(const std::string&)> fn) {
+    remote_path_checker_ = std::move(fn);
+}
+
+void TUIConfigManager::setRemotePathResolver(std::function<std::string(const std::string&)> fn) {
+    remote_path_resolver_ = std::move(fn);
+}
+
+void TUIConfigManager::clearRemoteContext() {
+    remote_path_checker_ = nullptr;
+    remote_path_resolver_ = nullptr;
+    remote_availability_cache_.clear();
+    remote_cache_populated_ = false;
+}
+
+void TUIConfigManager::prefetchAvailableRemoteConfigs(RemoteExecutor executor) {
+    if (!executor)
+        return;
+
+    // 收集所有需要检测的路径（去重），转换 ~/ 前缀为相对路径
+    // 远程 SSH 命令以 home 目录为 cwd，所以去掉 ~/ 即为相对路径
+    std::vector<std::string> rel_paths;  // 相对于 home 的路径（用于 SSH 命令）
+    std::vector<std::string> orig_paths; // 对应的原始路径（~/... 形式）
+
+    for (const auto& config : tui_configs_) {
+        for (const auto& path : config.config_paths) {
+            std::string rel = path;
+            if (rel.size() >= 2 && rel.compare(0, 2, "~/") == 0) {
+                rel = rel.substr(2);
+            } else if (rel == "~") {
+                rel = ".";
+            }
+            rel_paths.push_back(rel);
+            orig_paths.push_back(path);
+        }
+    }
+
+    // 构建批量检测命令：一次 SSH 调用检测所有路径
+    // 命令格式：for p in p1 p2 ...; do [ -e "$p" ] && echo "Y:$p"; done
+    std::string cmd = "cd ~ 2>/dev/null; for p in";
+    for (const auto& p : rel_paths) {
+        // 简单处理：配置路径不含空格，无需额外转义
+        cmd += " ";
+        cmd += p;
+    }
+    cmd += "; do [ -e \"$p\" ] && echo \"Y:$p\"; done 2>/dev/null";
+
+    auto [ok, out] = executor(cmd);
+
+    // 先把所有路径标记为不存在
+    remote_availability_cache_.clear();
+    for (const auto& orig : orig_paths) {
+        remote_availability_cache_[orig] = false;
+    }
+
+    // 解析输出，标记存在的路径
+    std::istringstream iss(out);
+    std::string line;
+    while (std::getline(iss, line)) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
+            line.pop_back();
+        if (line.size() > 2 && line.compare(0, 2, "Y:") == 0) {
+            std::string found_rel = line.substr(2);
+            // 将相对路径映射回原始路径
+            for (size_t i = 0; i < rel_paths.size(); ++i) {
+                if (rel_paths[i] == found_rel) {
+                    remote_availability_cache_[orig_paths[i]] = true;
+                }
+            }
+        }
+    }
+
+    remote_cache_populated_ = true;
 }
 
 void TUIConfigManager::setConfigOpenCallback(std::function<void(const std::string&)> callback) {
@@ -208,8 +306,8 @@ void TUIConfigManager::initializeTUIConfigs() {
     addTUIConfig("htop", "Htop", "Interactive process viewer",
                  {"~/.config/htop/htoprc", "~/.htoprc"}, "system");
 
-    addTUIConfig("btop", "Btop++", "Resource monitor that shows usage and stats",
-                 {"~/.config/btop/btop.conf", "~/.config/btop/themes"}, "system");
+    // addTUIConfig("btop", "Btop++", "Resource monitor that shows usage and stats",
+    //              {"~/.config/btop/btop.conf", "~/.config/btop/themes"}, "system");
 
     addTUIConfig("top", "Top", "Display Linux processes", {"~/.config/top/toprc"}, "system");
 

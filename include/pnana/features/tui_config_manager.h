@@ -5,6 +5,8 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -35,12 +37,31 @@ class TUIConfigManager {
     // 设置配置文件打开回调
     void setConfigOpenCallback(std::function<void(const std::string&)> callback);
 
+    // SSH 远程支持（旧接口，保留兼容）
+    void setRemotePathChecker(std::function<bool(const std::string& path)> fn);
+    void setRemotePathResolver(std::function<std::string(const std::string& path)> fn);
+    void clearRemoteContext();
+
+    // SSH 批量预检测：一次 SSH 调用检测所有已注册路径是否存在，结果缓存供 configExists 使用
+    // executor: cmd -> {success, stdout}
+    using RemoteExecutor = std::function<std::pair<bool, std::string>(const std::string&)>;
+    void prefetchAvailableRemoteConfigs(RemoteExecutor executor);
+    bool isRemote() const {
+        return remote_path_checker_ != nullptr;
+    }
+
     // 打开指定配置
     void openConfig(const TUIConfig& config);
 
   private:
     std::vector<TUIConfig> tui_configs_;
     std::function<void(const std::string&)> config_open_callback_;
+    std::function<bool(const std::string&)> remote_path_checker_;
+    std::function<std::string(const std::string&)> remote_path_resolver_;
+
+    // 批量预检测缓存：key 为原始路径（如 ~/.config/nvim/init.lua），value 为是否存在
+    mutable std::unordered_map<std::string, bool> remote_availability_cache_;
+    bool remote_cache_populated_ = false; // 是否已执行过批量检测
 
     // 初始化TUI配置列表
     void initializeTUIConfigs();
