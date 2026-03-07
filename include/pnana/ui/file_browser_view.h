@@ -37,7 +37,7 @@ class FileBrowserView {
     std::string truncateMiddle(const std::string& str, size_t max_length) const;
 
     // 渲染辅助方法
-    ftxui::Element renderHeader(const std::string& current_directory) const;
+    ftxui::Element renderHeader(const features::FileBrowser& browser) const;
     ftxui::Element renderFileList(const features::FileBrowser& browser, size_t visible_start,
                                   size_t visible_count) const;
     ftxui::Element renderStatusBar(const features::FileBrowser& browser) const;

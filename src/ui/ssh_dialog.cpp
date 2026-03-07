@@ -20,14 +20,17 @@ SSHDialog::SSHDialog(Theme& theme)
     : theme_(theme), visible_(false), current_field_(0), cursor_position_(0) {}
 
 void SSHDialog::show(std::function<void(const SSHConfig&)> on_confirm,
-                     std::function<void()> on_cancel) {
+                     std::function<void()> on_cancel, const SSHConfig* current_connection,
+                     std::function<void()> on_disconnect) {
     visible_ = true;
     current_field_ = 0;
     cursor_position_ = 0;
-    on_confirm_ = on_confirm;
-    on_cancel_ = on_cancel;
+    on_confirm_ = std::move(on_confirm);
+    on_cancel_ = std::move(on_cancel);
+    on_disconnect_ = std::move(on_disconnect);
+    current_connection_ = current_connection;
 
-    // 重置所有输入字段
+    // 重置所有输入字段（仅在“新建连接”时使用）
     host_input_ = "";
     user_input_ = "";
     password_input_ = "";
@@ -39,6 +42,24 @@ void SSHDialog::show(std::function<void(const SSHConfig&)> on_confirm,
 bool SSHDialog::handleInput(Event event) {
     if (!visible_) {
         return false;
+    }
+
+    // 已连接状态视图：仅处理 Esc 和 Delete
+    bool in_connected_view = current_connection_ && !current_connection_->host.empty();
+    if (in_connected_view) {
+        if (event == Event::Escape) {
+            visible_ = false;
+            if (on_cancel_)
+                on_cancel_();
+            return true;
+        }
+        if (event == Event::Delete) {
+            visible_ = false;
+            if (on_disconnect_)
+                on_disconnect_();
+            return true;
+        }
+        return true; // 其他键仅关闭视图不处理
     }
 
     if (event == Event::Escape) {
@@ -145,10 +166,36 @@ Element SSHDialog::render() {
     }
 
     auto& colors = theme_.getColors();
-
     Elements fields;
 
-    // 标题
+    // 已连接状态：显示当前连接信息与断开提示
+    bool in_connected_view = current_connection_ && !current_connection_->host.empty();
+    if (in_connected_view) {
+        std::string conn_text = current_connection_->user + "@" + current_connection_->host;
+        if (current_connection_->port > 0 && current_connection_->port != 22) {
+            conn_text += ":" + std::to_string(current_connection_->port);
+        }
+        Elements status_elements;
+        status_elements.push_back(
+            hbox({text(icons::TERMINAL) | color(Color::Cyan),
+                  text(" SSH Connection Status ") | color(colors.foreground) | bold}) |
+            center);
+        status_elements.push_back(separator());
+        status_elements.push_back(text(""));
+        status_elements.push_back(hbox({text("Connected: ") | color(colors.comment),
+                                        text(conn_text) | color(colors.function) | bold}) |
+                                  center);
+        status_elements.push_back(text(""));
+        status_elements.push_back(hbox({text("Delete: Disconnect  ") | color(colors.keyword),
+                                        text("Esc: Close") | color(colors.comment)}) |
+                                  center);
+        Element dialog_content = vbox(status_elements);
+        return window(text("SSH Connection"), dialog_content) | size(WIDTH, GREATER_THAN, 50) |
+               size(HEIGHT, GREATER_THAN, 12) | bgcolor(colors.background) |
+               borderWithColor(colors.dialog_border);
+    }
+
+    // 标题（新建连接）
     Elements title_elements;
     title_elements.push_back(text(icons::TERMINAL) | color(Color::Cyan));
     title_elements.push_back(text(" SSH Remote File Editor ") | color(colors.foreground) | bold);

@@ -49,6 +49,16 @@ class FilePicker {
     // 重置
     void reset();
 
+    // SSH 远程模式：设置远程目录列举函数（path -> [{name, is_dir}]）
+    // 设置后，file picker 显示远程主机的文件树
+    using RemoteListDir =
+        std::function<std::vector<std::pair<std::string, bool>>(const std::string&)>;
+    void setRemoteLoader(RemoteListDir fn, const std::string& initial_path);
+    void clearRemoteLoader();
+    bool isRemote() const {
+        return remote_list_dir_ != nullptr;
+    }
+
   private:
     Theme& theme_;
     bool visible_;
@@ -79,6 +89,11 @@ class FilePicker {
 
     std::function<void(const std::string&)> on_select_;
     std::function<void()> on_cancel_;
+
+    // SSH 远程模式
+    RemoteListDir remote_list_dir_;
+    std::string remote_base_path_;                              // 当前远程路径
+    std::unordered_map<std::string, bool> remote_is_dir_cache_; // 远程 item -> is_dir 缓存
 
     // 辅助方法
     void loadDirectory();

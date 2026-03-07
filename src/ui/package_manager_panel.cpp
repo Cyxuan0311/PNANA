@@ -262,6 +262,17 @@ Element PackageManagerPanel::renderHeader() const {
     header_elements.push_back(text(icons::PACKAGE) | color(colors.success));
     header_elements.push_back(text(" Package Manager ") | color(colors.menubar_fg) | bold);
 
+    // 如果有远程 executor，显示当前主机标识
+    auto manager = getCurrentManager();
+    if (manager && manager->isRemote()) {
+        const std::string& label = manager->getRemoteLabel();
+        if (!label.empty()) {
+            header_elements.push_back(text("@ ") | color(colors.comment));
+            header_elements.push_back(text(label) | color(colors.string) | bold);
+            header_elements.push_back(text(" [remote]") | color(colors.comment) | dim);
+        }
+    }
+
     return hbox(std::move(header_elements)) | bgcolor(colors.menubar_bg);
 }
 

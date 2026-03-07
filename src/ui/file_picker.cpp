@@ -32,21 +32,39 @@ FilePicker::FilePicker(Theme& theme)
     : theme_(theme), visible_(false), picker_type_(FilePickerType::BOTH), selected_index_(0),
       show_filter_(false), focus_in_search_(false), show_path_input_(false),
       type_filter_active_(false), current_type_filter_(FilePickerType::BOTH), icon_mapper_(),
-      color_mapper_(theme), cached_path_("") {}
+      color_mapper_(theme), cached_path_(""), remote_base_path_("") {}
+
+void FilePicker::setRemoteLoader(RemoteListDir fn, const std::string& initial_path) {
+    remote_list_dir_ = std::move(fn);
+    remote_base_path_ = initial_path;
+    remote_is_dir_cache_.clear();
+}
+
+void FilePicker::clearRemoteLoader() {
+    remote_list_dir_ = nullptr;
+    remote_base_path_.clear();
+    remote_is_dir_cache_.clear();
+}
 
 void FilePicker::show(const std::string& start_path, FilePickerType type,
                       std::function<void(const std::string&)> on_select,
                       std::function<void()> on_cancel) {
     picker_type_ = type;
-    current_path_ = start_path;
-    try {
-        if (fs::exists(current_path_) && fs::is_directory(current_path_)) {
-            current_path_ = fs::canonical(current_path_).string();
-        } else {
+
+    if (remote_list_dir_) {
+        // 远程模式：使用预设的远程路径，忽略 start_path 的本地检查
+        current_path_ = remote_base_path_.empty() ? "/" : remote_base_path_;
+    } else {
+        current_path_ = start_path;
+        try {
+            if (fs::exists(current_path_) && fs::is_directory(current_path_)) {
+                current_path_ = fs::canonical(current_path_).string();
+            } else {
+                current_path_ = fs::current_path().string();
+            }
+        } catch (...) {
             current_path_ = fs::current_path().string();
         }
-    } catch (...) {
-        current_path_ = fs::current_path().string();
     }
 
     on_select_ = on_select;
@@ -167,13 +185,30 @@ bool FilePicker::handleInput(ftxui::Event event) {
         return true;
     } else if (event == Event::Backspace) {
         // 返回上级目录
-        try {
-            if (current_path_ != "/") {
-                fs::path parent = fs::path(current_path_).parent_path();
-                current_path_ = parent.string();
+        if (remote_list_dir_) {
+            std::string up = current_path_;
+            while (up.size() > 1 && up.back() == '/')
+                up.pop_back();
+            auto pos = up.rfind('/');
+            if (pos != std::string::npos && pos > 0) {
+                up = up.substr(0, pos);
+            } else if (up != "/") {
+                up = "/";
+            }
+            if (up != current_path_) {
+                current_path_ = up;
+                selected_index_ = 0;
                 loadDirectory();
             }
-        } catch (...) {
+        } else {
+            try {
+                if (current_path_ != "/") {
+                    fs::path parent = fs::path(current_path_).parent_path();
+                    current_path_ = parent.string();
+                    loadDirectory();
+                }
+            } catch (...) {
+            }
         }
         return true;
     } else if (event == Event::CtrlF) {
@@ -226,13 +261,13 @@ Element FilePicker::render() {
     // ---------- 左侧：路径 + 文件列表 ----------
     Elements left_content;
 
-    std::string title = "File Picker";
+    std::string title = isRemote() ? "File Picker [remote]" : "File Picker";
     std::string type_label = "[All]";
     if (picker_type_ == FilePickerType::FILE) {
-        title = "Select File";
+        title = isRemote() ? "Select File [remote]" : "Select File";
         type_label = "[Files Only]";
     } else if (picker_type_ == FilePickerType::FOLDER) {
-        title = "Select Folder";
+        title = isRemote() ? "Select Folder [remote]" : "Select Folder";
         type_label = "[Folders Only]";
     }
 
@@ -342,70 +377,147 @@ void FilePicker::reset() {
 void FilePicker::loadDirectory() {
     items_.clear();
 
-    // 如果路径改变，清除缓存
     if (current_path_ != cached_path_) {
         clearMetadataCache();
         cached_path_ = current_path_;
     }
 
-    try {
-        if (!fs::exists(current_path_) || !fs::is_directory(current_path_)) {
-            return;
+    auto nameOf = [](const std::string& p) -> std::string {
+        auto pos = p.rfind('/');
+        return (pos == std::string::npos) ? p : p.substr(pos + 1);
+    };
+
+    // 大小写不敏感排序比较器
+    auto caseInsensitiveLess = [](const std::string& a, const std::string& b) {
+        std::string al = a, bl = b;
+        std::transform(al.begin(), al.end(), al.begin(), ::tolower);
+        std::transform(bl.begin(), bl.end(), bl.begin(), ::tolower);
+        if (al != bl)
+            return al < bl;
+        return a < b; // 相同时按原始大小写次排
+    };
+
+    if (remote_list_dir_) {
+        // ── 远程模式 ──
+        auto entries = remote_list_dir_(current_path_);
+
+        // 更新 is_dir 缓存
+        remote_is_dir_cache_.clear();
+        std::vector<std::string> dirs, files;
+
+        // 如果不在根目录，插入".."导航项
+        if (current_path_ != "/" && !current_path_.empty()) {
+            std::string up_path = current_path_;
+            // 去掉尾部斜杠
+            while (up_path.size() > 1 && up_path.back() == '/')
+                up_path.pop_back();
+            auto pos = up_path.rfind('/');
+            if (pos != std::string::npos && pos > 0) {
+                up_path = up_path.substr(0, pos);
+            } else if (pos == 0) {
+                up_path = "/";
+            }
+            remote_is_dir_cache_[".."] = true;
+            items_.push_back("..");
         }
 
-        std::vector<std::string> dirs;
-        std::vector<std::string> files;
-
-        for (const auto& entry : fs::directory_iterator(current_path_)) {
-            std::string path = entry.path().string();
-
-            // 根据类型筛选
-            if (picker_type_ == FilePickerType::FILE && entry.is_directory()) {
+        for (const auto& [name, is_dir] : entries) {
+            if (name.empty() || name == "." || name == "..")
                 continue;
-            }
-            if (picker_type_ == FilePickerType::FOLDER && !entry.is_directory()) {
-                continue;
-            }
 
-            // 应用过滤
-            std::string name = entry.path().filename().string();
+            // 按类型筛选
+            if (picker_type_ == FilePickerType::FILE && is_dir)
+                continue;
+            if (picker_type_ == FilePickerType::FOLDER && !is_dir)
+                continue;
+
+            // 关键词过滤
             if (!filter_input_.empty()) {
-                std::string name_lower = name;
-                std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
-                std::string filter_lower = filter_input_;
-                std::transform(filter_lower.begin(), filter_lower.end(), filter_lower.begin(),
-                               ::tolower);
-                if (name_lower.find(filter_lower) == std::string::npos) {
+                std::string nl = name, fl = filter_input_;
+                std::transform(nl.begin(), nl.end(), nl.begin(), ::tolower);
+                std::transform(fl.begin(), fl.end(), fl.begin(), ::tolower);
+                if (nl.find(fl) == std::string::npos)
                     continue;
-                }
             }
 
-            if (entry.is_directory()) {
-                dirs.push_back(path);
-            } else {
-                files.push_back(path);
-            }
+            // 拼出远程完整路径（用于 items_）
+            std::string full = current_path_;
+            if (!full.empty() && full.back() != '/')
+                full += '/';
+            full += name;
+
+            remote_is_dir_cache_[full] = is_dir;
+
+            if (is_dir)
+                dirs.push_back(full);
+            else
+                files.push_back(full);
         }
 
-        // 排序
-        std::sort(dirs.begin(), dirs.end());
-        std::sort(files.begin(), files.end());
+        // 排序（大小写不敏感）
+        std::sort(dirs.begin(), dirs.end(), [&](const std::string& a, const std::string& b) {
+            return caseInsensitiveLess(nameOf(a), nameOf(b));
+        });
+        std::sort(files.begin(), files.end(), [&](const std::string& a, const std::string& b) {
+            return caseInsensitiveLess(nameOf(a), nameOf(b));
+        });
 
-        // 合并：目录在前，文件在后
         items_.insert(items_.end(), dirs.begin(), dirs.end());
         items_.insert(items_.end(), files.begin(), files.end());
 
-        // 确保选中索引有效
-        if (selected_index_ >= items_.size() && !items_.empty()) {
-            selected_index_ = items_.size() - 1;
-        }
-        if (items_.empty()) {
-            selected_index_ = 0;
-        }
+    } else {
+        // ── 本地模式 ──
+        try {
+            if (!fs::exists(current_path_) || !fs::is_directory(current_path_)) {
+                return;
+            }
 
-    } catch (const std::exception&) {
-        // 读取失败
+            std::vector<std::string> dirs;
+            std::vector<std::string> files;
+
+            for (const auto& entry : fs::directory_iterator(current_path_)) {
+                std::string path = entry.path().string();
+
+                if (picker_type_ == FilePickerType::FILE && entry.is_directory())
+                    continue;
+                if (picker_type_ == FilePickerType::FOLDER && !entry.is_directory())
+                    continue;
+
+                std::string name = entry.path().filename().string();
+                if (!filter_input_.empty()) {
+                    std::string nl = name, fl = filter_input_;
+                    std::transform(nl.begin(), nl.end(), nl.begin(), ::tolower);
+                    std::transform(fl.begin(), fl.end(), fl.begin(), ::tolower);
+                    if (nl.find(fl) == std::string::npos)
+                        continue;
+                }
+
+                if (entry.is_directory())
+                    dirs.push_back(path);
+                else
+                    files.push_back(path);
+            }
+
+            // 大小写不敏感排序
+            std::sort(dirs.begin(), dirs.end(), [&](const std::string& a, const std::string& b) {
+                return caseInsensitiveLess(nameOf(a), nameOf(b));
+            });
+            std::sort(files.begin(), files.end(), [&](const std::string& a, const std::string& b) {
+                return caseInsensitiveLess(nameOf(a), nameOf(b));
+            });
+
+            items_.insert(items_.end(), dirs.begin(), dirs.end());
+            items_.insert(items_.end(), files.begin(), files.end());
+
+        } catch (const std::exception&) {
+        }
     }
+
+    if (selected_index_ >= items_.size() && !items_.empty()) {
+        selected_index_ = items_.size() - 1;
+    }
+    if (items_.empty())
+        selected_index_ = 0;
 }
 
 void FilePicker::navigateUp() {
@@ -427,27 +539,38 @@ void FilePicker::selectItem() {
 
     std::string selected = items_[selected_index_];
 
-    // 如果是目录
+    // 远程模式特殊处理 ".."
+    if (remote_list_dir_ && selected == "..") {
+        std::string up = current_path_;
+        while (up.size() > 1 && up.back() == '/')
+            up.pop_back();
+        auto pos = up.rfind('/');
+        if (pos != std::string::npos && pos > 0) {
+            up = up.substr(0, pos);
+        } else {
+            up = "/";
+        }
+        current_path_ = up;
+        selected_index_ = 0;
+        loadDirectory();
+        return;
+    }
+
     if (isDirectory(selected)) {
-        // 如果类型筛选是 FOLDER，选择文件夹并返回
         if (picker_type_ == FilePickerType::FOLDER) {
-            if (on_select_) {
+            if (on_select_)
                 on_select_(selected);
-            }
             visible_ = false;
             return;
         }
-        // 否则进入目录
         current_path_ = selected;
         selected_index_ = 0;
         loadDirectory();
         return;
     }
 
-    // 如果是文件，调用回调
-    if (on_select_) {
+    if (on_select_)
         on_select_(selected);
-    }
     visible_ = false;
 }
 
@@ -459,6 +582,13 @@ void FilePicker::cancel() {
 }
 
 bool FilePicker::isDirectory(const std::string& path) const {
+    if (remote_list_dir_) {
+        auto it = remote_is_dir_cache_.find(path);
+        if (it != remote_is_dir_cache_.end())
+            return it->second;
+        // ".." 特殊处理
+        return path == "..";
+    }
     try {
         return fs::is_directory(path);
     } catch (...) {
@@ -467,6 +597,13 @@ bool FilePicker::isDirectory(const std::string& path) const {
 }
 
 std::string FilePicker::getItemName(const std::string& path) const {
+    if (remote_list_dir_) {
+        // 远程路径：取最后一段
+        if (path == "..")
+            return "..";
+        auto pos = path.rfind('/');
+        return (pos == std::string::npos) ? path : path.substr(pos + 1);
+    }
     try {
         return fs::path(path).filename().string();
     } catch (...) {
@@ -770,6 +907,38 @@ std::vector<FilePicker::FolderTreeEntry> FilePicker::getFolderTree(const std::st
         return it->second;
 
     std::vector<FolderTreeEntry> entries;
+
+    if (remote_list_dir_) {
+        // 远程目录预览
+        if (dir_path == "..")
+            return entries;
+        auto remEntries = remote_list_dir_(dir_path);
+        std::vector<FolderTreeEntry> dirs_e, files_e;
+        for (const auto& [name, is_dir] : remEntries) {
+            if (name.empty() || name == "." || name == "..")
+                continue;
+            if (dirs_e.size() + files_e.size() >= kMaxPreviewTreeEntries)
+                break;
+            if (is_dir)
+                dirs_e.push_back({name, true});
+            else
+                files_e.push_back({name, false});
+        }
+        auto cmp = [](const FolderTreeEntry& a, const FolderTreeEntry& b) {
+            std::string al = a.name, bl = b.name;
+            std::transform(al.begin(), al.end(), al.begin(), ::tolower);
+            std::transform(bl.begin(), bl.end(), bl.begin(), ::tolower);
+            return al < bl;
+        };
+        std::sort(dirs_e.begin(), dirs_e.end(), cmp);
+        std::sort(files_e.begin(), files_e.end(), cmp);
+        entries.reserve(dirs_e.size() + files_e.size());
+        entries.insert(entries.end(), dirs_e.begin(), dirs_e.end());
+        entries.insert(entries.end(), files_e.begin(), files_e.end());
+        folder_tree_cache_[dir_path] = entries;
+        return entries;
+    }
+
     try {
         if (!fs::exists(dir_path) || !fs::is_directory(dir_path))
             return entries;
@@ -811,6 +980,21 @@ FilePicker::FileDetail FilePicker::getFileDetail(const std::string& file_path) {
     FileDetail detail;
     detail.size_str = detail.permissions = detail.last_modified = "—";
     detail.extension = detail.file_type = detail.full_path = detail.owner = "—";
+
+    if (remote_list_dir_) {
+        // 远程模式：仅填充文件名信息，无法获取本地 stat
+        detail.full_path = file_path;
+        std::string name = getItemName(file_path);
+        detail.extension = getFileExtension(name);
+        if (detail.extension.empty())
+            detail.extension = "(none)";
+        else
+            detail.extension = "." + detail.extension;
+        detail.size_str = "(remote)";
+        detail.permissions = "(remote)";
+        detail.owner = "(remote)";
+        return detail;
+    }
 
     try {
         if (!fs::exists(file_path) || !fs::is_regular_file(file_path))

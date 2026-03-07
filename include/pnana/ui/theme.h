@@ -128,6 +128,12 @@ class Theme {
     static ThemeColors Sakura();            // Sakura - 樱浅粉白+玫瑰灰
     static ThemeColors SakuraDark();        // Sakura Dark - 樱暗色版深玫底
     static ThemeColors Monochrome();        // Monochrome - 黑白灰无彩色
+    static ThemeColors NeonNoir();          // Neon Noir - 霓虹 noir 深黑+青/品红
+    static ThemeColors WarmSepia();         // Warm Sepia - 暖棕褐旧报纸风
+    static ThemeColors Colorful();          // Colorful - 彩色多色高饱和语法高亮
+    static ThemeColors Microsoft();         // Microsoft - 微软/Fluent 深灰+蓝主色
+    static ThemeColors Google();            // Google - 谷歌品牌色蓝/红/黄/绿浅色
+    static ThemeColors Meta();              // Meta - Meta/Facebook 深色+蓝主色
 
     void setTheme(const std::string& name);
 

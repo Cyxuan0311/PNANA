@@ -56,6 +56,13 @@ class GitPanel {
     void onShow();
     void onHide();
 
+    // SSH 远程支持
+    void setRemoteExecutor(vgit::GitManager::RemoteExecutor executor, const std::string& label,
+                           const std::string& remote_path);
+    void clearRemoteContext(const std::string& local_path = ".");
+    bool isRemote() const;
+    const std::string& getRemoteLabel() const;
+
     // Data management
     void refreshData();
     void performClone();

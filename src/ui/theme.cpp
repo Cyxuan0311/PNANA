@@ -2993,6 +2993,258 @@ ThemeColors Theme::Monochrome() {
     return colors;
 }
 
+ThemeColors Theme::NeonNoir() {
+    ThemeColors colors;
+    // Neon Noir 霓虹 noir：纯黑底 + 青/品红高对比，冷峻赛博感
+    colors.background = Color::RGB(8, 8, 12);      // #08080c 近黑
+    colors.foreground = Color::RGB(230, 232, 240); // 冷灰白
+    colors.current_line = Color::RGB(18, 18, 26);
+    colors.selection = Color::RGB(35, 35, 50);
+    colors.line_number = Color::RGB(80, 85, 110);
+    colors.line_number_current = Color::RGB(0, 255, 255); // 氰青
+
+    colors.statusbar_bg = Color::RGB(15, 15, 22);
+    colors.statusbar_fg = Color::RGB(230, 232, 240);
+
+    colors.menubar_bg = Color::RGB(10, 10, 16);
+    colors.menubar_fg = Color::RGB(230, 232, 240);
+
+    colors.helpbar_bg = Color::RGB(15, 15, 22);
+    colors.helpbar_fg = Color::RGB(100, 105, 130);
+    colors.helpbar_key = Color::RGB(0, 255, 200); // 青绿
+
+    colors.keyword = Color::RGB(255, 0, 128); // 品红
+    colors.string = Color::RGB(0, 255, 200);  // 青绿
+    colors.comment = Color::RGB(90, 95, 120);
+    colors.number = Color::RGB(255, 128, 200); // 粉
+    colors.function = Color::RGB(0, 255, 255); // 氰青
+    colors.type = Color::RGB(180, 100, 255);   // 紫
+    colors.operator_color = Color::RGB(255, 0, 128);
+
+    colors.error = Color::RGB(255, 50, 100);
+    colors.warning = Color::RGB(255, 200, 0);
+    colors.info = Color::RGB(0, 255, 255);
+    colors.success = Color::RGB(0, 255, 200);
+
+    colors.dialog_bg = Color::RGB(14, 14, 22);
+    colors.dialog_fg = Color::RGB(230, 232, 240);
+    colors.dialog_title_bg = Color::RGB(25, 25, 38);
+    colors.dialog_title_fg = Color::RGB(0, 255, 255);
+    colors.dialog_border = Color::RGB(80, 0, 120); // 深品紫
+
+    return colors;
+}
+
+ThemeColors Theme::WarmSepia() {
+    ThemeColors colors;
+    // Warm Sepia 暖棕褐：旧报纸/羊皮纸感，米黄底+褐字
+    colors.background = Color::RGB(245, 238, 220); // #f5eedc 暖米
+    colors.foreground = Color::RGB(80, 65, 50);    // 深褐
+    colors.current_line = Color::RGB(235, 226, 205);
+    colors.selection = Color::RGB(220, 205, 175);
+    colors.line_number = Color::RGB(140, 120, 95);
+    colors.line_number_current = Color::RGB(100, 75, 50);
+
+    colors.statusbar_bg = Color::RGB(230, 218, 195);
+    colors.statusbar_fg = Color::RGB(80, 65, 50);
+
+    colors.menubar_bg = Color::RGB(238, 228, 208);
+    colors.menubar_fg = Color::RGB(80, 65, 50);
+
+    colors.helpbar_bg = Color::RGB(230, 218, 195);
+    colors.helpbar_fg = Color::RGB(120, 100, 75);
+    colors.helpbar_key = Color::RGB(140, 90, 50); // 焦茶
+
+    colors.keyword = Color::RGB(120, 70, 30); // 深棕
+    colors.string = Color::RGB(90, 110, 70);  // 橄榄褐
+    colors.comment = Color::RGB(150, 130, 100);
+    colors.number = Color::RGB(140, 90, 50);   // 焦糖
+    colors.function = Color::RGB(100, 75, 45); // 褐
+    colors.type = Color::RGB(110, 85, 55);
+    colors.operator_color = Color::RGB(100, 70, 40);
+
+    colors.error = Color::RGB(160, 60, 50);
+    colors.warning = Color::RGB(150, 100, 40);
+    colors.info = Color::RGB(70, 90, 100);
+    colors.success = Color::RGB(80, 110, 70);
+
+    colors.dialog_bg = Color::RGB(238, 230, 212);
+    colors.dialog_fg = Color::RGB(80, 65, 50);
+    colors.dialog_title_bg = Color::RGB(220, 205, 175);
+    colors.dialog_title_fg = Color::RGB(80, 65, 50);
+    colors.dialog_border = Color::RGB(160, 140, 110);
+
+    return colors;
+}
+
+ThemeColors Theme::Colorful() {
+    ThemeColors colors;
+    // Colorful 彩色：深色底 + 红/橙/黄/绿/青/蓝/紫高饱和语法高亮
+    colors.background = Color::RGB(28, 28, 35);    // 深灰紫底
+    colors.foreground = Color::RGB(240, 240, 245); // 近白
+    colors.current_line = Color::RGB(38, 38, 48);
+    colors.selection = Color::RGB(60, 55, 75);
+    colors.line_number = Color::RGB(130, 120, 150);
+    colors.line_number_current = Color::RGB(255, 200, 100); // 橙黄
+
+    colors.statusbar_bg = Color::RGB(40, 38, 52);
+    colors.statusbar_fg = Color::RGB(240, 240, 245);
+
+    colors.menubar_bg = Color::RGB(32, 30, 42);
+    colors.menubar_fg = Color::RGB(240, 240, 245);
+
+    colors.helpbar_bg = Color::RGB(40, 38, 52);
+    colors.helpbar_fg = Color::RGB(180, 170, 200);
+    colors.helpbar_key = Color::RGB(100, 220, 255); // 青
+
+    colors.keyword = Color::RGB(255, 100, 150);  // 粉红
+    colors.string = Color::RGB(255, 220, 100);   // 黄
+    colors.comment = Color::RGB(120, 200, 120);  // 绿
+    colors.number = Color::RGB(255, 160, 80);    // 橙
+    colors.function = Color::RGB(100, 220, 255); // 青
+    colors.type = Color::RGB(180, 140, 255);     // 紫
+    colors.operator_color = Color::RGB(255, 120, 180);
+
+    colors.error = Color::RGB(255, 80, 100);
+    colors.warning = Color::RGB(255, 200, 80);
+    colors.info = Color::RGB(100, 200, 255);
+    colors.success = Color::RGB(120, 255, 140);
+
+    colors.dialog_bg = Color::RGB(35, 34, 48);
+    colors.dialog_fg = Color::RGB(240, 240, 245);
+    colors.dialog_title_bg = Color::RGB(55, 50, 75);
+    colors.dialog_title_fg = Color::RGB(255, 220, 150);
+    colors.dialog_border = Color::RGB(150, 100, 220);
+
+    return colors;
+}
+
+ThemeColors Theme::Microsoft() {
+    ThemeColors colors;
+    // Microsoft 微软/Fluent：深灰底 + 蓝色主色 #0078D4
+    colors.background = Color::RGB(30, 30, 30);    // #1E1E1E
+    colors.foreground = Color::RGB(212, 212, 212); // #D4D4D4
+    colors.current_line = Color::RGB(42, 42, 42);
+    colors.selection = Color::RGB(38, 79, 120); // 深蓝选中
+    colors.line_number = Color::RGB(110, 110, 110);
+    colors.line_number_current = Color::RGB(0, 120, 215); // 微软蓝 #0078D7
+
+    colors.statusbar_bg = Color::RGB(0, 122, 204); // 蓝底状态栏
+    colors.statusbar_fg = Color::RGB(255, 255, 255);
+
+    colors.menubar_bg = Color::RGB(45, 45, 48); // #2D2D30
+    colors.menubar_fg = Color::RGB(241, 241, 241);
+
+    colors.helpbar_bg = Color::RGB(45, 45, 48);
+    colors.helpbar_fg = Color::RGB(180, 180, 180);
+    colors.helpbar_key = Color::RGB(78, 201, 176); // 青绿 #4EC9B0
+
+    colors.keyword = Color::RGB(197, 134, 192);  // 紫 #C586C0
+    colors.string = Color::RGB(206, 145, 120);   // 橙褐 #CE9178
+    colors.comment = Color::RGB(106, 153, 85);   // 绿 #6A9955
+    colors.number = Color::RGB(181, 206, 168);   // 浅绿 #B5CEA8
+    colors.function = Color::RGB(220, 220, 170); // 黄 #DCDCAA
+    colors.type = Color::RGB(78, 201, 176);      // 青 #4EC9B0
+    colors.operator_color = Color::RGB(212, 212, 212);
+
+    colors.error = Color::RGB(244, 63, 94);    // 红 #F43F5E
+    colors.warning = Color::RGB(245, 158, 11); // 橙 #F59E0B
+    colors.info = Color::RGB(0, 122, 204);     // 蓝 #0078D4
+    colors.success = Color::RGB(106, 153, 85); // 绿 #6A9955
+
+    colors.dialog_bg = Color::RGB(37, 37, 38); // #252526
+    colors.dialog_fg = Color::RGB(212, 212, 212);
+    colors.dialog_title_bg = Color::RGB(0, 122, 204);
+    colors.dialog_title_fg = Color::RGB(255, 255, 255);
+    colors.dialog_border = Color::RGB(62, 62, 66); // #3E3E42
+
+    return colors;
+}
+
+ThemeColors Theme::Google() {
+    ThemeColors colors;
+    // Google 谷歌：浅色底 + 品牌四色 #4285F4蓝 #EA4335红 #FBBC04黄 #34A853绿
+    colors.background = Color::RGB(255, 255, 255);         // 白底
+    colors.foreground = Color::RGB(60, 64, 67);            // #3C4043 深灰
+    colors.current_line = Color::RGB(248, 249, 250);       // 浅灰
+    colors.selection = Color::RGB(232, 240, 254);          // 淡蓝
+    colors.line_number = Color::RGB(128, 134, 139);        // 中灰
+    colors.line_number_current = Color::RGB(66, 133, 244); // 谷歌蓝 #4285F4
+
+    colors.statusbar_bg = Color::RGB(66, 133, 244); // 蓝底
+    colors.statusbar_fg = Color::RGB(255, 255, 255);
+
+    colors.menubar_bg = Color::RGB(248, 249, 250);
+    colors.menubar_fg = Color::RGB(60, 64, 67);
+
+    colors.helpbar_bg = Color::RGB(241, 243, 244); // #F1F3F4
+    colors.helpbar_fg = Color::RGB(95, 99, 104);
+    colors.helpbar_key = Color::RGB(66, 133, 244); // 蓝
+
+    colors.keyword = Color::RGB(234, 67, 53);   // 红 #EA4335
+    colors.string = Color::RGB(52, 168, 83);    // 绿 #34A853
+    colors.comment = Color::RGB(128, 134, 139); // 灰
+    colors.number = Color::RGB(251, 188, 4);    // 黄 #FBBC04
+    colors.function = Color::RGB(66, 133, 244); // 蓝 #4285F4
+    colors.type = Color::RGB(52, 168, 83);      // 绿
+    colors.operator_color = Color::RGB(60, 64, 67);
+
+    colors.error = Color::RGB(234, 67, 53);   // 红
+    colors.warning = Color::RGB(251, 188, 4); // 黄
+    colors.info = Color::RGB(66, 133, 244);   // 蓝
+    colors.success = Color::RGB(52, 168, 83); // 绿
+
+    colors.dialog_bg = Color::RGB(255, 255, 255);
+    colors.dialog_fg = Color::RGB(60, 64, 67);
+    colors.dialog_title_bg = Color::RGB(66, 133, 244);
+    colors.dialog_title_fg = Color::RGB(255, 255, 255);
+    colors.dialog_border = Color::RGB(218, 220, 224); // #DADCE0
+
+    return colors;
+}
+
+ThemeColors Theme::Meta() {
+    ThemeColors colors;
+    // Meta 深色：深灰底 + 主色蓝 #1877F2，类似 Meta 开发者/应用风格
+    colors.background = Color::RGB(24, 25, 26);            // #18191A 近黑
+    colors.foreground = Color::RGB(228, 230, 235);         // #E4E6EB
+    colors.current_line = Color::RGB(36, 37, 38);          // #242526
+    colors.selection = Color::RGB(55, 58, 63);             // #373A40
+    colors.line_number = Color::RGB(96, 103, 112);         // #606770
+    colors.line_number_current = Color::RGB(24, 119, 242); // Meta 蓝 #1877F2
+
+    colors.statusbar_bg = Color::RGB(24, 119, 242); // Meta 蓝
+    colors.statusbar_fg = Color::RGB(255, 255, 255);
+
+    colors.menubar_bg = Color::RGB(36, 37, 38); // #242526
+    colors.menubar_fg = Color::RGB(228, 230, 235);
+
+    colors.helpbar_bg = Color::RGB(36, 37, 38);
+    colors.helpbar_fg = Color::RGB(176, 179, 184); // #B0B3B8
+    colors.helpbar_key = Color::RGB(24, 119, 242); // 蓝
+
+    colors.keyword = Color::RGB(242, 153, 74);  // 橙 #F2994A
+    colors.string = Color::RGB(126, 214, 223);  // 青 #7ED6DF
+    colors.comment = Color::RGB(96, 103, 112);  // #606770
+    colors.number = Color::RGB(255, 195, 77);   // 黄 #FFC34D
+    colors.function = Color::RGB(24, 119, 242); // Meta 蓝
+    colors.type = Color::RGB(126, 214, 223);    // 青
+    colors.operator_color = Color::RGB(228, 230, 235);
+
+    colors.error = Color::RGB(244, 67, 54);    // 红
+    colors.warning = Color::RGB(255, 195, 77); // 黄
+    colors.info = Color::RGB(24, 119, 242);    // 蓝
+    colors.success = Color::RGB(76, 175, 80);  // 绿 #4CAF50
+
+    colors.dialog_bg = Color::RGB(36, 37, 38);
+    colors.dialog_fg = Color::RGB(228, 230, 235);
+    colors.dialog_title_bg = Color::RGB(24, 119, 242);
+    colors.dialog_title_fg = Color::RGB(255, 255, 255);
+    colors.dialog_border = Color::RGB(62, 65, 72); // #3E4148
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -3143,6 +3395,18 @@ void Theme::setTheme(const std::string& name) {
         colors_ = SakuraDark();
     } else if (name == "monochrome") {
         colors_ = Monochrome();
+    } else if (name == "neon-noir") {
+        colors_ = NeonNoir();
+    } else if (name == "warm-sepia") {
+        colors_ = WarmSepia();
+    } else if (name == "colorful") {
+        colors_ = Colorful();
+    } else if (name == "microsoft") {
+        colors_ = Microsoft();
+    } else if (name == "google") {
+        colors_ = Google();
+    } else if (name == "meta") {
+        colors_ = Meta();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -3325,7 +3589,13 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "ink",
             "sakura",
             "sakura-dark",
-            "monochrome"};
+            "monochrome",
+            "neon-noir",
+            "warm-sepia",
+            "colorful",
+            "microsoft",
+            "google",
+            "meta"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {

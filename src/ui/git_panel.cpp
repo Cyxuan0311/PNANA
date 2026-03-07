@@ -27,11 +27,50 @@ namespace vgit {
 
 GitPanel::GitPanel(ui::Theme& theme, const std::string& repo_path)
     : theme_(theme), git_manager_(std::make_unique<GitManager>(repo_path)), icon_mapper_() {
-    // 延迟加载git数据，只在面板显示时才加载
-    // Initialize cache timestamps
     last_repo_display_update_ = std::chrono::steady_clock::now() - repo_display_cache_timeout_;
     last_branch_update_ = std::chrono::steady_clock::now() - branch_cache_timeout_;
     last_branch_status_update_ = std::chrono::steady_clock::now() - branch_status_cache_timeout_;
+}
+
+void GitPanel::setRemoteExecutor(vgit::GitManager::RemoteExecutor executor,
+                                 const std::string& label, const std::string& remote_path) {
+    git_manager_->setRemoteExecutor(std::move(executor), label, remote_path);
+    // 清除所有 UI 缓存，让面板重新拉取远程数据
+    data_loaded_ = false;
+    data_loading_ = false;
+    files_.clear();
+    branches_.clear();
+    graph_commits_.clear();
+    cached_current_branch_.clear();
+    cached_repo_path_display_.clear();
+    stats_cache_valid_ = false;
+    last_branch_update_ = std::chrono::steady_clock::now() - branch_cache_timeout_;
+    last_repo_display_update_ = std::chrono::steady_clock::now() - repo_display_cache_timeout_;
+    last_branch_status_update_ = std::chrono::steady_clock::now() - branch_status_cache_timeout_;
+}
+
+void GitPanel::clearRemoteContext(const std::string& local_path) {
+    git_manager_->clearRemoteContext(local_path);
+    data_loaded_ = false;
+    data_loading_ = false;
+    files_.clear();
+    branches_.clear();
+    graph_commits_.clear();
+    cached_current_branch_.clear();
+    cached_repo_path_display_.clear();
+    stats_cache_valid_ = false;
+    last_branch_update_ = std::chrono::steady_clock::now() - branch_cache_timeout_;
+    last_repo_display_update_ = std::chrono::steady_clock::now() - repo_display_cache_timeout_;
+    last_branch_status_update_ = std::chrono::steady_clock::now() - branch_status_cache_timeout_;
+}
+
+bool GitPanel::isRemote() const {
+    return git_manager_ && git_manager_->isRemote();
+}
+
+const std::string& GitPanel::getRemoteLabel() const {
+    static const std::string empty;
+    return git_manager_ ? git_manager_->getRemoteLabel() : empty;
 }
 
 Component GitPanel::getComponent() {
@@ -444,12 +483,22 @@ Element GitPanel::renderHeader() {
     Elements header_elements;
     header_elements.push_back(text(pnana::ui::icons::GIT) | color(colors.function));
     header_elements.push_back(text(" Git") | color(colors.foreground) | bold);
+
+    // 远程模式：显示 SSH 主机标识
+    if (isRemote()) {
+        const std::string& label = getRemoteLabel();
+        if (!label.empty()) {
+            header_elements.push_back(text(" @ ") | color(colors.comment));
+            header_elements.push_back(text(label) | color(colors.string) | bold);
+            header_elements.push_back(text(" [remote]") | color(colors.comment) | dim);
+        }
+    }
+
     header_elements.push_back(text(" │ ") | color(colors.comment));
     header_elements.push_back(text(getModeTitle(current_mode_)) | color(colors.keyword) | bold);
     header_elements.push_back(text(" │ ") | color(colors.comment));
     header_elements.push_back(text("Repository: ") | color(colors.menubar_fg));
 
-    // Use cached repo path display to avoid frequent git calls during rendering
     std::string repo_path = getCachedRepoPathDisplay();
     header_elements.push_back(text(repo_path) | color(colors.foreground));
 

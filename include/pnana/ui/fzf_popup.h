@@ -50,6 +50,9 @@ class FzfPopup {
         std::function<void(std::vector<std::string>, std::vector<std::string>, std::string)>
             callback);
 
+    // 当根目录为 ssh:// 时，使用此回调异步加载远程文件列表（由调用方负责 runCommand find 等）
+    void setOnRemoteLoad(std::function<void(const std::string& ssh_root_uri)> callback);
+
     // 主线程调用：接收后台收集到的文件列表（异步加载完成后）
     void receiveFiles(std::vector<std::string> files, std::vector<std::string> display_paths,
                       std::string root_path);
@@ -80,6 +83,7 @@ class FzfPopup {
     std::function<void(const std::string&)> file_open_callback_;
     std::function<void(std::vector<std::string>, std::vector<std::string>, std::string)>
         on_load_complete_callback_;
+    std::function<void(const std::string&)> on_remote_load_callback_;
     std::string root_path_; // 规范根路径，用于显示相对路径
     std::function<ftxui::Color()> cursor_color_getter_; // 输入框光标颜色
 

@@ -26,8 +26,11 @@ class SSHDialog {
     explicit SSHDialog(Theme& theme);
 
     // 显示 SSH 连接对话框
+    // current_connection: 若非空且 host 非空，则显示“当前连接状态”视图，并可用 Delete 断开
     void show(std::function<void(const SSHConfig&)> on_confirm = nullptr,
-              std::function<void()> on_cancel = nullptr);
+              std::function<void()> on_cancel = nullptr,
+              const SSHConfig* current_connection = nullptr,
+              std::function<void()> on_disconnect = nullptr);
 
     // 处理输入
     bool handleInput(ftxui::Event event);
@@ -64,6 +67,10 @@ class SSHDialog {
     // 回调函数
     std::function<void(const SSHConfig&)> on_confirm_;
     std::function<void()> on_cancel_;
+    std::function<void()> on_disconnect_;
+
+    // 当前连接状态（由 show 传入，用于显示“已连接”视图）
+    const SSHConfig* current_connection_ = nullptr;
 
     // 辅助方法
     std::string* getCurrentField();

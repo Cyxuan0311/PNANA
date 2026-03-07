@@ -48,7 +48,7 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     Elements content;
 
     // 标题栏
-    content.push_back(renderHeader(browser.getCurrentDirectory()));
+    content.push_back(renderHeader(browser));
     content.push_back(separator());
 
     // 文件列表
@@ -130,11 +130,27 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     return vbox(content) | bgcolor(colors.background);
 }
 
-Element FileBrowserView::renderHeader(const std::string& current_directory) const {
+Element FileBrowserView::renderHeader(const features::FileBrowser& browser) const {
     auto& colors = theme_.getColors();
+    std::string current_directory = browser.getCurrentDirectory();
+
+    std::string title;
+    if (browser.isRemoteMode() && current_directory.size() > 6 &&
+        current_directory.compare(0, 6, "ssh://") == 0) {
+        size_t path_start = current_directory.find('/', 6);
+        if (path_start != std::string::npos) {
+            std::string user_host = current_directory.substr(6, path_start - 6);
+            std::string path_part = current_directory.substr(path_start);
+            title = "SSH: " + user_host + " " + path_part;
+        } else {
+            title = current_directory;
+        }
+    } else {
+        title = current_directory;
+    }
 
     return hbox({text(" "), text(icons::FOLDER_OPEN) | color(colors.function), text(" "),
-                 text(current_directory) | bold | color(colors.foreground), filler(),
+                 text(title) | bold | color(colors.foreground), filler(),
                  text(" ") | color(colors.comment)}) |
            bgcolor(colors.menubar_bg);
 }
