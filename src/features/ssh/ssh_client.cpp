@@ -411,7 +411,8 @@ SSHResult_C* DownloadFile(SSHConfig_C* config, const char* remotePath, const cha
 }
 
 // 解析 ls -la 输出为 "d\tname\n" 或 "f\tname\n"
-static std::string parseLsLaToDf(const std::string& lsOutput, const std::string& path) {
+static std::string parseLsLaToDf(const std::string& lsOutput,
+                                 [[maybe_unused]] const std::string& path) {
     std::istringstream iss(lsOutput);
     std::string line;
     std::ostringstream out;
