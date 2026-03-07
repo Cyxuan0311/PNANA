@@ -306,6 +306,9 @@ class Editor {
         return split_view_manager_;
     }
     bool isFileBrowserVisible() const;
+    const pnana::ui::SSHConfig& getCurrentSSHConfig() const {
+        return current_ssh_config_;
+    }
     bool isTerminalVisible() const;
     bool isGitPanelVisible() const;
     vgit::GitPanel& getGitPanel() {
@@ -566,6 +569,12 @@ class Editor {
     // 文档索引到SSH配置的映射（用于保存SSH文件）
     std::map<size_t, pnana::ui::SSHConfig> document_ssh_configs_;
 
+    // 断开 SSH 前保存的本地文件浏览器目录，用于恢复
+    std::string last_local_directory_;
+
+    // SSH 连接时获取到的远端 HOME 目录（用于展开 ~/ 路径）
+    std::string ssh_remote_home_;
+
     // 主题选择
     bool show_theme_menu_;
 
@@ -727,11 +736,15 @@ class Editor {
     // SSH 远程文件编辑
     void showSSHDialog();
     void handleSSHConnect(const pnana::ui::SSHConfig& config);
+    void disconnectSSH();
 
     // SSH 文件传输
     void showSSHTransferDialog();
     void handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items);
     void handleSSHTransferCancel();
+
+    // FZF 远程模式：从 ssh_uri 加载远程文件列表
+    void onFzfRemoteLoad(const std::string& ssh_uri);
 
     // SSH文件保存（内部方法）
     bool saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config,

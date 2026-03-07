@@ -15,6 +15,7 @@
 #include "features/package_manager/yum_manager.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
+#include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
@@ -142,6 +143,9 @@ Editor::Editor()
             force_ui_update_ = true;
             screen_.PostEvent(Event::Custom);
         });
+    });
+    fzf_popup_.setOnRemoteLoad([this](const std::string& ssh_uri) {
+        onFzfRemoteLoad(ssh_uri);
     });
 
     // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
