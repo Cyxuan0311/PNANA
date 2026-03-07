@@ -317,8 +317,9 @@ Element Editor::overlayDialogs(Element main_ui) {
         return fzf_popup_.isOpen();
     });
     overlay_manager_->setRenderTUIConfigCallback([this]() {
-        auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
-        tui_config_popup_.setData(tui_config_popup_.isOpen(), available_configs,
+        // 仅打开时用已有列表，避免每次渲染都拉取（SSH 下会数百次远程调用导致卡顿）
+        const auto& configs = tui_config_popup_.getCurrentConfigs();
+        tui_config_popup_.setData(tui_config_popup_.isOpen(), configs,
                                   tui_config_popup_.getSelectedIndex());
         return tui_config_popup_.render();
     });

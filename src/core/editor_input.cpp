@@ -27,6 +27,12 @@ void Editor::handleInput(Event event) {
         return;
     }
 
+    // F5 + 已连接 SSH：优先打开传输弹窗（避免被文件列表/终端/Git 等区域消费）
+    if (event == Event::F5 && !current_ssh_config_.host.empty()) {
+        showSSHTransferDialog();
+        return;
+    }
+
     // GOTO_LINE 模式：完全参考搜索模式的实现，不做任何特殊处理
     // 搜索模式在 handleInput() 中没有任何特殊处理，直接路由到 handleSearchMode()
     // 所以 GOTO_LINE 模式也应该一样，不做任何特殊处理
@@ -279,24 +285,15 @@ void Editor::handleInput(Event event) {
         } else if (event == Event::Return) {
             std::string input = create_folder_dialog_.getInput();
             if (!input.empty()) {
-                // 创建文件夹 - 使用C++ filesystem
-                try {
-                    fs::path folder_path = fs::path(file_browser_.getCurrentDirectory()) / input;
-                    if (fs::create_directory(folder_path)) {
-                        show_create_folder_ = false;
-                        create_folder_dialog_.setInput("");
-                        file_browser_.refresh();
-                        // 自动选中新创建的文件夹
-                        file_browser_.selectItemByName(input);
-                        setStatusMessage(std::string(pnana::ui::icons::FOLDER) +
-                                         " Folder created: " + input);
-                    } else {
-                        setStatusMessage(std::string(pnana::ui::icons::ERROR) +
-                                         " Failed to create folder (may already exist): " + input);
-                    }
-                } catch (const std::exception& e) {
+                // 创建文件夹（本地/SSH 均通过 createDirectory 统一处理）
+                if (file_browser_.createDirectory(input)) {
+                    show_create_folder_ = false;
+                    create_folder_dialog_.setInput("");
+                    setStatusMessage(std::string(pnana::ui::icons::FOLDER) +
+                                     " Folder created: " + input);
+                } else {
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) +
-                                     " Error: " + std::string(e.what()));
+                                     " Failed to create folder (may already exist): " + input);
                 }
             }
         } else if (event == Event::Backspace) {
@@ -1605,13 +1602,7 @@ void Editor::handleFileBrowserInput(Event event) {
         }
     }
 
-    // F5: SSH文件传输（仅当有SSH连接时）
-    if (event == Event::F5) {
-        if (!current_ssh_config_.host.empty()) {
-            showSSHTransferDialog();
-            return;
-        }
-    }
+    // F5: SSH 文件传输已在 handleInput 开头处理（已连接 SSH 时优先打开弹窗）
 
     // Ctrl+F: 搜索
     if (isCtrlKey(event, 'f')) {

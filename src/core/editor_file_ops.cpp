@@ -1,10 +1,12 @@
 // 文件操作相关实现
 #include "core/editor.h"
+#include "features/ssh/ssh_client.h"
 #include "ui/icons.h"
 #include "utils/logger.h"
 #include "utils/text_analyzer.h"
 #include <filesystem>
 #include <iostream>
+#include <sstream>
 
 // 前向声明辅助函数（在editor_ssh.cpp中定义）
 namespace pnana {
@@ -18,6 +20,48 @@ namespace core {
 
 // 文件操作
 bool Editor::openFile(const std::string& filepath) {
+    if (filepath.size() >= 6 && filepath.compare(0, 6, "ssh://") == 0) {
+        pnana::ui::SSHConfig config;
+        if (!parseSSHPath(filepath, config)) {
+            setStatusMessage("Invalid SSH path");
+            return false;
+        }
+        if (current_ssh_config_.host == config.host && current_ssh_config_.user == config.user) {
+            config.password = current_ssh_config_.password;
+            config.key_path = current_ssh_config_.key_path;
+        }
+        features::ssh::Client ssh_client;
+        features::ssh::Result result = ssh_client.readFile(config);
+        if (!result.success) {
+            setStatusMessage("SSH Error: " + result.error);
+            return false;
+        }
+        size_t doc_index = document_manager_.createNewDocument();
+        Document* doc = document_manager_.getDocument(doc_index);
+        if (!doc)
+            return false;
+        doc->setFilePath(filepath);
+        std::istringstream iss(result.content);
+        std::string line;
+        std::vector<std::string> lines;
+        while (std::getline(iss, line))
+            lines.push_back(line);
+        if (lines.empty())
+            lines.push_back("");
+        doc->getLines() = lines;
+        doc->setModified(false);
+        document_ssh_configs_[doc_index] = config;
+        document_manager_.switchToDocument(doc_index);
+        cursor_row_ = 0;
+        cursor_col_ = 0;
+        view_offset_row_ = 0;
+        view_offset_col_ = 0;
+        syntax_highlighter_.setFileType(getFileType());
+        recent_files_manager_.addFile(filepath);
+        setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + doc->getFileName());
+        return true;
+    }
+
     try {
         document_manager_.openDocument(filepath);
 
