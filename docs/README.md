@@ -16,7 +16,6 @@
 
 ### 📊 参考信息
 - **[开发路线图](ROADMAP.md)** - 版本计划和功能路线图（[English](ROADMAP_EN.md)）
-- **[产品对比](COMPARISON.md)** - 与同类产品的详细对比
 - **[发布工作流](RELEASE_WORKFLOW_TUTORIAL.md)** - GitHub Actions 构建与发布教程（[English](RELEASE_WORKFLOW_TUTORIAL_EN.md)）
 
 ## 🎯 按需求查找
@@ -38,7 +37,6 @@
 
 ### 我想了解项目
 1. 查看 [开发路线图](ROADMAP.md)
-2. 阅读 [产品对比](COMPARISON.md)
 
 ## 📝 文档更新
 
