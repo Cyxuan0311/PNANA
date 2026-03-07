@@ -5,6 +5,7 @@
 #include <deque>
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
+#include <functional>
 #include <set>
 #include <string>
 #include <vector>
@@ -54,6 +55,20 @@ class FileBrowser {
     std::string getCurrentDirectory() const {
         return current_directory_;
     }
+
+    // 远程模式（SSH）：设置后目录内容由 loader 提供，path 为 ssh://user@host/path
+    using RemoteLoader = std::function<std::vector<FileItem>(const std::string&)>;
+    void setRemoteLoader(RemoteLoader fn);
+    void clearRemoteLoader();
+    bool isRemoteMode() const {
+        return remote_loader_ != nullptr;
+    }
+
+    // SSH 远程文件操作执行器：cmd -> {success, stdout}
+    // 设置后 deleteSelected / renameSelected / createDirectory / pasteFiles 走远程 SSH 命令
+    using RemoteFileOpExecutor = std::function<std::pair<bool, std::string>(const std::string&)>;
+    void setRemoteFileOpExecutor(RemoteFileOpExecutor fn);
+    void clearRemoteFileOpExecutor();
 
     // 导航
     void selectNext();
@@ -111,6 +126,7 @@ class FileBrowser {
     // 文件操作
     bool renameSelected(const std::string& new_name);
     bool deleteSelected();
+    bool createDirectory(const std::string& name); // 在当前目录创建文件夹（本地/远程均支持）
     bool moveSelected(const std::string& target_path); // 移动文件/文件夹到目标路径
     bool undoDelete();
     bool canUndoDelete() const;
@@ -129,6 +145,8 @@ class FileBrowser {
   private:
     ui::Theme& theme_;
     std::string current_directory_;
+    RemoteLoader remote_loader_; // 非空时表示远程模式，loadDirectory 用其获取列表
+    RemoteFileOpExecutor remote_file_op_exec_; // SSH 文件操作执行器
     std::vector<FileItem> items_;
     size_t selected_index_;
     bool visible_;
@@ -151,6 +169,11 @@ class FileBrowser {
     void flattenTree(const std::vector<FileItem>& tree, std::vector<FileItem*>& flat,
                      int depth = 0); // 展平树形结构用于显示
     bool copyFileOrDirectory(const std::string& source, const std::string& target); // 复制文件/目录
+
+    // 从 ssh://user@host/path 提取 /path 部分
+    static std::string extractRemotePath(const std::string& ssh_uri);
+    // Shell 单引号转义
+    static std::string shellQuote(const std::string& s);
 
     // 树形结构相关
     std::vector<FileItem> tree_items_;  // 树形结构
