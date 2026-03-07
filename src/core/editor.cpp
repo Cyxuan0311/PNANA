@@ -327,6 +327,17 @@ void Editor::run() {
                                      handleInput(event);
                                      return true;
                                  });
+    // 禁止 FTXUI 对 Ctrl+C / Ctrl+Z 的内置强制处理。
+    // FTXUI 默认 force_handle_ctrl_c_ = true / force_handle_ctrl_z_ = true，
+    // 这意味着即使 CatchEvent 返回 true（事件已被消费），FTXUI 仍会：
+    //   Ctrl+C → 调用 ExitLoopClosure() 退出事件循环
+    //   Ctrl+Z → 内部调用 raise(SIGTSTP) 挂起进程
+    // 设为 false 后，事件完全交由编辑器自身的 handleInput() 处理：
+    //   Ctrl+C → 编辑器的复制/撤销逻辑
+    //   Ctrl+Z → 编辑器的撤销逻辑
+    screen_.ForceHandleCtrlC(false);
+    screen_.ForceHandleCtrlZ(false);
+
     // Post a Custom event so ftxui performs an initial render immediately
     // (ensures renderUI() runs once even if incremental-render logic would skip it)
     screen_.PostEvent(Event::Custom);

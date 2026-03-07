@@ -1,4 +1,5 @@
 #include "core/editor.h"
+#include "features/cursor/cursor_renderer.h"
 #include "features/package_manager/package_manager_registry.h"
 #include "features/ssh/ssh_client.h"
 #include <ftxui/component/event.hpp>
@@ -65,6 +66,14 @@ bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config) {
 }
 
 void Editor::showSSHDialog() {
+    // 将编辑器当前光标配置同步到对话框，确保弹窗内光标样式/颜色一致
+    pnana::ui::CursorConfig cursor_cfg;
+    cursor_cfg.style = getCursorStyle();
+    cursor_cfg.color = getCursorColor();
+    cursor_cfg.smooth = getCursorSmooth();
+    cursor_cfg.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+    ssh_dialog_.setCursorConfig(cursor_cfg);
+
     ssh_dialog_.show(
         [this](const pnana::ui::SSHConfig& config) {
             handleSSHConnect(config);
