@@ -13,7 +13,6 @@ namespace input {
 FileBrowserHandler::FileBrowserHandler() = default;
 
 bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
-    // 文件浏览器区域：处理文件浏览器特定的输入
     if (!editor->isFileBrowserVisible()) {
         return false;
     }
