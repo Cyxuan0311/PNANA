@@ -25,6 +25,21 @@ SSHTask::~SSHTask() {}
 void SSHTask::execute() {
     status_.store(SSHTaskStatus::RUNNING);
 
+    const char* typeStr = "?";
+    switch (type_) {
+        case SSHTaskType::READ_FILE:
+            typeStr = "READ_FILE";
+            break;
+        case SSHTaskType::WRITE_FILE:
+            typeStr = "WRITE_FILE";
+            break;
+        case SSHTaskType::UPLOAD_FILE:
+            typeStr = "UPLOAD_FILE";
+            break;
+        case SSHTaskType::DOWNLOAD_FILE:
+            typeStr = "DOWNLOAD_FILE";
+            break;
+    }
     if (cancelled_.load()) {
         status_.store(SSHTaskStatus::CANCELLED);
         return;
