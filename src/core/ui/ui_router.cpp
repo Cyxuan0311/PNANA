@@ -76,17 +76,17 @@ Element UIRouter::renderMainContent(Editor* editor) {
     }
     // 如果文件浏览器打开，使用左右分栏布局
     else if (editor->isFileBrowserVisible()) {
-        Element file_browser = editor->renderFileBrowser();
+        Element left_panel = editor->renderFileBrowser();
         bool is_browser_active = (current_region == EditorRegion::FILE_BROWSER);
-        file_browser = border_manager_.applyBorder(file_browser, EditorRegion::FILE_BROWSER,
-                                                   is_browser_active, editor->getTheme());
+        left_panel = border_manager_.applyBorder(left_panel, EditorRegion::FILE_BROWSER,
+                                                 is_browser_active, editor->getTheme());
 
         Element code_area = editor->renderEditor();
         bool is_code_active = (current_region == EditorRegion::CODE_AREA);
         code_area = border_manager_.applyBorder(code_area, EditorRegion::CODE_AREA, is_code_active,
                                                 editor->getTheme());
 
-        editor_content = hbox({file_browser | size(WIDTH, EQUAL, editor->getFileBrowserWidth()),
+        editor_content = hbox({left_panel | size(WIDTH, EQUAL, editor->getFileBrowserWidth()),
                                separator(), code_area | flex});
     } else {
         editor_content = editor->renderEditor();
