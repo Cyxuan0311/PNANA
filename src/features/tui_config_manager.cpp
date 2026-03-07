@@ -306,6 +306,11 @@ void TUIConfigManager::initializeTUIConfigs() {
     addTUIConfig("htop", "Htop", "Interactive process viewer",
                  {"~/.config/htop/htoprc", "~/.htoprc"}, "system");
 
+    addTUIConfig(
+        "neofetch", "Neofetch", "Fast, highly customizable system info script",
+        {"~/.config/neofetch/config.conf", "~/.config/neofetch/config", "~/.config/neofetch"},
+        "system");
+
     // addTUIConfig("btop", "Btop++", "Resource monitor that shows usage and stats",
     //              {"~/.config/btop/btop.conf", "~/.config/btop/themes"}, "system");
 
