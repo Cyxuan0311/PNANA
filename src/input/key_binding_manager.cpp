@@ -34,7 +34,7 @@ void KeyBindingManager::initializeEditOperationBindings() {
     bindKey("ctrl_y", KeyAction::REDO);
     bindKeyAliases({"ctrl_shift_z"}, KeyAction::REDO);
     bindKey("ctrl_x", KeyAction::CUT);
-    bindKey("ctrl_p", KeyAction::COPY);
+    bindKey("ctrl_c", KeyAction::COPY);
     bindKey("ctrl_v", KeyAction::PASTE);
     bindKey("ctrl_a", KeyAction::SELECT_ALL);
     bindKey("alt_d", KeyAction::SELECT_WORD);
