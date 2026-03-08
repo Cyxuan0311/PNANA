@@ -461,6 +461,7 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_completion_cache.cpp
         src/features/lsp/lsp_formatter.cpp
         src/features/lsp/snippet_manager.cpp
+        src/ui/lsp_status_popup.cpp
     )
     # 使用通配符自动添加所有 snippets 文件
     file(GLOB SNIPPET_FILES "${CMAKE_SOURCE_DIR}/src/features/lsp/snippets/*_snippets.cpp")
@@ -539,6 +540,7 @@ set(HEADERS
     include/pnana/ui/icons.h
     include/pnana/ui/completion_popup.h
     include/pnana/ui/command_palette_ui.h
+    include/pnana/ui/lsp_status_popup.h
     include/pnana/ui/symbol_navigation_popup.h
     include/pnana/ui/format_dialog.h
     include/pnana/ui/todo_panel.h
