@@ -546,8 +546,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    ]\n";
     oss << "  },\n";
     oss << "  \"lsp\": {\n";
-    oss << "    \"_comment\": \"LSP: built-in configs always apply. Add servers to extend (new "
-           "language_id); conflicts use code config\",\n";
+    oss << "    \"_comment\": \"LSP: config overrides built-in for same language_id; empty "
+           "fields fall back to built-in. Add servers with new language_id to extend\",\n";
     oss << "    \"enabled\": " << (config_.lsp.enabled ? "true" : "false") << ",\n";
     oss << "    \"servers\": [\n";
     for (size_t i = 0; i < config_.lsp.servers.size(); ++i) {
