@@ -46,6 +46,14 @@ void Editor::initializeCommandPalette() {
                                                  openFzfPopup();
                                              }));
 
+#ifdef BUILD_LSP_SUPPORT
+    command_palette_.registerCommand(
+        Command("lsp.status", "LSP Status", "LSP connection status and server details",
+                {"lsp", "language", "server", "connection", "status"}, [this]() {
+                    openLspStatusPopup();
+                }));
+#endif
+
     command_palette_.registerCommand(
         Command("tools.tui", "TUI Config Files", "Open configuration files for TUI tools",
                 {"tui", "config", "terminal", "editor", "tools"}, [this]() {

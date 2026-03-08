@@ -174,8 +174,9 @@ void Editor::handleInput(Event event) {
         ;
 
     // 如果当前在搜索模式或替换模式，优先处理 Tab 键（用于模式切换）
+    // 终端中 Tab 常被编码为 Ctrl+I (ASCII 9)，需一并处理
     if ((mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) &&
-        (event == Event::Tab || event == Event::Character('\t'))) {
+        (event == Event::Tab || event == Event::Character('\t') || event == Event::CtrlI)) {
         // Tab 键在搜索/替换模式中有特殊用途，直接交给模式处理函数
         switch (mode_) {
             case EditorMode::SEARCH:
@@ -1317,14 +1318,6 @@ void Editor::handleSearchMode(Event event) {
         }
     }
 
-    // Ctrl+I：上一个匹配项
-    if (event == Event::CtrlI) {
-        if (search_highlight_active_ && search_engine_.hasMatches()) {
-            searchPrevious();
-            return;
-        }
-    }
-
     // 在搜索模式下，阻止所有字符输入到文档
     if (event == Event::Return) {
         // 执行搜索并跳转到下一个匹配
@@ -1338,8 +1331,8 @@ void Editor::handleSearchMode(Event event) {
         mode_ = EditorMode::NORMAL;
         clearSearchHighlight();
         setStatusMessage("Search cancelled");
-    } else if (event == Event::Tab) {
-        // Tab 切换到替换模式
+    } else if (event == Event::Tab || event == Event::CtrlI) {
+        // Tab 切换到替换模式（终端中 Tab 常为 Ctrl+I）
         mode_ = EditorMode::REPLACE;
         replace_input_.clear();
         replace_cursor_pos_ = 0;
@@ -1444,11 +1437,6 @@ void Editor::handleReplaceMode(Event event) {
         searchNext();
         return;
     }
-    if (event == Event::CtrlI && search_highlight_active_ && search_engine_.hasMatches()) {
-        searchPrevious();
-        return;
-    }
-
     if (event == Event::Return) {
         // 执行替换（替换所有匹配项）
         if (!search_input_.empty()) {
@@ -1463,8 +1451,8 @@ void Editor::handleReplaceMode(Event event) {
         mode_ = EditorMode::NORMAL;
         clearSearchHighlight();
         setStatusMessage("Replace cancelled");
-    } else if (event == Event::Tab) {
-        // Tab 切换回搜索模式
+    } else if (event == Event::Tab || event == Event::CtrlI) {
+        // Tab 切换回搜索模式（终端中 Tab 常为 Ctrl+I）
         mode_ = EditorMode::SEARCH;
         // 将光标定位到搜索输入框的末尾
         search_cursor_pos_ = search_input_.length();

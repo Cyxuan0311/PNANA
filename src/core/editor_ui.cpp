@@ -316,6 +316,14 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setIsFzfPopupVisibleCallback([this]() {
         return fzf_popup_.isOpen();
     });
+#ifdef BUILD_LSP_SUPPORT
+    overlay_manager_->setRenderLspStatusPopupCallback([this]() {
+        return lsp_status_popup_.render();
+    });
+    overlay_manager_->setIsLspStatusPopupVisibleCallback([this]() {
+        return lsp_status_popup_.isOpen();
+    });
+#endif
     overlay_manager_->setRenderTUIConfigCallback([this]() {
         // 仅打开时用已有列表，避免每次渲染都拉取（SSH 下会数百次远程调用导致卡顿）
         const auto& configs = tui_config_popup_.getCurrentConfigs();
@@ -1750,9 +1758,10 @@ Element Editor::renderSearchInputBox() {
     }
 
     // 快捷键提示（Ctrl+G 下一项，Ctrl+I 上一项）
-    elements.push_back(text("  [Ctrl+G: next, Ctrl+I: prev, ↑↓: options, Tab: replace, Enter: "
-                            "accept, Esc: cancel]") |
-                       color(colors.comment) | dim);
+    elements.push_back(
+        text("  [Ctrl+G: next, Ctrl+Shift+F3: prev, ↑↓: options, Tab: replace, Enter: "
+             "accept, Esc: cancel]") |
+        color(colors.comment) | dim);
 
     return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
 }
@@ -1819,7 +1828,7 @@ Element Editor::renderReplaceInputBox() {
 
     // 快捷键提示（Ctrl+G/Ctrl+I 在匹配项间导航）
     elements.push_back(
-        text("  [Ctrl+G: next, Ctrl+I: prev, ↑↓: options, Enter: replace, Esc: cancel]") |
+        text("  [Ctrl+G: next, Ctrl+Shift+F3: prev, ↑↓: options, Enter: replace, Esc: cancel]") |
         color(colors.comment) | dim);
 
     return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
