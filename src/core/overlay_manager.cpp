@@ -100,6 +100,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox({main_ui | dim, render_fzf_popup_callback_() | center});
     }
 
+    // 如果 LSP 连接状态弹窗打开，叠加显示
+    if (is_lsp_status_popup_visible_callback_ && is_lsp_status_popup_visible_callback_() &&
+        render_lsp_status_popup_callback_) {
+        return dbox({main_ui | dim, render_lsp_status_popup_callback_() | center});
+    }
+
     // 如果格式化对话框打开，叠加显示
     if (is_format_visible_callback_ && is_format_visible_callback_() && render_format_callback_) {
         return dbox({main_ui, render_format_callback_() | center});
