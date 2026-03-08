@@ -80,14 +80,14 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 
 ## LSP Configuration
 
-pnana supports customizing LSP (Language Server Protocol) servers via the configuration file. Built-in configs always apply; entries in `servers` are **appended** to the built-in list. If a `language_id` conflicts with built-in config, the code's built-in config takes precedence.
+pnana supports customizing LSP (Language Server Protocol) servers via the configuration file. **When a `servers` entry has the same `language_id` as a built-in language, the config file entry takes precedence.** If a field is left empty or invalid, the built-in value for that field is used as fallback. Entries with a `language_id` not present in the built-in list are appended as new languages.
 
 ### lsp (Language Servers)
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable or disable LSP. Set to `false` to disable all language servers |
-| `servers` | array | `[]` | Additional server configurations. Appended to built-in; conflicts use built-in |
+| `servers` | array | `[]` | Server configs. Same language_id as built-in overrides built-in; empty fields fall back to built-in; new language_id appends |
 
 ### Server Entry Format
 
@@ -102,7 +102,7 @@ Each element in the `servers` array is an object with these fields:
 | `args` | array | no | Command-line arguments, e.g. `["-m", "pylsp"]` |
 | `env` | object | no | Environment variables. If empty, defaults like `XDG_CACHE_HOME` and `TMPDIR` are used |
 
-### Built-in Default Servers (always applied; config entries are appended)
+### Built-in Default Servers (overridden by same language_id in config; unset fields use below)
 
 | Language | Command | Extensions |
 |----------|---------|------------|
