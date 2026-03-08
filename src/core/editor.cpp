@@ -68,7 +68,7 @@ Editor::Editor()
       syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
       split_view_manager_(), diagnostics_popup_(theme_),
 #ifdef BUILD_LSP_SUPPORT
-      symbol_navigation_popup_(theme_),
+      symbol_navigation_popup_(theme_), lsp_status_popup_(theme_),
 #endif
       mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
       view_offset_col_(0), show_theme_menu_(false), show_help_(false), show_create_folder_(false),
@@ -1033,6 +1033,27 @@ void Editor::handleFzfPopupInput(Event event) {
         }
     }
 }
+
+#ifdef BUILD_LSP_SUPPORT
+void Editor::openLspStatusPopup() {
+    if (!lsp_manager_)
+        return;
+    lsp_status_popup_.setStatusProvider([this]() {
+        return lsp_manager_->getStatusSnapshot();
+    });
+    lsp_status_popup_.open();
+    setStatusMessage("LSP Status — ↑↓ Select  Esc Close");
+}
+
+void Editor::handleLspStatusPopupInput(Event event) {
+    if (lsp_status_popup_.handleInput(event)) {
+        if (!lsp_status_popup_.isOpen()) {
+            setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
+                             "Ctrl+O Files | F1 Help");
+        }
+    }
+}
+#endif
 
 void Editor::openExtractDialog() {
     std::string current_dir = file_browser_.getCurrentDirectory();

@@ -72,6 +72,7 @@
 #include "features/lsp/snippet_manager.h"
 #include "ui/completion_popup.h"
 #include "ui/diagnostics_popup.h"
+#include "ui/lsp_status_popup.h"
 #include "ui/symbol_navigation_popup.h"
 #endif
 #ifdef BUILD_LUA_SUPPORT
@@ -526,6 +527,7 @@ class Editor {
 #ifdef BUILD_LSP_SUPPORT
     pnana::ui::SymbolNavigationPopup symbol_navigation_popup_;
     bool show_symbol_navigation_popup_;
+    pnana::ui::LspStatusPopup lsp_status_popup_;
 #endif
     std::vector<features::Diagnostic> current_file_diagnostics_;
     std::mutex diagnostics_mutex_;
@@ -830,6 +832,8 @@ class Editor {
 
 #ifdef BUILD_LSP_SUPPORT
     // LSP 相关方法
+    void openLspStatusPopup();
+    void handleLspStatusPopupInput(ftxui::Event event);
     void initializeLsp();
     void shutdownLsp();
     void cleanupLocalCacheFiles();
