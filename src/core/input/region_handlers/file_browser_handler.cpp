@@ -83,8 +83,8 @@ bool FileBrowserHandler::handleInput(Event event, Editor* editor) {
         }
     }
 
-    // Ctrl+P: 复制选中的文件/文件夹
-    if (event == Event::CtrlP) {
+    // Ctrl+C: 复制选中的文件/文件夹
+    if (event == Event::CtrlC) {
         if (editor->file_browser_.getSelectedCount() > 0) {
             if (editor->file_browser_.copySelected()) {
                 editor->setStatusMessage("Copied " +

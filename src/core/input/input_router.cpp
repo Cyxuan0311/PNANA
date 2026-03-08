@@ -109,6 +109,14 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
         return true;
     }
 
+#ifdef BUILD_LSP_SUPPORT
+    // 2b. LSP 连接状态弹窗
+    if (editor->lsp_status_popup_.isOpen()) {
+        editor->handleLspStatusPopupInput(event);
+        return true;
+    }
+#endif
+
     // 3. 最近文件弹窗
     if (editor->recent_files_popup_.isOpen()) {
         if (editor->recent_files_popup_.handleInput(event)) {
