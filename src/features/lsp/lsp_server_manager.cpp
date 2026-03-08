@@ -181,5 +181,21 @@ void LspServerManager::setDiagnosticsCallback(
     diagnostics_callback_ = callback;
 }
 
+std::vector<LspStatusEntry> LspServerManager::getStatusSnapshot() const {
+    std::vector<LspStatusEntry> out;
+    const std::vector<LspServerConfig>& configs = config_manager_.getAllConfigs();
+    out.reserve(configs.size());
+
+    std::lock_guard<std::mutex> lock(clients_mutex_);
+    for (const auto& config : configs) {
+        LspStatusEntry entry;
+        entry.config = config;
+        auto it = clients_.find(config.language_id);
+        entry.connected = (it != clients_.end() && it->second && it->second->isConnected());
+        out.push_back(std::move(entry));
+    }
+    return out;
+}
+
 } // namespace features
 } // namespace pnana

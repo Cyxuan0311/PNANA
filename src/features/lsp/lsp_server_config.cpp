@@ -123,35 +123,91 @@ void LspServerConfigManager::initializeDefaultConfigs() {
     configs_ = getDefaultConfigs();
 }
 
+namespace {
+
+// 将用户配置项与内置配置合并：用户提供的非空字段优先，空字段用内置兜底。
+// 这样“以配置文件为主”，若配置中某项未填或不可用，仍可回退到内置值。
+LspServerConfig mergeUserWithBuiltin(const pnana::core::LspServerConfigEntry& user,
+                                     const LspServerConfig& builtin, const std::string& cache_dir) {
+    LspServerConfig out;
+    out.name = user.name.empty() ? builtin.name : user.name;
+    out.command = user.command.empty() ? builtin.command : user.command;
+    out.language_id = user.language_id.empty() ? builtin.language_id : user.language_id;
+    if (user.extensions.empty()) {
+        out.file_extensions = builtin.file_extensions;
+    } else {
+        out.file_extensions = std::set<std::string>(user.extensions.begin(), user.extensions.end());
+    }
+    out.args = user.args.empty() ? builtin.args : user.args;
+    if (user.env.empty()) {
+        out.env_vars = builtin.env_vars;
+    } else {
+        out.env_vars = user.env;
+        // 若用户未设置缓存相关变量，用默认值补全
+        if (out.env_vars.find("XDG_CACHE_HOME") == out.env_vars.end())
+            out.env_vars["XDG_CACHE_HOME"] = cache_dir;
+        if (out.env_vars.find("TMPDIR") == out.env_vars.end())
+            out.env_vars["TMPDIR"] = cache_dir + "/tmp";
+    }
+    out.initialization_options = builtin.initialization_options;
+    return out;
+}
+
+// 仅用用户配置项生成 LspServerConfig（用于新增语言，无内置）
+LspServerConfig entryToConfig(const pnana::core::LspServerConfigEntry& e,
+                              const std::string& cache_dir) {
+    std::set<std::string> ext_set(e.extensions.begin(), e.extensions.end());
+    std::map<std::string, std::string> env = e.env;
+    if (env.empty()) {
+        env["XDG_CACHE_HOME"] = cache_dir;
+        env["TMPDIR"] = cache_dir + "/tmp";
+    }
+    LspServerConfig c(e.name, e.command, e.language_id, ext_set, e.args, env);
+    return c;
+}
+
+} // namespace
+
 void LspServerConfigManager::loadFromConfig(const pnana::core::LspConfig& lsp_config) {
     if (!lsp_config.enabled) {
         configs_.clear();
         return;
     }
-    // 始终以代码内置配置为基准
-    configs_ = getDefaultConfigs();
 
-    if (lsp_config.servers.empty()) {
-        return;
-    }
-
-    // 追加用户配置：仅当 language_id 在内置中不存在时添加；冲突时以代码配置为准
+    std::vector<LspServerConfig> builtin = getDefaultConfigs();
     const char* home = std::getenv("HOME");
     std::string cache_dir =
         (home ? std::string(home) : "/tmp") + (home ? "/.config/pnana/.cache" : "/pnana");
 
+    // 按 language_id 建立内置配置索引，便于用用户配置覆盖
+    std::map<std::string, size_t> builtin_index;
+    for (size_t i = 0; i < builtin.size(); ++i)
+        builtin_index[builtin[i].language_id] = i;
+
+    configs_.clear();
+
+    // 1) 先处理内置列表：若用户对同一 language_id
+    // 有配置则用合并结果（配置优先，空项用内置），否则用内置
+    for (size_t i = 0; i < builtin.size(); ++i) {
+        const std::string& lang = builtin[i].language_id;
+        auto it = std::find_if(lsp_config.servers.begin(), lsp_config.servers.end(),
+                               [&lang](const pnana::core::LspServerConfigEntry& e) {
+                                   return e.language_id == lang;
+                               });
+        if (it != lsp_config.servers.end()) {
+            configs_.push_back(mergeUserWithBuiltin(*it, builtin[i], cache_dir));
+        } else {
+            configs_.push_back(builtin[i]);
+        }
+    }
+
+    // 2) 再追加用户中“仅新增”的语言（language_id 不在内置里）
     for (const auto& e : lsp_config.servers) {
-        if (findConfigByLanguageId(e.language_id) != nullptr) {
-            // 该语言已有内置配置，跳过（代码配置优先）
+        if (builtin_index.find(e.language_id) != builtin_index.end())
             continue;
-        }
-        std::set<std::string> ext_set(e.extensions.begin(), e.extensions.end());
-        std::map<std::string, std::string> env = e.env;
-        if (env.empty()) {
-            env["XDG_CACHE_HOME"] = cache_dir;
-            env["TMPDIR"] = cache_dir + "/tmp";
-        }
-        configs_.emplace_back(e.name, e.command, e.language_id, ext_set, e.args, env);
+        if (e.name.empty() || e.command.empty() || e.language_id.empty())
+            continue;
+        configs_.push_back(entryToConfig(e, cache_dir));
     }
 }
 

@@ -7,9 +7,16 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace pnana {
 namespace features {
+
+/** 单条 LSP 状态（配置 + 是否已连接），用于状态弹窗展示 */
+struct LspStatusEntry {
+    LspServerConfig config;
+    bool connected = false;
+};
 
 /**
  * LSP 服务器管理器
@@ -54,13 +61,16 @@ class LspServerManager {
         return config_manager_;
     }
 
+    /** 获取当前所有 LSP 配置及连接状态快照（用于状态弹窗） */
+    std::vector<LspStatusEntry> getStatusSnapshot() const;
+
   private:
     LspServerConfigManager config_manager_;
 
     // 按语言 ID 存储 LSP 客户端
     // 每个语言只有一个客户端实例（可以处理多个文件）
     std::map<std::string, std::unique_ptr<LspClient>> clients_;
-    std::mutex clients_mutex_;
+    mutable std::mutex clients_mutex_;
 
     // 已初始化的语言集合
     std::map<std::string, bool> initialized_;
