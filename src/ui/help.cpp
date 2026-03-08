@@ -41,7 +41,7 @@ std::vector<HelpEntry> Help::getAllHelp() {
         {"Editing", "Ctrl+Z", "Undo"},
         {"Editing", "Ctrl+Y / Ctrl+Shift+Z", "Redo"},
         {"Editing", "Ctrl+X", "Cut"},
-        {"Editing", "Ctrl+P", "Copy"},
+        {"Editing", "Ctrl+C", "Copy"},
         {"Editing", "Ctrl+V", "Paste"},
         {"Editing", "Ctrl+A", "Select all"},
         {"Editing", "Alt+D", "Select word"},
