@@ -372,6 +372,7 @@ set(SOURCES
     src/utils/project_root_finder.cpp
     src/utils/file_type_icon_mapper.cpp
     src/utils/file_type_color_mapper.cpp
+    src/utils/match_highlight.cpp
     src/utils/archive_validator.cpp
     src/utils/version_detector.cpp
     src/features/recent_files_manager.cpp
@@ -390,7 +391,7 @@ set(SOURCES
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/todo/todo_manager.cpp
-    src/features/comment/comment_syntax.cpp
+    src/utils/comment_syntax.cpp
     src/features/vgit/git_manager.cpp
     src/features/package_manager/package_manager_registry.cpp
     src/features/package_manager/pip_manager.cpp
@@ -419,6 +420,7 @@ set(SOURCES
     src/features/cursor/cursor_renderer.cpp
     src/features/ai_config/ai_config.cpp
     $<$<BOOL:${BUILD_AI_CLIENT_SUPPORT}>:src/features/ai_client/ai_client.cpp>
+    $<$<BOOL:${BUILD_AI_CLIENT_SUPPORT}>:src/features/ai_client/assistant_system_prompt.cpp>
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
