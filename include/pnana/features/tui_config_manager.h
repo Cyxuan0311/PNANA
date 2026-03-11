@@ -66,6 +66,29 @@ class TUIConfigManager {
     // 初始化TUI配置列表
     void initializeTUIConfigs();
 
+    // 按分类初始化 TUI 配置的辅助函数
+    void initializeTerminalEmulators();
+    void initializeEditors();
+    void initializeFileManagers();
+    void initializeMultiplexers();
+    void initializeShells();
+    void initializeVersionControl();
+    void initializeSystemTools();
+    void initializeUtilities();
+    void initializeDevTools();
+    void initializeDatabaseClients();
+    void initializePackageManagers();
+    void initializeNetworkTools();
+    void initializeTextProcessing();
+    void initializeContainerTools();
+    void initializeSystemMonitoring();
+    void initializeTerminalEnhancements();
+    void initializeMailReaders();
+    void initializeWebBrowsers();
+    void initializePIMTools();
+    void initializeBuildSystems();
+    void initializeLanguageTools();
+
     // 添加单个TUI配置
     void addTUIConfig(const std::string& name, const std::string& display_name,
                       const std::string& description, const std::vector<std::string>& paths,
