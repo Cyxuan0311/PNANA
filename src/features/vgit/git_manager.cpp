@@ -491,15 +491,19 @@ std::vector<GitCommit> GitManager::getRecentCommits(int count) {
     return commits;
 }
 
-std::vector<GitCommit> GitManager::getGraphCommits(int count) {
+std::vector<GitCommit> GitManager::getGraphCommits(int count, int skip) {
     if (!isGitRepository()) {
         return {};
     }
 
-    // Use git log with graph format to get commit history
-    // We'll use a simpler format that's easier to parse
-    std::string cmd = "git -C \"" + repo_root_ + "\" log --oneline --all --decorate -n " +
-                      std::to_string(count) + " --pretty=format:\"%H|%s|%an|%ad\" --date=short";
+    // Use git log --graph to get commit history including parents and ascii graph prefix.
+    // Use git pretty format escape %x1f to emit a unit-separator between the graph prefix
+    // and our formatted fields so we can separate the two parts reliably.
+    // Format after marker: hash|parents|message|author|date
+    std::string cmd = "git -C \"" + repo_root_ + "\" log --graph --all --no-color -n " +
+                      std::to_string(count) +
+                      (skip > 0 ? " --skip=" + std::to_string(skip) : std::string()) +
+                      " --pretty=format:\"%x1f%H|%P|%s|%an|%ad\" --date=short";
     auto lines = executeGitCommandLines(cmd);
 
     std::vector<GitCommit> commits;
@@ -510,25 +514,69 @@ std::vector<GitCommit> GitManager::getGraphCommits(int count) {
             continue;
         }
 
-        // Parse format: hash|message|author|date
-        size_t pos1 = line.find('|');
+        // line is: <graph-chars><marker><hash>|<parents>|<msg>|<author>|<date>
+        const std::string marker = std::string(1, static_cast<char>(0x1f));
+        size_t mpos = line.find(marker);
+        std::string graph_prefix;
+        std::string fields;
+        if (mpos != std::string::npos) {
+            graph_prefix = line.substr(0, mpos);
+            // sanitize graph_prefix: remove control characters except the ASCII graph chars
+            std::string clean;
+            for (char c : graph_prefix) {
+                unsigned char uc = static_cast<unsigned char>(c);
+                if (uc >= 32) {
+                    clean.push_back(c);
+                } else {
+                    // allow unit separator only as marker (already removed), replace others with
+                    // space
+                    clean.push_back(' ');
+                }
+            }
+            // replace tabs with spaces
+            for (auto& ch : clean)
+                if (ch == '\t')
+                    ch = ' ';
+            graph_prefix = clean;
+            fields = line.substr(mpos + marker.size());
+        } else {
+            // fallback: no marker — treat whole line as fields
+            fields = line;
+        }
+
+        // Parse fields: hash|parents|message|author|date
+        size_t pos1 = fields.find('|');
         if (pos1 == std::string::npos)
             continue;
-
-        size_t pos2 = line.find('|', pos1 + 1);
+        size_t pos2 = fields.find('|', pos1 + 1);
         if (pos2 == std::string::npos)
             continue;
-
-        size_t pos3 = line.find('|', pos2 + 1);
+        size_t pos3 = fields.find('|', pos2 + 1);
         if (pos3 == std::string::npos)
             continue;
+        size_t pos4 = fields.find('|', pos3 + 1);
+        if (pos4 == std::string::npos)
+            continue;
 
-        std::string hash = line.substr(0, pos1);
-        std::string message = line.substr(pos1 + 1, pos2 - pos1 - 1);
-        std::string author = line.substr(pos2 + 1, pos3 - pos2 - 1);
-        std::string date = line.substr(pos3 + 1);
+        std::string hash = fields.substr(0, pos1);
+        std::string parents_str = fields.substr(pos1 + 1, pos2 - pos1 - 1);
+        std::string message = fields.substr(pos2 + 1, pos3 - pos2 - 1);
+        std::string author = fields.substr(pos3 + 1, pos4 - pos3 - 1);
+        std::string date = fields.substr(pos4 + 1);
 
-        commits.emplace_back(hash, message, author, date);
+        std::vector<std::string> parents;
+        if (!parents_str.empty()) {
+            std::istringstream pis(parents_str);
+            std::string p;
+            while (pis >> p) {
+                parents.push_back(p);
+            }
+        }
+
+        commits.emplace_back(hash, parents, message, author, date);
+        if (!graph_prefix.empty()) {
+            commits.back().graph_prefix = graph_prefix;
+        }
     }
 
     return commits;

@@ -50,10 +50,15 @@ struct GitCommit {
     std::string message;
     std::string author;
     std::string date;
-
+    std::vector<std::string> parents; // parent commit hashes (for merge visualization)
+    std::string graph_prefix;         // ASCII graph chars produced by `git log --graph`
+    GitCommit() = default;
     GitCommit(const std::string& h, const std::string& msg, const std::string& auth,
               const std::string& dt)
         : hash(h), message(msg), author(auth), date(dt) {}
+    GitCommit(const std::string& h, const std::vector<std::string>& p, const std::string& msg,
+              const std::string& auth, const std::string& dt)
+        : hash(h), message(msg), author(auth), date(dt), parents(p) {}
 };
 
 struct GitBranchStatus {
@@ -109,7 +114,8 @@ class GitManager {
     // Commit operations
     bool commit(const std::string& message);
     std::vector<GitCommit> getRecentCommits(int count = 10);
-    std::vector<GitCommit> getGraphCommits(int count = 50); // Get commits for graph view
+    std::vector<GitCommit> getGraphCommits(
+        int count = 50, int skip = 0); // Get commits for graph view (supports skip for pagination)
 
     // Branch operations
     std::vector<GitBranch> getBranches();
