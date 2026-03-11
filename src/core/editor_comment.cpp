@@ -1,7 +1,7 @@
-// Ctrl+/ 注释切换：事件处理在 core，注释类型与字符由 features 负责
+// Ctrl+/ 注释切换：事件处理在 core，注释类型与字符由 utils 负责
 #include "core/document.h"
 #include "core/editor.h"
-#include "features/comment/comment_syntax.h"
+#include "utils/comment_syntax.h"
 
 namespace pnana {
 namespace core {
@@ -36,7 +36,7 @@ void Editor::toggleComment() {
 
     for (size_t r = start_row; r <= end_row; ++r) {
         std::string& line = lines[r];
-        auto [new_line, col_offset] = features::comment::toggleCommentForLine(line, file_type);
+        auto [new_line, col_offset] = utils::toggleCommentForLine(line, file_type);
         line = new_line;
         if (start_row == end_row) {
             total_col_offset = col_offset;

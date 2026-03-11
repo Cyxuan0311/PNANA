@@ -311,6 +311,8 @@ class Editor {
         return current_ssh_config_;
     }
     bool isTerminalVisible() const;
+    bool isAIAssistantVisible() const;
+    ftxui::Element renderAIAssistantPanel();
     bool isGitPanelVisible() const;
     vgit::GitPanel& getGitPanel() {
         return git_panel_;
@@ -605,6 +607,7 @@ class Editor {
     // 显示选项
     bool show_line_numbers_;
     bool relative_line_numbers_;
+    bool show_helpbar_;
     bool syntax_highlighting_;
     int zoom_level_;
     int file_browser_width_; // 文件浏览器宽度

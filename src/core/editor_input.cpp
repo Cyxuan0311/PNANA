@@ -27,8 +27,9 @@ void Editor::handleInput(Event event) {
         return;
     }
 
-    // F5 + 已连接 SSH：优先打开传输弹窗（避免被文件列表/终端/Git 等区域消费）
-    if (event == Event::F5 && !current_ssh_config_.host.empty()) {
+    // F5 + 已连接 SSH：仅当传输面板未打开时打开面板；若已打开则交给面板处理（用于“开始传输”）
+    if (event == Event::F5 && !current_ssh_config_.host.empty() &&
+        !ssh_transfer_dialog_.isVisible()) {
         showSSHTransferDialog();
         return;
     }
@@ -403,10 +404,34 @@ void Editor::handleInput(Event event) {
         return;
     }
 
-    // 优先处理AI助手面板输入
+    // AI 助手面板可见时的导航逻辑
     if (ai_assistant_panel_.isVisible()) {
-        if (ai_assistant_panel_.handleInput(event)) {
-            return;
+        EditorRegion cur = region_manager_.getCurrentRegion();
+
+        // 当不在 AI 面板时，右箭头键切换到 AI 面板
+        if (cur != EditorRegion::AI_ASSISTANT_PANEL) {
+            if (event == Event::ArrowRight) {
+                if (region_manager_.navigateRight()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                     " | ←: Back  Enter: Send");
+                    return;
+                }
+            }
+        }
+
+        // 当在 AI 面板时，先让 AI 面板处理按键
+        if (cur == EditorRegion::AI_ASSISTANT_PANEL) {
+            if (ai_assistant_panel_.handleInput(event)) {
+                return;
+            }
+            // 如果 AI 面板没有处理左箭头键，则切换回主区域
+            if (event == Event::ArrowLeft) {
+                if (region_manager_.navigateLeft()) {
+                    setStatusMessage("Region: " + region_manager_.getRegionName() +
+                                     " | →: AI Panel");
+                    return;
+                }
+            }
         }
     }
 
@@ -488,12 +513,6 @@ void Editor::handleInput(Event event) {
                                                  editor_x_offset, editor_y_offset)) {
             return;
         }
-    }
-
-    // Ctrl+L: 如果已经有分屏，显示关闭分屏对话框（在代码区也可以使用）
-    if (event == Event::CtrlL && split_view_manager_.hasSplits()) {
-        showSplitDialog();
-        return;
     }
 
     // 如果有分屏，优先处理分屏导航快捷键（Ctrl+方向键）

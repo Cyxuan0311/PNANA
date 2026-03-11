@@ -70,11 +70,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
-    // AI助手面板
+    // AI助手面板：以右侧侧边栏形式显示，而不是居中弹窗
     if (is_ai_assistant_visible_callback_ && is_ai_assistant_visible_callback_() &&
         render_ai_assistant_callback_) {
-        Elements dialog_elements = {main_ui, render_ai_assistant_callback_() | center};
-        return dbox(dialog_elements);
+        Element ai_panel = render_ai_assistant_callback_();
+        // 主界面在左侧，AI 面板在右侧
+        return hbox({main_ui | flex, separator(), ai_panel});
     }
 
 #ifdef BUILD_LUA_SUPPORT

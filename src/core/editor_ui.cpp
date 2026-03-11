@@ -1,5 +1,6 @@
 // UI渲染相关实现
 #include "core/editor.h"
+#include "core/ui/border_manager.h"
 #include "core/ui/ui_router.h"
 #include "features/cursor/cursor_renderer.h"
 #include "ui/binary_file_view.h"
@@ -177,12 +178,9 @@ Element Editor::renderUI() {
     }
 
     // 使用 UIRouter 进行渲染（如果已初始化）
-    // 注意：目前 UIRouter 只处理基本的布局和边框，对话框等仍使用原有逻辑
+    // UIRouter::render() 内部已调用 overlayDialogs，无需再叠加一次，否则会导致 AI 面板等被渲染两次
     if (ui_router_) {
-        Element main_ui = ui_router_->render(this);
-
-        // 叠加对话框（如果打开）- 这部分仍使用原有逻辑
-        last_rendered_element_ = overlayDialogs(main_ui);
+        last_rendered_element_ = ui_router_->render(this);
         return last_rendered_element_;
     }
 
@@ -263,7 +261,10 @@ Element Editor::overlayDialogs(Element main_ui) {
         return ai_config_dialog_.render();
     });
     overlay_manager_->setRenderAIAssistantCallback([this]() {
-        return ai_assistant_panel_.render();
+        ftxui::Element el = ai_assistant_panel_.render();
+        bool ai_active = (region_manager_.getCurrentRegion() == EditorRegion::AI_ASSISTANT_PANEL);
+        core::ui::BorderManager bm;
+        return bm.applyBorder(el, EditorRegion::AI_ASSISTANT_PANEL, ai_active, theme_);
     });
     overlay_manager_->setRenderCommandPaletteCallback([this]() {
         return renderCommandPalette();
@@ -1691,6 +1692,8 @@ Element Editor::renderStatusbar() {
 }
 
 Element Editor::renderHelpbar() {
+    if (!show_helpbar_)
+        return ftxui::text("");
     return helpbar_.render(pnana::ui::Helpbar::getDefaultHelp());
 }
 

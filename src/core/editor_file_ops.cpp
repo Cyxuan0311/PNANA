@@ -78,8 +78,9 @@ bool Editor::openFile(const std::string& filepath) {
         }
 
         bool has_chinese = false;
+        std::string file_type;
         try {
-            std::string file_type = getFileType();
+            file_type = getFileType();
             size_t max_check_lines = std::min(doc->lineCount(), static_cast<size_t>(50));
             std::vector<std::string> lines;
             for (size_t i = 0; i < max_check_lines; ++i) {
@@ -95,11 +96,14 @@ bool Editor::openFile(const std::string& filepath) {
         }
 
         try {
-            if (has_chinese) {
+            // 如果文件主要是中文内容，默认会禁用语法高亮以节省性能。
+            // 但是对于 Markdown（markdown/md）文件，中文内容很常见，应继续启用高亮。
+            if (has_chinese && file_type != "markdown") {
                 syntax_highlighting_ = false;
                 syntax_highlighter_.setFileType("text");
             } else {
-                std::string file_type = getFileType();
+                if (file_type.empty())
+                    file_type = getFileType();
                 syntax_highlighter_.setFileType(file_type);
                 syntax_highlighting_ = true;
             }

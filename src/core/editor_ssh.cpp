@@ -363,6 +363,45 @@ void Editor::showSSHTransferDialog() {
         });
 }
 
+namespace {
+
+// 取路径最后一段作为文件名（不含目录）
+static std::string basename(const std::string& path) {
+    if (path.empty())
+        return "";
+    std::string p = path;
+    while (!p.empty() && (p.back() == '/' || p.back() == '\\'))
+        p.pop_back();
+    size_t pos = p.find_last_of("/\\");
+    if (pos == std::string::npos)
+        return p;
+    return p.substr(pos + 1);
+}
+
+// 若目标路径为目录（以 / 结尾、为 "."/".."、或像目录的路径），则返回 目录 + 源文件原名
+static std::string resolveDestinationPath(const std::string& dest_path,
+                                          const std::string& source_path) {
+    if (dest_path.empty())
+        return dest_path;
+    if (dest_path.back() == '/' || dest_path.back() == '\\')
+        return dest_path + basename(source_path);
+    std::string d = dest_path;
+    while (!d.empty() && (d.back() == '/' || d.back() == '\\'))
+        d.pop_back();
+    if (d.empty() || d == "." || d == "..")
+        return (d.empty() ? "." : dest_path) + (dest_path.back() == '/' ? "" : "/") +
+               basename(source_path);
+    // 路径像目录（含 / 且最后一段无扩展名，如 /home/frames、/tmp）时，按目录处理，避免写入目录导致
+    // Process exited with status 1
+    size_t last_slash = d.find_last_of("/\\");
+    std::string last_component = (last_slash == std::string::npos) ? d : d.substr(last_slash + 1);
+    if (last_slash != std::string::npos && last_component.find('.') == std::string::npos)
+        return dest_path + (dest_path.back() == '/' ? "" : "/") + basename(source_path);
+    return dest_path;
+}
+
+} // namespace
+
 void Editor::handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items) {
     if (current_ssh_config_.host.empty()) {
         setStatusMessage("SSH: No active SSH connection");
@@ -371,25 +410,31 @@ void Editor::handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>
 
     setStatusMessage("SSH: Starting file transfer...");
 
-    // 这里应该启动异步文件传输
-    // 暂时使用同步方式处理第一个项目作为示例
     if (!items.empty()) {
         const auto& item = items[0];
+        std::string local_path = item.local_path;
+        std::string remote_path = item.remote_path;
+
+        // 若用户输入的是文件夹路径（以 / 结尾或像目录），则以原名保存到该目录
+        if (item.direction == "upload") {
+            remote_path = resolveDestinationPath(remote_path, local_path);
+        } else {
+            local_path = resolveDestinationPath(local_path, remote_path);
+        }
+
         features::ssh::Client ssh_client;
 
         if (item.direction == "upload") {
-            auto result =
-                ssh_client.uploadFile(current_ssh_config_, item.local_path, item.remote_path);
+            auto result = ssh_client.uploadFile(current_ssh_config_, local_path, remote_path);
             if (result.success) {
-                setStatusMessage("SSH: File uploaded successfully: " + item.local_path);
+                setStatusMessage("SSH: File uploaded successfully: " + local_path);
             } else {
                 setStatusMessage("SSH: Upload failed: " + result.error);
             }
         } else if (item.direction == "download") {
-            auto result =
-                ssh_client.downloadFile(current_ssh_config_, item.remote_path, item.local_path);
+            auto result = ssh_client.downloadFile(current_ssh_config_, remote_path, local_path);
             if (result.success) {
-                setStatusMessage("SSH: File downloaded successfully: " + item.local_path);
+                setStatusMessage("SSH: File downloaded successfully: " + local_path);
             } else {
                 setStatusMessage("SSH: Download failed: " + result.error);
             }
