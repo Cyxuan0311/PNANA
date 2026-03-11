@@ -6,7 +6,7 @@
 # ============================================================================
 
 set(CPACK_PACKAGE_NAME "pnana")
-set(CPACK_PACKAGE_VERSION "0.0.4")
+set(CPACK_PACKAGE_VERSION "0.0.5")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Modern Terminal Text Editor")
 set(CPACK_PACKAGE_DESCRIPTION "PNANA is a modern terminal-based text editor built with C++ and FTXUI, featuring syntax highlighting, LSP support, and a plugin system.")
 set(CPACK_PACKAGE_VENDOR "PNANA Project")

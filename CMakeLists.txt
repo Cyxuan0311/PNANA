@@ -744,7 +744,7 @@ include(ConfigureTreeSitterLinking)
 
 # 设置版本信息
 set_target_properties(pnana PROPERTIES
-    SOVERSION 0.0.4
+    SOVERSION 0.0.5
 )
 
 # 生成用户配置和插件安装脚本
