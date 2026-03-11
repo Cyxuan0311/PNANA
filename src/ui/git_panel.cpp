@@ -510,7 +510,7 @@ Element GitPanel::renderTabs() {
 
     auto makeTab = [&](const std::string& label, GitPanelMode /*mode*/, bool active) {
         if (active) {
-            return text("[" + label + "]") | bgcolor(colors.selection) | color(colors.foreground) |
+            return text("[" + label + "]") | bgcolor(colors.comment) | color(colors.background) |
                    bold;
         } else {
             return text(" " + label + " ") | color(colors.menubar_fg);
@@ -2346,9 +2346,10 @@ Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*
     row_elements.push_back(text(" ") | color(colors.background));
     row_elements.push_back(text(display_message) | color(colors.foreground));
     row_elements.push_back(text(" ") | color(colors.background));
-    row_elements.push_back(text("(" + commit.author + ")") | color(colors.comment) | dim);
+    row_elements.push_back(text("(" + commit.author + ")") | bgcolor(colors.comment) |
+                           color(colors.background) | bold);
     row_elements.push_back(text(" ") | color(colors.background));
-    row_elements.push_back(text(commit.date) | color(colors.comment) | dim);
+    row_elements.push_back(text(commit.date) | bgcolor(colors.success) | dim);
 
     auto item_text = hbox(std::move(row_elements));
 
