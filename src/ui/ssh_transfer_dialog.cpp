@@ -63,13 +63,22 @@ bool SSHTransferDialog::handleInput(Event event) {
         }
     }
 
-    if (event == Event::Tab) {
-        moveToNextField();
+    // 终端中 Tab 常被编码为 Ctrl+I，需一并处理；在方向字段时 Tab 切换 Upload/Download
+    if (event == Event::Tab || event == Event::CtrlI) {
+        if (current_field_ == 2) {
+            direction_ = (direction_ == "upload") ? "download" : "upload";
+        } else {
+            moveToNextField();
+        }
         return true;
     }
 
     if (event == Event::TabReverse) {
-        moveToPreviousField();
+        if (current_field_ == 2) {
+            direction_ = (direction_ == "upload") ? "download" : "upload";
+        } else {
+            moveToPreviousField();
+        }
         return true;
     }
 
@@ -357,16 +366,16 @@ Element SSHTransferDialog::renderTransferList() {
         std::string status_icon;
         Color status_color = colors.comment;
         if (item.status == "pending") {
-            status_icon = "⏳";
+            status_icon = icons::CLOCK;
             status_color = Color::Yellow;
         } else if (item.status == "in_progress") {
-            status_icon = "⏳";
+            status_icon = icons::REFRESH;
             status_color = Color::Blue;
         } else if (item.status == "completed") {
-            status_icon = "✓";
+            status_icon = icons::SUCCESS;
             status_color = Color::Green;
         } else if (item.status == "error") {
-            status_icon = "✗";
+            status_icon = icons::ERROR;
             status_color = Color::Red;
         }
 
@@ -401,7 +410,7 @@ Element SSHTransferDialog::renderProgressBar(const SSHTransferItem& item) {
 
     std::string bar = "[";
     for (int i = 0; i < bar_width; ++i) {
-        bar += (i < filled) ? "█" : "░";
+        bar += (i < filled) ? "#" : "-";
     }
     bar += "]";
 

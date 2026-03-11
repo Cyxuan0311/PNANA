@@ -1,6 +1,7 @@
 #include "ui/file_picker.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -52,8 +53,11 @@ void FilePicker::show(const std::string& start_path, FilePickerType type,
     picker_type_ = type;
 
     if (remote_list_dir_) {
-        // 远程模式：使用预设的远程路径，忽略 start_path 的本地检查
-        current_path_ = remote_base_path_.empty() ? "/" : remote_base_path_;
+        // 远程模式：若调用方传入有效路径（以 / 开头）则与文件列表一致，否则用预设的
+        // remote_base_path_
+        current_path_ = (!start_path.empty() && start_path[0] == '/')
+                            ? start_path
+                            : (remote_base_path_.empty() ? "/" : remote_base_path_);
     } else {
         current_path_ = start_path;
         try {
@@ -323,11 +327,12 @@ Element FilePicker::render() {
             item_name += "/";
         Color icon_color = (i == selected_index_) ? Color::White : item_color;
         Color name_color = (i == selected_index_) ? Color::White : item_color;
+        Element name_el =
+            pnana::utils::highlightMatch(item_name, filter_input_, name_color, colors.keyword) |
+            ((i == selected_index_) ? bold : nothing);
         Elements row_elements = {
             text(" "), text(icon) | color(icon_color) | ((i == selected_index_) ? bold : nothing),
-            text(" "),
-            text(item_name) | color(name_color) | ((i == selected_index_) ? bold : nothing),
-            filler()};
+            text(" "), name_el, filler()};
         auto item_text = hbox(row_elements);
         item_text = (i == selected_index_) ? (item_text | bgcolor(colors.selection))
                                            : (item_text | bgcolor(colors.background));

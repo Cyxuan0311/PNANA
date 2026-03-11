@@ -1,5 +1,6 @@
 #include "ui/symbol_navigation_popup.h"
 #include "ui/icons.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
@@ -330,9 +331,10 @@ Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentS
     line_elements.push_back(text(icon) | color(kind_color));
     line_elements.push_back(text(" "));
 
-    // 符号名称
-    line_elements.push_back(text(symbol.name) |
-                            color(is_selected ? colors.foreground : kind_color));
+    // 符号名称（匹配搜索高亮）
+    Color name_color = is_selected ? colors.foreground : kind_color;
+    line_elements.push_back(
+        pnana::utils::highlightMatch(symbol.name, search_input_, name_color, colors.keyword));
 
     // 详细信息（如果有）
     if (!symbol.detail.empty()) {

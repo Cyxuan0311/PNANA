@@ -1,5 +1,6 @@
 #include "ui/tui_config_popup.h"
 #include "ui/icons.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <filesystem>
 #include <ftxui/component/event.hpp>
@@ -320,9 +321,11 @@ Element TUIConfigPopup::renderConfigItem(const features::TUIConfig& config, size
     cmd_elements.push_back(text(tool_icon) | color(tool_icon_color));
     cmd_elements.push_back(text(" "));
 
-    // 工具名称 - 参考命令面板的样式
-    cmd_elements.push_back(text(config.display_name) | (is_selected ? color(colors.dialog_fg) | bold
-                                                                    : color(colors.foreground)));
+    // 工具名称（匹配输入高亮）
+    Color name_color = is_selected ? colors.dialog_fg : colors.foreground;
+    cmd_elements.push_back(
+        pnana::utils::highlightMatch(config.display_name, input_, name_color, colors.keyword) |
+        (is_selected ? bold : ftxui::nothing));
 
     // 类别标签
     std::string category_display = getCategoryDisplayName(config.category);

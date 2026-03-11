@@ -3,6 +3,7 @@
 #include "ui/theme.h"
 #include "utils/file_type_color_mapper.h"
 #include "utils/file_type_detector.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
@@ -359,9 +360,13 @@ Element FormatDialog::render() {
                                         (is_current ? bold : nothing));
             }
 
-            // 文件名（使用文件类型颜色）
-            file_elements.push_back(text(display_path) | color(name_color) |
-                                    (is_current ? bold : nothing));
+            // 文件名（使用文件类型颜色，搜索词高亮）
+            Element name_el = pnana::utils::highlightMatch(display_path, search_query_, name_color,
+                                                           colors.keyword);
+            if (is_current) {
+                name_el = name_el | bold;
+            }
+            file_elements.push_back(std::move(name_el));
 
             Element file_line = hbox(file_elements);
             if (is_current) {

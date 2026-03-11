@@ -1,6 +1,7 @@
 #include "ui/fzf_popup.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -439,8 +440,9 @@ Element FzfPopup::renderFileList() const {
                 row.push_back(text("  "));
             }
             row.push_back(text(icon + " ") | color(file_color));
-            row.push_back(text(display_path) | (is_selected ? color(colors.dialog_fg) | bold
-                                                            : color(colors.foreground)));
+            ftxui::Color path_color = is_selected ? colors.dialog_fg : colors.foreground;
+            row.push_back(utils::highlightMatch(display_path, input_, path_color, colors.keyword) |
+                          (is_selected ? bold : ftxui::nothing));
 
             Element line = hbox(row);
             if (is_selected) {

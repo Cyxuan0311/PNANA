@@ -1,6 +1,7 @@
 #include "ui/command_palette_ui.h"
 #include "features/command_palette.h"
 #include "ui/icons.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
 
@@ -105,9 +106,11 @@ Element CommandPaletteUI::renderCommandList() const {
                 cmd_elements.push_back(text("  "));
             }
 
-            // 命令名称
-            cmd_elements.push_back(text(cmd.name) | (is_selected ? color(colors.dialog_fg) | bold
-                                                                 : color(colors.foreground)));
+            // 命令名称（匹配输入高亮）
+            Color name_color = is_selected ? colors.dialog_fg : colors.foreground;
+            cmd_elements.push_back(
+                pnana::utils::highlightMatch(cmd.name, input_, name_color, colors.keyword) |
+                (is_selected ? bold : nothing));
 
             // 描述
             if (!cmd.description.empty()) {

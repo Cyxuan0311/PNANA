@@ -2,6 +2,7 @@
 #include "ui/icons.h"
 #include "ui/package_detail_dialog.h"
 #include "utils/logger.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <chrono>
 #include <ftxui/component/event.hpp>
@@ -464,13 +465,14 @@ Element PackageManagerPanel::renderPackageItem(const features::package_manager::
     item_elements.push_back(text(icon) | color(colors.function));
     item_elements.push_back(text(" "));
 
-    // 包名
+    // 包名（匹配搜索高亮）
     std::string name_display = pkg.name;
     if (name_display.length() > 30) {
         name_display = name_display.substr(0, 27) + "...";
     }
-    item_elements.push_back(text(name_display) | (is_selected ? color(colors.foreground) | bold
-                                                              : color(colors.foreground)));
+    item_elements.push_back(pnana::utils::highlightMatch(name_display, search_filter_,
+                                                         colors.foreground, colors.keyword) |
+                            (is_selected ? bold : ftxui::nothing));
 
     item_elements.push_back(filler());
 

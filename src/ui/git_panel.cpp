@@ -2258,7 +2258,34 @@ Element GitPanel::renderGraphPanel() {
 
     for (size_t i = start; i < end; ++i) {
         bool is_highlighted = (i == selected_index_);
-        graph_elements.push_back(renderGraphCommitItem(graph_commits_[i], i, is_highlighted));
+        std::string pref = graph_commits_[i].graph_prefix;
+        graph_elements.push_back(renderGraphCommitItem(graph_commits_[i], i, is_highlighted, pref));
+    }
+
+    // If we've rendered to the end of currently loaded commits, try to load more asynchronously
+    if (end == graph_commits_.size() && !graph_loading_) {
+        // Prevent duplicate concurrent loads
+        graph_loading_ = true;
+        std::thread([this]() {
+            try {
+                // Fetch next page of commits using skip = current size
+                size_t skip = 0;
+                {
+                    std::lock_guard<std::mutex> lock(data_mutex_);
+                    skip = graph_commits_.size();
+                }
+                // Load 100 more commits per page
+                auto more = git_manager_->getGraphCommits(100, static_cast<int>(skip));
+                if (!more.empty()) {
+                    std::lock_guard<std::mutex> lock(data_mutex_);
+                    // Append new commits
+                    graph_commits_.insert(graph_commits_.end(), more.begin(), more.end());
+                }
+            } catch (...) {
+                // ignore errors; UI will remain with existing commits
+            }
+            graph_loading_ = false;
+        }).detach();
     }
 
     if (graph_commits_.empty()) {
@@ -2271,7 +2298,7 @@ Element GitPanel::renderGraphPanel() {
 }
 
 Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*/,
-                                        bool is_highlighted) {
+                                        bool is_highlighted, const std::string& prefix) {
     auto& colors = theme_.getColors();
 
     // Truncate hash to 7 characters for display
@@ -2284,18 +2311,44 @@ Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*
     }
 
     // Build row elements
-    Elements row_elements = {
-        text(" ") | color(colors.background),                        // Leading space
-        text(pnana::ui::icons::GIT_COMMIT) | color(colors.function), // Commit icon
-        text(" ") | color(colors.background),
-        text(short_hash) | color(colors.keyword) | bold, // Hash
-        text(" ") | color(colors.background),
-        text(display_message) | color(colors.foreground), // Message
-        text(" ") | color(colors.background),
-        text("(" + commit.author + ")") | color(colors.comment) | dim, // Author
-        text(" ") | color(colors.background),
-        text(commit.date) | color(colors.comment) | dim // Date
-    };
+    // Build row elements: prefix (graph), then commit info
+    Elements row_elements;
+    const size_t prefix_min_width = 8;
+    // Render prefix one character at a time to avoid trimming/collapsing by the renderer.
+    // Ensure we pad to `prefix_min_width` characters.
+    std::string pref_display = prefix;
+    if (pref_display.size() < prefix_min_width) {
+        pref_display += std::string(prefix_min_width - pref_display.size(), ' ');
+    }
+    // Map ASCII graph chars to more visible Unicode variants to avoid terminal/font
+    // rendering issues with '/' and '\'. Keep space as-is.
+    Elements prefix_chars;
+    for (unsigned char c : pref_display) {
+        std::string s;
+        if (c == '/') {
+            s = "╱"; // U+2571
+        } else if (c == '\\') {
+            s = "╲"; // U+2572
+        } else if (c == '|') {
+            s = "│"; // U+2502
+        } else {
+            s = std::string(1, static_cast<char>(c));
+        }
+        // Highlight merge-related characters specially
+        if (c == '/' || c == '\\' || c == '|') {
+            prefix_chars.push_back(text(s) | color(colors.success));
+        } else {
+            prefix_chars.push_back(text(s) | color(colors.foreground));
+        }
+    }
+    row_elements.push_back(hbox(std::move(prefix_chars)));
+    row_elements.push_back(text(short_hash) | color(colors.keyword) | bold);
+    row_elements.push_back(text(" ") | color(colors.background));
+    row_elements.push_back(text(display_message) | color(colors.foreground));
+    row_elements.push_back(text(" ") | color(colors.background));
+    row_elements.push_back(text("(" + commit.author + ")") | color(colors.comment) | dim);
+    row_elements.push_back(text(" ") | color(colors.background));
+    row_elements.push_back(text(commit.date) | color(colors.comment) | dim);
 
     auto item_text = hbox(std::move(row_elements));
 

@@ -22,6 +22,9 @@ class ThemeMenu {
     // 设置当前选中的主题索引
     void setSelectedIndex(size_t index);
 
+    // 菜单打开时调用，保存当前主题以便 Escape 时恢复（选中仅预览，Enter 才真正切换）
+    void onMenuOpened();
+
     // 设置光标颜色获取器（用于输入框光标，跟随编辑器光标配置）
     void setCursorColorGetter(std::function<ftxui::Color()> getter);
 
@@ -63,9 +66,11 @@ class ThemeMenu {
     std::vector<std::string> filtered_themes_;          // 过滤后的主题列表
     std::vector<size_t> filtered_indices_;              // 过滤后主题对应的原始索引
     std::function<ftxui::Color()> cursor_color_getter_; // 输入框光标颜色
+    std::string theme_before_preview_; // 打开菜单时的主题，Escape 时恢复
 
     // 辅助方法
-    void updateFilteredThemes();               // 更新过滤后的主题列表
+    void updateFilteredThemes(); // 更新过滤后的主题列表
+    void applyPreviewTheme(); // 按当前选中主题临时切换预览（仅视觉效果，Enter 才持久化）
     ftxui::Element renderSearchBox() const;    // 渲染搜索框
     ftxui::Element renderThemeList() const;    // 渲染主题列表
     ftxui::Element renderColorPreview() const; // 渲染右侧颜色预览
