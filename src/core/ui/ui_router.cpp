@@ -21,12 +21,13 @@ void UIRouter::initializeRegionRenderers() {
 }
 
 Element UIRouter::render(Editor* editor) {
-    // 构建主UI结构：主内容区使用 flex 占满中间空间，保证状态栏/帮助栏始终贴底
+    // 构建主 UI 结构：主内容区使用 flex 占满中间空间，保证状态栏/帮助栏始终贴底
+    // 边框高亮由 RegionManager 的当前区域决定（含 CODE_AREA / FILE_BROWSER / TERMINAL /
+    // GIT_PANEL / AI_ASSISTANT_PANEL）；AI 面板在 overlay 中单独渲染并随当前区域高亮边框
     Element main_ui = vbox({renderTabbar(editor), separator(), renderMainContent(editor) | flex,
                             renderStatusAndHelp(editor)}) |
                       bgcolor(editor->getTheme().getColors().background);
 
-    // 叠加对话框
     return overlayDialogs(main_ui, editor);
 }
 

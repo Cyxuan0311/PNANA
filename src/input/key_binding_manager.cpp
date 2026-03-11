@@ -79,6 +79,7 @@ void KeyBindingManager::initializeViewOperationBindings() {
     bindKey("ctrl_shift_l", KeyAction::TOGGLE_LINE_NUMBERS);
     bindKey("f3", KeyAction::COMMAND_PALETTE);
     bindKey("ctrl_shift_a", KeyAction::AI_ASSISTANT);
+    bindKey("ctrl_l", KeyAction::AI_ASSISTANT); // Ctrl+L 打开/关闭 AI 面板（类似 Cursor）
     bindKey("f4", KeyAction::SSH_CONNECT);
     bindKey("alt_w", KeyAction::TOGGLE_MARKDOWN_PREVIEW);
 #ifdef BUILD_LUA_SUPPORT
