@@ -271,20 +271,8 @@ void MarkdownParser::handle_text(MD_TEXTTYPE type, const std::string& text) {
             // 添加文本内容到当前元素
             if (!context_.element_stack.empty()) {
                 auto current = context_.element_stack.top();
-                // 特殊处理标题：去除开头的 # 符号和空格
-                if (current->type == MarkdownElementType::HEADING) {
-                    std::string processed_text = text;
-                    // 去除开头的 # 符号和空格
-                    size_t start = processed_text.find_first_not_of("# ");
-                    if (start != std::string::npos) {
-                        processed_text = processed_text.substr(start);
-                    } else {
-                        processed_text.clear();
-                    }
-                    current->content += processed_text;
-                } else {
-                    current->content += text;
-                }
+                // 直接添加文本内容到元素
+                current->content += text;
             }
             break;
 
