@@ -55,6 +55,8 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `cursor_color` | string | `"255,255,255"` | Cursor color (RGB, comma-separated) |
 | `cursor_blink_rate` | number | `500` | Cursor blink interval (ms); 0 for no blink |
 | `cursor_smooth` | boolean | `false` | Smooth cursor effect |
+| `show_helpbar` | boolean | `true` | showing buttom help bar (true or false) |
+| `logo_gradient` | boolean | `true` | Use gradient colors for welcome screen Logo |
 
 ### files
 

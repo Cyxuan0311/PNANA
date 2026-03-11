@@ -53,6 +53,8 @@ pnana 的配置文件位于：
 | `cursor_color` | string | `"255,255,255"` | 光标颜色（RGB，逗号分隔） |
 | `cursor_blink_rate` | number | `500` | 光标闪烁间隔（毫秒），0 不闪烁 |
 | `cursor_smooth` | boolean | `false` | 流动光标效果 |
+| `show_helpbar` | boolean | `true` | 是否显示底部帮助栏（快捷键提示） |
+| `logo_gradient` | boolean | `true` | 欢迎界面 Logo 是否使用渐变颜色 |
 
 ### files（文件）
 
