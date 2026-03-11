@@ -15,7 +15,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optimized release process to support multiple package formats
 - Added code quality checks and security scanning
 
-## [0.0.4] - 2025-01-07
+## [0.0.5] - 2026-03-11
+
+### Added
+
+- Add an online Git feature that allows users to open the Git panel from the command palette to perform operations.
+- Add an fzf-like feature that enables users to type "fzf" in the command palette to open the fzf panel for quickly viewing file contents and opening files.
+- Add a TUI configuration quick access panel, where users can type "tui" in the command palette to quickly open the configuration files of relevant tools in the system for editing in the code area.
+
+### Improved
+
+- Allow users to open files with ellipsis by pressing the "." symbol in the file list (#23)
+- Optimize the configuration system and update the relevant documentation (#26)
+- Improve the output message effect in the CMake build system (#27)
+- Add more online themes and refactor the UI effects
+- Redesign the effect of the online terminal (to be verified and optimized)
+- Optimize the SSH connection effect under the GO backend, which allows users to establish SSH connections by configuring corresponding parameters (GO dependencies need to be installed)
+
+### Fixed
+
+- Fix the issue where the screen flickers when users press CTRL+Z to undo actions in the code area
+- Fix the problem where the entire terminal freezes when users press CTRL+Z in the file list area
+
+### contributor
+
+- @barracuda156  (#19)
+
+For detailed getting started documentation, refer to [QUICKSTART](QUICKSTART.md)
+
+
+## [0.0.4] - 2026-01-07
 
 ### Added
 
