@@ -126,26 +126,30 @@ func writeRemoteFile(client *ssh.Client, remotePath string, content string) erro
 
 // 上传文件到远程
 func uploadFileToRemote(client *ssh.Client, remotePath string, localData []byte) error {
+	// 使用 base64 编码上传文件内容
+	encodedContent := base64Encode(string(localData))
+	cmd := fmt.Sprintf("echo '%s' | base64 -d > '%s'", encodedContent, remotePath)
+
 	session, err := client.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create session: %v", err)
 	}
-	defer session.Close()
-
-	// 使用 base64 编码上传文件内容
-	encodedContent := base64Encode(string(localData))
-
-	// 创建远程文件并写入内容
-	cmd := fmt.Sprintf("echo '%s' | base64 -d > '%s'", encodedContent, remotePath)
 	err = session.Run(cmd)
+	session.Close()
+
 	if err != nil {
-		// 如果 base64 命令失败，使用 heredoc 方式
+		// 如果 base64 命令失败，使用 heredoc 方式（必须新建 session，每个 session 只能 Run 一次）
 		escapedContent := escapeShellString(string(localData))
 		delimiter := fmt.Sprintf("PNANA_UPLOAD_EOF_%d", os.Getpid())
 		cmd = fmt.Sprintf("cat > '%s' << '%s'\n%s\n%s", remotePath, delimiter, escapedContent, delimiter)
-		err = session.Run(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to upload file: %v", err)
+		session2, err2 := client.NewSession()
+		if err2 != nil {
+			return fmt.Errorf("failed to create session: %v", err2)
+		}
+		defer session2.Close()
+		err2 = session2.Run(cmd)
+		if err2 != nil {
+			return fmt.Errorf("failed to upload file: %v", err2)
 		}
 	}
 
