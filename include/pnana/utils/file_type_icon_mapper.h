@@ -29,6 +29,11 @@ class FileTypeIconMapper {
     // 默认图标映射（通过 icons.h 的 getFileTypeIcon 函数）
 };
 
+// 根据文件名和扩展名获取图标（与文件列表、状态栏共用同一套逻辑，保证显示一致）
+// mapper 可为空，为空时仅使用 icons.h 内置映射，不应用自定义配置
+std::string getIconForFile(const std::string& filename, std::string ext,
+                           const FileTypeIconMapper* mapper = nullptr);
+
 } // namespace utils
 } // namespace pnana
 
