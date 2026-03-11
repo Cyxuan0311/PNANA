@@ -9,6 +9,7 @@
 #include <fstream>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/screen_interactive.hpp>
+#include <ftxui/dom/elements.hpp>
 #include <regex>
 #include <sstream>
 
@@ -28,12 +29,20 @@ static inline Decorator borderRoundedWithColor(Color border_color) {
     };
 }
 
+// 检测 Alt+J（终端通常发送 ESC + 'j'）
+static bool isAltJ(const Event& event) {
+    const std::string& in = event.input();
+    return in.size() >= 2 && (static_cast<unsigned char>(in[0]) == 0x1b) &&
+           (in[1] == 'j' || in[1] == 'J');
+}
+
 namespace pnana {
 namespace ui {
 
 AIAssistantPanel::AIAssistantPanel(Theme& theme)
-    : theme_(theme), visible_(false), selected_message_index_(0), scroll_offset_(0),
-      is_streaming_(false), current_focus_(FocusArea::INPUT), selected_button_index_(0) {
+    : theme_(theme), visible_(false), cursor_pos_(0), selected_message_index_(0), scroll_offset_(0),
+      estimated_total_lines_(0), is_streaming_(false), current_focus_(FocusArea::INPUT),
+      selected_button_index_(0), panel_width_(40) {
     // 初始化组件
     input_component_ = Input(&current_input_, "Ask me anything about your code...");
     messages_component_ = Renderer([this] {
@@ -78,15 +87,16 @@ Element AIAssistantPanel::render() {
     auto& colors = theme_.getColors();
 
     Elements content;
-    content.push_back(renderMessages());
+    // 消息区域占据面板中大部分空间，放在上方并使用 flex
+    content.push_back(renderMessages() | flex);
     content.push_back(separator());
     content.push_back(renderActionButtons());
     content.push_back(separator());
     content.push_back(renderInput());
 
     return window(text(" AI Assistant ") | color(colors.success) | bold, vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, 80) | size(HEIGHT, GREATER_THAN, 30) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
+           size(WIDTH, EQUAL, panel_width_) | size(HEIGHT, GREATER_THAN, 30) |
+           bgcolor(colors.background);
 }
 
 Component AIAssistantPanel::getComponent() {
@@ -96,6 +106,7 @@ Component AIAssistantPanel::getComponent() {
 void AIAssistantPanel::show() {
     visible_ = true;
     current_input_.clear();
+    cursor_pos_ = 0;
     current_focus_ = FocusArea::INPUT; // 默认焦点在输入框
     selected_button_index_ = 0;
 }
@@ -106,12 +117,11 @@ void AIAssistantPanel::hide() {
 
 void AIAssistantPanel::addMessage(const ChatMessage& message) {
     messages_.push_back(message);
-    // 限制消息数量
     if (messages_.size() > MAX_VISIBLE_MESSAGES) {
         messages_.erase(messages_.begin());
     }
-    // 自动滚动到底部
-    scroll_offset_ = std::max(0, static_cast<int>(messages_.size()) - 20);
+    // 自动滚动到底部（按行滚动时在下次 render 中会 clamp 到 max_scroll）
+    scroll_offset_ = 999999;
 }
 
 void AIAssistantPanel::addUserMessage(const std::string& content) {
@@ -275,19 +285,8 @@ Element AIAssistantPanel::renderMessages() {
     auto& colors = theme_.getColors();
     Elements message_elements;
 
-    // 显示消息历史
-    size_t start_idx = scroll_offset_;
-    size_t end_idx = std::min(start_idx + 20, messages_.size());
-
-    for (size_t i = start_idx; i < end_idx; ++i) {
-        message_elements.push_back(renderMessage(messages_[i]));
-        if (i < end_idx - 1) {
-            message_elements.push_back(separatorLight());
-        }
-    }
-
-    // 如果没有消息，显示欢迎信息
     if (messages_.empty()) {
+        estimated_total_lines_ = 0;
         message_elements.push_back(
             vbox({hbox({text("Welcome to AI Assistant! ") | color(colors.success) | bold,
                         text(icons::CODE) | color(colors.success)}) |
@@ -304,9 +303,38 @@ Element AIAssistantPanel::renderMessages() {
                   text("Conversation: /summary, /clear") | color(colors.comment),
                   text("Or just type natural language requests!") | color(colors.comment) | dim}) |
             center);
+    } else {
+        // 按行滚动：估算总行数（每条消息：1 行头部 + 内容按 panel 宽度折行）
+        int total_lines = 0;
+        int content_width = std::max(1, panel_width_ - 2);
+        for (const auto& msg : messages_) {
+            total_lines += 1; // 头部
+            total_lines += std::max(
+                1, static_cast<int>((msg.content.size() + content_width - 1) / content_width));
+            total_lines += 1; // 与下一条之间的分隔
+        }
+        if (!messages_.empty())
+            total_lines -= 1; // 最后一条后无分隔
+        estimated_total_lines_ = std::max(0, total_lines);
+
+        // 限制滚动范围，避免超出底部
+        int max_scroll = std::max(0, estimated_total_lines_ - MESSAGE_VIEWPORT_LINES);
+        scroll_offset_ = std::clamp(scroll_offset_, 0, max_scroll);
+
+        // 顶部空白占位：相当于“跳过” scroll_offset_ 行，实现按行滚动
+        if (scroll_offset_ > 0) {
+            message_elements.push_back(text("") | size(HEIGHT, EQUAL, scroll_offset_));
+        }
+
+        for (size_t i = 0; i < messages_.size(); ++i) {
+            message_elements.push_back(renderMessage(messages_[i]));
+            if (i < messages_.size() - 1) {
+                message_elements.push_back(separatorLight());
+            }
+        }
     }
 
-    return yframe(vbox(std::move(message_elements))) | size(HEIGHT, EQUAL, 20);
+    return yframe(vbox(std::move(message_elements))) | flex;
 }
 
 Element AIAssistantPanel::renderMessage(const ChatMessage& message) {
@@ -345,28 +373,20 @@ Element AIAssistantPanel::renderMessage(const ChatMessage& message) {
 
     Element header = hbox(std::move(header_elements));
 
-    // 消息内容
-    Elements content_elements;
+    // 消息内容（使用 paragraph 使过长内容自动换行）
     std::string content = message.content;
 
     // 处理流式输出
     if (message.is_streaming) {
-        // 添加更明显的流式指示器
         static int cursor_frame = 0;
         cursor_frame = (cursor_frame + 1) % 4;
         std::string cursors[] = {"|", "/", "-", "\\"};
         content += " " + std::string(cursors[cursor_frame]);
     }
 
-    // 简单的代码块检测和渲染
-    if (content.find("```") != std::string::npos) {
-        // 这里可以实现代码语法高亮
-        content_elements.push_back(text(content) | color(colors.foreground));
-    } else {
-        content_elements.push_back(text(content) | color(colors.foreground));
-    }
-
-    Element message_content = vbox(std::move(content_elements)) | flex;
+    Element content_el = paragraph(content) | color(colors.foreground);
+    // flex 占满可用宽度，paragraph 会按容器宽度自动换行
+    Element message_content = vbox({content_el}) | flex;
 
     Elements message_parts = {std::move(header), std::move(message_content)};
 
@@ -399,22 +419,82 @@ Element AIAssistantPanel::renderMessage(const ChatMessage& message) {
 
 Element AIAssistantPanel::renderInput() {
     auto& colors = theme_.getColors();
+    ftxui::Color cursor_color = colors.success;
 
-    // 根据焦点状态调整输入框样式
-    Element input_element = input_component_->Render();
-    if (current_focus_ == FocusArea::INPUT) {
-        input_element = input_element | bgcolor(colors.selection) | color(colors.foreground) |
-                        borderRoundedWithColor(colors.success);
-    } else {
-        input_element = input_element | bgcolor(colors.current_line) | color(colors.foreground) |
-                        borderRoundedWithColor(colors.comment);
+    // 计算光标所在的行和列
+    size_t cursor_line = 0;
+    size_t cursor_col = cursor_pos_;
+    size_t line_start = 0;
+
+    for (size_t i = 0; i < cursor_pos_; ++i) {
+        if (current_input_[i] == '\n') {
+            cursor_line++;
+            line_start = i + 1;
+        }
+    }
+    cursor_col = cursor_pos_ - line_start;
+
+    // 分割文本为行
+    std::vector<std::string> lines;
+    std::string remaining = current_input_;
+    while (!remaining.empty()) {
+        size_t pos = remaining.find('\n');
+        if (pos == std::string::npos) {
+            lines.push_back(remaining);
+            break;
+        }
+        lines.push_back(remaining.substr(0, pos));
+        remaining = remaining.substr(pos + 1);
+    }
+    if (lines.empty()) {
+        lines.push_back("");
     }
 
-    return vbox({text("Your message (or /help for commands):") | color(colors.comment),
-                 input_element,
-                 text("Enter: Send  •  /help: Commands  •  Esc: Close  •  ↑↓: Navigate  •  ←→: "
-                      "Switch focus") |
-                     color(colors.comment) | dim});
+    // 渲染每一行
+    Elements input_lines;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        std::string prefix = (i == 0) ? "  > " : "    ";
+        std::string line = lines[i];
+
+        if (i == cursor_line) {
+            // 在光标行显示光标
+            std::string before = line.substr(0, cursor_col);
+            std::string after = (cursor_col < line.length()) ? line.substr(cursor_col) : "";
+
+            Elements line_parts;
+            line_parts.push_back(text(prefix) | color(colors.comment));
+            if (!before.empty()) {
+                line_parts.push_back(text(before) | color(colors.dialog_fg));
+            }
+            line_parts.push_back(text("█") | color(cursor_color) | bold);
+            if (!after.empty()) {
+                line_parts.push_back(text(after) | color(colors.dialog_fg));
+            }
+            input_lines.push_back(hbox(std::move(line_parts)));
+        } else {
+            input_lines.push_back(
+                hbox({text(prefix) | color(colors.comment), text(line) | color(colors.dialog_fg)}));
+        }
+    }
+
+    Element input_block = vbox(std::move(input_lines));
+    if (current_focus_ == FocusArea::INPUT) {
+        input_block =
+            input_block | bgcolor(colors.selection) | borderRoundedWithColor(colors.success);
+    } else {
+        input_block =
+            input_block | bgcolor(colors.current_line) | borderRoundedWithColor(colors.comment);
+    }
+    int min_lines = std::max(2, static_cast<int>(lines.size()));
+    input_block = input_block | size(HEIGHT, GREATER_THAN, min_lines);
+
+    return vbox({
+        text("Your message (or /help for commands):") | color(colors.comment),
+        input_block,
+        text("Enter: Send  •  Alt+J: New line  •  Esc: Close  •  ←(in messages): Switch panel  •  "
+             "↑↓/Tab: Navigate") |
+            color(colors.comment) | dim,
+    });
 }
 
 Element AIAssistantPanel::renderActionButtons() {
@@ -577,6 +657,27 @@ std::vector<pnana::features::ai_client::ToolDefinition> AIAssistantPanel::getToo
         {"start_line", "integer", "Starting line number (optional)", false, nlohmann::json()},
         {"end_line", "integer", "Ending line number (optional)", false, nlohmann::json()}};
     tools.push_back(edit_file_tool);
+
+    // 在光标处插入代码（当前打开文件）
+    ToolDefinition insert_cursor_tool;
+    insert_cursor_tool.name = "insert_code_at_cursor";
+    insert_cursor_tool.description =
+        "Insert the given code at the user's current cursor position in the active editor. Use "
+        "when the user wants to add code at cursor (e.g. 'add here', 'insert at cursor').";
+    insert_cursor_tool.parameters = {{"code", "string",
+                                      "The full code to insert (may contain newlines)", true,
+                                      nlohmann::json()}};
+    tools.push_back(insert_cursor_tool);
+
+    // 替换当前选中内容（当前打开文件）
+    ToolDefinition replace_selection_tool;
+    replace_selection_tool.name = "replace_selection";
+    replace_selection_tool.description =
+        "Replace the currently selected text in the editor with the given code. Use when the user "
+        "has selected code and asks to replace or change it.";
+    replace_selection_tool.parameters = {
+        {"code", "string", "The replacement code", true, nlohmann::json()}};
+    tools.push_back(replace_selection_tool);
 
     // 代码格式化工具
     ToolDefinition format_code_tool;
@@ -984,6 +1085,28 @@ pnana::features::ai_client::ToolCallResult AIAssistantPanel::executeToolCall(
                 result.error_message = std::string("File edit failed: ") + e.what();
             }
 
+        } else if (tool_call.function_name == "insert_code_at_cursor") {
+            std::string code = tool_call.arguments.value("code", "");
+            if (code.empty()) {
+                result.success = false;
+                result.error_message = "code parameter is required";
+                return result;
+            }
+            insertCodeAtCursor(code);
+            result.success = true;
+            result.result["message"] = "Code inserted at cursor";
+
+        } else if (tool_call.function_name == "replace_selection") {
+            std::string code = tool_call.arguments.value("code", "");
+            if (code.empty()) {
+                result.success = false;
+                result.error_message = "code parameter is required";
+                return result;
+            }
+            replaceSelectedCode(code);
+            result.success = true;
+            result.result["message"] = "Selection replaced";
+
         } else if (tool_call.function_name == "format_code") {
             std::string code = tool_call.arguments.value("code", "");
             std::string language = tool_call.arguments.value("language", "");
@@ -1144,34 +1267,97 @@ bool AIAssistantPanel::handleInput(Event event) {
         return true;
     }
 
-    // 处理方向键导航
-    if (event == Event::ArrowUp) {
-        // 向上导航：从输入框 -> 按钮 -> 消息
-        if (current_focus_ == FocusArea::INPUT) {
-            current_focus_ = FocusArea::BUTTONS;
-            selected_button_index_ = 0;
-            return true;
-        } else if (current_focus_ == FocusArea::BUTTONS) {
-            current_focus_ = FocusArea::MESSAGES;
-            return true;
-        } else if (current_focus_ == FocusArea::MESSAGES) {
-            // 在消息区域中滚动
-            scrollUp();
-            return true;
-        }
-    } else if (event == Event::ArrowDown) {
-        // 向下导航：从消息 -> 按钮 -> 输入框
+    // Tab 键切换焦点：MESSAGES -> BUTTONS -> INPUT -> MESSAGES
+    if (event == Event::Tab) {
         if (current_focus_ == FocusArea::MESSAGES) {
             current_focus_ = FocusArea::BUTTONS;
             selected_button_index_ = 0;
-            return true;
         } else if (current_focus_ == FocusArea::BUTTONS) {
             current_focus_ = FocusArea::INPUT;
+        } else if (current_focus_ == FocusArea::INPUT) {
+            current_focus_ = FocusArea::MESSAGES;
+        }
+        return true;
+    }
+
+    // Shift+Tab 反向切换焦点：INPUT -> BUTTONS -> MESSAGES -> INPUT
+    if (event == Event::TabReverse) {
+        if (current_focus_ == FocusArea::MESSAGES) {
+            current_focus_ = FocusArea::INPUT;
+        } else if (current_focus_ == FocusArea::BUTTONS) {
+            current_focus_ = FocusArea::MESSAGES;
+        } else if (current_focus_ == FocusArea::INPUT) {
+            current_focus_ = FocusArea::BUTTONS;
+            selected_button_index_ = 0;
+        }
+        return true;
+    }
+
+    // 处理方向键滚动和焦点切换
+    if (event == Event::ArrowUp) {
+        if (current_focus_ == FocusArea::MESSAGES) {
+            if (scroll_offset_ <= 0) {
+                current_focus_ = FocusArea::INPUT;
+            } else {
+                scrollUp();
+            }
+            return true;
+        } else if (current_focus_ == FocusArea::BUTTONS) {
+            auto quick_actions = getQuickActions();
+            if (selected_button_index_ > 0) {
+                selected_button_index_--;
+            } else {
+                selected_button_index_ = static_cast<int>(quick_actions.size()) - 1;
+            }
             return true;
         } else if (current_focus_ == FocusArea::INPUT) {
-            // 在输入框中，向下键不做特殊处理，让输入组件处理
-            return false;
+            current_focus_ = FocusArea::BUTTONS;
+            selected_button_index_ = 0;
+            return true;
         }
+    } else if (event == Event::ArrowDown) {
+        if (current_focus_ == FocusArea::MESSAGES) {
+            int max_scroll = std::max(0, estimated_total_lines_ - MESSAGE_VIEWPORT_LINES);
+            if (scroll_offset_ >= max_scroll) {
+                current_focus_ = FocusArea::BUTTONS;
+                selected_button_index_ = 0;
+            } else {
+                scrollDown();
+            }
+            return true;
+        } else if (current_focus_ == FocusArea::BUTTONS) {
+            auto quick_actions = getQuickActions();
+            if (selected_button_index_ < static_cast<int>(quick_actions.size()) - 1) {
+                selected_button_index_++;
+            } else {
+                selected_button_index_ = 0;
+            }
+            return true;
+        } else if (current_focus_ == FocusArea::INPUT) {
+            current_focus_ = FocusArea::MESSAGES;
+            return true;
+        }
+    } else if (event == Event::PageUp) {
+        // PageUp：按可见高度一页向上滚动（按行，不按消息条数）
+        scroll_offset_ = std::max(0, scroll_offset_ - SCROLL_PAGE_LINES);
+        return true;
+    } else if (event == Event::PageDown) {
+        // PageDown：按可见高度一页向下滚动
+        int max_scroll = std::max(0, estimated_total_lines_ - MESSAGE_VIEWPORT_LINES);
+        scroll_offset_ = std::min(max_scroll, scroll_offset_ + SCROLL_PAGE_LINES);
+        return true;
+    } else if (event == Event::Character('-')) {
+        // 缩小 AI 面板宽度
+        if (panel_width_ > 30) {
+            panel_width_ -= 2;
+        }
+        return true;
+    } else if (event == Event::Character('=')) {
+        // 放大 AI 面板宽度
+        if (panel_width_ < 80) {
+            panel_width_ += 2;
+        }
+        return true;
     } else if (event == Event::ArrowLeft) {
         // 左键：在按钮区域中向左切换
         if (current_focus_ == FocusArea::BUTTONS) {
@@ -1183,6 +1369,15 @@ bool AIAssistantPanel::handleInput(Event event) {
             }
             return true;
         }
+        // 在输入框时，移动光标
+        if (current_focus_ == FocusArea::INPUT) {
+            if (cursor_pos_ > 0) {
+                cursor_pos_--;
+            }
+            return true;
+        }
+        // 在消息区域时，左箭头键不处理，让外部切换面板
+        return false;
     } else if (event == Event::ArrowRight) {
         // 右键：在按钮区域中向右切换
         if (current_focus_ == FocusArea::BUTTONS) {
@@ -1194,8 +1389,17 @@ bool AIAssistantPanel::handleInput(Event event) {
             }
             return true;
         }
-    } else if (event == Event::Return) {
-        // Enter 键：根据当前焦点执行操作
+        // 在输入框时，移动光标
+        if (current_focus_ == FocusArea::INPUT) {
+            if (cursor_pos_ < current_input_.length()) {
+                cursor_pos_++;
+            }
+            return true;
+        }
+        // 在消息区域时，右箭头键不处理
+        return false;
+    } else if (event == Event::Return || event == Event::CtrlM) {
+        // Enter / Ctrl+M：根据当前焦点执行操作；在输入框中为发送
         if (current_focus_ == FocusArea::BUTTONS) {
             executeSelectedButton();
             return true;
@@ -1203,6 +1407,11 @@ bool AIAssistantPanel::handleInput(Event event) {
             submitMessage();
             return true;
         }
+    } else if (current_focus_ == FocusArea::INPUT && isAltJ(event)) {
+        // Alt+J：在输入框中插入换行，不发送（与 Enter 编码不冲突）
+        current_input_.insert(cursor_pos_, "\n");
+        cursor_pos_++;
+        return true;
     }
 
     // 处理快捷键
@@ -1219,26 +1428,36 @@ bool AIAssistantPanel::handleInput(Event event) {
         return true;
     }
 
-    // 如果焦点在输入框，让输入组件处理所有输入相关事件
+    // 焦点在输入框时，直接更新 current_input_（弹窗只渲染 Element 未挂入屏幕 Component 树，
+    // main_component_->OnEvent 无法正确派发到 Input，因此在此直接处理字符与退格）
     if (current_focus_ == FocusArea::INPUT) {
-        // 对于所有输入相关事件，直接传递给输入组件
-        // 包括：字符输入、退格、方向键（在输入框内移动光标）、编辑快捷键等
-        if (event.is_character() || event == Event::Backspace || event == Event::ArrowLeft ||
-            event == Event::ArrowRight || event == Event::Home || event == Event::End ||
-            event == Event::Delete || event == Event::CtrlA || event == Event::CtrlC ||
-            event == Event::CtrlV || event == Event::CtrlX || event == Event::CtrlZ ||
-            event == Event::Tab) {
-            return main_component_->OnEvent(event);
+        if (event.is_character()) {
+            std::string ch = event.character();
+            // 不把裸 Enter（\r/\n）当字符插入，避免与 Ctrl+J 换行重复
+            if (ch != "\r" && ch != "\n") {
+                current_input_.insert(cursor_pos_, ch);
+                cursor_pos_++;
+            }
+            return true;
         }
-        // 其他事件（如方向键导航、Enter等）已经在上面处理了
+        if (event == Event::Backspace && cursor_pos_ > 0) {
+            current_input_.erase(cursor_pos_ - 1, 1);
+            cursor_pos_--;
+            return true;
+        }
+        if (event == Event::Delete && cursor_pos_ < current_input_.length()) {
+            current_input_.erase(cursor_pos_, 1);
+            return true;
+        }
+        // Enter / Ctrl+J 已在上面统一处理
         return false;
     }
 
-    // 其他情况：如果焦点不在输入框，字符输入应该切换到输入框并输入
+    // 焦点不在输入框时，字符输入切换到输入框并写入首字符
     if (event.is_character()) {
         current_focus_ = FocusArea::INPUT;
-        // 将字符传递给输入组件
-        return main_component_->OnEvent(event);
+        current_input_ += event.character();
+        return true;
     }
 
     // 如果焦点不在输入框，其他输入事件不处理
@@ -1276,6 +1495,7 @@ void AIAssistantPanel::submitMessage() {
         }
 
         current_input_.clear();
+        cursor_pos_ = 0;
     }
 }
 
@@ -1513,16 +1733,12 @@ void AIAssistantPanel::setOnGetCurrentFile(std::function<std::string()> callback
 }
 
 void AIAssistantPanel::scrollUp() {
-    if (scroll_offset_ > 0) {
-        scroll_offset_--;
-    }
+    scroll_offset_ = std::max(0, scroll_offset_ - 1);
 }
 
 void AIAssistantPanel::scrollDown() {
-    size_t max_scroll = messages_.size() > 20 ? messages_.size() - 20 : 0;
-    if (scroll_offset_ < static_cast<int>(max_scroll)) {
-        scroll_offset_++;
-    }
+    int max_scroll = std::max(0, estimated_total_lines_ - MESSAGE_VIEWPORT_LINES);
+    scroll_offset_ = std::min(max_scroll, scroll_offset_ + 1);
 }
 
 } // namespace ui
