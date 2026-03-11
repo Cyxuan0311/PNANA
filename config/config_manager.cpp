@@ -258,6 +258,9 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         config_.display.cursor_blink_rate = rate;
         config_.display.cursor_smooth =
             extractBool("cursor_smooth", display_pos, display_end, false);
+        config_.display.show_helpbar = extractBool("show_helpbar", display_pos, display_end, true);
+        config_.display.logo_gradient =
+            extractBool("logo_gradient", display_pos, display_end, true);
     }
 
     // 解析 files 配置
@@ -493,7 +496,9 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"cursor_style\": \"" << config_.display.cursor_style << "\",\n";
     oss << "    \"cursor_color\": \"" << config_.display.cursor_color << "\",\n";
     oss << "    \"cursor_blink_rate\": " << config_.display.cursor_blink_rate << ",\n";
-    oss << "    \"cursor_smooth\": " << (config_.display.cursor_smooth ? "true" : "false") << "\n";
+    oss << "    \"cursor_smooth\": " << (config_.display.cursor_smooth ? "true" : "false") << ",\n";
+    oss << "    \"show_helpbar\": " << (config_.display.show_helpbar ? "true" : "false") << ",\n";
+    oss << "    \"logo_gradient\": " << (config_.display.logo_gradient ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"files\": {\n";
     oss << "    \"_comment\": \"Files: encoding, line ending, auto save\",\n";

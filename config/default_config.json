@@ -9,15 +9,17 @@
     "auto_indent": true
   },
   "display": {
-    "_comment": "Display: line numbers, highlight, cursor style",
+    "_comment": "Display: line numbers, highlight, cursor style, helpbar, logo gradient",
     "show_line_numbers": true,
     "relative_line_numbers": false,
     "highlight_current_line": true,
     "show_whitespace": false,
+    "show_helpbar": true,
     "cursor_style": "block",
     "cursor_color": "255,255,255",
     "cursor_blink_rate": 500,
-    "cursor_smooth": false
+    "cursor_smooth": false,
+    "logo_gradient": true
   },
   "files": {
     "_comment": "Files: encoding, line ending, auto save",
