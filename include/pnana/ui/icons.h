@@ -34,16 +34,16 @@ constexpr const char* HTML = "\ue736";       // nf-dev-html5
 constexpr const char* CSS = "\ue749";        // nf-dev-css3
 constexpr const char* JSON = "\ue60b";       // nf-dev-json
 constexpr const char* MARKDOWN = "\ue73e";   // nf-dev-markdown
-constexpr const char* YAML = "\uf481";       // nf-mdi-code_braces
-constexpr const char* XML = "\ue72a";        // nf-dev-xml
+constexpr const char* YAML = "\ue8eb";       // nf-mdi-code_braces
+constexpr const char* XML = "\ue8ea";        // nf-dev-xml
 constexpr const char* SQL = "\uf1c0";        // nf-fa-database
 constexpr const char* SHELL = "\uf489";      // nf-mdi-console
 constexpr const char* DOCKER = "\ue7b0";     // nf-dev-docker
 constexpr const char* GIT = "\ue702";        // nf-dev-git
 constexpr const char* GIT_BRANCH = "\uf126"; // nf-fa-code-fork (分支图标)
 constexpr const char* GITIGNORE = "\ue702";  // nf-dev-git
-constexpr const char* CMAKE = "\uf489";      // nf-mdi-console
-constexpr const char* MAKEFILE = "\uf489";   // nf-mdi-console
+constexpr const char* CMAKE = "\ue794";      // nf-mdi-console
+constexpr const char* MAKEFILE = "\ue673";   // nf-mdi-console
 
 // 新增语言图标
 constexpr const char* SWIFT = "\ue755";      // nf-dev-swift
@@ -243,7 +243,7 @@ constexpr const char* OCTAVE_ALT = "\ue67c";        // nf-dev-matlab
 constexpr const char* R_ALT = "\ue68c";             // nf-dev-r
 constexpr const char* JULIA_ALT = "\ue624";         // nf-dev-julia
 constexpr const char* LUA_ALT = "\ue620";           // nf-dev-lua
-constexpr const char* PYTHON_ALT = "\ue63c";        // nf-dev-python
+constexpr const char* PYTHON_ALT = "\ue72c";        // nf-dev-python
 constexpr const char* RUBY_ALT = "\ue739";          // nf-dev-ruby
 constexpr const char* PERL_ALT = "\ue769";          // nf-dev-perl
 constexpr const char* PHP_ALT = "\ue73d";           // nf-dev-php
@@ -373,8 +373,11 @@ constexpr const char* REFRESH = "\uf021"; // nf-fa-refresh (刷新)
 constexpr const char* HOME = "\uf015";    // nf-fa-home (主目录)
 
 // 其他文件类型图标
-constexpr const char* IMAGE = "\uf1c5";      // nf-fa-file_image_o (图片)
-constexpr const char* PDF = "\uf1c1";        // nf-fa-file_pdf_o (PDF)
+constexpr const char* IMAGE = "\uf03e";      // nf-fa-file_image_o (图片)
+constexpr const char* IMAGE_PNG = "\uf03e";  // nf-mdi-file_png (PNG 图片)
+constexpr const char* IMAGE_JPG = "\uf03e";  // nf-mdi-file_jpg (JPG 图片)
+constexpr const char* IMAGE_GIF = "\uf03e";  // nf-mdi-file_gif (GIF 图片)
+constexpr const char* PDF = "\ue67d";        // nf-fa-file_pdf_o (PDF)
 constexpr const char* ARCHIVE = "\uf1c6";    // nf-fa-file_archive_o (压缩包)
 constexpr const char* VIDEO = "\uf1c8";      // nf-fa-file_video_o (视频)
 constexpr const char* AUDIO = "\uf1c7";      // nf-fa-file_audio_o (音频)
@@ -396,7 +399,7 @@ constexpr const char* GEMFILE = "\ue739";      // nf-dev-ruby (Gemfile)
 constexpr const char* COMPOSER = "\ue73d";     // nf-dev-php (composer.json)
 constexpr const char* GO_MOD = "\ue627";       // nf-dev-go (go.mod)
 constexpr const char* GO_SUM = "\ue627";       // nf-dev-go (go.sum)
-constexpr const char* TOML = "\ue60b";         // nf-dev-json (TOML文件)
+constexpr const char* TOML = "\ue6b2";         // nf-dev-json (TOML文件)
 
 // 环境配置文件
 constexpr const char* ENV = "\uf462";          // nf-mdi-key (环境变量文件)
@@ -408,9 +411,9 @@ constexpr const char* BABEL = "\ue60b";        // nf-dev-json (.babelrc)
 constexpr const char* TSCONFIG = "\ue628";     // nf-dev-typescript (tsconfig.json)
 
 // 文档文件
-constexpr const char* README = "\ue73e";       // nf-dev-markdown (README)
-constexpr const char* LICENSE = "\uf1c9";      // nf-fa-file_text_o (LICENSE)
-constexpr const char* CHANGELOG = "\uf1c9";    // nf-fa-file_text_o (CHANGELOG)
+constexpr const char* README = "\ueda4";       // nf-dev-markdown (README)
+constexpr const char* LICENSE = "\ue60a";      // nf-fa-file_text_o (LICENSE)
+constexpr const char* CHANGELOG = "\ueb42";    // nf-fa-file_text_o (CHANGELOG)
 constexpr const char* CONTRIBUTING = "\uf1c9"; // nf-fa-file_text_o (CONTRIBUTING)
 constexpr const char* AUTHORS = "\uf1c9";      // nf-fa-file_text_o (AUTHORS)
 constexpr const char* TODO = "\uf0ae";         // nf-fa-tasks (TODO)
@@ -420,7 +423,7 @@ constexpr const char* TEST = "\uf188"; // nf-fa-flask (测试文件)
 constexpr const char* SPEC = "\uf188"; // nf-fa-flask (spec文件)
 
 // 数据文件
-constexpr const char* CSV = "\uf1c3";   // nf-fa-file_text_o (CSV)
+constexpr const char* CSV = "\ueefc";   // nf-fa-file_text_o (CSV)
 constexpr const char* TSV = "\uf1c3";   // nf-fa-file_text_o (TSV)
 constexpr const char* EXCEL = "\uf1c3"; // nf-fa-file_excel_o (Excel)
 
@@ -442,7 +445,7 @@ constexpr const char* VENV = "\ue63c";         // nf-dev-python (虚拟环境)
 constexpr const char* DOTFILES = "\uf013";     // nf-fa-cog (隐藏配置文件)
 
 // 日志和临时文件
-constexpr const char* LOG = "\uf1c9";   // nf-fa-file_text_o (日志文件)
+constexpr const char* LOG = "\uf4ed";   // nf-fa-file_text_o (日志文件)
 constexpr const char* TEMP = "\uf016";  // nf-fa-file_o (临时文件)
 constexpr const char* CACHE = "\uf0eb"; // nf-fa-lightbulb_o (缓存文件)
 
@@ -950,8 +953,16 @@ inline std::string getFileTypeIcon(const std::string& file_type) {
     if (file_type == "image") {
         return std::string(IMAGE);
     }
-    if (file_type == "jpg" || file_type == "jpeg" || file_type == "png" || file_type == "gif" ||
-        file_type == "bmp" || file_type == "webp") {
+    if (file_type == "png") {
+        return std::string(IMAGE_PNG);
+    }
+    if (file_type == "jpg" || file_type == "jpeg") {
+        return std::string(IMAGE_JPG);
+    }
+    if (file_type == "gif") {
+        return std::string(IMAGE_GIF);
+    }
+    if (file_type == "bmp" || file_type == "webp") {
         return std::string(IMAGE);
     }
 
