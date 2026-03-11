@@ -6,6 +6,7 @@
 #include "features/lsp/lsp_types.h"
 #include "jsonrpccxx/client.hpp"
 #include "jsonrpccxx/common.hpp"
+#include <atomic>
 #include <functional>
 #include <map>
 #include <memory>
@@ -16,7 +17,7 @@
 namespace pnana {
 namespace features {
 
-// 代码补全项
+// 代码补全项（参考 VS Code 四类提示：标准库/当前文档/项目范围/智能补全）
 struct CompletionItem {
     std::string label;
     std::string kind;
@@ -25,10 +26,18 @@ struct CompletionItem {
     std::string documentation;
     int insertTextFormat = 1; // 1=PlainText, 2=Snippet (LSP Spec)
 
+    // LSP sortText/filterText：用于排序和过滤，提升补全质量
+    std::string sortText;   // 服务器推荐的排序键，优先使用
+    std::string filterText; // 用于过滤的文本，默认同 label
+
     // 代码片段支持
     bool isSnippet = false;
     std::vector<SnippetPlaceholder> snippet_placeholders;
     std::string snippet_body; // 代码片段的完整内容
+
+    // completionItem/resolve 懒解析支持
+    std::string data;      // LSP 返回的 data，resolve 时需原样回传
+    bool resolved = false; // 是否已 resolve，避免重复请求
 
     // 辅助方法：检查是否是代码片段
     bool hasSnippet() const {
@@ -69,7 +78,9 @@ class LspClient {
     ~LspClient();
 
     // 初始化和清理
-    bool initialize(const std::string& root_path = "");
+    // init_options: 可选的 LSP 初始化参数（如 clangd fallbackFlags），nullptr 时行为不变
+    bool initialize(const std::string& root_path = "",
+                    const nlohmann::json* init_options = nullptr);
     void shutdown();
 
     // 文档生命周期
@@ -82,8 +93,15 @@ class LspClient {
     void didClose(const std::string& uri);
     void didSave(const std::string& uri);
 
-    // 代码补全
-    std::vector<CompletionItem> completion(const std::string& uri, const LspPosition& position);
+    // 代码补全（支持 triggerCharacter 以区分手动触发 vs 字符触发，如 . : -> 等）
+    std::vector<CompletionItem> completion(const std::string& uri, const LspPosition& position,
+                                           const std::string& trigger_character = "");
+
+    // 补全项 resolve：获取 detail/documentation（懒解析）
+    CompletionItem resolveCompletionItem(const CompletionItem& item);
+
+    // 检查服务器是否支持 completionItem/resolve
+    bool supportsCompletionResolve() const;
 
     // 跳转定义
     std::vector<Location> gotoDefinition(const std::string& uri, const LspPosition& position);
@@ -117,6 +135,9 @@ class LspClient {
     // 检查连接状态
     bool isConnected() const;
 
+    // 获取语言服务器进程 PID（如果可用），否则返回 -1
+    int getServerPid() const;
+
     // 获取服务器能力
     jsonrpccxx::json getServerCapabilities() const {
         return server_capabilities_;
@@ -140,6 +161,9 @@ class LspClient {
 
     // 诊断回调
     DiagnosticsCallback diagnostics_callback_;
+
+    // 唯一请求 ID，避免 completion/folding 等并发请求时响应混淆
+    std::atomic<int> next_request_id_{1};
 
     // 将 C++ 对象转换为 JSON
     jsonrpccxx::json positionToJson(const LspPosition& pos);

@@ -12,31 +12,22 @@ namespace core {
 
 // 编辑操作
 void Editor::insertChar(char ch) {
-    LOG("[EDIT] insertChar called with char: '" + std::string(1, ch) + "' at pos (" +
-        std::to_string(cursor_row_) + ", " + std::to_string(cursor_col_) + ")");
-
     Document* doc = getCurrentDocument();
     if (!doc) {
-        LOG("[EDIT] No current document, returning");
         return;
     }
 
     // 记录变更（阶段2优化：增量更新）
 #ifdef BUILD_LSP_SUPPORT
     if (lsp_enabled_ && document_change_tracker_) {
-        LOG("[EDIT] Recording change to document_change_tracker_");
         std::string new_text(1, ch); // 新文本是插入的字符
         document_change_tracker_->recordInsert(static_cast<int>(cursor_row_),
                                                static_cast<int>(cursor_col_), new_text);
     }
 #endif
 
-    auto start_time = std::chrono::steady_clock::now();
     doc->insertChar(cursor_row_, cursor_col_, ch);
     cursor_col_++;
-    auto end_time = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-    LOG("[EDIT] Document insertChar took " + std::to_string(duration.count()) + " us");
 
     // 更新markdown预览（延迟更新以提升性能）
     if (isMarkdownPreviewActive()) {
@@ -58,38 +49,29 @@ void Editor::insertChar(char ch) {
     // 3. 切换文件时
     // 不应该在每次字符输入时都更新，以避免性能问题
 
-    // 触发代码补全（在输入字母、数字、下划线或点号时）
-    // 使用防抖机制，提升编辑流畅度
+    // 触发代码补全（参考 VS Code：标准库/当前文档/项目/智能补全）
     if (lsp_enabled_ && lsp_manager_) {
         if (std::isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '-' || ch == '>') {
-            // 使用延迟触发，避免每次输入都立即请求（提升流畅度）
-            completion_trigger_delay_++;
-            LOG("[EDIT] Completion trigger delay: " + std::to_string(completion_trigger_delay_));
-
-            // 增加延迟到3个字符后触发，平衡响应速度和性能
-            if (completion_trigger_delay_ >= 3) {
-                LOG("[EDIT] Triggering completion and LSP document update");
+            // 成员访问符 . : -> 立即触发（智能补全：变量.方法、类型::静态成员）
+            bool is_member_trigger = (ch == '.' || ch == ':');
+            if (is_member_trigger) {
+                last_completion_trigger_ = std::string(1, ch);
                 completion_trigger_delay_ = 0;
-
-                // 在触发completion时才更新LSP文档，确保LSP服务器有最新状态
-                auto lsp_update_start = std::chrono::steady_clock::now();
                 updateLspDocument();
-                auto lsp_update_end = std::chrono::steady_clock::now();
-                auto lsp_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    lsp_update_end - lsp_update_start);
-                LOG("[EDIT] LSP document update took " + std::to_string(lsp_duration.count()) +
-                    "ms");
-
                 triggerCompletion();
+            } else {
+                completion_trigger_delay_++;
+                if (completion_trigger_delay_ >= 1) {
+                    last_completion_trigger_.clear();
+                    completion_trigger_delay_ = 0;
+                    updateLspDocument();
+                    triggerCompletion();
+                }
             }
         } else if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '(' || ch == '[' || ch == '{') {
-            // 空格、制表符、换行、括号时隐藏补全弹窗
-            LOG("[EDIT] Hiding completion popup (terminator char)");
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
         } else {
-            // 其他字符，隐藏补全弹窗并重置延迟
-            LOG("[EDIT] Hiding completion popup (other char)");
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
         }
@@ -138,11 +120,20 @@ void Editor::insertText(const std::string& text) {
     if (lsp_enabled_ && lsp_manager_ && text.length() == 1) {
         char ch = text[0];
         if (std::isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '-' || ch == '>') {
-            completion_trigger_delay_++;
-            if (completion_trigger_delay_ >= 3) {
+            bool is_member_trigger = (ch == '.' || ch == ':');
+            if (is_member_trigger) {
+                last_completion_trigger_ = std::string(1, ch);
                 completion_trigger_delay_ = 0;
                 updateLspDocument();
                 triggerCompletion();
+            } else {
+                completion_trigger_delay_++;
+                if (completion_trigger_delay_ >= 1) {
+                    last_completion_trigger_.clear();
+                    completion_trigger_delay_ = 0;
+                    updateLspDocument();
+                    triggerCompletion();
+                }
             }
         } else if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '(' || ch == '[' || ch == '{') {
             completion_popup_.hide();
@@ -797,10 +788,6 @@ void Editor::undo() {
         return;
     }
 
-    // 保存撤销前的光标位置，用于可能的视图调整
-    size_t original_cursor_row = cursor_row_;
-    size_t original_cursor_col = cursor_col_;
-
     size_t change_row = 0, change_col = 0;
     DocumentChange::Type change_type;
 
@@ -819,14 +806,9 @@ void Editor::undo() {
         // 撤销操作后清除选择状态（VSCode 行为）
         selection_active_ = false;
 
-        LOG("[UNDO] Editor undo completed: moved cursor from (" +
-            std::to_string(original_cursor_row) + "," + std::to_string(original_cursor_col) +
-            ") to (" + std::to_string(cursor_row_) + "," + std::to_string(cursor_col_) + ")");
-
         // 不显示成功消息，避免UI干扰（VSCode 行为）
     } else {
         setStatusMessage("Nothing to undo");
-        LOG("[UNDO] Editor undo failed: no operations in undo stack");
     }
 }
 
@@ -836,10 +818,6 @@ void Editor::redo() {
         setStatusMessage("No document to redo");
         return;
     }
-
-    // 保存重做前的光标位置，用于可能的视图调整
-    size_t original_cursor_row = cursor_row_;
-    size_t original_cursor_col = cursor_col_;
 
     size_t change_row = 0, change_col = 0;
 
@@ -857,14 +835,8 @@ void Editor::redo() {
         // 重做操作后清除选择状态（VSCode 行为）
         selection_active_ = false;
 
-        LOG("[REDO] Editor redo completed: moved cursor from (" +
-            std::to_string(original_cursor_row) + "," + std::to_string(original_cursor_col) +
-            ") to (" + std::to_string(cursor_row_) + "," + std::to_string(cursor_col_) + ")");
-
-        // 不显示成功消息，避免UI干扰（VSCode 行为）
     } else {
         setStatusMessage("Nothing to redo");
-        LOG("[REDO] Editor redo failed: no operations in redo stack");
     }
 }
 
@@ -927,7 +899,6 @@ void Editor::indentLine() {
     // 记录变更到撤销系统（LSP支持）
 #ifdef BUILD_LSP_SUPPORT
     if (lsp_enabled_ && document_change_tracker_) {
-        LOG("[EDIT] Recording indent change to document_change_tracker_");
         document_change_tracker_->recordInsert(
             static_cast<int>(cursor_row_), static_cast<int>(at_line_start ? 0 : cursor_col_ - 4),
             inserted_text);
@@ -972,7 +943,6 @@ void Editor::unindentLine() {
         // LSP变更记录
 #ifdef BUILD_LSP_SUPPORT
         if (lsp_enabled_ && document_change_tracker_) {
-            LOG("[EDIT] Recording unindent change to document_change_tracker_");
             document_change_tracker_->recordDelete(static_cast<int>(cursor_row_), 0,
                                                    static_cast<int>(spaces_to_remove));
         }
@@ -980,47 +950,6 @@ void Editor::unindentLine() {
 
         doc->setModified(true);
     }
-}
-
-void Editor::toggleComment() {
-    auto& lines = getCurrentDocument()->getLines();
-    if (cursor_row_ >= lines.size())
-        return;
-
-    std::string& line = lines[cursor_row_];
-    std::string file_type = getFileType();
-
-    // 根据文件类型选择注释符号
-    std::string comment_prefix = "//";
-    if (file_type == "python" || file_type == "shell") {
-        comment_prefix = "#";
-    } else if (file_type == "lua") {
-        comment_prefix = "--";
-    } else if (file_type == "html" || file_type == "xml") {
-        comment_prefix = "<!--";
-        // HTML注释需要特殊处理，这里简化处理
-    }
-
-    // 检查是否已注释
-    size_t first_non_space = line.find_first_not_of(" \t");
-    if (first_non_space != std::string::npos &&
-        line.substr(first_non_space, comment_prefix.length()) == comment_prefix) {
-        // 取消注释
-        line.erase(first_non_space, comment_prefix.length());
-        if (cursor_col_ >= first_non_space + comment_prefix.length()) {
-            cursor_col_ -= comment_prefix.length();
-        }
-    } else {
-        // 添加注释
-        if (first_non_space == std::string::npos) {
-            first_non_space = 0;
-        }
-        line.insert(first_non_space, comment_prefix + " ");
-        cursor_col_ += comment_prefix.length() + 1;
-    }
-
-    getCurrentDocument()->setModified(true);
-    setStatusMessage("Comment toggled");
 }
 
 } // namespace core

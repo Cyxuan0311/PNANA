@@ -54,13 +54,13 @@ if(BUILD_IMAGE_PREVIEW)
     else()
         set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
         message(FATAL_ERROR "✗ FFmpeg not found but BUILD_IMAGE_PREVIEW is enabled")
-        message(STATUS "  Install with: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
-        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_IMAGE_PREVIEW=ON ..")
+        message(STATUS "  Please install FFmpeg development libraries (libavformat, libavcodec, libswscale, libavutil)")
+        message(STATUS "  using your system package manager, then reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_IMAGE_PREVIEW=ON ..")
     endif()
 else()
     set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
     message(STATUS "Image preview support disabled (use -DBUILD_IMAGE_PREVIEW=ON to enable)")
-    message(STATUS "  Requires: sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev")
+    message(STATUS "  Requires: FFmpeg dev libraries (libavformat, libavcodec, libswscale, libavutil) — install via your package manager")
 endif()
 
 # 检查 nlohmann/json (用于 AI 配置和 LSP 支持)
@@ -92,13 +92,13 @@ if(BUILD_AI_CLIENT)
     else()
         set(BUILD_AI_CLIENT_SUPPORT OFF)
         message(FATAL_ERROR "✗ libcurl not found but BUILD_AI_CLIENT is enabled")
-        message(STATUS "  Install with: sudo apt install libcurl4-openssl-dev")
-        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_AI_CLIENT=ON ..")
+        message(STATUS "  Please install libcurl development package using your system package manager")
+        message(STATUS "  After installing, reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_AI_CLIENT=ON ..")
     endif()
 else()
     set(BUILD_AI_CLIENT_SUPPORT OFF)
     message(STATUS "AI client support disabled (use -DBUILD_AI_CLIENT=ON to enable)")
-    message(STATUS "  Requires: sudo apt install libcurl4-openssl-dev")
+    message(STATUS "  Requires: libcurl dev package — install via your package manager")
 endif()
 
 # 如果找到本地的 nlohmann/json 和 jsonrpccxx，启用 LSP 支持
@@ -167,13 +167,13 @@ if(BUILD_LUA)
     else()
         set(BUILD_LUA_SUPPORT OFF)
         message(FATAL_ERROR "✗ Lua not found but BUILD_LUA is enabled")
-        message(STATUS "  Install with: sudo apt install liblua5.4-dev (or liblua5.3-dev)")
-        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_LUA=ON ..")
+        message(STATUS "  Please install Lua development package (5.3 or 5.4) using your system package manager")
+        message(STATUS "  After installing, reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_LUA=ON ..")
     endif()
 else()
     set(BUILD_LUA_SUPPORT OFF)
     message(STATUS "Lua plugin system disabled (use -DBUILD_LUA=ON to enable)")
-    message(STATUS "  Requires: sudo apt install liblua5.4-dev (or liblua5.3-dev)")
+    message(STATUS "  Requires: Lua dev package (5.3/5.4) — install via your package manager")
 endif()
 
 # 配置 iconv 库支持（编码转换）
@@ -261,8 +261,8 @@ else()
     set(ICONV_FOUND FALSE)
     set(BUILD_ICONV_SUPPORT OFF)
     message(STATUS "iconv not found - using built-in encoding conversion")
-    message(STATUS "  For better encoding support, install: sudo apt install libc6-dev")
-    message(STATUS "  (This is optional - built-in conversion will still work)")
+    message(STATUS "  For better encoding support, install iconv/C library dev package via your package manager (optional)")
+    message(STATUS "  Built-in conversion will still work without it")
 endif()
 
 # 配置 Tree-sitter（语法高亮）
@@ -271,14 +271,14 @@ if(BUILD_TREE_SITTER)
     include(ConfigureTreeSitter)
     if(NOT BUILD_TREE_SITTER_SUPPORT)
         message(FATAL_ERROR "✗ Tree-sitter not found but BUILD_TREE_SITTER is enabled")
-        message(STATUS "  Install with: sudo apt install libtree-sitter-dev")
+        message(STATUS "  Please install tree-sitter development library via your package manager")
         message(STATUS "  Or build from source: https://github.com/tree-sitter/tree-sitter")
-        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_TREE_SITTER=ON ..")
+        message(STATUS "  After installing, reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_TREE_SITTER=ON ..")
     endif()
 else()
     set(BUILD_TREE_SITTER_SUPPORT OFF)
     message(STATUS "Tree-sitter syntax highlighting disabled (use -DBUILD_TREE_SITTER=ON to enable)")
-    message(STATUS "  Requires: sudo apt install libtree-sitter-dev")
+    message(STATUS "  Requires: tree-sitter dev library — install via your package manager")
 endif()
 
 # 配置 Go SSH 模块支持
@@ -288,8 +288,8 @@ if(BUILD_GO)
     find_program(GO_EXECUTABLE go)
     if(NOT GO_EXECUTABLE)
         message(FATAL_ERROR "✗ Go compiler not found but BUILD_GO is enabled")
-        message(STATUS "  Install with: sudo apt install golang-go")
-        message(STATUS "  Then run: rm -rf build && mkdir build && cd build && cmake -DBUILD_GO=ON ..")
+        message(STATUS "  Please install Go (golang) using your system package manager or from https://go.dev/dl/")
+        message(STATUS "  After installing, reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_GO=ON ..")
     else()
         set(BUILD_GO_MODULE ON)
         message(STATUS "✓ Found Go: ${GO_EXECUTABLE}")
@@ -297,7 +297,7 @@ if(BUILD_GO)
 else()
     set(BUILD_GO_MODULE OFF)
     message(STATUS "Go SSH module disabled (use -DBUILD_GO=ON to enable)")
-    message(STATUS "  Requires: sudo apt install golang-go")
+    message(STATUS "  Requires: Go compiler — install via your package manager or go.dev")
 endif()
 
 # 包含目录
@@ -313,6 +313,7 @@ set(SOURCES
     src/core/editor_file_ops.cpp
     src/core/editor_cursor.cpp
     src/core/editor_edit.cpp
+    src/core/editor_comment.cpp
     src/core/editor_ui.cpp
     src/core/editor_word_highlight.cpp
     src/core/overlay_manager.cpp
@@ -368,8 +369,10 @@ set(SOURCES
     src/utils/text_utils.cpp
     src/utils/clipboard.cpp
     src/utils/file_type_detector.cpp
+    src/utils/project_root_finder.cpp
     src/utils/file_type_icon_mapper.cpp
     src/utils/file_type_color_mapper.cpp
+    src/utils/match_highlight.cpp
     src/utils/archive_validator.cpp
     src/utils/version_detector.cpp
     src/features/recent_files_manager.cpp
@@ -378,6 +381,7 @@ set(SOURCES
     src/ui/fzf_popup.cpp
     src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
+    src/utils/clangd_flags.cpp
     # Markdown 解析库
     third-party/md4c/md4c.c
     # 功能模块
@@ -387,6 +391,7 @@ set(SOURCES
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/todo/todo_manager.cpp
+    src/utils/comment_syntax.cpp
     src/features/vgit/git_manager.cpp
     src/features/package_manager/package_manager_registry.cpp
     src/features/package_manager/pip_manager.cpp
@@ -415,6 +420,7 @@ set(SOURCES
     src/features/cursor/cursor_renderer.cpp
     src/features/ai_config/ai_config.cpp
     $<$<BOOL:${BUILD_AI_CLIENT_SUPPORT}>:src/features/ai_client/ai_client.cpp>
+    $<$<BOOL:${BUILD_AI_CLIENT_SUPPORT}>:src/features/ai_client/assistant_system_prompt.cpp>
     src/features/ssh/ssh_client.cpp
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
@@ -457,6 +463,7 @@ if(BUILD_LSP_SUPPORT)
         src/features/lsp/lsp_completion_cache.cpp
         src/features/lsp/lsp_formatter.cpp
         src/features/lsp/snippet_manager.cpp
+        src/ui/lsp_status_popup.cpp
     )
     # 使用通配符自动添加所有 snippets 文件
     file(GLOB SNIPPET_FILES "${CMAKE_SOURCE_DIR}/src/features/lsp/snippets/*_snippets.cpp")
@@ -535,6 +542,7 @@ set(HEADERS
     include/pnana/ui/icons.h
     include/pnana/ui/completion_popup.h
     include/pnana/ui/command_palette_ui.h
+    include/pnana/ui/lsp_status_popup.h
     include/pnana/ui/symbol_navigation_popup.h
     include/pnana/ui/format_dialog.h
     include/pnana/ui/todo_panel.h
@@ -571,6 +579,7 @@ set(HEADERS
     include/pnana/utils/archive_validator.h
     include/pnana/utils/version_detector.h
     include/pnana/utils/assembly_analyzer.h
+    include/pnana/utils/clangd_flags.h
 )
 
 # Tree-sitter 模块头文件（如果启用）

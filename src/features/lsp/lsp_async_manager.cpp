@@ -11,8 +11,6 @@ namespace features {
 LspAsyncManager::LspAsyncManager() : running_(true) {
     // 创建多个worker线程以支持并发请求处理
     unsigned int num_threads = std::max(2u, std::thread::hardware_concurrency() / 2);
-    LOG("[ASYNC] Starting " + std::to_string(num_threads) +
-        " worker threads for concurrent LSP requests");
 
     for (unsigned int i = 0; i < num_threads; ++i) {
         worker_threads_.emplace_back(&LspAsyncManager::workerThread, this);
@@ -28,8 +26,9 @@ LspAsyncManager::~LspAsyncManager() {
 
 void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::string& uri,
                                              const LspPosition& position,
-                                             CompletionCallback on_success,
-                                             ErrorCallback on_error) {
+                                             CompletionCallback on_success, ErrorCallback on_error,
+                                             const std::string& trigger_character,
+                                             int completion_timeout_ms) {
     if (!client || !running_) {
         if (on_error) {
             on_error("Client is null or manager is stopped");
@@ -42,6 +41,8 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
     task.client = client;
     task.uri = uri;
     task.position = position;
+    task.trigger_character = trigger_character;
+    task.completion_timeout_ms = completion_timeout_ms;
     task.completion_callback = on_success;
     task.error_callback = on_error;
 
@@ -51,6 +52,64 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
         // 移除所有调试日志以提高性能
     }
     // 通知所有等待的线程，提高并发响应速度
+    queue_cv_.notify_all();
+}
+
+void LspAsyncManager::requestDocumentOpenAsync(LspClient* client, const std::string& uri,
+                                               const std::string& language_id,
+                                               const std::string& content) {
+    if (!client || !running_)
+        return;
+    RequestTask task;
+    task.type = RequestTask::DOCUMENT_OPEN;
+    task.client = client;
+    task.uri = uri;
+    task.doc_language_id = language_id;
+    task.doc_content = content;
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        request_queue_.push(task);
+    }
+    queue_cv_.notify_all();
+}
+
+void LspAsyncManager::requestDocumentChangeAsync(LspClient* client, const std::string& uri,
+                                                 const std::string& content, int version) {
+    if (!client || !running_)
+        return;
+    RequestTask task;
+    task.type = RequestTask::DOCUMENT_CHANGE;
+    task.client = client;
+    task.uri = uri;
+    task.doc_content = content;
+    task.doc_version = version;
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        request_queue_.push(task);
+    }
+    queue_cv_.notify_all();
+}
+
+void LspAsyncManager::requestResolveAsync(LspClient* client, const CompletionItem& item,
+                                          ResolveCallback on_success, ErrorCallback on_error) {
+    if (!client || !running_) {
+        if (on_error) {
+            on_error("Client is null or manager is stopped");
+        }
+        return;
+    }
+
+    RequestTask task;
+    task.type = RequestTask::RESOLVE;
+    task.client = client;
+    task.resolve_item = item;
+    task.resolve_callback = on_success;
+    task.error_callback = on_error;
+
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        request_queue_.push(task);
+    }
     queue_cv_.notify_all();
 }
 
@@ -75,14 +134,15 @@ void LspAsyncManager::workerThread() {
                     if (task.client && task.client->isConnected()) {
                         // 使用带超时的异步调用，避免长时间阻塞
                         auto completion_future = std::async(std::launch::async, [&]() {
-                            return task.client->completion(task.uri, task.position);
+                            return task.client->completion(task.uri, task.position,
+                                                           task.trigger_character);
                         });
 
-                        // 等待最多500ms，避免UI卡顿但允许合理的响应时间
-                        if (completion_future.wait_for(std::chrono::milliseconds(500)) ==
+                        // 超时避免 UI 卡顿，cpp/c 用 500ms，其他语言放宽至 800ms
+                        int timeout_ms =
+                            task.completion_timeout_ms > 0 ? task.completion_timeout_ms : 500;
+                        if (completion_future.wait_for(std::chrono::milliseconds(timeout_ms)) ==
                             std::future_status::timeout) {
-                            LOG_WARNING("[ASYNC] Completion timeout for " + task.uri +
-                                        " after 500ms");
                             if (task.error_callback) {
                                 task.error_callback("Completion request timeout");
                             }
@@ -95,6 +155,41 @@ void LspAsyncManager::workerThread() {
                     } else {
                         if (task.error_callback) {
                             task.error_callback("LSP client is not connected");
+                        }
+                    }
+                } else if (task.type == RequestTask::RESOLVE) {
+                    if (task.client && task.client->isConnected()) {
+                        // 带超时的异步调用，避免慢 LSP（pylsp/typescript）的 resolve 阻塞 worker
+                        auto resolve_future = std::async(std::launch::async, [&]() {
+                            return task.client->resolveCompletionItem(task.resolve_item);
+                        });
+                        constexpr auto resolve_timeout = std::chrono::milliseconds(600);
+                        if (resolve_future.wait_for(resolve_timeout) ==
+                            std::future_status::timeout) {
+                            if (task.resolve_callback) {
+                                task.resolve_callback(task.resolve_item);
+                            }
+                        } else {
+                            auto resolved = resolve_future.get();
+                            if (task.resolve_callback) {
+                                task.resolve_callback(resolved);
+                            }
+                        }
+                    } else if (task.error_callback) {
+                        task.error_callback("LSP client is not connected");
+                    }
+                } else if (task.type == RequestTask::DOCUMENT_OPEN) {
+                    if (task.client && task.client->isConnected()) {
+                        try {
+                            task.client->didOpen(task.uri, task.doc_language_id, task.doc_content);
+                        } catch (...) {
+                        }
+                    }
+                } else if (task.type == RequestTask::DOCUMENT_CHANGE) {
+                    if (task.client && task.client->isConnected()) {
+                        try {
+                            task.client->didChange(task.uri, task.doc_content, task.doc_version);
+                        } catch (...) {
                         }
                     }
                 }

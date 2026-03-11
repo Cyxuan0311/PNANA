@@ -7,9 +7,16 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace pnana {
 namespace features {
+
+/** 单条 LSP 状态（配置 + 是否已连接），用于状态弹窗展示 */
+struct LspStatusEntry {
+    LspServerConfig config;
+    bool connected = false;
+};
 
 /**
  * LSP 服务器管理器
@@ -26,6 +33,9 @@ class LspServerManager {
 
     // 根据语言 ID 获取或创建对应的 LSP 客户端
     LspClient* getClientForLanguage(const std::string& language_id);
+
+    // 初始化指定文件对应的 LSP 客户端（传入 fallbackFlags 等 init options）
+    bool initializeClientForFile(const std::string& filepath, const std::string& root_path);
 
     // 初始化所有已配置的 LSP 服务器（可选，延迟初始化更高效）
     void initializeAll(const std::string& root_path);
@@ -51,13 +61,19 @@ class LspServerManager {
         return config_manager_;
     }
 
+    /** 获取当前所有 LSP 配置及连接状态快照（用于状态弹窗） */
+    std::vector<LspStatusEntry> getStatusSnapshot() const;
+
+    // 根据语言 ID 获取对应服务器进程的 PID（如果客户端存在且已启动），否则返回 -1
+    int getServerPid(const std::string& language_id) const;
+
   private:
     LspServerConfigManager config_manager_;
 
     // 按语言 ID 存储 LSP 客户端
     // 每个语言只有一个客户端实例（可以处理多个文件）
     std::map<std::string, std::unique_ptr<LspClient>> clients_;
-    std::mutex clients_mutex_;
+    mutable std::mutex clients_mutex_;
 
     // 已初始化的语言集合
     std::map<std::string, bool> initialized_;

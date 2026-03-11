@@ -173,6 +173,11 @@ TSLanguage* tree_sitter_nim();
 TSLanguage* tree_sitter_zig();
 #endif
 
+// C3
+#ifdef BUILD_TREE_SITTER_C3
+TSLanguage* tree_sitter_c3();
+#endif
+
 // 函数式编程和编译器相关语言
 // Lisp
 #ifdef BUILD_TREE_SITTER_LISP
@@ -610,6 +615,14 @@ void SyntaxHighlighterTreeSitter::initializeLanguages() {
     }
 #endif
 
+// C3
+#ifdef BUILD_TREE_SITTER_C3
+    TSLanguage* c3_lang = tree_sitter_c3();
+    if (c3_lang) {
+        language_map_["c3"] = c3_lang;
+    }
+#endif
+
 // 函数式编程和编译器相关语言
 // Lisp
 #ifdef BUILD_TREE_SITTER_LISP
@@ -734,7 +747,7 @@ ftxui::Element SyntaxHighlighterTreeSitter::parseAndHighlight(const std::string&
     // 遍历语法树并生成高亮元素
     Elements elements;
     size_t current_pos = 0;
-    traverseTree(root_node, code, elements, current_pos);
+    traverseTree(root_node, code, elements, current_pos, "");
 
     // 处理未覆盖的文本
     if (current_pos < code.length()) {
@@ -747,9 +760,34 @@ ftxui::Element SyntaxHighlighterTreeSitter::parseAndHighlight(const std::string&
     return hbox(elements);
 }
 
+void SyntaxHighlighterTreeSitter::parseAndHighlightToSegments(
+    const std::string& code, std::vector<HighlightSegment>& segments) {
+    segments.clear();
+    if (code.empty() || !parser_ || !current_language_) {
+        return;
+    }
+
+    TSTree* tree = ts_parser_parse_string(parser_, nullptr, code.c_str(), code.length());
+    if (!tree) {
+        return;
+    }
+
+    TSNode root_node = ts_tree_root_node(tree);
+    size_t current_pos = 0;
+    traverseTreeToSegments(root_node, code, segments, current_pos, "");
+
+    // 处理未覆盖的文本
+    if (current_pos < code.length()) {
+        segments.push_back({current_pos, code.length(), theme_.getColors().foreground});
+    }
+
+    ts_tree_delete(tree);
+}
+
 void SyntaxHighlighterTreeSitter::traverseTree(TSNode node, const std::string& source,
                                                std::vector<ftxui::Element>& elements,
-                                               size_t& current_pos) const {
+                                               size_t& current_pos,
+                                               const std::string& parent_type) const {
     uint32_t start_byte = ts_node_start_byte(node);
     uint32_t end_byte = ts_node_end_byte(node);
 
@@ -767,8 +805,8 @@ void SyntaxHighlighterTreeSitter::traverseTree(TSNode node, const std::string& s
     // 获取节点文本
     std::string node_text = getNodeText(node, source);
 
-    // 获取颜色
-    Color node_color = getColorForNodeType(node_type);
+    // 获取颜色（传入父节点类型以识别函数调用中的 identifier）
+    Color node_color = getColorForNodeType(node_type, parent_type);
 
     // 如果是叶子节点，直接添加
     if (ts_node_child_count(node) == 0) {
@@ -779,7 +817,38 @@ void SyntaxHighlighterTreeSitter::traverseTree(TSNode node, const std::string& s
         uint32_t child_count = ts_node_child_count(node);
         for (uint32_t i = 0; i < child_count; ++i) {
             TSNode child = ts_node_child(node, i);
-            traverseTree(child, source, elements, current_pos);
+            traverseTree(child, source, elements, current_pos, node_type);
+        }
+    }
+}
+
+void SyntaxHighlighterTreeSitter::traverseTreeToSegments(TSNode node, const std::string& source,
+                                                         std::vector<HighlightSegment>& segments,
+                                                         size_t& current_pos,
+                                                         const std::string& parent_type) const {
+    uint32_t start_byte = ts_node_start_byte(node);
+    uint32_t end_byte = ts_node_end_byte(node);
+
+    // 处理节点前的文本
+    if (current_pos < start_byte) {
+        segments.push_back(
+            {current_pos, static_cast<size_t>(start_byte), theme_.getColors().foreground});
+        current_pos = start_byte;
+    }
+
+    const char* node_type_cstr = ts_node_type(node);
+    std::string node_type = node_type_cstr ? node_type_cstr : "";
+    Color node_color = getColorForNodeType(node_type, parent_type);
+
+    if (ts_node_child_count(node) == 0) {
+        segments.push_back(
+            {static_cast<size_t>(start_byte), static_cast<size_t>(end_byte), node_color});
+        current_pos = end_byte;
+    } else {
+        uint32_t child_count = ts_node_child_count(node);
+        for (uint32_t i = 0; i < child_count; ++i) {
+            TSNode child = ts_node_child(node, i);
+            traverseTreeToSegments(child, source, segments, current_pos, node_type);
         }
     }
 }
@@ -798,21 +867,43 @@ std::string SyntaxHighlighterTreeSitter::getNodeText(TSNode node, const std::str
     return source.substr(start, end - start);
 }
 
-ftxui::Color SyntaxHighlighterTreeSitter::getColorForNodeType(const std::string& node_type) const {
+ftxui::Color SyntaxHighlighterTreeSitter::getColorForNodeType(
+    const std::string& node_type, const std::string& parent_type) const {
     auto& colors = theme_.getColors();
 
-    // 关键字
+    // 函数调用中的 identifier / qualified_identifier / field_identifier -> 函数色
+    if (parent_type == "call_expression" || parent_type == "call" ||
+        parent_type == "function_call" || parent_type == "method_invocation" ||
+        parent_type == "template_function") {
+        if (node_type == "identifier" || node_type == "qualified_identifier" ||
+            node_type == "field_identifier" || node_type == "scoped_identifier") {
+            return colors.function;
+        }
+    }
+
+    // 关键字（扩展多种 tree-sitter 语法节点类型）
     if (node_type.find("keyword") != std::string::npos || node_type == "if" ||
         node_type == "else" || node_type == "for" || node_type == "while" ||
         node_type == "return" || node_type == "class" || node_type == "function" ||
         node_type == "const" || node_type == "let" || node_type == "var" || node_type == "import" ||
-        node_type == "export") {
+        node_type == "export" || node_type == "try" || node_type == "catch" ||
+        node_type == "throw" || node_type == "new" || node_type == "delete" || node_type == "def" ||
+        node_type == "lambda" || node_type == "async" || node_type == "await" ||
+        node_type == "yield" || node_type == "match" || node_type == "with" || node_type == "as" ||
+        node_type == "in" || node_type == "is" || node_type == "not" || node_type == "and" ||
+        node_type == "or" || node_type == "pass" || node_type == "break" ||
+        node_type == "continue" || node_type == "raise" || node_type == "global" ||
+        node_type == "nonlocal" || node_type == "assert" ||
+        node_type == "storage_class_specifier" || node_type == "type_qualifier" ||
+        node_type.find("_statement") != std::string::npos ||
+        node_type.find("_specifier") != std::string::npos) {
         return colors.keyword;
     }
 
     // 字符串
     if (node_type.find("string") != std::string::npos || node_type == "string_content" ||
-        node_type == "string_literal") {
+        node_type == "string_literal" || node_type == "char_literal" ||
+        node_type == "concatenated_string" || node_type == "raw_string_literal") {
         return colors.string;
     }
 
@@ -823,30 +914,38 @@ ftxui::Color SyntaxHighlighterTreeSitter::getColorForNodeType(const std::string&
 
     // 数字
     if (node_type.find("number") != std::string::npos || node_type == "integer" ||
-        node_type == "float") {
+        node_type == "float" || node_type == "float_literal" || node_type == "integer_literal") {
         return colors.number;
     }
 
-    // 函数
+    // 函数声明/定义
     if (node_type.find("function") != std::string::npos || node_type == "call_expression" ||
-        node_type == "method_invocation") {
+        node_type == "method_invocation" || node_type == "call" ||
+        node_type == "function_declarator" || node_type == "template_function" ||
+        node_type == "template_method") {
         return colors.function;
     }
 
     // 类型
     if (node_type.find("type") != std::string::npos || node_type == "type_identifier" ||
-        node_type == "class_declaration") {
+        node_type == "class_declaration" || node_type == "struct_specifier" ||
+        node_type == "enum_specifier" || node_type == "namespace_identifier" ||
+        node_type == "primitive_type" || node_type == "sized_type_specifier") {
         return colors.type;
     }
 
     // 操作符
     if (node_type.find("operator") != std::string::npos || node_type == "+" || node_type == "-" ||
-        node_type == "*" || node_type == "/" || node_type == "=" || node_type == "==") {
+        node_type == "*" || node_type == "/" || node_type == "=" || node_type == "==" ||
+        node_type == "binary_expression" || node_type == "unary_expression" ||
+        node_type == "assignment_expression" || node_type == "comparison_operator" ||
+        node_type == "boolean_operator" || node_type == "not_operator") {
         return colors.operator_color;
     }
 
-    // 预处理器（使用 keyword 颜色）
-    if (node_type.find("preproc") != std::string::npos || node_type == "preprocessor_directive") {
+    // 预处理器
+    if (node_type.find("preproc") != std::string::npos || node_type == "preprocessor_directive" ||
+        node_type == "preproc_include" || node_type == "preproc_def") {
         return colors.keyword;
     }
 

@@ -52,31 +52,24 @@ std::vector<std::shared_ptr<PackageManagerBase>> PackageManagerRegistry::getAvai
         return cached_available_managers_;
     }
 
-    // 缓存失效，重新计算可用管理器
     std::vector<std::shared_ptr<PackageManagerBase>> result;
     for (const auto& [name, manager] : managers_) {
-        if (!manager) {
+        if (!manager)
             continue;
-        }
 
-        // 检查缓存中是否有该管理器的可用性结果（独立于列表缓存）
         bool is_available = false;
         auto cache_it = cached_availability_.find(name);
         if (cache_it != cached_availability_.end()) {
-            // 使用缓存的结果（可用性缓存永久有效，直到管理器重新注册）
             is_available = cache_it->second;
         } else {
-            // 调用 isAvailable() 并缓存结果
             is_available = manager->isAvailable();
             cached_availability_[name] = is_available;
         }
 
-        if (is_available) {
+        if (is_available)
             result.push_back(manager);
-        }
     }
 
-    // 更新缓存
     cached_available_managers_ = result;
     cache_timestamp_ = now;
 
@@ -90,6 +83,29 @@ void PackageManagerRegistry::clearAllCaches() {
             manager->clearCache();
         }
     }
+}
+
+void PackageManagerRegistry::setRemoteExecutorForAll(PackageManagerBase::RemoteExecutor executor,
+                                                     const std::string& remote_label) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& [name, manager] : managers_) {
+        if (manager)
+            manager->setRemoteExecutor(executor, remote_label);
+    }
+    cached_availability_.clear();
+    cached_available_managers_.clear();
+    cache_timestamp_ = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+}
+
+void PackageManagerRegistry::clearRemoteContextForAll() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& [name, manager] : managers_) {
+        if (manager)
+            manager->clearRemoteContext();
+    }
+    cached_availability_.clear();
+    cached_available_managers_.clear();
+    cache_timestamp_ = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
 }
 
 } // namespace package_manager

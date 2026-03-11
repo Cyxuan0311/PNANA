@@ -43,17 +43,13 @@ class AIConfigDialog {
     // 当前编辑的配置
     pnana::features::ai_config::AIProviderConfig current_config_;
 
-    // UI状态
+    // UI状态（字段顺序：Provider -> API Key -> Base URL -> Model -> Max Tokens -> Temperature）
     int provider_index_;
     int api_key_index_;
     int endpoint_index_;
     int model_index_;
     int max_tokens_index_;
     int temperature_index_;
-
-    // 可用选项
-    std::vector<std::string> available_providers_;
-    std::vector<pnana::features::ai_config::AIModel> available_models_;
 
     // 渲染各个组件
     ftxui::Element renderTitle() const;

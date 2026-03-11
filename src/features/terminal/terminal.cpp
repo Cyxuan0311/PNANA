@@ -80,6 +80,17 @@ Terminal::Terminal(ui::Theme& theme)
     }
 }
 
+Terminal::~Terminal() {
+    // 析构时清空回调，避免输出线程或 Post 的 lambda 使用已析构的 Editor*
+    on_shell_exit_ = nullptr;
+    on_output_added_ = nullptr;
+    output_thread_running_ = false;
+    if (output_thread_.joinable()) {
+        output_thread_.join();
+    }
+    cleanupShell();
+}
+
 void Terminal::setVisible(bool visible) {
     if (visible_ == visible)
         return;
@@ -329,6 +340,9 @@ void Terminal::readPTYOutput(int pty_fd) {
         if (current_pid_ > 0 && !terminal::PTYExecutor::isProcessRunning(current_pid_)) {
             drainAndAdd();
             shell_running_ = false;
+            if (on_shell_exit_) {
+                on_shell_exit_();
+            }
             break;
         }
     }
@@ -346,6 +360,50 @@ void Terminal::cleanupShell() {
     }
     shell_running_ = false;
     current_pid_ = 0;
+}
+
+static std::string escapeSingleQuotes(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if (c == '\'')
+            out += "'\\''";
+        else
+            out += c;
+    }
+    return out;
+}
+
+void Terminal::startSSHSession(const std::string& host, const std::string& user, int port,
+                               const std::string& key_path, const std::string& password) {
+    cleanupShell();
+    int p = (port > 0) ? port : 22;
+    std::string port_opt = (p != 22) ? (" -p " + std::to_string(p)) : "";
+    std::string key_opt = key_path.empty() ? "" : (" -i " + key_path);
+    std::string opts =
+        " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR";
+    std::string target = user + "@" + host;
+    std::string cmd;
+    if (!password.empty()) {
+        cmd = "sshpass -p '" + escapeSingleQuotes(password) + "' ssh -t" + opts + port_opt + " " +
+              target;
+    } else {
+        cmd = "ssh -t" + opts + port_opt + key_opt + " " + target;
+    }
+    terminal::PTYResult result = terminal::PTYExecutor::createPTY(cmd, ".", {});
+    if (!result.success) {
+        addOutputLine("SSH failed: " + result.error);
+        return;
+    }
+    shell_running_ = true;
+    current_pid_ = result.pid;
+    current_pty_fd_ = result.master_fd;
+    current_slave_fd_ = result.slave_fd;
+    startOutputThread(result.master_fd);
+}
+
+void Terminal::restoreLocalShell() {
+    cleanupShell();
+    startShellSession();
 }
 
 ftxui::Element Terminal::render(int /* height */) {

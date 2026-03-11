@@ -26,6 +26,9 @@ SSHResult_C* ConnectAndReadFile(SSHConfig_C* config);
 SSHResult_C* ConnectAndWriteFile(SSHConfig_C* config, const char* content);
 SSHResult_C* UploadFile(SSHConfig_C* config, const char* localPath, const char* remotePath);
 SSHResult_C* DownloadFile(SSHConfig_C* config, const char* remotePath, const char* localPath);
+SSHResult_C* ConnectAndListDir(SSHConfig_C* config);
+SSHResult_C* ConnectAndGetPathType(SSHConfig_C* config);
+SSHResult_C* ConnectAndRunCommand(SSHConfig_C* config, const char* command);
 void FreeSSHResult(SSHResult_C* result);
 
 #ifdef __cplusplus

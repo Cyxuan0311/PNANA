@@ -9,6 +9,11 @@ using namespace pnana::ui::icons;
 namespace pnana {
 namespace ui {
 
+// 诊断项内容区域固定宽度，超出部分换行显示
+constexpr int kDiagnosticContentWidth = 66;
+// 列表可视高度（行数）：每条诊断可能多行，预留足够空间避免底部两项被裁掉
+constexpr int kListVisibleHeight = 24;
+
 DiagnosticsPopup::DiagnosticsPopup(Theme& theme)
     : theme_(theme), selected_index_(0), visible_(false), jump_callback_(nullptr),
       copy_callback_(nullptr) {}
@@ -101,7 +106,9 @@ Element DiagnosticsPopup::render() const {
             renderDiagnosticItem(diagnostics_[i], is_selected, i + 1, diagnostics_.size()));
     }
 
-    content.push_back(vbox(items) | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 12));
+    content.push_back(vbox(items) | vscroll_indicator | frame |
+                      size(HEIGHT, EQUAL, kListVisibleHeight) |
+                      size(WIDTH, EQUAL, kDiagnosticContentWidth));
 
     // 统计信息
     std::string stats = std::to_string(diagnostics_.size()) + " diagnostics";
@@ -115,9 +122,10 @@ Element DiagnosticsPopup::render() const {
 
     Element dialog_content = vbox(content);
 
-    // 使用window样式，参考search_dialog
-    return window(text("Diagnostics"), dialog_content) | size(WIDTH, GREATER_THAN, 70) |
-           size(HEIGHT, GREATER_THAN, 12) | bgcolor(colors.background) |
+    // 使用 window 样式，固定宽度与高度，保证列表区域完整显示且选中高亮可见
+    return window(text("Diagnostics"), dialog_content) |
+           size(WIDTH, EQUAL, kDiagnosticContentWidth + 4) |
+           size(HEIGHT, EQUAL, kListVisibleHeight + 8) | bgcolor(colors.background) |
            color(colors.dialog_border) | border;
 }
 
@@ -160,23 +168,28 @@ Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic
     std::string severity_str =
         getSeverityString(static_cast<pnana::features::DiagnosticSeverity>(diagnostic.severity));
 
-    // 限制消息长度
+    // 第一行：序号 + 图标 + 严重程度 + 位置
+    std::string prefix = index_prefix + severity_icon + " " + severity_str + " " + location;
+    // 消息部分：固定宽度内用 paragraph 换行显示，不再截断
     std::string message = diagnostic.message;
-    if (message.length() > 80) {
-        message = message.substr(0, 77) + "...";
-    }
 
-    std::string full_text =
-        index_prefix + severity_icon + " " + severity_str + " " + location + message;
-
-    // 应用样式
-    Element element = text(full_text);
+    Element prefix_el = text(prefix);
+    Element message_el = paragraph(message);
     if (is_selected) {
-        element = element | bgcolor(theme_.getColors().current_line) |
-                  color(theme_.getColors().foreground);
+        prefix_el = prefix_el | bgcolor(theme_.getColors().current_line) |
+                    color(theme_.getColors().foreground);
+        message_el = message_el | bgcolor(theme_.getColors().current_line) |
+                     color(theme_.getColors().foreground);
     } else {
-        element = element | color(severity_color);
+        prefix_el = prefix_el | color(severity_color);
+        message_el = message_el | color(severity_color);
     }
+
+    Element element = vbox({
+                          prefix_el,
+                          message_el,
+                      }) |
+                      size(WIDTH, EQUAL, kDiagnosticContentWidth);
 
     return element;
 }

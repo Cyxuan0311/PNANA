@@ -468,12 +468,9 @@ void Editor::gotoLine(size_t line) {
 }
 
 void Editor::startGotoLineMode() {
-    LOG("=== startGotoLineMode() called ===");
-
     // 检查是否有当前文档
     if (getCurrentDocument() == nullptr) {
         setStatusMessage("No document open");
-        LOG("No document open, cannot goto line");
         return;
     }
 
@@ -503,9 +500,6 @@ void Editor::startGotoLineMode() {
         [this]() {
             setStatusMessage("Goto line cancelled");
         });
-
-    LOG("Goto line dialog shown");
-    LOG("=== startGotoLineMode() completed ===");
 }
 
 // 辅助方法

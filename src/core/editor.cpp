@@ -15,16 +15,20 @@
 #include "features/package_manager/yum_manager.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
+#include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
 #include "plugins/plugin_manager.h"
 #endif
 #ifdef BUILD_AI_CLIENT_SUPPORT
 #include "features/ai_client/ai_client.h"
+#include "features/ai_client/assistant_system_prompt.h"
+#include "features/ai_config/ai_config.h"
 #endif
 #include "features/md_render/markdown_renderer.h"
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -46,14 +50,14 @@ Editor::Editor()
       overlay_manager_(std::make_unique<pnana::core::OverlayManager>()), theme_(),
       statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
       file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
-      ssh_transfer_dialog_(theme_), welcome_screen_(theme_), split_welcome_screen_(theme_),
-      new_file_prompt_(theme_), theme_menu_(theme_), create_folder_dialog_(theme_),
-      save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
-      binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
-      recent_files_popup_(theme_), fzf_popup_(theme_), tui_config_popup_(theme_),
-      extract_dialog_(theme_), extract_path_dialog_(theme_), extract_progress_dialog_(theme_),
-      ai_assistant_panel_(theme_), ai_config_dialog_(theme_), todo_panel_(theme_),
-      package_manager_panel_(theme_),
+      ssh_transfer_dialog_(theme_), welcome_screen_(theme_, config_manager_),
+      split_welcome_screen_(theme_), new_file_prompt_(theme_), theme_menu_(theme_),
+      create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
+      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
+      format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
+      tui_config_popup_(theme_), extract_dialog_(theme_), extract_path_dialog_(theme_),
+      extract_progress_dialog_(theme_), ai_assistant_panel_(theme_), ai_config_dialog_(theme_),
+      todo_panel_(theme_), package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -66,16 +70,16 @@ Editor::Editor()
       syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
       split_view_manager_(), diagnostics_popup_(theme_),
 #ifdef BUILD_LSP_SUPPORT
-      symbol_navigation_popup_(theme_),
+      symbol_navigation_popup_(theme_), lsp_status_popup_(theme_),
 #endif
       mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
       view_offset_col_(0), show_theme_menu_(false), show_help_(false), show_create_folder_(false),
       show_save_as_(false), show_move_file_(false), show_extract_dialog_(false),
       show_extract_path_dialog_(false), show_extract_progress_dialog_(false),
       selection_active_(false), selection_start_row_(0), selection_start_col_(0),
-      show_line_numbers_(true), relative_line_numbers_(false), syntax_highlighting_(true),
-      zoom_level_(0), file_browser_width_(35), // 默认宽度35列
-      terminal_height_(0),                     // 0 表示使用默认值（屏幕高度的1/3）
+      show_line_numbers_(true), relative_line_numbers_(false), show_helpbar_(true),
+      syntax_highlighting_(true), zoom_level_(0), file_browser_width_(35), // 默认宽度35列
+      terminal_height_(0), // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""), search_input_(""), replace_input_(""), search_cursor_pos_(0),
       replace_cursor_pos_(0), current_search_match_(0), total_search_matches_(0),
       current_option_index_(0), search_options_{false, false, false, false},
@@ -142,6 +146,9 @@ Editor::Editor()
             screen_.PostEvent(Event::Custom);
         });
     });
+    fzf_popup_.setOnRemoteLoad([this](const std::string& ssh_uri) {
+        onFzfRemoteLoad(ssh_uri);
+    });
 
     // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
     // 必须设置 force_ui_update_=true，否则 renderUI 的渲染去抖可能跳过重绘，导致新输出不显示
@@ -150,6 +157,21 @@ Editor::Editor()
             force_ui_update_ = true;
             needs_render_ = true; // 防止 force 被鼠标等事件提前消费后无法重绘
             screen_.PostEvent(Event::Custom);
+        });
+    });
+
+    // 用户输入 exit 导致 shell 退出时，关闭终端面板并切回代码区
+    terminal_.setOnShellExit([this]() {
+        screen_.Post([this]() {
+            if (!terminal_.isVisible()) {
+                return;
+            }
+            terminal_.setVisible(false);
+            region_manager_.setTerminalEnabled(false);
+            if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                region_manager_.setRegion(EditorRegion::CODE_AREA);
+            }
+            setStatusMessage("Terminal closed (shell exited)");
         });
     });
 
@@ -165,14 +187,25 @@ Editor::Editor()
                 return;
             }
 
+            // 切换文档时更新语法高亮，避免沿用上一个文件的语法规则
+            syntax_highlighter_.setFileType(getFileType());
+
             std::string filepath = new_doc->getFilePath();
 
             if (filepath.empty()) {
+#ifdef BUILD_LSP_SUPPORT
+                updateCurrentFileDiagnostics();
+                updateCurrentFileFolding();
+#endif
                 needs_render_ = true;
                 last_render_source_ = "document_switch";
                 return;
             }
 
+#ifdef BUILD_LSP_SUPPORT
+            // 先同步 LSP 文档并可能替换 folding_manager_（切换不同语言时需对应 client）
+            updateLspDocument(/* force_sync */ true);
+#endif
             updateCurrentFileDiagnostics();
             updateCurrentFileFolding();
             preloadAdjacentDocuments(new_index);
@@ -296,6 +329,17 @@ void Editor::run() {
                                      handleInput(event);
                                      return true;
                                  });
+    // 禁止 FTXUI 对 Ctrl+C / Ctrl+Z 的内置强制处理。
+    // FTXUI 默认 force_handle_ctrl_c_ = true / force_handle_ctrl_z_ = true，
+    // 这意味着即使 CatchEvent 返回 true（事件已被消费），FTXUI 仍会：
+    //   Ctrl+C → 调用 ExitLoopClosure() 退出事件循环
+    //   Ctrl+Z → 内部调用 raise(SIGTSTP) 挂起进程
+    // 设为 false 后，事件完全交由编辑器自身的 handleInput() 处理：
+    //   Ctrl+C → 编辑器的复制/撤销逻辑
+    //   Ctrl+Z → 编辑器的撤销逻辑
+    screen_.ForceHandleCtrlC(false);
+    screen_.ForceHandleCtrlZ(false);
+
     // Post a Custom event so ftxui performs an initial render immediately
     // (ensures renderUI() runs once even if incremental-render logic would skip it)
     screen_.PostEvent(Event::Custom);
@@ -411,6 +455,7 @@ void Editor::loadConfig(const std::string& config_path) {
     // 应用 display 配置
     show_line_numbers_ = config.display.show_line_numbers;
     relative_line_numbers_ = config.display.relative_line_numbers;
+    show_helpbar_ = config.display.show_helpbar;
 
     // 应用 search 配置（默认搜索选项）
     search_options_[0] = config.search.case_sensitive;
@@ -445,6 +490,13 @@ void Editor::loadConfig(const std::string& config_path) {
     cursor_config_dialog_.setOnApply([this]() {
         applyCursorConfig();
     });
+
+#ifdef BUILD_LSP_SUPPORT
+    // 重新加载 LSP 服务器配置
+    if (lsp_manager_) {
+        lsp_manager_->getConfigManager().loadFromConfig(config.lsp);
+    }
+#endif
 }
 
 void Editor::openCursorConfig() {
@@ -551,6 +603,7 @@ void Editor::toggleThemeMenu() {
     show_theme_menu_ = !show_theme_menu_;
 
     if (show_theme_menu_) {
+        theme_menu_.onMenuOpened(); // 保存当前主题，Escape 时恢复；选中仅预览，Enter 才确认
         // 找到当前主题的索引
         std::string current = theme_.getCurrentThemeName();
         const auto& themes = theme_menu_.getAvailableThemes();
@@ -560,7 +613,7 @@ void Editor::toggleThemeMenu() {
                 break;
             }
         }
-        setStatusMessage("Select theme with ↑↓ and press Enter");
+        setStatusMessage("↑↓: Preview theme  Enter: Apply  Esc: Cancel");
     }
 }
 
@@ -878,11 +931,24 @@ void Editor::openCommandPalette() {
 void Editor::toggleAIAssistant() {
     if (ai_assistant_panel_.isVisible()) {
         ai_assistant_panel_.hide();
+        region_manager_.setAiPanelEnabled(false);
+        if (region_manager_.getCurrentRegion() == EditorRegion::AI_ASSISTANT_PANEL) {
+            region_manager_.setRegion(EditorRegion::CODE_AREA);
+        }
         setStatusMessage("AI Assistant closed");
     } else {
         ai_assistant_panel_.show();
-        setStatusMessage("AI Assistant opened - Type your message and press Enter");
+        region_manager_.setAiPanelEnabled(true);
+        setStatusMessage("AI Assistant opened - ←→↑↓: Switch panel | Type and Enter to send");
     }
+}
+
+bool Editor::isAIAssistantVisible() const {
+    return ai_assistant_panel_.isVisible();
+}
+
+ftxui::Element Editor::renderAIAssistantPanel() {
+    return ai_assistant_panel_.render();
 }
 
 void Editor::toggleTodoPanel() {
@@ -927,6 +993,9 @@ void Editor::initializeAIAssistant() {
     ai_assistant_panel_.setOnSendMessage([this](const std::string& message) {
         handleAIMessage(message);
     });
+    ai_config_dialog_.on_save_ = []() {
+        pnana::features::ai_client::AIClientManager::getInstance().refreshFromConfig();
+    };
 #endif
 
     ai_assistant_panel_.setOnInsertCode([this](const std::string& code) {
@@ -984,6 +1053,30 @@ void Editor::handleFzfPopupInput(Event event) {
         }
     }
 }
+
+#ifdef BUILD_LSP_SUPPORT
+void Editor::openLspStatusPopup() {
+    if (!lsp_manager_)
+        return;
+    lsp_status_popup_.setStatusProvider([this]() {
+        return lsp_manager_->getStatusSnapshot();
+    });
+    lsp_status_popup_.setPidProvider([this](const std::string& lang_id) {
+        return lsp_manager_->getServerPid(lang_id);
+    });
+    lsp_status_popup_.open();
+    setStatusMessage("LSP Status — ↑↓ Select  Esc Close");
+}
+
+void Editor::handleLspStatusPopupInput(Event event) {
+    if (lsp_status_popup_.handleInput(event)) {
+        if (!lsp_status_popup_.isOpen()) {
+            setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
+                             "Ctrl+O Files | F1 Help");
+        }
+    }
+}
+#endif
 
 void Editor::openExtractDialog() {
     std::string current_dir = file_browser_.getCurrentDirectory();
@@ -1101,42 +1194,48 @@ void Editor::openTUIConfigDialog() {
 void Editor::handleAIMessage(const std::string& message) {
     using namespace pnana::features::ai_client;
 
-    // 创建AI请求
+    auto& manager = AIClientManager::getInstance();
+    manager.refreshFromConfig();
+    auto client = manager.getCurrentClient();
+    if (!client) {
+        ai_assistant_panel_.addErrorMessage(
+            "AI provider not configured or model unavailable. Please configure AI provider and API "
+            "Key in settings.");
+        return;
+    }
+
+    auto current_config = pnana::features::ai_config::AIConfig::getInstance().getCurrentConfig();
+
     AIRequest request;
     request.prompt = message;
-    request.system_message = R"(
-You are an AI programming assistant with access to various tools. You can:
+    request.system_message = getAssistantSystemPrompt();
+    request.max_tokens = current_config.max_tokens;
+    request.temperature = current_config.temperature;
+    request.enable_tool_calling = true;
+    request.tools = ai_assistant_panel_.getToolDefinitions();
 
-1. Read files using the read_file tool
-2. Search for patterns in code using grep_search
-3. Run terminal commands using run_terminal_command
-4. List directory contents using list_directory
-5. Analyze code for issues using analyze_code
-
-When the user asks you to perform actions on their codebase, use the appropriate tools to gather information before providing your response. Be helpful, accurate, and provide actionable suggestions.
-
-Available tools:
-- read_file: Read file contents
-- grep_search: Search for text patterns
-- run_terminal_command: Execute terminal commands
-- list_directory: List directory contents
-- analyze_code: Analyze code for issues
-)";
-    request.max_tokens = 4096; // 增加token限制以支持工具调用
-    request.temperature = 0.7f;
-    request.enable_tool_calling = true;                       // 启用工具调用
-    request.tools = ai_assistant_panel_.getToolDefinitions(); // 添加工具定义
-
-    // 构建更丰富的上下文信息
     buildEnhancedContext(request);
 
-    // 设置工具调用回调
-    AIClientManager& manager = AIClientManager::getInstance();
     manager.setToolCallCallback([this](const ToolCall& tool_call) -> ToolCallResult {
-        return ai_assistant_panel_.executeToolCall(tool_call);
+        ai_assistant_panel_.addToolCall(tool_call);
+        auto result = ai_assistant_panel_.executeToolCall(tool_call);
+        if (result.success) {
+            std::string summary = std::string(pnana::ui::icons::CHECK_CIRCLE) + " Tool '" +
+                                  tool_call.function_name + "' completed";
+            if (result.result.contains("output")) {
+                std::string output = result.result["output"];
+                summary += " (output: " + std::to_string(output.length()) + " chars)";
+            }
+            setStatusMessage(summary);
+        } else {
+            setStatusMessage(std::string(pnana::ui::icons::EXCLAMATION_CIRCLE) + " Tool '" +
+                             tool_call.function_name + "' failed: " + result.error_message);
+        }
+        return result;
     });
 
-    // 发送请求
+    ai_assistant_panel_.startStreamingResponse(current_config.model);
+
     std::string accumulated_response;
     manager.sendStreamingRequest(request, [this, &accumulated_response, message](
                                               const std::string& chunk, bool is_finished) {
@@ -1146,34 +1245,8 @@ Available tools:
         }
         if (is_finished) {
             ai_assistant_panel_.finishStreamingResponse();
-            // 添加到对话历史
             ai_assistant_panel_.addToConversationHistory(message, accumulated_response);
         }
-    });
-
-    // 设置工具调用回调以显示工具使用状态
-    manager.setToolCallCallback([this](const pnana::features::ai_client::ToolCall& tool_call)
-                                    -> pnana::features::ai_client::ToolCallResult {
-        // 显示工具调用状态
-        ai_assistant_panel_.addToolCall(tool_call);
-
-        // 执行工具调用
-        auto result = ai_assistant_panel_.executeToolCall(tool_call);
-
-        // 在UI中显示工具调用结果摘要
-        if (result.success) {
-            std::string summary = "✅ Tool '" + tool_call.function_name + "' completed";
-            if (result.result.contains("output")) {
-                std::string output = result.result["output"];
-                summary += " (output: " + std::to_string(output.length()) + " chars)";
-            }
-            setStatusMessage(summary);
-        } else {
-            setStatusMessage("❌ Tool '" + tool_call.function_name +
-                             "' failed: " + result.error_message);
-        }
-
-        return result;
     });
 }
 #endif // BUILD_AI_CLIENT_SUPPORT
@@ -1256,67 +1329,103 @@ std::string Editor::getSelectedText() const {
     return result;
 }
 
-// 构建增强的上下文信息
+// 构建增强的上下文信息（含上下文压缩与 token 优化）
 #ifdef BUILD_AI_CLIENT_SUPPORT
-void Editor::buildEnhancedContext(pnana::features::ai_client::AIRequest& request) const {
-    // 添加项目基本信息
-    request.context.push_back("Project root directory: " +
-                              std::filesystem::current_path().string());
+namespace {
+constexpr size_t kContextBudgetChars = 16000;  // ~4k tokens 启发式
+constexpr size_t kCurrentFileMaxChars = 6000;  // 当前文件超长时启用 head+cursor+tail
+constexpr size_t kConversationMaxChars = 2000; // 对话历史摘要最大长度
+constexpr int kLinesNearCursor = 25;           // 光标附近保留行数
+constexpr int kHeadLines = 60;                 // 文件开头保留行数
+constexpr int kTailLines = 40;                 // 文件末尾保留行数
+} // namespace
 
-    // 添加对话历史上下文
-    std::string conversation_summary = ai_assistant_panel_.getConversationSummary();
-    if (!conversation_summary.empty() && conversation_summary != "No previous conversation.") {
-        request.context.push_back("Conversation history:\n" + conversation_summary);
+void Editor::buildEnhancedContext(pnana::features::ai_client::AIRequest& request) const {
+    request.context.clear();
+    size_t used = 0;
+    auto add = [&](const std::string& s, size_t max_len = 0) {
+        std::string out = s;
+        if (max_len > 0 && out.size() > max_len) {
+            out = out.substr(0, max_len) + "\n... [truncated for context limit]";
+        }
+        if (used + out.size() > kContextBudgetChars)
+            return;
+        request.context.push_back(out);
+        used += out.size();
+    };
+
+    // 1. 光标/选区位置（必带，体积小）
+    add("Cursor position: line " + std::to_string(cursor_row_ + 1) + ", column " +
+        std::to_string(cursor_col_ + 1));
+    std::string selected_code = getSelectedText();
+    if (selection_active_) {
+        add("Selection range: lines " +
+            std::to_string(std::min(selection_start_row_, cursor_row_) + 1) + " to " +
+            std::to_string(std::max(selection_start_row_, cursor_row_) + 1));
     }
 
-    // 添加当前文件信息
+    // 2. 当前文件元信息与内容（压缩：超长用 head + cursor 附近 + tail）
     const Document* doc = getCurrentDocument();
     if (doc && !doc->getFilePath().empty()) {
-        request.context.push_back("Current file: " + doc->getFilePath());
-        request.context.push_back("File extension: " + doc->getFileExtension());
-        request.context.push_back("File size: " + std::to_string(doc->getContent().size()) +
-                                  " characters");
+        add("Current file: " + doc->getFilePath());
+        add("File extension: " + doc->getFileExtension());
+        add("Detected file type: " +
+            utils::FileTypeDetector::detectFileType(doc->getFileName(), doc->getFileExtension()));
 
-        // 添加文件类型检测
-        std::string file_type =
-            utils::FileTypeDetector::detectFileType(doc->getFileName(), doc->getFileExtension());
-        request.context.push_back("Detected file type: " + file_type);
-
-        // 添加当前文件内容（限制大小）
         if (!doc->getContent().empty()) {
             std::string content = doc->getContent();
-            if (content.size() > 8000) { // 限制上下文大小
-                content = content.substr(0, 8000) + "\n... [content truncated]";
+            if (content.size() > kCurrentFileMaxChars) {
+                std::vector<std::string> lines;
+                std::istringstream iss(content);
+                for (std::string line; std::getline(iss, line);)
+                    lines.push_back(line);
+                const int total_lines = static_cast<int>(lines.size());
+                int cur = static_cast<int>(cursor_row_);
+                int start_near = std::max(0, cur - kLinesNearCursor / 2);
+                int end_near = std::min(total_lines, start_near + kLinesNearCursor);
+                std::string compressed;
+                for (int i = 0; i < std::min(kHeadLines, total_lines); ++i) {
+                    if (i)
+                        compressed += "\n";
+                    compressed += lines[i];
+                }
+                if (total_lines > kHeadLines) {
+                    int omitted1 = std::max(0, start_near - kHeadLines);
+                    compressed += "\n... [omitted " + std::to_string(omitted1) + " lines] ...\n";
+                    for (int i = start_near; i < end_near && i < total_lines; ++i)
+                        compressed += lines[i] + "\n";
+                    int tail_start = std::max(0, total_lines - kTailLines);
+                    if (end_near < tail_start) {
+                        int omitted2 = std::max(0, tail_start - end_near);
+                        compressed += "... [omitted " + std::to_string(omitted2) + " lines] ...\n";
+                        for (int i = tail_start; i < total_lines; ++i)
+                            compressed += lines[i] + "\n";
+                    }
+                }
+                add("Current file content:\n" + compressed);
+            } else {
+                add("Current file content:\n" + content);
             }
-            request.context.push_back("Current file content:\n" + content);
         }
     }
 
-    // 添加选中的代码作为上下文
-    std::string selected_code = getSelectedText();
-    if (!selected_code.empty()) {
-        request.context.push_back("Selected code:\n" + selected_code);
+    // 3. 选中代码
+    if (!selected_code.empty())
+        add("Selected code:\n" + selected_code);
 
-        // 添加选择位置信息
-        if (selection_active_) {
-            request.context.push_back(
-                "Selection range: lines " +
-                std::to_string(std::min(selection_start_row_, cursor_row_) + 1) + " to " +
-                std::to_string(std::max(selection_start_row_, cursor_row_) + 1));
-        }
-    }
+    // 4. 对话历史摘要（仅保留最近，限制长度）
+    std::string conversation_summary = ai_assistant_panel_.getConversationSummary();
+    if (!conversation_summary.empty() && conversation_summary != "No previous conversation.")
+        add("Conversation history:\n" + conversation_summary, kConversationMaxChars);
 
-    // 添加光标位置信息
-    request.context.push_back("Cursor position: line " + std::to_string(cursor_row_ + 1) +
-                              ", column " + std::to_string(cursor_col_ + 1));
-
-    // 添加项目结构概览
+    // 5. 项目结构概览（紧凑）
+    add("Project root directory: " + std::filesystem::current_path().string());
     addProjectStructureContext(request);
 
-    // 添加最近文件信息
+    // 6. 最近文件（仅路径列表）
     addRecentFilesContext(request);
 
-    // 添加当前会话状态
+    // 7. 会话状态
     addSessionStateContext(request);
 }
 #endif // BUILD_AI_CLIENT_SUPPORT
@@ -1848,9 +1957,20 @@ void Editor::handleDeleteFile() {
 }
 
 void Editor::openFilePicker() {
-    // 获取当前文件所在目录，如果没有则使用当前工作目录
+    // 与文件列表路径一致：若文件浏览器可见则使用其当前目录，否则使用当前文档所在目录或 cwd
     std::string start_path = ".";
-    if (getCurrentDocument() && !getCurrentDocument()->getFileName().empty()) {
+    if (file_browser_.isVisible()) {
+        std::string dir = file_browser_.getCurrentDirectory();
+        if (!dir.empty()) {
+            if (dir.size() > 6 && dir.compare(0, 6, "ssh://") == 0) {
+                // 远程模式：取 ssh://host 后的路径部分给 file picker
+                size_t path_start = dir.find('/', 6);
+                start_path = (path_start != std::string::npos) ? dir.substr(path_start) : "/";
+            } else {
+                start_path = dir;
+            }
+        }
+    } else if (getCurrentDocument() && !getCurrentDocument()->getFileName().empty()) {
         try {
             std::filesystem::path file_path = getCurrentDocument()->getFileName();
             if (std::filesystem::exists(file_path)) {
@@ -2325,6 +2445,17 @@ void Editor::focusLeftRegion() {
     setStatusMessage("Focus left region");
 
     // 强制UI更新，确保标签栏立即刷新显示当前分屏的文档
+    force_ui_update_ = true;
+}
+
+void Editor::focusTabBar() {
+    if (!region_manager_.isTabAreaEnabled()) {
+        setStatusMessage("Tab bar: open more than one file to focus");
+        return;
+    }
+    region_manager_.setTabIndex(static_cast<int>(document_manager_.getCurrentIndex()));
+    region_manager_.setRegion(EditorRegion::TAB_AREA);
+    setStatusMessage("Region: " + region_manager_.getRegionName());
     force_ui_update_ = true;
 }
 

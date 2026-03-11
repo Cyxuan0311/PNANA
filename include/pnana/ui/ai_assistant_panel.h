@@ -136,8 +136,10 @@ class AIAssistantPanel {
     bool visible_;
     std::vector<ChatMessage> messages_;
     std::string current_input_;
+    size_t cursor_pos_; // 光标位置
     int selected_message_index_;
-    int scroll_offset_;
+    int scroll_offset_;         // 顶部跳过行数（按行滚动，不再按消息条数）
+    int estimated_total_lines_; // 消息区预估总行数，用于限制滚动范围
     bool is_streaming_;
     std::string current_streaming_model_;
 
@@ -145,6 +147,7 @@ class AIAssistantPanel {
     enum class FocusArea { MESSAGES, BUTTONS, INPUT };
     FocusArea current_focus_;
     int selected_button_index_; // 当前选中的按钮索引
+    int panel_width_;           // 侧边栏宽度（列数）
 #ifdef BUILD_AI_CLIENT_SUPPORT
     std::vector<pnana::features::ai_client::ToolCall> current_tool_calls_;
 #else
@@ -159,6 +162,9 @@ class AIAssistantPanel {
 
     // 最大显示消息数
     static constexpr size_t MAX_VISIBLE_MESSAGES = 50;
+    // 按行滚动：一页行数、消息区可见行数（用于计算最大滚动）
+    static constexpr int SCROLL_PAGE_LINES = 15;
+    static constexpr int MESSAGE_VIEWPORT_LINES = 25;
 
     // 回调函数
     std::function<void(const std::string&)> on_send_message_;

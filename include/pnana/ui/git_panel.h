@@ -56,6 +56,13 @@ class GitPanel {
     void onShow();
     void onHide();
 
+    // SSH 远程支持
+    void setRemoteExecutor(vgit::GitManager::RemoteExecutor executor, const std::string& label,
+                           const std::string& remote_path);
+    void clearRemoteContext(const std::string& local_path = ".");
+    bool isRemote() const;
+    const std::string& getRemoteLabel() const;
+
     // Data management
     void refreshData();
     void performClone();
@@ -133,6 +140,9 @@ class GitPanel {
     std::chrono::steady_clock::time_point last_branch_update_;
     std::chrono::milliseconds branch_cache_timeout_{15000}; // 15 seconds for branch info
 
+    // Graph loading state
+    bool graph_loading_ = false; // true when more graph commits are being fetched
+
     GitBranchStatus cached_branch_status_;
     std::chrono::steady_clock::time_point last_branch_status_update_;
     std::chrono::milliseconds branch_status_cache_timeout_{10000}; // 10 seconds for branch status
@@ -175,8 +185,8 @@ class GitPanel {
     ftxui::Element renderFileItem(const GitFile& file, size_t index, bool is_selected,
                                   bool is_highlighted);
     ftxui::Element renderBranchItem(const GitBranch& branch, size_t index, bool is_selected);
-    ftxui::Element renderGraphCommitItem(const GitCommit& commit, size_t index,
-                                         bool is_highlighted);
+    ftxui::Element renderGraphCommitItem(const GitCommit& commit, size_t index, bool is_highlighted,
+                                         const std::string& prefix);
     ftxui::Element renderFooter();
     ftxui::Element renderError();
     ftxui::Element separatorLight();

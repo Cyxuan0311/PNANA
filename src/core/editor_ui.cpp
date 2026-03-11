@@ -1,5 +1,6 @@
 // UI渲染相关实现
 #include "core/editor.h"
+#include "core/ui/border_manager.h"
 #include "core/ui/ui_router.h"
 #include "features/cursor/cursor_renderer.h"
 #include "ui/binary_file_view.h"
@@ -69,6 +70,22 @@ static void updateGitInfo() {
     // 异步更新git信息（非阻塞）
     updateGitInfoAsync();
 }
+
+// 将制表符按 tab_size 展开为空格，用于正确显示缩进（如 Go 等用 tab 缩进的文件）
+static std::string expandTabsForDisplay(const std::string& s, int tab_size) {
+    if (tab_size <= 0)
+        tab_size = 4;
+    std::string out;
+    out.reserve(s.size() * 2); // 粗略预留
+    for (char c : s) {
+        if (c == '\t')
+            out.append(static_cast<size_t>(tab_size), ' ');
+        else
+            out.push_back(c);
+    }
+    return out;
+}
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -83,6 +100,16 @@ using namespace ftxui;
 
 namespace pnana {
 namespace core {
+
+// 根据文档最大行号计算行号区域所需字符宽度（至少 2 格便于对齐）
+static size_t getLineNumberWidthForLineCount(size_t line_count) {
+    if (line_count == 0)
+        return 2;
+    size_t digits = 0;
+    for (size_t n = line_count; n > 0; n /= 10)
+        digits++;
+    return digits < 2 ? 2 : digits;
+}
 
 // UI渲染
 Element Editor::renderUI() {
@@ -151,12 +178,9 @@ Element Editor::renderUI() {
     }
 
     // 使用 UIRouter 进行渲染（如果已初始化）
-    // 注意：目前 UIRouter 只处理基本的布局和边框，对话框等仍使用原有逻辑
+    // UIRouter::render() 内部已调用 overlayDialogs，无需再叠加一次，否则会导致 AI 面板等被渲染两次
     if (ui_router_) {
-        Element main_ui = ui_router_->render(this);
-
-        // 叠加对话框（如果打开）- 这部分仍使用原有逻辑
-        last_rendered_element_ = overlayDialogs(main_ui);
+        last_rendered_element_ = ui_router_->render(this);
         return last_rendered_element_;
     }
 
@@ -191,7 +215,8 @@ Element Editor::renderUILegacy() {
         main_content = editor_content;
     }
 
-    auto main_ui = vbox({renderTabbar(), separator(), main_content, renderStatusbar(),
+    // 主内容区使用 flex，避免终端高度变化时状态栏位置上下移动
+    auto main_ui = vbox({renderTabbar(), separator(), main_content | flex, renderStatusbar(),
                          renderInputBox(), renderHelpbar()}) |
                    bgcolor(theme_.getColors().background);
 
@@ -236,7 +261,10 @@ Element Editor::overlayDialogs(Element main_ui) {
         return ai_config_dialog_.render();
     });
     overlay_manager_->setRenderAIAssistantCallback([this]() {
-        return ai_assistant_panel_.render();
+        ftxui::Element el = ai_assistant_panel_.render();
+        bool ai_active = (region_manager_.getCurrentRegion() == EditorRegion::AI_ASSISTANT_PANEL);
+        core::ui::BorderManager bm;
+        return bm.applyBorder(el, EditorRegion::AI_ASSISTANT_PANEL, ai_active, theme_);
     });
     overlay_manager_->setRenderCommandPaletteCallback([this]() {
         return renderCommandPalette();
@@ -289,9 +317,18 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setIsFzfPopupVisibleCallback([this]() {
         return fzf_popup_.isOpen();
     });
+#ifdef BUILD_LSP_SUPPORT
+    overlay_manager_->setRenderLspStatusPopupCallback([this]() {
+        return lsp_status_popup_.render();
+    });
+    overlay_manager_->setIsLspStatusPopupVisibleCallback([this]() {
+        return lsp_status_popup_.isOpen();
+    });
+#endif
     overlay_manager_->setRenderTUIConfigCallback([this]() {
-        auto available_configs = tui_config_manager_.getAvailableTUIConfigs();
-        tui_config_popup_.setData(tui_config_popup_.isOpen(), available_configs,
+        // 仅打开时用已有列表，避免每次渲染都拉取（SSH 下会数百次远程调用导致卡顿）
+        const auto& configs = tui_config_popup_.getCurrentConfigs();
+        tui_config_popup_.setData(tui_config_popup_.isOpen(), configs,
                                   tui_config_popup_.getSelectedIndex());
         return tui_config_popup_.render();
     });
@@ -565,6 +602,11 @@ Element Editor::renderEditor() {
     // 计算实际显示的行数范围
     size_t max_lines = std::min(view_offset_row_ + screen_height, total_visible_lines);
 
+    // 行号区域宽度（根据文档总行数动态计算）
+    const size_t line_num_width = getLineNumberWidthForLineCount(doc->lineCount());
+    const std::string empty_line_placeholder =
+        show_line_numbers_ ? (std::string(line_num_width + 1, ' ') + "~") : "~";
+
     // 渲染可见行
     // 限制渲染的行数，避免大文件卡住
     const size_t MAX_RENDER_LINES = 200; // 最多渲染200行
@@ -595,7 +637,8 @@ Element Editor::renderEditor() {
                 // 如果渲染某一行失败，使用空行替代
                 Elements error_line;
                 if (show_line_numbers_) {
-                    error_line.push_back(text("    ~") | color(theme_.getColors().comment));
+                    error_line.push_back(text(empty_line_placeholder) |
+                                         color(theme_.getColors().comment));
                 } else {
                     error_line.push_back(text("~") | color(theme_.getColors().comment));
                 }
@@ -604,7 +647,8 @@ Element Editor::renderEditor() {
                 // 如果渲染某一行失败，使用空行替代
                 Elements error_line;
                 if (show_line_numbers_) {
-                    error_line.push_back(text("    ~") | color(theme_.getColors().comment));
+                    error_line.push_back(text(empty_line_placeholder) |
+                                         color(theme_.getColors().comment));
                 } else {
                     error_line.push_back(text("~") | color(theme_.getColors().comment));
                 }
@@ -622,7 +666,7 @@ Element Editor::renderEditor() {
     for (int i = lines.size(); i < screen_height; ++i) {
         Elements empty_line;
         if (show_line_numbers_) {
-            empty_line.push_back(text("    ~") | color(theme_.getColors().comment));
+            empty_line.push_back(text(empty_line_placeholder) | color(theme_.getColors().comment));
         } else {
             empty_line.push_back(text("~") | color(theme_.getColors().comment));
         }
@@ -659,9 +703,10 @@ Element Editor::renderSplitEditor() {
         return renderEditorRegion(region, doc, region_index);
     };
 
-    ftxui::Element result =
-        split_view_manager_.renderSplitEditor(get_document, switch_document, get_document_count,
-                                              render_region, screen_width, screen_height);
+    const auto& tc = theme_.getColors();
+    ftxui::Element result = split_view_manager_.renderSplitEditor(
+        get_document, switch_document, get_document_count, render_region, screen_width,
+        screen_height, tc.dialog_border, tc.line_number_current);
 
     // 如果渲染结果为空（表示单区域尺寸无效），重置分屏管理器并回退
     if (result == ftxui::text("")) {
@@ -706,13 +751,18 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     size_t total_visible_lines = visible_lines.size();
     int region_height = region.height;
 
-    // 获取该区域的状态
-    size_t region_cursor_row = cursor_row_;
-    size_t region_view_offset_row = view_offset_row_;
-
-    if (region_index < region_states_.size()) {
+    // 获取该区域的状态：激活区域用全局光标/视口（实时），非激活区域用各自保存的状态
+    size_t region_cursor_row;
+    size_t region_view_offset_row;
+    if (region.is_active) {
+        region_cursor_row = cursor_row_;
+        region_view_offset_row = view_offset_row_;
+    } else if (region_index < region_states_.size()) {
         region_cursor_row = region_states_[region_index].cursor_row;
         region_view_offset_row = region_states_[region_index].view_offset_row;
+    } else {
+        region_cursor_row = 0;
+        region_view_offset_row = 0;
     }
 
     // 使用区域特定的视图偏移
@@ -736,11 +786,15 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
                                    region_word_highlight_active, region_word_matches));
     }
 
-    // 填充空行
+    // 填充空行（行号宽度与文档总行数一致）
+    const size_t region_line_num_width = getLineNumberWidthForLineCount(doc->lineCount());
+    const std::string region_empty_placeholder =
+        show_line_numbers_ ? (std::string(region_line_num_width + 1, ' ') + "~") : "~";
     for (int i = lines.size(); i < region_height; ++i) {
         Elements empty_line;
         if (show_line_numbers_) {
-            empty_line.push_back(text("    ~") | color(theme_.getColors().comment));
+            empty_line.push_back(text(region_empty_placeholder) |
+                                 color(theme_.getColors().comment));
         } else {
             empty_line.push_back(text("~") | color(theme_.getColors().comment));
         }
@@ -784,7 +838,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
 
         if (lsp_enabled_ && folding_manager_ && folding_manager_->isInitialized()) {
             try {
-                // 如果折叠管理器已初始化，使用管理器的状态
+                // 如果折叠管理器已初始化，使用管理器的状态（来自 LSP）
                 const auto& foldable_lines = folding_manager_->getFoldableLines();
                 bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
                                              static_cast<int>(line_num)) != foldable_lines.end();
@@ -916,32 +970,47 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
         }
     }
 
+    // 制表符显示宽度，用于展开 \t 以正确显示缩进（如 Go 文件）
+    int tab_size = std::max(1, std::min(8, config_manager_.getConfig().editor.tab_size));
+
     // 渲染带搜索高亮和选中高亮的行内容
-    auto renderLineWithHighlights = [&](const std::string& line_content, size_t cursor_pos,
-                                        bool has_cursor) -> Element {
+    auto renderLineWithHighlights = [&, tab_size](const std::string& line_content,
+                                                  size_t cursor_pos, bool has_cursor) -> Element {
         Elements parts;
         auto& colors = theme_.getColors();
+
+        // 光标在 \t 上时只画单列块，后补 (tab_size-1) 空格，既保持行宽又不让光标变“大块”
+        auto pushCursorPart = [&](const std::string& cursor_char, Element cursor_elem) {
+            parts.push_back(std::move(cursor_elem));
+            if (cursor_char == "\t" && tab_size > 1)
+                parts.push_back(ftxui::text(std::string(static_cast<size_t>(tab_size - 1), ' ')));
+        };
+        auto cursorCharForBlock = [](const std::string& ch) -> const std::string& {
+            static const std::string space = " ";
+            return (ch == "\t") ? space : ch;
+        };
 
         // 性能优化：如果行太长，限制语法高亮处理
         const size_t MAX_HIGHLIGHT_LENGTH = 5000; // 最多处理5000字符
         bool line_too_long = line_content.length() > MAX_HIGHLIGHT_LENGTH;
 
-        // 辅助函数：渲染文本段，应用选中高亮
-        auto renderSegment = [&](const std::string& segment_text, size_t /* start_pos */,
-                                 bool is_selected) -> Element {
+        // 辅助函数：渲染文本段，应用选中高亮（段内 \t 按 tab_size 展开以对齐缩进）
+        auto renderSegment = [&, tab_size](const std::string& segment_text, size_t /* start_pos */,
+                                           bool is_selected) -> Element {
             if (segment_text.empty()) {
                 return ftxui::text("");
             }
+            std::string display_text = expandTabsForDisplay(segment_text, tab_size);
 
             Element elem;
             if (syntax_highlighting_ && !line_too_long) {
                 try {
-                    elem = syntax_highlighter_.highlightLine(segment_text);
+                    elem = syntax_highlighter_.highlightLine(display_text);
                 } catch (...) {
-                    elem = ftxui::text(segment_text) | color(colors.foreground);
+                    elem = ftxui::text(display_text) | color(colors.foreground);
                 }
             } else {
-                elem = ftxui::text(segment_text) | color(colors.foreground);
+                elem = ftxui::text(display_text) | color(colors.foreground);
             }
 
             // 如果这段文本在选中范围内，添加选中背景色
@@ -977,9 +1046,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                         if (!before.empty()) {
                             parts.push_back(renderSegment(before, pos, false));
                         }
-                        parts.push_back(cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background));
+                        pushCursorPart(cursor_char, cursor_renderer.renderCursorElement(
+                                                        cursorCharForBlock(cursor_char), cursor_pos,
+                                                        line_content.length(), colors.foreground,
+                                                        colors.background));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(after, cursor_pos + 1, false));
                         }
@@ -1009,10 +1079,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                         }
                         // 光标在选中部分，也需要选中背景色
                         Element cursor_elem = cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background);
+                            cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                            colors.foreground, colors.background);
                         cursor_elem = cursor_elem | bgcolor(colors.selection);
-                        parts.push_back(cursor_elem);
+                        pushCursorPart(cursor_char, std::move(cursor_elem));
                         if (!after.empty()) {
                             Element after_elem = renderSegment(after, cursor_pos + 1, true);
                             parts.push_back(after_elem);
@@ -1040,9 +1110,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                         if (!before.empty()) {
                             parts.push_back(renderSegment(before, pos, false));
                         }
-                        parts.push_back(cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background));
+                        pushCursorPart(cursor_char, cursor_renderer.renderCursorElement(
+                                                        cursorCharForBlock(cursor_char), cursor_pos,
+                                                        line_content.length(), colors.foreground,
+                                                        colors.background));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(after, cursor_pos + 1, false));
                         }
@@ -1094,8 +1165,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             std::string cursor_char =
                                 pnana::utils::getUtf8CharAt(line_content, cursor_pos);
                             Element cursor_elem = cursor_renderer.renderCursorElement(
-                                cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                                colors.background);
+                                cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                                colors.foreground, colors.background);
                             // 选中高亮优先于单词高亮
                             if (match_in_selection && cursor_pos >= selection_start_col &&
                                 cursor_pos < selection_end_col) {
@@ -1103,7 +1174,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             } else {
                                 cursor_elem = cursor_elem | bgcolor(Color::GrayDark);
                             }
-                            parts.push_back(cursor_elem);
+                            pushCursorPart(cursor_char, std::move(cursor_elem));
 
                             if (after_cursor > 1) {
                                 std::string after =
@@ -1168,13 +1239,13 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                 before, pos, segment_in_selection && pos >= selection_start_col));
                         }
                         Element cursor_elem = cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background);
+                            cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                            colors.foreground, colors.background);
                         if (segment_in_selection && cursor_pos >= selection_start_col &&
                             cursor_pos < selection_end_col) {
                             cursor_elem = cursor_elem | bgcolor(colors.selection);
                         }
-                        parts.push_back(cursor_elem);
+                        pushCursorPart(cursor_char, std::move(cursor_elem));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(
                                 after, cursor_pos + 1,
@@ -1203,9 +1274,10 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                     parts.push_back(renderSegment(before, 0, false));
                 }
                 // 使用配置的光标样式渲染
-                parts.push_back(cursor_renderer.renderCursorElement(
-                    cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                    colors.background));
+                pushCursorPart(cursor_char,
+                               cursor_renderer.renderCursorElement(
+                                   cursorCharForBlock(cursor_char), cursor_pos,
+                                   line_content.length(), colors.foreground, colors.background));
                 if (!after.empty()) {
                     parts.push_back(renderSegment(after, cursor_pos + 1, false));
                 }
@@ -1255,8 +1327,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             std::string cursor_char =
                                 pnana::utils::getUtf8CharAt(line_content, cursor_pos);
                             Element cursor_elem = cursor_renderer.renderCursorElement(
-                                cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                                colors.background);
+                                cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                                colors.foreground, colors.background);
                             // 选中高亮优先于搜索高亮
                             if (match_in_selection && cursor_pos >= selection_start_col &&
                                 cursor_pos < selection_end_col) {
@@ -1264,7 +1336,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                             } else {
                                 cursor_elem = cursor_elem | bgcolor(Color::GrayDark);
                             }
-                            parts.push_back(cursor_elem);
+                            pushCursorPart(cursor_char, std::move(cursor_elem));
 
                             if (after_cursor > 1) {
                                 std::string after =
@@ -1329,13 +1401,13 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                 before, pos, segment_in_selection && pos >= selection_start_col));
                         }
                         Element cursor_elem = cursor_renderer.renderCursorElement(
-                            cursor_char, cursor_pos, line_content.length(), colors.foreground,
-                            colors.background);
+                            cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
+                            colors.foreground, colors.background);
                         if (segment_in_selection && cursor_pos >= selection_start_col &&
                             cursor_pos < selection_end_col) {
                             cursor_elem = cursor_elem | bgcolor(colors.selection);
                         }
-                        parts.push_back(cursor_elem);
+                        pushCursorPart(cursor_char, std::move(cursor_elem));
                         if (!after.empty()) {
                             parts.push_back(renderSegment(
                                 after, cursor_pos + 1,
@@ -1376,7 +1448,15 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
     return line_elem;
 }
 
+int Editor::getLineNumberWidth(Document* doc) const {
+    size_t total = doc ? doc->lineCount() : 1;
+    return static_cast<int>(getLineNumberWidthForLineCount(total));
+}
+
 Element Editor::renderLineNumber(Document* doc, size_t line_num, bool is_current) {
+    const size_t total_lines = doc ? doc->lineCount() : 1;
+    const size_t LINE_NUM_WIDTH = getLineNumberWidthForLineCount(total_lines);
+
     std::string line_str;
 
     if (relative_line_numbers_ && !is_current) {
@@ -1400,56 +1480,26 @@ Element Editor::renderLineNumber(Document* doc, size_t line_num, bool is_current
             bool show_actual_for_fold = false;
 #ifdef BUILD_LSP_SUPPORT
             if (lsp_enabled_ && folding_manager_) {
-                // If this line is a fold start or inside a folded range, show actual file line
-                // number
+                // 折叠起始行、折叠内被隐藏行：显示实际行号
                 if (folding_manager_->isFolded(static_cast<int>(line_num)) ||
                     folding_manager_->isLineInFoldedRange(static_cast<int>(line_num))) {
                     show_actual_for_fold = true;
                 }
-            }
-#endif
-            if (show_actual_for_fold) {
-                // Show VSCode-like folded-range in gutter: "start-end" for folded start line.
-                bool printed = false;
-                if (lsp_enabled_ && folding_manager_) {
+                // 折叠的下一行（紧接在折叠块后的可见行）仍显示实际行号，不因折叠而改变
+                if (!show_actual_for_fold) {
                     auto folded_ranges = folding_manager_->getFoldedRanges();
                     for (const auto& fr : folded_ranges) {
-                        if (fr.startLine == static_cast<int>(line_num)) {
-                            // Display as "start-end" (1-based)
-                            std::string s = std::to_string(fr.startLine + 1);
-                            std::string e = std::to_string(fr.endLine + 1);
-                            std::string full = s + "-" + e;
-                            const size_t LINE_NUM_WIDTH = 6;
-                            if (full.length() <= LINE_NUM_WIDTH) {
-                                line_str = full;
-                            } else {
-                                // Truncate using ".." in the middle, keep prefix of start and
-                                // suffix of end
-                                size_t allowed = LINE_NUM_WIDTH;
-                                // leave 2 chars for ".."
-                                size_t n1 = std::max<size_t>(1, (allowed - 2) / 2);
-                                size_t n2 = (allowed - 2) - n1;
-                                if (n2 == 0) {
-                                    n2 = 1;
-                                    if (n1 + n2 + 2 > allowed && n1 > 1)
-                                        n1--;
-                                }
-                                if (n1 > s.length())
-                                    n1 = s.length();
-                                if (n2 > e.length())
-                                    n2 = e.length();
-                                std::string part1 = s.substr(0, n1);
-                                std::string part2 = e.substr(e.length() - n2);
-                                line_str = part1 + ".." + part2;
-                            }
-                            printed = true;
+                        if (static_cast<size_t>(fr.endLine + 1) == line_num) {
+                            show_actual_for_fold = true;
                             break;
                         }
                     }
                 }
-                if (!printed) {
-                    line_str = std::to_string(line_num + 1); // fallback to actual file line number
-                }
+            }
+#endif
+            if (show_actual_for_fold) {
+                // 折叠行只显示该行行号，不显示范围（与图示一致）
+                line_str = std::to_string(line_num + 1);
             } else {
                 size_t visible_line_num = doc->actualLineToDisplayLine(line_num) + 1;
                 line_str = std::to_string(visible_line_num);
@@ -1459,8 +1509,7 @@ Element Editor::renderLineNumber(Document* doc, size_t line_num, bool is_current
         }
     }
 
-    // 右对齐：使用固定列宽以便折叠行和普通行对齐（6字符）
-    const size_t LINE_NUM_WIDTH = 6;
+    // 右对齐：使用文档最大行号所需列宽
     while (line_str.length() < LINE_NUM_WIDTH) {
         line_str = " " + line_str;
     }
@@ -1529,6 +1578,7 @@ Element Editor::renderStatusbar() {
     auto due_todos = todo_panel_.getTodoManager().getDueTodos();
     std::string todo_reminder = "";
     bool has_todo_reminder = false;
+    bool todo_reminder_blink = false; // 仅到期后 1 分钟内为 true，状态栏闪烁
     if (!due_todos.empty()) {
         // Sort by priority, show highest priority todo first
         std::vector<features::todo::TodoItem> sorted_todos = due_todos;
@@ -1549,17 +1599,22 @@ Element Editor::renderStatusbar() {
             todo_reminder += " (+" + std::to_string(sorted_todos.size() - 1) + " more)";
         }
         has_todo_reminder = true;
+        todo_reminder_blink =
+            features::todo::TodoManager::isDueWithinBlinkWindow(first_todo.due_time);
     }
 
     // 构建状态消息，包含SSH连接信息和Todo提醒
-    // 使用特殊标记分隔 todo 提醒和普通消息，以便状态栏能够分别渲染
+    // 到期后 1 分钟内用 TODO_REMINDER（状态栏闪烁），超过 1 分钟用
+    // TODO_REMINDER_STATIC（仅红色不闪烁）
     std::string display_message = status_message_;
     if (has_todo_reminder) {
+        const char* tag = todo_reminder_blink ? "TODO_REMINDER" : "TODO_REMINDER_STATIC";
+        std::string wrap =
+            "[[" + std::string(tag) + "]]" + todo_reminder + "[[/" + std::string(tag) + "]]";
         if (!display_message.empty()) {
-            display_message =
-                "[[TODO_REMINDER]]" + todo_reminder + "[[/TODO_REMINDER]] | " + display_message;
+            display_message = wrap + " | " + display_message;
         } else {
-            display_message = "[[TODO_REMINDER]]" + todo_reminder + "[[/TODO_REMINDER]]";
+            display_message = wrap;
         }
     }
     if (!current_ssh_config_.host.empty()) {
@@ -1637,6 +1692,8 @@ Element Editor::renderStatusbar() {
 }
 
 Element Editor::renderHelpbar() {
+    if (!show_helpbar_)
+        return ftxui::text("");
     return helpbar_.render(pnana::ui::Helpbar::getDefaultHelp());
 }
 
@@ -1703,9 +1760,10 @@ Element Editor::renderSearchInputBox() {
         elements.push_back(text(count_str) | color(colors.info));
     }
 
-    // 快捷键提示
+    // 快捷键提示（Ctrl+G 下一项，Ctrl+I 上一项）
     elements.push_back(
-        text("  [↑↓: options, Space: toggle, Tab: replace, Enter: next, Esc: cancel]") |
+        text("  [Ctrl+G: next, Ctrl+Shift+F3: prev, ↑↓: options, Tab: replace, Enter: "
+             "accept, Esc: cancel]") |
         color(colors.comment) | dim);
 
     return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
@@ -1771,9 +1829,10 @@ Element Editor::renderReplaceInputBox() {
         elements.push_back(text(count_str) | color(colors.info));
     }
 
-    // 快捷键提示
-    elements.push_back(text("  [↑↓: options, Space: toggle, Enter: replace, Esc: cancel]") |
-                       color(colors.comment) | dim);
+    // 快捷键提示（Ctrl+G/Ctrl+I 在匹配项间导航）
+    elements.push_back(
+        text("  [Ctrl+G: next, Ctrl+Shift+F3: prev, ↑↓: options, Enter: replace, Esc: cancel]") |
+        color(colors.comment) | dim);
 
     return hbox(std::move(elements)) | bgcolor(colors.menubar_bg);
 }

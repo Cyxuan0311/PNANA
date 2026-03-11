@@ -221,7 +221,7 @@ class CommitMessageTrainer:
             learning_rate=learning_rate,
             num_train_epochs=num_epochs,
             logging_steps=logging_steps,
-            evaluation_strategy="steps",
+            eval_strategy="steps",
             eval_steps=save_steps,
             save_strategy="steps",
             save_steps=save_steps,

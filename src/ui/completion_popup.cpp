@@ -1,25 +1,16 @@
 #include "ui/completion_popup.h"
 #include "ui/icons.h"
-#include "utils/logger.h"
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
 
 using namespace ftxui;
 
-// Custom border decorator with theme color
-static inline Decorator borderWithColor(Color border_color) {
+// Neovim 风格：单线边框（无圆角），简洁
+static inline Decorator borderNeovim(Color border_color) {
     return [=](Element child) -> Element {
         return child | border | ftxui::color(border_color);
-    };
-}
-
-// Custom borderRounded decorator with theme color
-static inline Decorator borderRoundedWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | borderRounded | ftxui::color(border_color);
     };
 }
 
@@ -27,18 +18,13 @@ namespace pnana {
 namespace ui {
 
 CompletionPopup::CompletionPopup()
-    : visible_(false), selected_index_(0), max_items_(15), // 增加最大显示项数
-      cursor_row_(0), cursor_col_(0), screen_width_(80), screen_height_(24), popup_x_(0),
-      popup_y_(0), popup_width_(70), popup_height_(17), // 增加默认宽度和高度
-      last_items_size_(0) {}
+    : visible_(false), selected_index_(0), max_items_(12), cursor_row_(0), cursor_col_(0),
+      screen_width_(80), screen_height_(24), popup_x_(0), popup_y_(0), popup_width_(55),
+      popup_height_(14), last_items_size_(0) {}
 
 void CompletionPopup::show(const std::vector<features::CompletionItem>& items, int cursor_row,
                            int cursor_col, int screen_width, int screen_height,
                            const std::string& query) {
-    auto show_start = std::chrono::steady_clock::now();
-    LOG("[COMPLETION] [Popup] show() called with " + std::to_string(items.size()) +
-        " items, query='" + query + "'");
-
     // 参考 VSCode：优化响应速度，减少不必要的更新
     bool was_visible = visible_;
 
@@ -63,10 +49,6 @@ void CompletionPopup::show(const std::vector<features::CompletionItem>& items, i
     // 检查光标位置是否变化（需要重新计算位置）
     bool cursor_changed = (cursor_row_ != cursor_row || cursor_col_ != cursor_col);
 
-    LOG("[COMPLETION] [Popup] Changes: items=" + std::to_string(items_changed) + ", screen=" +
-        std::to_string(screen_changed) + ", cursor=" + std::to_string(cursor_changed) +
-        ", was_visible=" + std::to_string(was_visible));
-
     items_ = items;
     current_query_ = query;
     cursor_row_ = cursor_row;
@@ -79,20 +61,8 @@ void CompletionPopup::show(const std::vector<features::CompletionItem>& items, i
     // 只在内容变化、屏幕尺寸变化、或光标位置变化时重新计算位置
     // 这样可以减少不必要的计算，提高响应速度
     if (visible_ && (items_changed || screen_changed || cursor_changed || !was_visible)) {
-        auto calc_start = std::chrono::steady_clock::now();
         calculatePopupPosition();
-        auto calc_end = std::chrono::steady_clock::now();
-        auto calc_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(calc_end - calc_start);
-        LOG("[COMPLETION] [Popup] Calculated position (took " +
-            std::to_string(calc_time.count() / 1000.0) + " ms)");
     }
-
-    auto show_end = std::chrono::steady_clock::now();
-    auto show_time = std::chrono::duration_cast<std::chrono::microseconds>(show_end - show_start);
-    LOG("[COMPLETION] [Popup] show() completed (took " +
-        std::to_string(show_time.count() / 1000.0) + " ms, visible=" + std::to_string(visible_) +
-        ")");
 }
 
 void CompletionPopup::updateCursorPosition(int row, int col, int screen_width, int screen_height) {
@@ -149,6 +119,12 @@ const features::CompletionItem* CompletionPopup::getSelectedItem() const {
     return &items_[selected_index_];
 }
 
+void CompletionPopup::updateItem(size_t index, const features::CompletionItem& item) {
+    if (index < items_.size()) {
+        items_[index] = item;
+    }
+}
+
 void CompletionPopup::calculatePopupPosition() {
     // ========== 参考 Neovim 的实现策略 ==========
     // Neovim 使用固定尺寸的浮动窗口，避免频繁变化导致的抖动
@@ -162,11 +138,8 @@ void CompletionPopup::calculatePopupPosition() {
     bool size_changed = false;
 
     if (popup_width_ == 0) {
-        // 首次计算：使用固定宽度策略
-        // Neovim 通常使用屏幕宽度的 40-60%，我们使用 50%
-        popup_width_ = std::min(80, (screen_width_ * 50) / 100);
-        if (popup_width_ < 50)
-            popup_width_ = 50; // 最小宽度
+        // Neovim 风格：紧凑宽度，约屏幕 40%
+        popup_width_ = std::min(60, std::max(45, (screen_width_ * 40) / 100));
         size_changed = true;
     } else if (items_.size() != last_items_size_) {
         // Items 数量变化：只在变化超过 50% 时才重新计算宽度
@@ -194,14 +167,13 @@ void CompletionPopup::calculatePopupPosition() {
         last_items_size_ = items_.size();
     }
 
-    // 高度：使用固定策略，不频繁变化
+    // 高度：选中项占两行时需额外一行显示描述
     size_t display_count = std::min(items_.size(), max_items_);
-    int new_height = static_cast<int>(display_count);
+    int new_height = static_cast<int>(display_count) + 1; // +1 为选中项的详情行
     if (popup_height_ == 0) {
         popup_height_ = new_height;
         size_changed = true;
     } else if (std::abs(new_height - popup_height_) > 5) {
-        // 只在高度变化超过 5 行时才更新
         popup_height_ = new_height;
         size_changed = true;
     }
@@ -306,13 +278,7 @@ void CompletionPopup::calculatePopupPosition() {
 }
 
 std::string CompletionPopup::getKindIcon(const std::string& kind) const {
-    // LSP CompletionItemKind 枚举值
-    // 1=Text, 2=Method, 3=Function, 4=Constructor, 5=Field, 6=Variable,
-    // 7=Class, 8=Interface, 9=Module, 10=Property, 11=Unit, 12=Value,
-    // 13=Enum, 14=Keyword, 15=Snippet, 16=Color, 17=File, 18=Reference,
-    // 19=Folder, 20=EnumMember, 21=Constant, 22=Struct, 23=Event,
-    // 24=Operator, 25=TypeParameter
-
+    // LSP CompletionItemKind 细化图标
     if (kind.empty())
         return " ";
 
@@ -327,53 +293,53 @@ std::string CompletionPopup::getKindIcon(const std::string& kind) const {
         case 1:
             return " "; // Text
         case 2:
-            return icons::CODE; // Method
+            return icons::LSP_METHOD; // Method
         case 3:
-            return icons::CODE; // Function
+            return icons::LSP_FUNCTION; // Function
         case 4:
-            return icons::CODE; // Constructor
+            return icons::LSP_CONSTRUCTOR; // Constructor
         case 5:
-            return " "; // Field
+            return icons::LSP_FIELD; // Field
         case 6:
-            return " "; // Variable
+            return icons::LSP_VARIABLE; // Variable
         case 7:
-            return icons::CODE; // Class
+            return icons::LSP_CLASS; // Class
         case 8:
-            return icons::CODE; // Interface
+            return icons::LSP_INTERFACE; // Interface
         case 9:
-            return icons::FOLDER; // Module
+            return icons::LSP_MODULE; // Module
         case 10:
-            return " "; // Property
+            return icons::LSP_PROPERTY; // Property
         case 11:
-            return " "; // Unit
+            return icons::LSP_UNIT; // Unit
         case 12:
-            return " "; // Value
+            return icons::LSP_VALUE; // Value
         case 13:
-            return icons::CODE; // Enum
+            return icons::LSP_ENUM; // Enum
         case 14:
-            return icons::CODE; // Keyword
+            return icons::LSP_KEYWORD; // Keyword
         case 15:
-            return icons::CODE; // Snippet
+            return icons::LSP_SNIPPET; // Snippet
         case 16:
-            return " "; // Color
+            return icons::LSP_COLOR; // Color
         case 17:
             return icons::FILE; // File
         case 18:
-            return " "; // Reference
+            return icons::LSP_REFERENCE; // Reference
         case 19:
             return icons::FOLDER; // Folder
         case 20:
-            return icons::CODE; // EnumMember
+            return icons::LSP_ENUMMEMBER; // EnumMember
         case 21:
-            return " "; // Constant
+            return icons::LSP_CONSTANT; // Constant
         case 22:
-            return icons::CODE; // Struct
+            return icons::LSP_STRUCT; // Struct
         case 23:
-            return " "; // Event
+            return icons::LSP_EVENT; // Event
         case 24:
-            return " "; // Operator
+            return icons::LSP_OPERATOR; // Operator
         case 25:
-            return icons::CODE; // TypeParameter
+            return icons::LSP_TYPEPARAM; // TypeParameter
         default:
             return " ";
     }
@@ -498,16 +464,32 @@ Color CompletionPopup::getKindColor(const std::string& kind) const {
         case 3:
         case 4: // Method, Function, Constructor
             return Color::Cyan;
+        case 5:
+        case 6:
+        case 10: // Field, Variable, Property
+            return Color::Default;
         case 7:
         case 8:
         case 22: // Class, Interface, Struct
             return Color::Blue;
+        case 9:
+        case 19: // Module, Folder
+            return Color::Blue;
+        case 13:
+        case 20: // Enum, EnumMember
+            return Color::Green;
         case 14: // Keyword
+            return Color::Magenta;
+        case 15: // Snippet
+            return Color::Cyan;
+        case 16: // Color
             return Color::Magenta;
         case 17: // File
             return Color::Yellow;
-        case 19: // Folder
-            return Color::Blue;
+        case 21: // Constant
+            return Color::Yellow;
+        case 24: // Operator
+            return Color::Default;
         default:
             return Color::Default;
     }
@@ -517,58 +499,54 @@ Element CompletionPopup::renderItem(const features::CompletionItem& item, bool i
                                     const ui::Theme& theme, const std::string& query) const {
     const auto& colors = theme.getColors();
 
-    Elements item_elements;
-
-    // 图标（参考neovim，使用更简洁的样式）
+    // Neovim Pmenu 风格：细化图标 + 标签
     std::string icon = getKindIcon(item.kind);
     Color icon_color = getKindColor(item.kind);
-
-    // 代码片段使用特殊的图标
     if (item.isSnippet) {
-        icon = ""; // 代码片段图标
+        icon = icons::LSP_SNIPPET;
         icon_color = Color::Cyan;
     }
 
-    item_elements.push_back(text(icon.empty() ? " " : icon) | color(icon_color) |
-                            size(WIDTH, EQUAL, 2));
-    item_elements.push_back(text(" ")); // 图标和文本之间的间距
-
-    // 标签（主要文本）- 增强版本：支持匹配高亮
     std::string label = item.label;
-    size_t max_label_width = popup_width_ - 25; // 预留空间给图标、detail等
+    size_t max_label_width = static_cast<size_t>(popup_width_) - 8;
     if (label.length() > max_label_width) {
         label = label.substr(0, max_label_width - 3) + "...";
     }
 
-    // 高亮匹配的字符（参考VSCode）
     Element label_elem = renderHighlightedLabel(label, query, is_selected, colors);
-    item_elements.push_back(label_elem);
-
-    // 详细信息（detail）- 只在选中时显示，参考neovim
-    if (!item.detail.empty() && is_selected) {
-        std::string detail = item.detail;
-        size_t max_detail_width = popup_width_ - label.length() - 30;
-        if (detail.length() > max_detail_width) {
-            detail = detail.substr(0, max_detail_width - 3) + "...";
-        }
-        item_elements.push_back(text(" "));
-        item_elements.push_back(text(detail) | color(colors.comment) | dim);
+    // 确保 1-2 字符的标签有最小显示宽度，避免被压缩不可见
+    if (label.length() <= 2) {
+        label_elem = label_elem | size(WIDTH, GREATER_THAN, 2);
     }
 
-    // 填充剩余空间
-    item_elements.push_back(filler());
+    // 行布局：图标(2) + 空格(1) + 标签
+    Element line1 =
+        hbox({text(icon.empty() ? " " : icon) | color(icon_color) | size(WIDTH, EQUAL, 2),
+              text(" "), label_elem, filler()});
 
-    // 构建行元素
-    Element line = hbox(item_elements);
-
-    // 选中状态样式（参考neovim：使用当前行背景色）
+    // 选中项高亮当前行：current_line 背景 + 加粗，与编辑器当前行风格一致
     if (is_selected) {
-        line = line | bgcolor(colors.current_line) | color(colors.foreground);
+        line1 = line1 | bgcolor(colors.current_line) | color(colors.foreground) | bold;
     } else {
-        line = line | bgcolor(colors.background);
+        line1 = line1 | bgcolor(colors.background);
     }
 
-    return line;
+    // 选中时第二行：detail/documentation，延续当前行高亮
+    if (is_selected && (!item.detail.empty() || !item.documentation.empty())) {
+        // 优先显示 documentation（通常更详细），若为空则用 detail（如返回类型）
+        std::string desc = !item.documentation.empty() ? item.documentation : item.detail;
+        size_t nl = desc.find('\n');
+        if (nl != std::string::npos)
+            desc = desc.substr(0, nl);
+        if (desc.length() > static_cast<size_t>(popup_width_ - 8)) {
+            desc = desc.substr(0, static_cast<size_t>(popup_width_ - 11)) + "...";
+        }
+        Element line2 =
+            hbox({text("  "), text(desc) | color(colors.comment)}) | bgcolor(colors.current_line);
+        return vbox({line1, line2});
+    }
+
+    return line1;
 }
 
 Element CompletionPopup::render(const ui::Theme& theme) const {
@@ -584,10 +562,7 @@ Element CompletionPopup::render(const ui::Theme& theme) const {
 
     Elements lines;
 
-    // 参考neovim：不显示标题栏，直接显示补全项，更简洁
-    // 只在底部显示选中项信息（可选）
-
-    // 显示补全项（带匹配高亮）
+    // Neovim Pmenu：无标题栏，紧凑列表
     for (size_t i = display_start; i < display_end && i < items_.size(); ++i) {
         const auto& item = items_[i];
         bool is_selected = (i == selected_index_);
@@ -600,11 +575,9 @@ Element CompletionPopup::render(const ui::Theme& theme) const {
         lines.resize(max_height);
     }
 
-    // 构建弹窗（参考neovim：使用更简洁的边框样式）
-    Element popup =
-        vbox(lines) | borderRoundedWithColor(colors.dialog_border) | bgcolor(colors.background);
+    // 与代码区统一：使用 background 主题色，与编辑器背景一致
+    Element popup = vbox(lines) | borderNeovim(colors.dialog_border) | bgcolor(colors.background);
 
-    // 设置固定尺寸以避免抖动
     popup = popup | size(WIDTH, EQUAL, popup_width_) | size(HEIGHT, EQUAL, popup_height_);
 
     // 将 popup 包装成带位置偏移的元素，overlay manager 会将其叠加到主 UI 之上。
@@ -638,14 +611,26 @@ size_t CompletionPopup::getDisplayStart() const {
         return 0;
     }
 
-    // 确保选中的项在可见范围内
-    if (selected_index_ < max_items_ / 2) {
-        return 0;
-    } else if (selected_index_ + max_items_ / 2 >= items_.size()) {
-        return items_.size() - max_items_;
+    // 参考 file_browser_view.cpp：保持选中项在可见区域 1/3 处，确保行光标不被底部裁剪
+    size_t available_height = max_items_;
+    size_t ideal_position = available_height / 3; // 选中项距顶部 1/3
+    size_t target_start;
+
+    if (selected_index_ < ideal_position) {
+        target_start = 0;
+    } else if (selected_index_ >= items_.size() - (available_height - ideal_position)) {
+        // 选中接近底部时：留一行底部余量，避免选中项贴底导致行光标被裁剪（对应 file_browser_view
+        // 的向下微调）
+        target_start =
+            (items_.size() > available_height) ? items_.size() - available_height + 1 : 0;
+        if (target_start > items_.size()) {
+            target_start = 0;
+        }
     } else {
-        return selected_index_ - max_items_ / 2;
+        target_start = selected_index_ - ideal_position;
     }
+
+    return target_start;
 }
 
 size_t CompletionPopup::getDisplayEnd() const {

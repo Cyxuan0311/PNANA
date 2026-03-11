@@ -29,11 +29,13 @@ std::vector<HelpEntry> Help::getAllHelp() {
         {"File Operations", "Ctrl+Q", "Quit editor"},
         {"File Operations", "Alt+Tab / Ctrl+PageDown", "Next tab"},
         {"File Operations", "Alt+Shift+Tab / Ctrl+PageUp", "Previous tab"},
+        {"File Operations", "Alt+T", "Focus tab bar"},
         {"File Operations", "↑↓", "Navigate files (in browser)"},
         {"File Operations", "Enter", "Open file/folder"},
         {"File Operations", "Backspace", "Go to parent folder"},
         {"File Operations", "Tab", "Toggle type filter"},
-        {"File Operations", ":/", "Enter path input"},
+        //{"File Operations", ":/", "Enter path input"},
+        {"File Operations", "F6", "Move file"},
 
         // 编辑操作（合并了 Search 和 Selection）
         {"Editing", "Ctrl+Z", "Undo"},
@@ -68,6 +70,8 @@ std::vector<HelpEntry> Help::getAllHelp() {
 
         // 视图和工具（合并了 View, Split View, Command Palette, Image Preview, Terminal, Plugin）
         {"View & Tools", "Ctrl+T", "Toggle theme menu"},
+        {"View & Tools", "Ctrl+B", "Symbol navigation"},
+        {"View & Tools", "Alt + E", "Error diagnostics"},
         {"View & Tools", "F1", "Show help"},
         {"View & Tools", "Ctrl+Shift+L", "Toggle line numbers"},
         {"View & Tools", "F3", "Command palette"},

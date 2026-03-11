@@ -2,6 +2,7 @@
 #define PNANA_FEATURES_MARKDOWN_RENDERER_H
 
 #include "features/md_render/markdown_parser.h"
+#include "ui/theme.h"
 #include <ftxui/dom/elements.hpp>
 #include <string>
 
@@ -57,11 +58,16 @@ class MarkdownRenderer {
 
     // 颜色和样式
     ftxui::Color get_heading_color(int level);
+    ftxui::Color get_heading_bg_color(int level);
+    ftxui::Color get_heading_fg_color(int level);
     ftxui::Color get_code_color();
+    ftxui::Color get_code_bg_color();
     ftxui::Color get_link_color();
     ftxui::Color get_blockquote_color();
     ftxui::Decorator get_bold_decorator();
     ftxui::Decorator get_italic_decorator();
+    // 当前主题颜色缓存
+    pnana::ui::ThemeColors theme_colors_;
 };
 
 } // namespace features

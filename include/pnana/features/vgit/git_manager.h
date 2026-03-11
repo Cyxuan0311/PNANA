@@ -2,9 +2,11 @@
 #define PNANA_VGIT_GIT_MANAGER_H
 
 #include <chrono>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -48,10 +50,15 @@ struct GitCommit {
     std::string message;
     std::string author;
     std::string date;
-
+    std::vector<std::string> parents; // parent commit hashes (for merge visualization)
+    std::string graph_prefix;         // ASCII graph chars produced by `git log --graph`
+    GitCommit() = default;
     GitCommit(const std::string& h, const std::string& msg, const std::string& auth,
               const std::string& dt)
         : hash(h), message(msg), author(auth), date(dt) {}
+    GitCommit(const std::string& h, const std::vector<std::string>& p, const std::string& msg,
+              const std::string& auth, const std::string& dt)
+        : hash(h), message(msg), author(auth), date(dt), parents(p) {}
 };
 
 struct GitBranchStatus {
@@ -67,8 +74,22 @@ struct GitBranchStatus {
 
 class GitManager {
   public:
+    // SSH 远程执行器：cmd -> {success, stdout}
+    using RemoteExecutor = std::function<std::pair<bool, std::string>(const std::string&)>;
+
     GitManager(const std::string& repo_path = ".");
     ~GitManager() = default;
+
+    // SSH 远程支持
+    void setRemoteExecutor(RemoteExecutor executor, const std::string& label,
+                           const std::string& remote_path);
+    void clearRemoteContext(const std::string& local_path = ".");
+    bool isRemote() const {
+        return remote_executor_ != nullptr;
+    }
+    const std::string& getRemoteLabel() const {
+        return remote_label_;
+    }
 
     // Repository operations
     bool isGitRepository() const;
@@ -93,7 +114,8 @@ class GitManager {
     // Commit operations
     bool commit(const std::string& message);
     std::vector<GitCommit> getRecentCommits(int count = 10);
-    std::vector<GitCommit> getGraphCommits(int count = 50); // Get commits for graph view
+    std::vector<GitCommit> getGraphCommits(
+        int count = 50, int skip = 0); // Get commits for graph view (supports skip for pagination)
 
     // Branch operations
     std::vector<GitBranch> getBranches();
@@ -128,6 +150,10 @@ class GitManager {
     std::string repo_root_;
     std::vector<GitFile> current_status_;
     std::string last_error_;
+
+    // SSH 远程执行
+    RemoteExecutor remote_executor_;
+    std::string remote_label_;
 
     // Status caching for performance optimization
     std::chrono::steady_clock::time_point last_status_refresh_;

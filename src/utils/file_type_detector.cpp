@@ -89,6 +89,8 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
         return "cpp";
     if (ext_lower == "c")
         return "c";
+    if (ext_lower == "c3")
+        return "c3";
 
     // Python
     if (ext_lower == "py" || ext_lower == "pyw" || ext_lower == "pyi")
@@ -332,6 +334,10 @@ std::string FileTypeDetector::detectFileType(const std::string& filename,
     // Visual Basic
     if (ext_lower == "vb" || ext_lower == "vbs")
         return "vb";
+
+    // LLVM IR (Intermediate Representation)
+    if (ext_lower == "ll" || ext_lower == "llvm")
+        return "llvm";
 
     // Assembly - 基于内容智能检测不同架构和语法
     if (ext_lower == "asm" || ext_lower == "s" || ext_lower == "S") {

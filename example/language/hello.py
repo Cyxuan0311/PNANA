@@ -2,7 +2,7 @@
 """
 Python示例文件 - 展示各种语法高亮特性
 """
-
+ 
 import sys
 import os
 from typing import List, Dict, Optional
@@ -19,7 +19,7 @@ class Person:
     email: Optional[str] = None
 
     def greet(self) -> str:
-        return f"Hello, my name is {self.name}"
+        return f"Hello, my name is {self.name}"    
 
 class Calculator:
     """计算器类"""

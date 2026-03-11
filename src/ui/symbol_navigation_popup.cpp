@@ -1,6 +1,8 @@
 #include "ui/symbol_navigation_popup.h"
 #include "ui/icons.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 
 using namespace ftxui;
@@ -10,14 +12,27 @@ namespace pnana {
 namespace ui {
 
 SymbolNavigationPopup::SymbolNavigationPopup(Theme& theme)
-    : theme_(theme), selected_index_(0), visible_(false), jump_callback_(nullptr) {}
+    : theme_(theme), selected_index_(0), visible_(false), search_cursor_pos_(0),
+      cursor_blink_rate_ms_(800), jump_callback_(nullptr) {
+    cursor_config_.style = CursorStyle::BLOCK;
+    cursor_config_.color = theme.getColors().foreground;
+    cursor_config_.blink_enabled = false;
+}
 
 void SymbolNavigationPopup::setSymbols(
     const std::vector<pnana::features::DocumentSymbol>& symbols) {
     symbols_ = symbols;
     flattened_symbols_.clear();
     flattenSymbols(symbols);
-    selected_index_ = flattened_symbols_.empty() ? 0 : 0;
+    search_input_.clear();
+    search_cursor_pos_ = 0;
+    updateFilteredIndices();
+    selected_index_ = 0;
+}
+
+void SymbolNavigationPopup::setCursorConfig(const CursorConfig& config, int blink_rate_ms) {
+    cursor_config_ = config;
+    cursor_blink_rate_ms_ = blink_rate_ms <= 0 ? 800 : blink_rate_ms;
 }
 
 void SymbolNavigationPopup::flattenSymbols(
@@ -36,7 +51,45 @@ void SymbolNavigationPopup::flattenSymbols(
 
 void SymbolNavigationPopup::show() {
     visible_ = true;
-    selected_index_ = flattened_symbols_.empty() ? 0 : 0;
+    search_input_.clear();
+    search_cursor_pos_ = 0;
+    updateFilteredIndices();
+    selected_index_ = 0;
+}
+
+void SymbolNavigationPopup::updateFilteredIndices() {
+    filtered_indices_.clear();
+    if (search_input_.empty()) {
+        for (size_t i = 0; i < flattened_symbols_.size(); ++i)
+            filtered_indices_.push_back(i);
+        return;
+    }
+    for (size_t i = 0; i < flattened_symbols_.size(); ++i) {
+        if (fuzzyMatch(flattened_symbols_[i].name, search_input_))
+            filtered_indices_.push_back(i);
+    }
+    if (selected_index_ >= filtered_indices_.size())
+        selected_index_ = filtered_indices_.empty() ? 0 : filtered_indices_.size() - 1;
+}
+
+bool SymbolNavigationPopup::fuzzyMatch(const std::string& name, const std::string& query) {
+    if (query.empty())
+        return true;
+    size_t ni = 0;
+    for (char q : query) {
+        char ql = static_cast<char>(std::tolower(static_cast<unsigned char>(q)));
+        bool found = false;
+        for (; ni < name.size(); ++ni) {
+            if (static_cast<char>(std::tolower(static_cast<unsigned char>(name[ni]))) == ql) {
+                found = true;
+                ++ni;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+    }
+    return true;
 }
 
 void SymbolNavigationPopup::hide() {
@@ -48,45 +101,43 @@ bool SymbolNavigationPopup::isVisible() const {
 }
 
 void SymbolNavigationPopup::selectNext() {
-    if (!flattened_symbols_.empty()) {
-        selected_index_ = (selected_index_ + 1) % flattened_symbols_.size();
-        // 触发预览跳转
-        if (jump_callback_ && selected_index_ < flattened_symbols_.size()) {
-            jump_callback_(flattened_symbols_[selected_index_]);
+    if (!filtered_indices_.empty()) {
+        selected_index_ = (selected_index_ + 1) % filtered_indices_.size();
+        if (jump_callback_ && selected_index_ < filtered_indices_.size()) {
+            jump_callback_(flattened_symbols_[filtered_indices_[selected_index_]]);
         }
     }
 }
 
 void SymbolNavigationPopup::selectPrevious() {
-    if (!flattened_symbols_.empty()) {
+    if (!filtered_indices_.empty()) {
         selected_index_ =
-            (selected_index_ + flattened_symbols_.size() - 1) % flattened_symbols_.size();
-        // 触发预览跳转
-        if (jump_callback_ && selected_index_ < flattened_symbols_.size()) {
-            jump_callback_(flattened_symbols_[selected_index_]);
+            (selected_index_ + filtered_indices_.size() - 1) % filtered_indices_.size();
+        if (jump_callback_ && selected_index_ < filtered_indices_.size()) {
+            jump_callback_(flattened_symbols_[filtered_indices_[selected_index_]]);
         }
     }
 }
 
 void SymbolNavigationPopup::selectFirst() {
-    selected_index_ = flattened_symbols_.empty() ? 0 : 0;
-    if (jump_callback_ && !flattened_symbols_.empty()) {
-        jump_callback_(flattened_symbols_[selected_index_]);
+    selected_index_ = 0;
+    if (jump_callback_ && !filtered_indices_.empty()) {
+        jump_callback_(flattened_symbols_[filtered_indices_[selected_index_]]);
     }
 }
 
 void SymbolNavigationPopup::selectLast() {
-    selected_index_ = flattened_symbols_.empty() ? 0 : flattened_symbols_.size() - 1;
-    if (jump_callback_ && !flattened_symbols_.empty()) {
-        jump_callback_(flattened_symbols_[selected_index_]);
+    selected_index_ = filtered_indices_.empty() ? 0 : filtered_indices_.size() - 1;
+    if (jump_callback_ && !filtered_indices_.empty()) {
+        jump_callback_(flattened_symbols_[filtered_indices_[selected_index_]]);
     }
 }
 
 const pnana::features::DocumentSymbol* SymbolNavigationPopup::getSelectedSymbol() const {
-    if (flattened_symbols_.empty() || selected_index_ >= flattened_symbols_.size()) {
+    if (filtered_indices_.empty() || selected_index_ >= filtered_indices_.size()) {
         return nullptr;
     }
-    return &flattened_symbols_[selected_index_];
+    return &flattened_symbols_[filtered_indices_[selected_index_]];
 }
 
 void SymbolNavigationPopup::setJumpCallback(
@@ -97,6 +148,41 @@ void SymbolNavigationPopup::setJumpCallback(
 bool SymbolNavigationPopup::handleInput(ftxui::Event event) {
     if (!visible_) {
         return false;
+    }
+
+    // 模糊搜索输入框：可打印字符、退格、左右移动光标
+    if (event.is_character()) {
+        std::string input = event.character();
+        if (!input.empty() && search_cursor_pos_ <= search_input_.size()) {
+            unsigned char c = static_cast<unsigned char>(input[0]);
+            // 只接受可打印 ASCII（空格 32 到 ~ 126），拒绝换行等控制字符
+            if (c >= 32 && c < 127) {
+                search_input_.insert(search_cursor_pos_, input);
+                search_cursor_pos_ += input.size();
+                updateFilteredIndices();
+                if (jump_callback_ && !filtered_indices_.empty()) {
+                    jump_callback_(flattened_symbols_[filtered_indices_[selected_index_]]);
+                }
+                return true;
+            }
+        }
+    }
+    if (event == Event::Backspace && search_cursor_pos_ > 0) {
+        search_input_.erase(search_cursor_pos_ - 1, 1);
+        search_cursor_pos_--;
+        updateFilteredIndices();
+        if (jump_callback_ && !filtered_indices_.empty()) {
+            jump_callback_(flattened_symbols_[filtered_indices_[selected_index_]]);
+        }
+        return true;
+    }
+    if (event == Event::ArrowLeft && search_cursor_pos_ > 0) {
+        search_cursor_pos_--;
+        return true;
+    }
+    if (event == Event::ArrowRight && search_cursor_pos_ < search_input_.size()) {
+        search_cursor_pos_++;
+        return true;
     }
 
     if (event == Event::ArrowUp || event == Event::Character('k')) {
@@ -139,6 +225,12 @@ Element SymbolNavigationPopup::render() const {
 
     auto& colors = theme_.getColors();
 
+    // 块状光标：使用与编辑器一致的光标配置
+    CursorRenderer cursor_renderer;
+    cursor_renderer.setConfig(cursor_config_);
+    cursor_renderer.setBlinkRate(cursor_blink_rate_ms_);
+    cursor_renderer.updateCursorState();
+
     Elements content;
 
     // 标题栏
@@ -149,33 +241,58 @@ Element SymbolNavigationPopup::render() const {
 
     content.push_back(separator());
 
-    // 符号列表
+    // 模糊搜索输入框（块状光标 + 主题色）
+    Elements search_row;
+    search_row.push_back(text(" Filter: ") | color(colors.comment));
+    if (search_cursor_pos_ <= search_input_.size()) {
+        std::string before = search_input_.substr(0, search_cursor_pos_);
+        std::string cursor_char = search_cursor_pos_ < search_input_.size()
+                                      ? search_input_.substr(search_cursor_pos_, 1)
+                                      : " ";
+        std::string after = search_cursor_pos_ < search_input_.size()
+                                ? search_input_.substr(search_cursor_pos_ + 1)
+                                : "";
+        if (!before.empty())
+            search_row.push_back(text(before) | color(colors.foreground));
+        search_row.push_back(cursor_renderer.renderCursorElement(
+            cursor_char, search_cursor_pos_, search_input_.size(), colors.foreground,
+            colors.background));
+        if (!after.empty())
+            search_row.push_back(text(after) | color(colors.foreground));
+    } else {
+        search_row.push_back(text(search_input_) | color(colors.foreground));
+    }
+    content.push_back(hbox(search_row));
+
+    content.push_back(separator());
+
+    // 符号列表（按过滤结果）
     Elements items;
     size_t max_display = 12;
+    size_t total = filtered_indices_.size();
 
-    // 如果选中项不在显示范围内，滚动显示
     size_t start_idx = 0;
     if (selected_index_ >= max_display) {
         start_idx = selected_index_ - max_display + 1;
     }
-
-    size_t end_idx = std::min(start_idx + max_display, flattened_symbols_.size());
+    size_t end_idx = std::min(start_idx + max_display, total);
 
     for (size_t i = start_idx; i < end_idx; ++i) {
         bool is_selected = (i == selected_index_);
-        items.push_back(renderSymbolItem(flattened_symbols_[i], is_selected));
+        items.push_back(renderSymbolItem(flattened_symbols_[filtered_indices_[i]], is_selected));
     }
 
     content.push_back(vbox(items) | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 15));
 
     // 统计信息
-    std::string stats = std::to_string(flattened_symbols_.size()) + " symbols";
+    std::string stats = std::to_string(filtered_indices_.size()) + " / " +
+                        std::to_string(flattened_symbols_.size()) + " symbols";
     content.push_back(separator());
     content.push_back(text(stats) | dim | center);
 
     // 帮助信息
     content.push_back(separator());
-    content.push_back(text("↑↓ Navigate | Enter Jump | Esc Close") | dim | center);
+    content.push_back(text("Type to filter | ↑↓ Navigate | Enter Jump | Esc Close") | dim | center);
 
     Element dialog_content = vbox(content);
 
@@ -214,9 +331,10 @@ Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentS
     line_elements.push_back(text(icon) | color(kind_color));
     line_elements.push_back(text(" "));
 
-    // 符号名称
-    line_elements.push_back(text(symbol.name) |
-                            color(is_selected ? colors.foreground : kind_color));
+    // 符号名称（匹配搜索高亮）
+    Color name_color = is_selected ? colors.foreground : kind_color;
+    line_elements.push_back(
+        pnana::utils::highlightMatch(symbol.name, search_input_, name_color, colors.keyword));
 
     // 详细信息（如果有）
     if (!symbol.detail.empty()) {
@@ -242,28 +360,70 @@ Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentS
 }
 
 std::string SymbolNavigationPopup::getKindIcon(const std::string& kind) const {
-    // 根据符号类型返回对应的图标
+    // LSP SymbolKind：支持字符串名与数字（1-based），按类型选用区分度高的图标
     if (kind == "Function" || kind == "12") {
-        return FUNCTION;
-    } else if (kind == "Method" || kind == "6") {
-        return FUNCTION; // 方法也用函数图标
-    } else if (kind == "Class" || kind == "5") {
-        return CODE; // 类用代码图标
-    } else if (kind == "Namespace" || kind == "3") {
-        return TAB; // 命名空间用标签图标
-    } else if (kind == "Variable" || kind == "13") {
-        return SELECT; // 变量用选择图标
-    } else if (kind == "Enum" || kind == "10") {
-        return CODE; // 枚举用代码图标
-    } else if (kind == "Struct" || kind == "23") {
-        return CODE; // 结构体用代码图标
-    } else if (kind == "Interface" || kind == "11") {
-        return CODE; // 接口用代码图标
-    } else if (kind == "Constant" || kind == "14") {
-        return LOCATION; // 常量用位置图标
-    } else {
-        return CODE; // 默认用代码图标
+        return FUNCTION; // 函数
     }
+    if (kind == "Method" || kind == "6") {
+        return FUNCTION; // 方法
+    }
+    if (kind == "Class" || kind == "5") {
+        return CODE; // 类
+    }
+    if (kind == "Namespace" || kind == "3") {
+        return FOLDER_OPEN; // 命名空间（容器）
+    }
+    if (kind == "Module" || kind == "2") {
+        return PACKAGE; // 模块
+    }
+    if (kind == "Package" || kind == "4") {
+        return PACKAGE; // 包
+    }
+    if (kind == "Variable" || kind == "13") {
+        return SELECT; // 变量
+    }
+    if (kind == "Property" || kind == "7") {
+        return PENCIL; // 属性
+    }
+    if (kind == "Field" || kind == "8") {
+        return SELECT; // 字段
+    }
+    if (kind == "Constructor" || kind == "9") {
+        return WRENCH; // 构造函数
+    }
+    if (kind == "Enum" || kind == "10") {
+        return LIST; // 枚举（列表）
+    }
+    if (kind == "EnumMember" || kind == "22") {
+        return STAR; // 枚举成员
+    }
+    if (kind == "Struct" || kind == "23") {
+        return DATABASE; // 结构体（数据结构）
+    }
+    if (kind == "Interface" || kind == "11") {
+        return LINK; // 接口（契约）
+    }
+    if (kind == "Constant" || kind == "14") {
+        return KEY; // 常量
+    }
+    if (kind == "Event" || kind == "24") {
+        return BELL; // 事件
+    }
+    if (kind == "Operator" || kind == "25") {
+        return COGS; // 运算符
+    }
+    if (kind == "TypeParameter" || kind == "26") {
+        return INFO; // 类型参数
+    }
+    if (kind == "File" || kind == "1") {
+        return icons::FILE; // 文件（避免与 C 标准库 FILE 类型歧义）
+    }
+    if (kind == "String" || kind == "15" || kind == "Number" || kind == "16" || kind == "Boolean" ||
+        kind == "17" || kind == "Array" || kind == "18" || kind == "Object" || kind == "19" ||
+        kind == "Key" || kind == "20") {
+        return CODE; // 基础类型/字面量
+    }
+    return CODE; // 默认
 }
 
 Color SymbolNavigationPopup::getKindColor(const std::string& kind) const {

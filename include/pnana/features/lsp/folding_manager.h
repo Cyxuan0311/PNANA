@@ -49,9 +49,9 @@ class FoldingManager {
         state_changed_callback_ = callback;
     }
 
-    // 设置文档同步回调
-    using DocumentSyncCallback =
-        std::function<void(const std::vector<FoldingRange>&, const std::set<int>&)>;
+    // 设置文档同步回调（uri 为当前处理的文件 URI，用于多文件共享 FoldingManager）
+    using DocumentSyncCallback = std::function<void(
+        const std::string& uri, const std::vector<FoldingRange>&, const std::set<int>&)>;
     void setDocumentSyncCallback(DocumentSyncCallback callback) {
         document_sync_callback_ = callback;
     }
@@ -72,6 +72,7 @@ class FoldingManager {
     std::shared_ptr<LspClient> lsp_client_;
     std::vector<FoldingRange> folding_ranges_;
     std::set<int> folded_lines_; // 已折叠的起始行
+    std::string current_uri_;    // 当前处理的 URI（用于 document_sync_callback_）
 
     FoldingStateChangedCallback state_changed_callback_;
     DocumentSyncCallback document_sync_callback_;

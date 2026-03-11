@@ -62,6 +62,9 @@ class LspStdioConnector : public jsonrpccxx::IClientConnector {
     using NotificationCallback = std::function<void(const std::string&)>;
     void setNotificationCallback(NotificationCallback callback);
 
+    // 获取语言服务器进程 PID（如果可用），否则返回 -1
+    int getServerPid() const;
+
   private:
     std::string server_command_;
     std::map<std::string, std::string> env_vars_;

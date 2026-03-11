@@ -1,15 +1,43 @@
-# PNANA Release Workflow 使用教程
+# pnana Release Workflow 使用教程
 
-本教程详细介绍如何使用 GitHub Actions 自动发布工作流来发布 PNANA 项目。
+> 中文 | [English](RELEASE_WORKFLOW_TUTORIAL_EN.md)
 
-## 📋 前置要求
+本教程基于 `.github/workflows` 实现，介绍如何使用 GitHub Actions 进行 pnana 的构建、测试与发布。
+
+## 📋 目录
+
+- [Workflow 概览](#workflow-概览)
+- [前置要求](#前置要求)
+- [发布流程](#发布流程)
+- [发布产物](#发布产物)
+- [构建与验证](#构建与验证)
+- [配置与自定义](#配置和自定义)
+- [故障排除](#故障排除)
+- [最佳实践](#最佳实践)
+
+---
+
+## Workflow 概览
+
+| Workflow | 文件 | 触发条件 | 说明 |
+|----------|------|----------|------|
+| **Release** | `release.yml` | 手动 / 推送 CHANGELOG | 构建、打包、创建 GitHub Release |
+| **Build and Test** | `build.yml` | push/PR → master, develop, fix/ci-actions | 编译、测试、代码格式、安全扫描 |
+| **Pre-Push Validation** | `pre-push-validation.yml` | 同上 | 完整构建验证，失败时自动创建 Issue |
+
+---
+
+## 前置要求
 
 ### 1. GitHub 权限
-- 需要对仓库有写权限（write access）
-- 需要 `GITHUB_TOKEN` 权限（自动提供）
+- 仓库写权限（write access）
+- `GITHUB_TOKEN`（Actions 自动提供）
+- Release 需 `contents: write`、`packages: write`
 
 ### 2. CHANGELOG.md 格式
-确保 CHANGELOG.md 遵循以下格式：
+
+遵循 [Keep a Changelog](https://keepachangelog.com/) 格式：
+
 ```markdown
 ## [Unreleased]
 
@@ -22,265 +50,158 @@
 ### Fixed
 - 修复描述
 
-## [1.0.0] - 2023-XX-XX
-...
+## [1.0.0] - 2025-XX-XX
+
+### Added
+- ...
 ```
+
+版本提取规则：匹配第一个 `## [x.y.z]`（不含 Unreleased）。
 
 ### 3. 分支设置
-- 主分支应该是 `main` 或 `master`
-- 确保分支保护规则允许 workflow 创建 tags
-
-## 🚀 发布方式
-
-### 方式一：手动触发发布
-
-#### 步骤 1: 访问 GitHub Actions
-1. 打开你的 GitHub 仓库
-2. 点击 **Actions** 标签
-3. 在左侧找到 **Release** workflow
-
-#### 步骤 2: 手动触发
-1. 点击 **Run workflow** 按钮
-2. 填写发布参数：
-   - **Version**: 版本号（如 1.0.0），留空则从 CHANGELOG.md 提取
-   - **Release type**: 发布类型
-     - `stable`: 稳定版 (tag: v1.0.0)
-     - `beta`: 测试版 (tag: v1.0.0-beta)
-     - `alpha`: 开发版 (tag: v1.0.0-alpha)
-   - **Draft**: 是否创建草稿发布
-
-#### 步骤 3: 确认发布
-1. 点击 **Run workflow**
-2. workflow 将自动：
-   - 提取版本信息
-   - 构建项目
-   - 生成 release notes
-   - 创建 Git tag
-   - 发布到 GitHub Releases
-
-### 方式二：自动触发发布
-
-#### 通过 CHANGELOG.md 触发
-当你推送包含版本更新的 CHANGELOG.md 到主分支时，workflow 会自动触发。
-
-#### 准备步骤：
-1. 更新 CHANGELOG.md，添加新版本：
-   ```markdown
-   ## [1.1.0] - 2023-12-07
-
-   ### Added
-   - 新功能
-
-   ### Changed
-   - 改进功能
-
-   ## [Unreleased]
-   ```
-2. 提交并推送：
-   ```bash
-   git add CHANGELOG.md
-   git commit -m "Release version 1.1.0"
-   git push origin main
-   ```
-
-## 📦 发布产物
-
-Workflow 会自动生成以下发布产物：
-
-### Ubuntu/Debian (.deb)
-- 文件名: `pnana_{VERSION}_amd64.deb`
-- 适用于: Ubuntu 18.04+, Debian 10+
-
-### 通用 Linux (.tar.gz)
-- 文件名: `pnana-ubuntu22.04.tar.gz`
-- 适用于: 大多数 Linux 发行版
-
-## 📋 Release Notes 格式
-
-自动生成的 Release Notes 包含：
-
-### 标准格式
-```markdown
-# Release v1.0.0
-
-## New Features
-- 功能描述
-
-## Improvements
-- 改进描述
-
-## Fixes
-- 修复描述
-
-## Installation
-
-### Ubuntu/Debian (.deb)
-```bash
-wget https://github.com/{USERNAME}/pnana/releases/download/v1.0.0/pnana_1.0.0_amd64.deb
-sudo dpkg -i pnana_1.0.0_amd64.deb
-sudo apt-get install -f  # If there are dependency issues
-```
-
-### Generic Linux (.tar.gz)
-```bash
-wget https://github.com/{USERNAME}/pnana/releases/download/v1.0.0/pnana-ubuntu22.04.tar.gz
-tar -xzf pnana-ubuntu22.04.tar.gz
-cd package
-sudo ./install.sh
-```
-
-## Usage
-```bash
-# Start blank editor
-pnana
-
-# Open file
-pnana filename.txt
-
-# View help
-pnana --help
-```
-
-## What's Changed
-See [CHANGELOG.md](https://github.com/{USERNAME}/pnana/blob/main/CHANGELOG.md) for full details.
-```
-
-## 🔧 配置和自定义
-
-### 修改构建配置
-如果需要修改构建参数，编辑 `.github/workflows/release.yml`：
-
-```yaml
-env:
-  BUILD_TYPE: Release  # 可以改为 Debug
-```
-
-### 添加更多构建目标
-在 `strategy.matrix` 中添加新的包格式：
-
-```yaml
-matrix:
-  include:
-    - package_type: deb
-      package_name: "pnana_${{ needs.prepare-release.outputs.version }}_amd64.deb"
-    - package_type: rpm
-      package_name: "pnana-${{ needs.prepare-release.outputs.version }}-x86_64.rpm"
-```
-
-### 修改触发条件
-添加更多触发条件：
-
-```yaml
-on:
-  push:
-    tags:
-      - 'v*'
-  release:
-    types: [published]
-```
-
-## 🐛 故障排除
-
-### 常见问题
-
-#### 1. "Could not extract version from CHANGELOG.md"
-**原因**: CHANGELOG.md 格式不正确
-**解决**:
-- 确保版本格式为 `## [x.y.z]`
-- 检查语法是否正确
-
-#### 2. "Tag already exists"
-**原因**: 该版本的 tag 已存在
-**解决**:
-- 使用不同版本号
-- 或者删除已存在的 tag
-
-#### 3. 构建失败
-**原因**: 依赖缺失或构建脚本错误
-**解决**:
-- 检查 `build.sh` 脚本
-- 验证所有依赖都已安装
-- 查看 workflow 日志获取详细错误信息
-
-#### 4. Release 没有创建
-**原因**: workflow 被跳过
-**解决**:
-- 检查分支名称（必须是 main 或 master）
-- 确保 CHANGELOG.md 有实际变更
-- 验证 workflow 权限
-
-### 查看日志
-1. 进入 **Actions** 标签
-2. 点击运行的 workflow
-3. 查看每个 job 的详细日志
-
-### 手动修复
-如果 workflow 失败，你可以：
-1. 手动创建 tag: `git tag v1.0.0 && git push origin v1.0.0`
-2. 手动构建: `./build.sh --clean --install`
-3. 手动创建 release 并上传文件
-
-## 📊 Workflow 状态检查
-
-### 成功标志
-- ✅ 所有 jobs 显示绿色
-- ✅ Git tag 已创建
-- ✅ GitHub Release 已发布
-- ✅ 下载链接可用
-
-### 验证发布
-```bash
-# 检查版本
-pnana --version
-
-# 验证安装
-which pnana
-pnana --help
-```
-
-## 🎯 最佳实践
-
-### 1. 版本管理
-- 使用语义化版本 (Semantic Versioning)
-- 主版本：不兼容的 API 变更
-- 次版本：向下兼容的功能新增
-- 修订版本：向下兼容的 bug 修复
-
-### 2. CHANGELOG.md 维护
-- 及时更新变更日志
-- 使用标准格式
-- 保持清晰简洁的描述
-
-### 3. 分支策略
-- 在 feature 分支开发
-- 通过 Pull Request 合并到主分支
-- 在主分支进行发布
-
-### 4. 测试发布
-- 先用 `draft: true` 创建草稿
-- 验证所有功能正常
-- 确认文档和安装说明正确
-
-### 5. 发布频率
-- 稳定版：按需发布
-- 测试版：每个月或重要功能完成后
-- 开发版：每周或持续集成
-
-## 📞 支持
-
-如果遇到问题：
-1. 查看 [GitHub Issues](https://github.com/{USERNAME}/pnana/issues)
-2. 检查 workflow 日志
-3. 参考本教程的故障排除部分
-
-## 🔄 更新 Workflow
-
-当需要更新 workflow 时：
-1. 编辑 `.github/workflows/release.yml`
-2. 测试更改（建议在测试分支上）
-3. 提交到主分支
-4. 验证新版本工作正常
+- **Release**：仅在 `main`、`master` 分支触发
+- **Build / Pre-Push**：`master`、`develop`、`fix/ci-actions`
+- 确保分支保护规则允许 workflow 创建 tag
 
 ---
 
-*最后更新: 2024年* | *版本: 1.0.0*
+## 发布流程
+
+### 方式一：手动触发（workflow_dispatch）
+
+1. 打开仓库 → **Actions** → 选择 **Release** workflow
+2. 点击 **Run workflow**
+3. 填写参数：
+   - **version**：版本号（如 `1.0.0`），留空则从 CHANGELOG.md 提取
+   - **release_type**：`stable`（tag: v1.0.0） / `beta`（v1.0.0-beta） / `alpha`（v1.0.0-alpha）
+   - **draft**：是否为草稿发布
+4. 点击 **Run workflow** 开始执行
+
+### 方式二：自动触发（push）
+
+推送包含版本变更的 CHANGELOG.md 到 `main` 或 `master` 时自动触发：
+
+```bash
+# 1. 更新 CHANGELOG.md
+# 2. 提交并推送
+git add CHANGELOG.md
+git commit -m "Release version 1.1.0"
+git push origin main
+```
+
+### Release 执行步骤
+
+1. **prepare-release**：提取版本、生成 tag、生成 release notes
+2. **build**：构建 6 种包格式（若 tag 已存在则跳过）
+3. **create-release**：创建 Git tag、创建 GitHub Release、上传所有包
+
+---
+
+## 发布产物
+
+| 格式 | 文件名示例 | 适用场景 |
+|------|-------------|----------|
+| .deb | `pnana_1.0.0_amd64.deb` | Ubuntu / Debian |
+| .rpm | `pnana_1.0.0_x86_64.rpm` | Red Hat / Fedora / CentOS |
+| .tar.gz | `pnana-ubuntu22.04.tar.gz` | 通用 Linux |
+| .tar.xz | `pnana-ubuntu22.04.tar.xz` | 通用 Linux |
+| .tar.bz2 | `pnana-ubuntu22.04.tar.bz2` | 通用 Linux |
+| .zip | `pnana-ubuntu22.04.zip` | 通用 Linux |
+
+---
+
+## 构建与验证
+
+### Build and Test (build.yml)
+
+- **矩阵**：ubuntu-latest × gcc/clang
+- **Jobs**：
+  - **build**：CMake + Ninja 构建，运行 ctest
+  - **code-quality**：clang-format 检查
+  - **security-scan**：Trivy 漏洞扫描
+
+### Pre-Push Validation (pre-push-validation.yml)
+
+- 使用 `./build.sh --clean` 进行完整编译验证
+- 编译成功后运行 `ctest`
+- 失败时自动创建带 `build-failure`、`automated`、`high-priority` 标签的 Issue
+
+---
+
+## 配置和自定义
+
+### 修改 Release 构建选项
+
+编辑 `.github/workflows/release.yml`：
+
+```yaml
+# 构建类型
+env:
+  BUILD_TYPE: Release
+
+# CMake 选项（当前发布构建关闭部分可选功能）
+-DBUILD_IMAGE_PREVIEW=OFF
+-DBUILD_TREE_SITTER=OFF
+-DBUILD_LUA=OFF
+-DBUILD_GO=OFF
+```
+
+### 添加更多包格式
+
+在 `build` job 的 `strategy.matrix.include` 中增加：
+
+```yaml
+- package_type: TBZ2
+  package_name: "pnana-ubuntu22.04.tar.bz2"
+  cpack_generator: "TBZ2"
+```
+
+### Release Notes 生成
+
+Release notes 基于 CHANGELOG.md 中对应版本的 `### Added`、`### Changed`、`### Fixed` 等小节自动生成，并附加安装说明和 Usage 示例。
+
+---
+
+## 故障排除
+
+### "Could not extract version from CHANGELOG.md"
+- **原因**：版本格式不符合 `## [x.y.z]`
+- **解决**：确保有类似 `## [1.0.0] - 2025-01-01` 的条目，且为第一个版本块
+
+### "Tag already exists"
+- **原因**：该版本的 tag 已存在
+- **解决**：使用新版本号，或删除已有 tag（`git tag -d v1.0.0 && git push origin :refs/tags/v1.0.0`）
+
+### 构建失败
+- **原因**：依赖缺失或 CMake/构建脚本错误
+- **解决**：检查 `build.sh`、安装依赖、查看 Actions 日志
+
+### Release 未创建
+- **原因**：workflow 被跳过（tag 已存在或非 main/master 分支）
+- **解决**：确认分支、确认 CHANGELOG.md 有变更、检查权限
+
+### Pre-Push 自动创建 Issue
+- **说明**：构建失败时会在仓库中创建 Issue，便于追踪
+- **处理**：修复后关闭或按 Issue 说明操作
+
+---
+
+## 最佳实践
+
+1. **版本管理**：遵循 [Semantic Versioning](https://semver.org/)
+2. **CHANGELOG**：及时更新、格式规范、描述清晰
+3. **发布前**：先用 `draft: true` 创建草稿，验证后再正式发布
+4. **分支策略**：在 feature 分支开发，通过 PR 合并到主分支，在主分支发布
+5. **测试**：确保 Build/Pre-Push 均通过后再触发 Release
+
+---
+
+## 📞 支持
+
+- 查看 [GitHub Actions 日志](https://github.com/{USERNAME}/pnana/actions)
+- 参考本教程的故障排除部分
+- 提交 [GitHub Issue](https://github.com/{USERNAME}/pnana/issues)
+
+---
+
+*最后更新: 2025年* | 文档与 `.github/workflows` 实现同步

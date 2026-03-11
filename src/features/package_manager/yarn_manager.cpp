@@ -1,5 +1,4 @@
 #include "features/package_manager/yarn_manager.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <cstdio>
 #include <regex>
@@ -41,8 +40,6 @@ std::vector<Package> YarnManager::getInstalledPackages() {
             std::lock_guard<std::mutex> lock(this->cache_mutex_);
             this->cache_entry_.is_fetching = false;
             this->cache_entry_.error_message = std::string("Error fetching packages: ") + e.what();
-            pnana::utils::Logger::getInstance().log("[YARN] Error fetching packages: " +
-                                                    std::string(e.what()));
         }
     }).detach();
 
@@ -68,38 +65,37 @@ bool YarnManager::isCacheValid() const {
 }
 
 bool YarnManager::isAvailable() const {
-    std::string command = "which yarn > /dev/null 2>&1";
-    int result = system(command.c_str());
-    return result == 0;
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_("which yarn 2>/dev/null");
+        return ok && !out.empty();
+    }
+    return system("which yarn > /dev/null 2>&1") == 0;
 }
 
 std::vector<Package> YarnManager::fetchPackagesFromSystem() {
-    std::vector<Package> packages;
-    std::string command = "yarn list --depth=0 --json 2>&1";
-
-    FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) {
-        throw std::runtime_error("Failed to execute yarn command");
-    }
-
-    char buffer[4096];
     std::string output;
-    output.reserve(512 * 1024);
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        output += buffer;
-    }
-
-    int exit_code = pclose(pipe);
-
-    if (exit_code != 0 && output.find("error") != std::string::npos) {
-        if (output.find("No such file") != std::string::npos ||
-            output.find("ENOENT") != std::string::npos) {
-            return packages;
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_("yarn list --depth=0 --json 2>&1");
+        if (!ok && (out.find("No such file") != std::string::npos ||
+                    out.find("ENOENT") != std::string::npos))
+            return {};
+        output = out;
+    } else {
+        FILE* pipe = popen("yarn list --depth=0 --json 2>&1", "r");
+        if (!pipe)
+            throw std::runtime_error("Failed to execute yarn command");
+        char buffer[4096];
+        output.reserve(512 * 1024);
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+            output += buffer;
+        int exit_code = pclose(pipe);
+        if (exit_code != 0 && output.find("error") != std::string::npos) {
+            if (output.find("No such file") != std::string::npos ||
+                output.find("ENOENT") != std::string::npos)
+                return {};
         }
     }
-
-    packages = parseYarnListOutput(output);
-    return packages;
+    return parseYarnListOutput(output);
 }
 
 std::vector<Package> YarnManager::parseYarnListOutput(const std::string& output) {
@@ -186,14 +182,24 @@ std::vector<Package> YarnManager::parseYarnListOutput(const std::string& output)
 }
 
 bool YarnManager::updatePackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // yarn upgrade 更新特定包
     std::string command = "yarn upgrade " + package_name + " 2>&1";
-
-    // 异步执行更新命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to update package: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -201,40 +207,43 @@ bool YarnManager::updatePackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute yarn command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to update package: " + package_name;
-            if (!output.empty()) {
+            if (!output.empty())
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 
 bool YarnManager::updateAllDependencies(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // yarn upgrade 更新包及其依赖
     std::string command = "yarn upgrade " + package_name + " 2>&1";
-
-    // 异步执行更新命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to update package and dependencies: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -242,41 +251,44 @@ bool YarnManager::updateAllDependencies(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute yarn command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message =
                 "Failed to update package and dependencies: " + package_name;
-            if (!output.empty()) {
+            if (!output.empty())
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 
 bool YarnManager::removePackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // yarn remove 删除包
     std::string command = "yarn remove " + package_name + " 2>&1";
-
-    // 异步执行删除命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to remove package: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -284,40 +296,43 @@ bool YarnManager::removePackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute yarn command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to remove package: " + package_name;
-            if (!output.empty()) {
+            if (!output.empty())
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 
 bool YarnManager::installPackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // yarn add 安装包
     std::string command = "yarn add " + package_name + " 2>&1";
-
-    // 异步执行安装命令
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to install package: " + package_name + " - " + out;
+            }
+        }).detach();
+        return true;
+    }
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -325,28 +340,21 @@ bool YarnManager::installPackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute yarn command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to install package: " + package_name;
-            if (!output.empty()) {
+            if (!output.empty())
                 this->cache_entry_.error_message += " - " + output;
-            }
         }
     }).detach();
-
     return true;
 }
 

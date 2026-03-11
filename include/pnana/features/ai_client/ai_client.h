@@ -195,12 +195,17 @@ class AIClientManager {
     // 获取可用提供商
     std::vector<std::string> getAvailableProviders() const;
 
+    // 从 AIConfig 刷新当前 provider 和 client（保存配置后或发送前调用）
+    void refreshFromConfig();
+
   private:
     std::map<std::string, std::shared_ptr<AIClient>> clients_;
     std::string current_provider_;
     ToolCallCallback tool_call_callback_;
 
     void initializeClients();
+    std::shared_ptr<AIClient> getOrCreateClient(const std::string& provider,
+                                                const ai_config::AIProviderConfig& config);
 };
 
 } // namespace ai_client

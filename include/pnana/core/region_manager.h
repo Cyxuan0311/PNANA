@@ -8,12 +8,13 @@ namespace core {
 
 // 编辑器区域类型
 enum class EditorRegion {
-    CODE_AREA,    // 代码编辑区
-    TAB_AREA,     // 文件标签栏
-    FILE_BROWSER, // 文件浏览器
-    TERMINAL,     // 终端区域
-    GIT_PANEL,    // Git 面板
-    HELP_WINDOW   // 帮助窗口（模态，不参与导航）
+    CODE_AREA,          // 代码编辑区
+    TAB_AREA,           // 文件标签栏
+    FILE_BROWSER,       // 文件浏览器
+    TERMINAL,           // 终端区域
+    GIT_PANEL,          // Git 面板
+    AI_ASSISTANT_PANEL, // AI 助手面板（右侧）
+    HELP_WINDOW         // 帮助窗口（模态，不参与导航）
 };
 
 // 区域管理器
@@ -52,6 +53,9 @@ class RegionManager {
     void setGitPanelEnabled(bool enabled) {
         git_panel_enabled_ = enabled;
     }
+    void setAiPanelEnabled(bool enabled) {
+        ai_panel_enabled_ = enabled;
+    }
     void setHelpWindowEnabled(bool enabled) {
         help_window_enabled_ = enabled;
     }
@@ -67,6 +71,9 @@ class RegionManager {
     }
     bool isGitPanelEnabled() const {
         return git_panel_enabled_;
+    }
+    bool isAiPanelEnabled() const {
+        return ai_panel_enabled_;
     }
     bool isHelpWindowEnabled() const {
         return help_window_enabled_;
@@ -96,6 +103,7 @@ class RegionManager {
     bool file_browser_enabled_;
     bool terminal_enabled_;
     bool git_panel_enabled_;
+    bool ai_panel_enabled_;
     bool help_window_enabled_;
 
     // 标签栏状态

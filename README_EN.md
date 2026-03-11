@@ -67,7 +67,7 @@ Supports multiple programming languages: C/C++, Python, JavaScript/TypeScript, J
 - **Symbol Search**: Quickly find functions, classes, variables, and more
 - **Auto Configuration**: Automatically detects and configures LSP servers
 
-**Detailed LSP Guide**: See [Plugin Documentation](docs/PLUGINS.md)
+**LSP**: Built-in LSP client for completion, diagnostics, navigation
 
 #### Lua Plugin System （Planed）
 - **Powerful Extensibility**: Write plugins in Lua to easily extend editor functionality
@@ -75,7 +75,7 @@ Supports multiple programming languages: C/C++, Python, JavaScript/TypeScript, J
 - **Easy to Use**: Inspired by Neovim's design, plugin development is simple and intuitive
 - **Auto Loading**: Plugins are automatically discovered and loaded, no manual configuration needed
 
-**Detailed Plugin Development Guide**: See [Plugin Documentation](docs/PLUGINS.md)
+**Detailed Plugin Development Guide**: See [Plugin Documentation](docs/PLUGIN_DEVELOPMENT.md)
 
 ### 🔧 Configuration System
 Simple JSON configuration file supporting themes, fonts, indentation, and other settings.
@@ -98,7 +98,7 @@ chmod +x ./build.sh
 ./build.sh
 
 # Run pnana
-./build/pnana/pnana
+./build/pnana
 
 # Or install to system
 cd build
@@ -115,17 +115,12 @@ pnana
 # Open single file
 pnana file.txt
 
-# Open multiple files
-pnana file1.txt file2.cpp file3.py
-
 # Specify config file
-pnana --config ~/.config/pnana/custom.json
+pnana --config ~/.config/pnana/config.json
 
 # Use specific theme
 pnana --theme dracula file.txt
 
-# Open in read-only mode
-pnana --readonly file.txt
 ```
 
 ## 📖 Documentation
@@ -134,12 +129,9 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 
 - **[Keyboard Shortcuts Reference](docs/KEYBINDINGS.md)** - Complete shortcut list and usage instructions
 - **[Configuration Documentation](docs/CONFIGURATION.md)** - Detailed configuration options and examples
-- **[Plugin Development Guide](docs/PLUGINS.md)** - Lua plugin system documentation and LSP usage guide
+- **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Lua plugin API & examples
 - **[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation guide
-- **[Menu Functions](docs/MENU.md)** - Detailed menu bar function descriptions
-- **[Theme Documentation](docs/THEMES.md)** - Introduction and preview of all themes
 - **[Development Roadmap](docs/ROADMAP.md)** - Version plans and feature roadmap
-- **[Product Comparison](docs/COMPARISON.md)** - Detailed comparison with similar products
 - **[Quick Start Guide](QUICKSTART.md)** - 5-minute quick start guide
 
 
@@ -163,8 +155,6 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 | Plugin System | ✅ | ❌ | ✅ | ✅ |
 | LSP Support | ✅ | ❌ | ✅ | ✅ |
 | Simple Configuration | ✅ | ✅ | ✅ | ❌ |
-
-**Detailed Comparison**: See [Product Comparison Documentation](docs/COMPARISON.md)
 
 ## 📚 References and Inspiration
 

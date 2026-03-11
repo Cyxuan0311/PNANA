@@ -73,6 +73,7 @@ enum class KeyAction {
     // 标签页操作
     NEXT_TAB,
     PREV_TAB,
+    FOCUS_TAB_BAR, // 聚焦到标签栏（Alt+T）
 
     // 命令面板
     COMMAND_PALETTE,

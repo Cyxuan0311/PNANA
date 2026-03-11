@@ -67,7 +67,7 @@
 - **符号搜索**：快速查找函数、类、变量等符号
 - **自动配置**：自动检测并配置 LSP 服务器
 
-**详细 LSP 说明**：请查看 [插件文档](docs/PLUGINS.md)
+**LSP**：编辑器内置 LSP 客户端，支持代码补全、诊断、跳转等
 
 #### Lua 插件系统 （计划中）
 - **强大的扩展能力**：使用 Lua 编写插件，轻松扩展编辑器功能
@@ -75,7 +75,7 @@
 - **简单易用**：参考 Neovim 的设计，插件开发简单直观
 - **自动加载**：插件自动发现和加载，无需手动配置
 
-**详细插件开发指南**：请查看 [插件文档](docs/PLUGINS.md)
+**详细插件开发指南**：请查看 [插件文档](docs/PLUGIN_DEVELOPMENT.md)
 
 ### 🔧 配置系统
 使用简单的 JSON 配置文件，支持主题、字体、缩进等各项设置。
@@ -98,7 +98,7 @@ chmod +x ./build.sh
 ./build.sh
 
 # 运行pnana
-./build/pnana/pnana
+./build/pnana
 
 # 或安装到系统
 cd build
@@ -115,17 +115,12 @@ pnana
 # 打开单个文件
 pnana file.txt
 
-# 打开多个文件
-pnana file1.txt file2.cpp file3.py
-
 # 指定配置文件
-pnana --config ~/.config/pnana/custom.json
+pnana --config ~/.config/pnana/config.json
 
 # 使用特定主题
 pnana --theme dracula file.txt
 
-# 只读模式打开
-pnana --readonly file.txt
 ```
 
 ## 📖 文档
@@ -134,12 +129,9 @@ pnana --readonly file.txt
 
 - **[快捷键参考](docs/KEYBINDINGS.md)** - 完整的快捷键列表和使用说明
 - **[配置文档](docs/CONFIGURATION.md)** - 详细的配置选项和示例
-- **[插件开发指南](docs/PLUGINS.md)** - Lua 插件系统开发文档和 LSP 使用说明
+- **[插件开发指南](docs/PLUGIN_DEVELOPMENT.md)** - Lua 插件系统 API 与示例
 - **[依赖文档](docs/DEPENDENCIES.md)** - 项目依赖说明和安装指南
-- **[菜单功能](docs/MENU.md)** - 菜单栏功能详细说明
-- **[主题文档](docs/THEMES.md)** - 所有主题的介绍和预览
 - **[开发路线图](docs/ROADMAP.md)** - 版本计划和功能路线图
-- **[产品对比](docs/COMPARISON.md)** - 与同类产品的详细对比
 - **[快速入门](QUICKSTART.md)** - 5分钟快速上手指南
 
 
@@ -163,8 +155,6 @@ pnana --readonly file.txt
 | 插件系统 | ✅ | ❌ | ✅ | ✅ |
 | LSP支持 | ✅ | ❌ | ✅ | ✅ |
 | 配置简单 | ✅ | ✅ | ✅ | ❌ |
-
-**详细对比**：请查看 [产品对比文档](docs/COMPARISON.md)
 
 ## 📚 参考和灵感
 

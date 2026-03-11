@@ -14,6 +14,13 @@
 namespace pnana {
 namespace features {
 
+// 高亮片段：字节范围 [start, end) 及对应颜色
+struct HighlightSegment {
+    size_t start;
+    size_t end;
+    ftxui::Color color;
+};
+
 // Tree-sitter 语法高亮器
 class SyntaxHighlighterTreeSitter {
   public:
@@ -32,6 +39,10 @@ class SyntaxHighlighterTreeSitter {
 
     // 高亮多行代码（更高效）
     ftxui::Element highlightLines(const std::vector<std::string>& lines);
+
+    // 解析代码并生成高亮片段（用于与内置高亮合并）
+    void parseAndHighlightToSegments(const std::string& code,
+                                     std::vector<HighlightSegment>& segments);
 
     // 重置解析器状态
     void reset();
@@ -54,15 +65,21 @@ class SyntaxHighlighterTreeSitter {
     // 获取 Tree-sitter 语言
     TSLanguage* getLanguageForFileType(const std::string& file_type);
 
-    // 将 Tree-sitter 节点类型映射到颜色
-    ftxui::Color getColorForNodeType(const std::string& node_type) const;
+    // 将 Tree-sitter 节点类型映射到颜色（parent_type 用于识别函数调用中的 identifier）
+    ftxui::Color getColorForNodeType(const std::string& node_type,
+                                     const std::string& parent_type) const;
 
     // 解析代码并生成高亮元素
     ftxui::Element parseAndHighlight(const std::string& code);
 
     // 遍历语法树并生成高亮元素
     void traverseTree(TSNode node, const std::string& source, std::vector<ftxui::Element>& elements,
-                      size_t& current_pos) const;
+                      size_t& current_pos, const std::string& parent_type) const;
+
+    // 遍历语法树并生成高亮片段
+    void traverseTreeToSegments(TSNode node, const std::string& source,
+                                std::vector<HighlightSegment>& segments, size_t& current_pos,
+                                const std::string& parent_type) const;
 
     // 获取节点文本
     std::string getNodeText(TSNode node, const std::string& source) const;

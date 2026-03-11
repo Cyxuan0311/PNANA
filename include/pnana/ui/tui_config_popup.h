@@ -33,6 +33,11 @@ class TUIConfigPopup {
         return selected_index_;
     }
 
+    // 获取当前配置列表（用于渲染时复用，避免重复拉取）
+    const std::vector<features::TUIConfig>& getCurrentConfigs() const {
+        return original_configs_;
+    }
+
     // 检查是否打开
     bool isOpen() const {
         return is_open_;

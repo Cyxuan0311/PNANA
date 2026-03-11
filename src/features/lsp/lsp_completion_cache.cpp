@@ -160,7 +160,8 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                 };
 
                 for (const auto& item : cached_value.items) {
-                    std::string label = item.label;
+                    // 使用 filterText 过滤（LSP 规范），无则用 label
+                    std::string label = !item.filterText.empty() ? item.filterText : item.label;
                     std::string lower_label = label;
                     std::transform(lower_label.begin(), lower_label.end(), lower_label.begin(),
                                    ::tolower);

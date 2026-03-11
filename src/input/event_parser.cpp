@@ -1,5 +1,4 @@
 #include "input/event_parser.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <cctype>
 
@@ -350,6 +349,9 @@ std::string EventParser::parseCtrlSpecialChar(const ftxui::Event& event) const {
         std::string ch = event.character();
         auto mods = parseModifiers(event);
         if (mods.ctrl) {
+            // Ctrl+/ 在终端中可能产生 0x1F (31)，与 Ctrl+_ 相同
+            if (ch.length() == 1 && (ch[0] == '\x1f' || ch[0] == 31))
+                return "ctrl_slash";
             if (ch == "/")
                 return "ctrl_slash";
             if (ch == "\\")
@@ -447,6 +449,14 @@ std::string EventParser::eventToKey(const ftxui::Event& event) const {
     key = parseCtrlSpecialChar(event);
     if (!key.empty())
         return key;
+
+    // 7b. 非字符事件的原始字节：Ctrl+/ 在终端中常以 raw \x1f 到达（非 is_character）
+    if (!event.is_character()) {
+        std::string input = event.input();
+        if (input.length() == 1 && static_cast<unsigned char>(input[0]) == 0x1f) {
+            return "ctrl_slash";
+        }
+    }
 
     // 8. Space+字符组合（如 Space+A）
     key = parseSpaceKey(event);

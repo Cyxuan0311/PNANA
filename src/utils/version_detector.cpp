@@ -20,6 +20,9 @@ struct FileDeleter {
 namespace pnana {
 namespace utils {
 
+// 缓存有效期（5分钟）
+constexpr std::chrono::minutes VersionDetector::CACHE_DURATION;
+
 VersionDetector::VersionDetector() {}
 
 std::string VersionDetector::getVersionForFileType(const std::string& file_type) {
@@ -73,7 +76,7 @@ std::string VersionDetector::fetchVersionForFileType(const std::string& file_typ
     std::string command;
     std::string version_prefix;
 
-    // 根据文件类型确定对应的版本检查命令
+    // ===================== 原有文件类型 =====================
     if (file_type == "python" || file_type == "py") {
         command = "python3 --version 2>&1 || python --version 2>&1";
         version_prefix = "Python ";
@@ -156,6 +159,137 @@ std::string VersionDetector::fetchVersionForFileType(const std::string& file_typ
         // CMake 版本检测
         command = "cmake --version 2>&1 | head -1";
         version_prefix = "cmake version ";
+    } else if (file_type == "makefile" || file_type == "Makefile" || file_type == "makefile.in" ||
+               file_type == "Makefile.in") {
+        command = "make --version 2>&1 | head -1";
+        version_prefix = "GNU Make ";
+    } else if (file_type == "dockerfile") {
+        command = "docker --version 2>&1 | head -1";
+        version_prefix = "Docker version ";
+    }
+    // ===================== 新增文件类型 =====================
+    else if (file_type == "vue" || file_type == "vuejs") {
+        // Vue 版本检测：优先检测 @vue/cli，然后是 vue --version
+        command = "vue --version 2>&1 || npm list vue 2>&1 | grep vue | head -1";
+        version_prefix = "@vue/cli ";
+    } else if (file_type == "react" || file_type == "jsx" || file_type == "tsx") {
+        // React 版本检测：检测 react-scripts 或 npm 中的 react 版本
+        command =
+            "npm list react 2>&1 | grep react | head -1 || npx create-react-app --version 2>&1";
+        version_prefix = "react@";
+    } else if (file_type == "yaml" || file_type == "yml") {
+        // YAML 检测 yq 工具版本
+        command = "yq --version 2>&1 || python3 -c 'import yaml; print(yaml.__version__)' 2>&1";
+        version_prefix = "yq version ";
+    } else if (file_type == "toml") {
+        // TOML 检测 tomlq 或 python toml 库版本
+        command = "tomlq --version 2>&1 || python3 -c 'import toml; print(toml.__version__)' 2>&1";
+        version_prefix = "tomlq version ";
+    } else if (file_type == "protobuf" || file_type == "proto") {
+        // Protobuf 检测 protoc 版本
+        command = "protoc --version 2>&1";
+        version_prefix = "libprotoc ";
+    } else if (file_type == "sql") {
+        // SQL 检测常见数据库客户端版本
+        command = "mysql --version 2>&1 || psql --version 2>&1 || sqlite3 --version 2>&1";
+        version_prefix = "";
+    } else if (file_type == "html" || file_type == "htm") {
+        // HTML 检测浏览器/解析器版本
+        command = "curl --version 2>&1 | head -1 || w3m -version 2>&1 | head -1";
+        version_prefix = "curl ";
+    } else if (file_type == "css" || file_type == "scss" || file_type == "sass") {
+        // CSS/SCSS 检测 sass/node-sass 版本
+        command = "sass --version 2>&1 || node-sass --version 2>&1";
+        version_prefix = "sass ";
+    } else if (file_type == "markdown" || file_type == "md") {
+        // Markdown 检测 pandoc 版本
+        command = "pandoc --version 2>&1 | head -1";
+        version_prefix = "pandoc ";
+    } else if (file_type == "ini" || file_type == "conf") {
+        // 配置文件检测解析工具版本
+        command = "crudini --version 2>&1 || cat /etc/os-release | grep VERSION_ID | head -1";
+        version_prefix = "crudini ";
+    } else if (file_type == "json") {
+        // JSON 检测 jq 工具版本
+        command = "jq --version 2>&1 || python3 -m json.tool --help 2>&1 | head -1";
+        version_prefix = "jq-";
+    } else if (file_type == "xml") {
+        // XML 检测 xmllint 版本
+        command = "xmllint --version 2>&1 | head -1";
+        version_prefix = "xmllint: using libxml2 ";
+    } else if (file_type == "csv") {
+        // CSV 检测 csvkit 工具版本
+        command =
+            "csvkit --version 2>&1 || python3 -c 'import csv; print(\"Python CSV lib\")' 2>&1";
+        version_prefix = "csvkit ";
+    } else if (file_type == "rust-script" || file_type == "rs-script") {
+        // Rust 脚本检测 cargo-script 版本
+        command = "cargo script --version 2>&1 || rustc --version 2>&1";
+        version_prefix = "cargo-script ";
+    } else if (file_type == "terraform" || file_type == "tf") {
+        // Terraform 版本检测
+        command = "terraform version 2>&1 | head -1";
+        version_prefix = "Terraform v";
+    } else if (file_type == "ansible" || file_type == "yml" || file_type == "yaml") {
+        // Ansible 版本检测
+        command = "ansible --version 2>&1 | head -1";
+        version_prefix = "ansible [core ";
+    } else if (file_type == "gradle") {
+        // Gradle 版本检测
+        command = "gradle --version 2>&1 | head -1 || ./gradlew --version 2>&1 | head -1";
+        version_prefix = "Gradle ";
+    } else if (file_type == "maven" || file_type == "pom") {
+        // Maven 版本检测
+        command = "mvn --version 2>&1 | head -1";
+        version_prefix = "Apache Maven ";
+    } else if (file_type == "zig") {
+        // Zig 编程语言
+        command = "zig version 2>&1 || zig --version 2>&1";
+        version_prefix = "zig ";
+    } else if (file_type == "odin") {
+        // Odin 编程语言
+        command = "odin version 2>&1 || odin --version 2>&1";
+        version_prefix = "odin ";
+    } else if (file_type == "nim" || file_type == "nimble") {
+        // Nim 编程语言
+        command = "nim --version 2>&1 | head -1";
+        version_prefix = "Nim Compiler Version ";
+    } else if (file_type == "fortran" || file_type == "f90" || file_type == "f95") {
+        // Fortran 编译器版本
+        command = "gfortran --version 2>&1 | head -1 || ifort --version 2>&1 | head -1";
+        version_prefix = "GNU Fortran (GCC) ";
+    } else if (file_type == "matlab" || file_type == "m") {
+        // MATLAB/Octave 版本
+        command = "octave --version 2>&1 | head -1";
+        version_prefix = "octave version ";
+    } else if (file_type == "julia") {
+        // Julia 编程语言
+        command = "julia --version 2>&1";
+        version_prefix = "julia version ";
+    } else if (file_type == "coffeescript" || file_type == "coffee") {
+        // CoffeeScript 版本
+        command = "coffee --version 2>&1";
+        version_prefix = "CoffeeScript ";
+    } else if (file_type == "less") {
+        // Less 版本
+        command = "lessc --version 2>&1";
+        version_prefix = "lessc ";
+    } else if (file_type == "stylus") {
+        // Stylus 版本
+        command = "stylus --version 2>&1";
+        version_prefix = "stylus ";
+    } else if (file_type == "docker-compose" || file_type == "yml" || file_type == "yaml") {
+        // Docker Compose 版本
+        command = "docker compose version 2>&1 || docker-compose --version 2>&1";
+        version_prefix = "Docker Compose version v";
+    } else if (file_type == "kubernetes" || file_type == "k8s" || file_type == "yaml") {
+        // Kubernetes kubectl 版本
+        command = "kubectl version --client 2>&1 | head -1";
+        version_prefix = "Client Version: v";
+    } else if (file_type == "helm") {
+        // Helm 版本
+        command = "helm version 2>&1 | head -1";
+        version_prefix = "version.BuildInfo{Version:\"v";
     } else {
         return "";
     }
@@ -195,6 +329,7 @@ std::string VersionDetector::parseVersionString(const std::string& raw_output,
         result = result.substr(0, newline_pos);
     }
 
+    // ===================== 特殊文件类型解析 =====================
     // C/C++ 编译器特殊处理
     if (file_type == "c" || file_type == "cpp" || file_type == "cc" || file_type == "cxx" ||
         file_type == "c++") {
@@ -279,6 +414,44 @@ std::string VersionDetector::parseVersionString(const std::string& raw_output,
         return result;
     }
 
+    // ===================== 新增特殊解析规则 =====================
+    // Vue 特殊解析
+    if (file_type == "vue" || file_type == "vuejs") {
+        std::string version = extractVersionNumber(result);
+        if (!version.empty()) {
+            return "vue " + version;
+        }
+        return result;
+    }
+
+    // React 特殊解析
+    if (file_type == "react" || file_type == "jsx" || file_type == "tsx") {
+        std::string version = extractVersionNumber(result);
+        if (!version.empty()) {
+            return "react " + version;
+        }
+        return result;
+    }
+
+    // Terraform 特殊解析
+    if (file_type == "terraform" || file_type == "tf") {
+        std::string version = extractVersionNumber(result);
+        if (!version.empty()) {
+            return "terraform " + version;
+        }
+        return result;
+    }
+
+    // Kubernetes 特殊解析
+    if (file_type == "kubernetes" || file_type == "k8s") {
+        std::string version = extractVersionNumber(result);
+        if (!version.empty()) {
+            return "kubectl " + version;
+        }
+        return result;
+    }
+
+    // ===================== 通用解析逻辑 =====================
     // 使用智能版本号提取
     std::string version = extractVersionNumber(result);
 
@@ -286,34 +459,21 @@ std::string VersionDetector::parseVersionString(const std::string& raw_output,
     if (version.empty()) {
         // 尝试移除常见的前缀
         std::vector<std::string> prefixes = {
-            "Python ",
-            "Node ",
-            "v",
-            "Version ",
-            "java version \"",
-            "openjdk version \"",
-            "kotlin ",
-            "go version go",
-            "rustc ",
-            "ruby ",
-            "PHP ",
-            "This is perl ",
-            "Lua ",
-            "R version ",
-            "Scala ",
-            "swift version ",
-            "Dart SDK version: ",
-            "The Glorious Glasgow Haskell Compilation System, version ",
-            "Clojure ",
-            "Elixir ",
-            "GNU bash, version ",
-            "fish, version ",
-            "PowerShell ",
-            "gcc (GCC) ",
-            "g++ (GCC) ",
-            "clang version ",
-            "Apple clang version ",
-            "cmake version "};
+            // 原有前缀
+            "Python ", "Node ", "v", "Version ", "java version \"", "openjdk version \"", "kotlin ",
+            "go version go", "rustc ", "ruby ", "PHP ", "This is perl ", "Lua ", "R version ",
+            "Scala ", "swift version ",
+            "Dart SDK version: ", "The Glorious Glasgow Haskell Compilation System, version ",
+            "Clojure ", "Elixir ", "GNU bash, version ", "fish, version ", "PowerShell ",
+            "gcc (GCC) ", "g++ (GCC) ", "clang version ", "Apple clang version ", "cmake version ",
+            "Docker version ", "GNU Make ",
+            // 新增前缀
+            "@vue/cli ", "react@", "yq version ", "tomlq version ", "libprotoc ", "curl ", "sass ",
+            "pandoc ", "crudini ", "jq-", "xmllint: using libxml2 ", "csvkit ", "cargo-script ",
+            "Terraform v", "ansible [core ", "Gradle ", "Apache Maven ", "zig ", "odin ",
+            "Nim Compiler Version ", "GNU Fortran (GCC) ", "octave version ", "julia version ",
+            "CoffeeScript ", "lessc ", "stylus ", "Docker Compose version v", "Client Version: v",
+            "version.BuildInfo{Version:\"v"};
 
         for (const auto& prefix : prefixes) {
             if (result.find(prefix) == 0) {
@@ -336,6 +496,10 @@ std::string VersionDetector::parseVersionString(const std::string& raw_output,
     version.erase(std::remove(version.begin(), version.end(), '"'), version.end());
     version.erase(std::remove(version.begin(), version.end(), '('), version.end());
     version.erase(std::remove(version.begin(), version.end(), ')'), version.end());
+    version.erase(std::remove(version.begin(), version.end(), '['), version.end());
+    version.erase(std::remove(version.begin(), version.end(), ']'), version.end());
+    version.erase(std::remove(version.begin(), version.end(), '}'), version.end());
+    version.erase(std::remove(version.begin(), version.end(), '{'), version.end());
 
     // 移除首尾空白
     version.erase(version.begin(),

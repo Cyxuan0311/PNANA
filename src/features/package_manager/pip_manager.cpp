@@ -1,5 +1,4 @@
 #include "features/package_manager/pip_manager.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -29,15 +28,12 @@ std::vector<Package> PipManager::getInstalledPackages() {
         return cache_entry_.packages;
     }
 
-    // 标记为正在获取
     cache_entry_.is_fetching = true;
     cache_entry_.error_message.clear();
 
-    // 在后台线程异步获取包列表
     std::thread([this]() {
         try {
             auto packages = fetchPackagesFromSystem();
-
             std::lock_guard<std::mutex> lock(this->cache_mutex_);
             this->cache_entry_.packages = packages;
             this->cache_entry_.timestamp = std::chrono::steady_clock::now();
@@ -47,8 +43,6 @@ std::vector<Package> PipManager::getInstalledPackages() {
             std::lock_guard<std::mutex> lock(this->cache_mutex_);
             this->cache_entry_.is_fetching = false;
             this->cache_entry_.error_message = std::string("Error fetching packages: ") + e.what();
-            pnana::utils::Logger::getInstance().log("[PIP] Error fetching packages: " +
-                                                    std::string(e.what()));
         }
     }).detach();
 
@@ -76,56 +70,51 @@ bool PipManager::isCacheValid() const {
 }
 
 bool PipManager::isAvailable() const {
-    // 检查 pip3 或 pip 命令是否可用
+    if (remote_executor_) {
+        auto [ok, out] = remote_executor_("which pip3 2>/dev/null || which pip 2>/dev/null");
+        return ok && !out.empty();
+    }
     const char* pip_commands[] = {"pip3", "pip"};
     for (const char* pip_cmd : pip_commands) {
         std::string command = std::string("which ") + pip_cmd + " > /dev/null 2>&1";
-        int result = system(command.c_str());
-        if (result == 0) {
+        if (system(command.c_str()) == 0)
             return true;
-        }
     }
     return false;
 }
 
 std::vector<Package> PipManager::fetchPackagesFromSystem() {
-    std::vector<Package> packages;
-
-    // 尝试执行 pip list 命令
-    // 使用 pip3 或 pip，取决于系统配置
-    const char* pip_commands[] = {"pip3", "pip"};
     std::string output;
     bool success = false;
-
-    for (const char* pip_cmd : pip_commands) {
-        std::string command = std::string(pip_cmd) + " list --format=columns 2>&1";
-
-        FILE* pipe = popen(command.c_str(), "r");
-        if (!pipe) {
-            continue;
-        }
-
-        char buffer[4096]; // 增大缓冲区，减少系统调用次数
-        output.clear();
-        output.reserve(1024 * 1024); // 预分配1MB空间，避免多次重新分配
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            output += buffer;
-        }
-
-        int exit_code = pclose(pipe);
-
-        if (exit_code == 0) {
-            success = true;
-            break;
+    if (remote_executor_) {
+        auto [ok, out] =
+            remote_executor_("pip3 list --format=columns 2>&1 || pip list --format=columns 2>&1");
+        if (!ok)
+            throw std::runtime_error("Failed to execute pip command on remote: " + out);
+        output = out;
+        success = true;
+    } else {
+        const char* pip_commands[] = {"pip3", "pip"};
+        for (const char* pip_cmd : pip_commands) {
+            std::string command = std::string(pip_cmd) + " list --format=columns 2>&1";
+            FILE* pipe = popen(command.c_str(), "r");
+            if (!pipe)
+                continue;
+            char buffer[4096];
+            output.clear();
+            output.reserve(1024 * 1024);
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+                output += buffer;
+            int exit_code = pclose(pipe);
+            if (exit_code == 0) {
+                success = true;
+                break;
+            }
         }
     }
-
-    if (!success) {
+    if (!success)
         throw std::runtime_error("Failed to execute pip command. Is pip installed?");
-    }
-
-    packages = parsePipListOutput(output);
-    return packages;
+    return parsePipListOutput(output);
 }
 
 std::vector<Package> PipManager::parsePipListOutput(const std::string& output) {
@@ -186,29 +175,39 @@ std::vector<Package> PipManager::parsePipListOutput(const std::string& output) {
 }
 
 bool PipManager::updatePackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // 执行 pip install --upgrade 命令
-    const char* pip_commands[] = {"pip3", "pip"};
-    std::string command;
-
-    for (const char* pip_cmd : pip_commands) {
-        std::string test_cmd = std::string("which ") + pip_cmd + " > /dev/null 2>&1";
-        if (system(test_cmd.c_str()) == 0) {
-            command = std::string(pip_cmd) + " install --upgrade " + package_name + " 2>&1";
-            break;
+    std::string pip_cmd = remote_executor_ ? "pip3" : "";
+    if (!remote_executor_) {
+        const char* cmds[] = {"pip3", "pip"};
+        for (const char* c : cmds) {
+            if (system((std::string("which ") + c + " > /dev/null 2>&1").c_str()) == 0) {
+                pip_cmd = c;
+                break;
+            }
+        }
+        if (pip_cmd.empty()) {
+            std::lock_guard<std::mutex> lock(cache_mutex_);
+            cache_entry_.error_message = "pip command not found";
+            return false;
         }
     }
-
-    if (command.empty()) {
-        std::lock_guard<std::mutex> lock(cache_mutex_);
-        cache_entry_.error_message = "pip command not found";
-        return false;
+    std::string command = pip_cmd + " install --upgrade " + package_name + " 2>&1";
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to update package: " + package_name + " - " + out.substr(0, 200);
+            }
+        }).detach();
+        return true;
     }
-
-    // 异步执行更新命令
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -216,59 +215,60 @@ bool PipManager::updatePackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pip command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to update package: " + package_name;
-            if (!output.empty()) {
-                // 只保存前200字符的错误信息
-                std::string error_output = output.substr(0, 200);
-                this->cache_entry_.error_message += " - " + error_output;
-            }
+            if (!output.empty())
+                this->cache_entry_.error_message += " - " + output.substr(0, 200);
         }
     }).detach();
-
     return true;
 }
 
 bool PipManager::updateAllDependencies(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // 先更新包本身，然后更新其依赖
-    const char* pip_commands[] = {"pip3", "pip"};
-    std::string command;
-
-    for (const char* pip_cmd : pip_commands) {
-        std::string test_cmd = std::string("which ") + pip_cmd + " > /dev/null 2>&1";
-        if (system(test_cmd.c_str()) == 0) {
-            // 更新包及其所有依赖
-            command = std::string(pip_cmd) + " install --upgrade --upgrade-strategy eager " +
-                      package_name + " 2>&1";
-            break;
+    std::string pip_cmd = remote_executor_ ? "pip3" : "";
+    if (!remote_executor_) {
+        const char* cmds[] = {"pip3", "pip"};
+        for (const char* c : cmds) {
+            if (system((std::string("which ") + c + " > /dev/null 2>&1").c_str()) == 0) {
+                pip_cmd = c;
+                break;
+            }
+        }
+        if (pip_cmd.empty()) {
+            std::lock_guard<std::mutex> lock(cache_mutex_);
+            cache_entry_.error_message = "pip command not found";
+            return false;
         }
     }
-
-    if (command.empty()) {
-        std::lock_guard<std::mutex> lock(cache_mutex_);
-        cache_entry_.error_message = "pip command not found";
-        return false;
+    std::string command =
+        pip_cmd + " install --upgrade --upgrade-strategy eager " + package_name + " 2>&1";
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to update package and dependencies: " + package_name + " - " +
+                    out.substr(0, 200);
+            }
+        }).detach();
+        return true;
     }
-
-    // 异步执行更新命令
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -276,57 +276,59 @@ bool PipManager::updateAllDependencies(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pip command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message =
                 "Failed to update package and dependencies: " + package_name;
-            if (!output.empty()) {
-                std::string error_output = output.substr(0, 200);
-                this->cache_entry_.error_message += " - " + error_output;
-            }
+            if (!output.empty())
+                this->cache_entry_.error_message += " - " + output.substr(0, 200);
         }
     }).detach();
-
     return true;
 }
 
 bool PipManager::removePackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // 执行 pip uninstall 命令
-    const char* pip_commands[] = {"pip3", "pip"};
-    std::string command;
-
-    for (const char* pip_cmd : pip_commands) {
-        std::string test_cmd = std::string("which ") + pip_cmd + " > /dev/null 2>&1";
-        if (system(test_cmd.c_str()) == 0) {
-            command = std::string(pip_cmd) + " uninstall -y " + package_name + " 2>&1";
-            break;
+    std::string pip_cmd = remote_executor_ ? "pip3" : "";
+    if (!remote_executor_) {
+        const char* cmds[] = {"pip3", "pip"};
+        for (const char* c : cmds) {
+            if (system((std::string("which ") + c + " > /dev/null 2>&1").c_str()) == 0) {
+                pip_cmd = c;
+                break;
+            }
+        }
+        if (pip_cmd.empty()) {
+            std::lock_guard<std::mutex> lock(cache_mutex_);
+            cache_entry_.error_message = "pip command not found";
+            return false;
         }
     }
-
-    if (command.empty()) {
-        std::lock_guard<std::mutex> lock(cache_mutex_);
-        cache_entry_.error_message = "pip command not found";
-        return false;
+    std::string command = pip_cmd + " uninstall -y " + package_name + " 2>&1";
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to remove package: " + package_name + " - " + out.substr(0, 200);
+            }
+        }).detach();
+        return true;
     }
-
-    // 异步执行删除命令
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -334,56 +336,58 @@ bool PipManager::removePackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pip command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to remove package: " + package_name;
-            if (!output.empty()) {
-                std::string error_output = output.substr(0, 200);
-                this->cache_entry_.error_message += " - " + error_output;
-            }
+            if (!output.empty())
+                this->cache_entry_.error_message += " - " + output.substr(0, 200);
         }
     }).detach();
-
     return true;
 }
 
 bool PipManager::installPackage(const std::string& package_name) {
-    if (package_name.empty()) {
+    if (package_name.empty())
         return false;
-    }
-
-    // 执行 pip install 命令
-    const char* pip_commands[] = {"pip3", "pip"};
-    std::string command;
-
-    for (const char* pip_cmd : pip_commands) {
-        std::string test_cmd = std::string("which ") + pip_cmd + " > /dev/null 2>&1";
-        if (system(test_cmd.c_str()) == 0) {
-            command = std::string(pip_cmd) + " install " + package_name + " 2>&1";
-            break;
+    std::string pip_cmd = remote_executor_ ? "pip3" : "";
+    if (!remote_executor_) {
+        const char* cmds[] = {"pip3", "pip"};
+        for (const char* c : cmds) {
+            if (system((std::string("which ") + c + " > /dev/null 2>&1").c_str()) == 0) {
+                pip_cmd = c;
+                break;
+            }
+        }
+        if (pip_cmd.empty()) {
+            std::lock_guard<std::mutex> lock(cache_mutex_);
+            cache_entry_.error_message = "pip command not found";
+            return false;
         }
     }
-
-    if (command.empty()) {
-        std::lock_guard<std::mutex> lock(cache_mutex_);
-        cache_entry_.error_message = "pip command not found";
-        return false;
+    std::string command = pip_cmd + " install " + package_name + " 2>&1";
+    if (remote_executor_) {
+        auto exec = remote_executor_;
+        std::thread([this, exec, command, package_name]() {
+            auto [ok, out] = exec(command);
+            std::lock_guard<std::mutex> lock(this->cache_mutex_);
+            if (ok) {
+                this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
+                this->cache_entry_.error_message.clear();
+            } else {
+                this->cache_entry_.error_message =
+                    "Failed to install package: " + package_name + " - " + out.substr(0, 200);
+            }
+        }).detach();
+        return true;
     }
-
-    // 异步执行安装命令
     std::thread([this, command, package_name]() {
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe) {
@@ -391,29 +395,21 @@ bool PipManager::installPackage(const std::string& package_name) {
             this->cache_entry_.error_message = "Failed to execute pip command";
             return;
         }
-
         char buffer[4096];
         std::string output;
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
             output += buffer;
-        }
-
         int exit_code = pclose(pipe);
-
         std::lock_guard<std::mutex> lock(this->cache_mutex_);
         if (exit_code == 0) {
-            // 清除缓存，强制刷新
             this->cache_entry_.timestamp = std::chrono::steady_clock::now() - CACHE_TIMEOUT_;
             this->cache_entry_.error_message.clear();
         } else {
             this->cache_entry_.error_message = "Failed to install package: " + package_name;
-            if (!output.empty()) {
-                std::string error_output = output.substr(0, 200);
-                this->cache_entry_.error_message += " - " + error_output;
-            }
+            if (!output.empty())
+                this->cache_entry_.error_message += " - " + output.substr(0, 200);
         }
     }).detach();
-
     return true;
 }
 

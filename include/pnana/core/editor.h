@@ -72,6 +72,7 @@
 #include "features/lsp/snippet_manager.h"
 #include "ui/completion_popup.h"
 #include "ui/diagnostics_popup.h"
+#include "ui/lsp_status_popup.h"
 #include "ui/symbol_navigation_popup.h"
 #endif
 #ifdef BUILD_LUA_SUPPORT
@@ -242,6 +243,7 @@ class Editor {
 
     // 分屏大小调整
     bool resizeActiveSplitRegion(int delta);
+    void focusTabBar();
     void focusLeftRegion();
     void focusRightRegion();
     void focusUpRegion();
@@ -305,7 +307,12 @@ class Editor {
         return split_view_manager_;
     }
     bool isFileBrowserVisible() const;
+    const pnana::ui::SSHConfig& getCurrentSSHConfig() const {
+        return current_ssh_config_;
+    }
     bool isTerminalVisible() const;
+    bool isAIAssistantVisible() const;
+    ftxui::Element renderAIAssistantPanel();
     bool isGitPanelVisible() const;
     vgit::GitPanel& getGitPanel() {
         return git_panel_;
@@ -348,6 +355,8 @@ class Editor {
     }
     int getScreenHeight() const;
     int getScreenWidth() const;
+    // 根据文档行数返回行号区域所需字符宽度（用于光标位置等计算）
+    int getLineNumberWidth(Document* doc) const;
 
     // 退出
     void quit();
@@ -469,8 +478,9 @@ class Editor {
     // LSP 格式化器
     std::unique_ptr<features::LspFormatter> lsp_formatter_;
 
-    // 代码折叠管理器
+    // 代码折叠管理器（按 language_id 绑定，切换不同语言文件时需替换）
     std::unique_ptr<features::FoldingManager> folding_manager_;
+    std::string folding_manager_language_id_; // 当前 folding_manager_ 绑定的 language_id
 
     // 文档更新防抖（阶段1优化）
     std::chrono::steady_clock::time_point last_document_update_time_;
@@ -519,6 +529,7 @@ class Editor {
 #ifdef BUILD_LSP_SUPPORT
     pnana::ui::SymbolNavigationPopup symbol_navigation_popup_;
     bool show_symbol_navigation_popup_;
+    pnana::ui::LspStatusPopup lsp_status_popup_;
 #endif
     std::vector<features::Diagnostic> current_file_diagnostics_;
     std::mutex diagnostics_mutex_;
@@ -562,6 +573,12 @@ class Editor {
     // 文档索引到SSH配置的映射（用于保存SSH文件）
     std::map<size_t, pnana::ui::SSHConfig> document_ssh_configs_;
 
+    // 断开 SSH 前保存的本地文件浏览器目录，用于恢复
+    std::string last_local_directory_;
+
+    // SSH 连接时获取到的远端 HOME 目录（用于展开 ~/ 路径）
+    std::string ssh_remote_home_;
+
     // 主题选择
     bool show_theme_menu_;
 
@@ -590,6 +607,7 @@ class Editor {
     // 显示选项
     bool show_line_numbers_;
     bool relative_line_numbers_;
+    bool show_helpbar_;
     bool syntax_highlighting_;
     int zoom_level_;
     int file_browser_width_; // 文件浏览器宽度
@@ -723,11 +741,15 @@ class Editor {
     // SSH 远程文件编辑
     void showSSHDialog();
     void handleSSHConnect(const pnana::ui::SSHConfig& config);
+    void disconnectSSH();
 
     // SSH 文件传输
     void showSSHTransferDialog();
     void handleSSHFileTransfer(const std::vector<pnana::ui::SSHTransferItem>& items);
     void handleSSHTransferCancel();
+
+    // FZF 远程模式：从 ssh_uri 加载远程文件列表
+    void onFzfRemoteLoad(const std::string& ssh_uri);
 
     // SSH文件保存（内部方法）
     bool saveSSHFile(Document* doc, const pnana::ui::SSHConfig& config,
@@ -813,15 +835,20 @@ class Editor {
 
 #ifdef BUILD_LSP_SUPPORT
     // LSP 相关方法
+    void openLspStatusPopup();
+    void handleLspStatusPopupInput(ftxui::Event event);
     void initializeLsp();
     void shutdownLsp();
     void cleanupLocalCacheFiles();
     std::string detectLanguageId(const std::string& filepath);
     std::string filepathToUri(const std::string& filepath);
+    std::vector<features::CompletionItem> getDocumentBasedCompletions(Document* doc,
+                                                                      const std::string& prefix);
     void triggerCompletion();
     void handleCompletionInput(ftxui::Event event);
+    void triggerCompletionResolveIfNeeded();
     void applyCompletion();
-    void updateLspDocument();
+    void updateLspDocument(bool force_sync_for_completion = false);
     void updateCurrentFileDiagnostics();
     void updateCurrentFileFolding();
     void preloadAdjacentDocuments(size_t current_index);

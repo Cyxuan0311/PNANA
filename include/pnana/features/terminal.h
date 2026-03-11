@@ -28,6 +28,7 @@ struct TerminalLine {
 class Terminal {
   public:
     explicit Terminal(ui::Theme& theme);
+    ~Terminal();
 
     // 显示/隐藏
     void setVisible(bool visible);
@@ -53,6 +54,11 @@ class Terminal {
     // 中断 shell（发送 SIGINT）
     void interruptCommand();
 
+    // 启动 SSH 会话（替换当前 shell）；断开后需调用 restoreLocalShell()
+    void startSSHSession(const std::string& host, const std::string& user, int port,
+                         const std::string& key_path, const std::string& password);
+    void restoreLocalShell();
+
     // 获取方法（供 UI 使用）
     ui::Theme& getTheme() const {
         return theme_;
@@ -75,6 +81,11 @@ class Terminal {
     // 当有新输出时调用的回调（用于触发 UI 刷新，解决 PTY 输出不显示问题）
     void setOnOutputAdded(std::function<void()> cb) {
         on_output_added_ = std::move(cb);
+    }
+
+    // 当 shell 进程退出时调用的回调（如用户输入 exit 后关闭终端面板）
+    void setOnShellExit(std::function<void()> cb) {
+        on_shell_exit_ = std::move(cb);
     }
 
   private:
@@ -110,6 +121,8 @@ class Terminal {
 
     // 新输出时触发 UI 刷新的回调
     std::function<void()> on_output_added_;
+    // shell 进程退出时回调（如用户输入 exit 后关闭面板）
+    std::function<void()> on_shell_exit_;
 
     // 刷新节流：避免每字符都触发 UI 更新
     std::chrono::steady_clock::time_point last_refresh_time_;

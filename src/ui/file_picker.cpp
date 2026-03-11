@@ -1,9 +1,19 @@
 #include "ui/file_picker.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
+#include <ctime>
 #include <ftxui/dom/elements.hpp>
+#include <sstream>
+
+#if defined(__linux__) || defined(__APPLE__) || defined(__unix__)
+#include <pwd.h>
+#include <sys/stat.h>
+#define PNANA_HAVE_STAT_MTIME 1
+#define PNANA_HAVE_OWNER 1
+#endif
 
 using namespace ftxui;
 
@@ -23,21 +33,42 @@ FilePicker::FilePicker(Theme& theme)
     : theme_(theme), visible_(false), picker_type_(FilePickerType::BOTH), selected_index_(0),
       show_filter_(false), focus_in_search_(false), show_path_input_(false),
       type_filter_active_(false), current_type_filter_(FilePickerType::BOTH), icon_mapper_(),
-      color_mapper_(theme), cached_path_("") {}
+      color_mapper_(theme), cached_path_(""), remote_base_path_("") {}
+
+void FilePicker::setRemoteLoader(RemoteListDir fn, const std::string& initial_path) {
+    remote_list_dir_ = std::move(fn);
+    remote_base_path_ = initial_path;
+    remote_is_dir_cache_.clear();
+}
+
+void FilePicker::clearRemoteLoader() {
+    remote_list_dir_ = nullptr;
+    remote_base_path_.clear();
+    remote_is_dir_cache_.clear();
+}
 
 void FilePicker::show(const std::string& start_path, FilePickerType type,
                       std::function<void(const std::string&)> on_select,
                       std::function<void()> on_cancel) {
     picker_type_ = type;
-    current_path_ = start_path;
-    try {
-        if (fs::exists(current_path_) && fs::is_directory(current_path_)) {
-            current_path_ = fs::canonical(current_path_).string();
-        } else {
+
+    if (remote_list_dir_) {
+        // 远程模式：若调用方传入有效路径（以 / 开头）则与文件列表一致，否则用预设的
+        // remote_base_path_
+        current_path_ = (!start_path.empty() && start_path[0] == '/')
+                            ? start_path
+                            : (remote_base_path_.empty() ? "/" : remote_base_path_);
+    } else {
+        current_path_ = start_path;
+        try {
+            if (fs::exists(current_path_) && fs::is_directory(current_path_)) {
+                current_path_ = fs::canonical(current_path_).string();
+            } else {
+                current_path_ = fs::current_path().string();
+            }
+        } catch (...) {
             current_path_ = fs::current_path().string();
         }
-    } catch (...) {
-        current_path_ = fs::current_path().string();
     }
 
     on_select_ = on_select;
@@ -158,13 +189,30 @@ bool FilePicker::handleInput(ftxui::Event event) {
         return true;
     } else if (event == Event::Backspace) {
         // 返回上级目录
-        try {
-            if (current_path_ != "/") {
-                fs::path parent = fs::path(current_path_).parent_path();
-                current_path_ = parent.string();
+        if (remote_list_dir_) {
+            std::string up = current_path_;
+            while (up.size() > 1 && up.back() == '/')
+                up.pop_back();
+            auto pos = up.rfind('/');
+            if (pos != std::string::npos && pos > 0) {
+                up = up.substr(0, pos);
+            } else if (up != "/") {
+                up = "/";
+            }
+            if (up != current_path_) {
+                current_path_ = up;
+                selected_index_ = 0;
                 loadDirectory();
             }
-        } catch (...) {
+        } else {
+            try {
+                if (current_path_ != "/") {
+                    fs::path parent = fs::path(current_path_).parent_path();
+                    current_path_ = parent.string();
+                    loadDirectory();
+                }
+            } catch (...) {
+            }
         }
         return true;
     } else if (event == Event::CtrlF) {
@@ -214,126 +262,103 @@ Element FilePicker::render() {
 
     auto& colors = theme_.getColors();
 
-    Elements content;
+    // ---------- 左侧：路径 + 文件列表 ----------
+    Elements left_content;
 
-    // 标题栏
-    std::string title = "File Picker";
+    std::string title = isRemote() ? "File Picker [remote]" : "File Picker";
     std::string type_label = "[All]";
     if (picker_type_ == FilePickerType::FILE) {
-        title = "Select File";
+        title = isRemote() ? "Select File [remote]" : "Select File";
         type_label = "[Files Only]";
     } else if (picker_type_ == FilePickerType::FOLDER) {
-        title = "Select Folder";
+        title = isRemote() ? "Select Folder [remote]" : "Select Folder";
         type_label = "[Folders Only]";
     }
 
-    content.push_back(hbox({text(" "), text(ui::icons::SEARCH) | color(Color::Cyan), text(" "),
-                            text(title) | bold | color(colors.foreground), text(" "),
-                            text(type_label) | color(colors.comment), filler(),
-                            text(" ") | color(colors.comment)}) |
-                      bgcolor(colors.menubar_bg));
+    left_content.push_back(hbox({text(" "), text(ui::icons::SEARCH) | color(Color::Cyan), text(" "),
+                                 text(title) | bold | color(colors.foreground), text(" "),
+                                 text(type_label) | color(colors.comment), filler(),
+                                 text(" ") | color(colors.comment)}) |
+                           bgcolor(colors.menubar_bg));
+    left_content.push_back(separator());
 
-    content.push_back(separator());
-
-    // 路径输入框（如果启用）
     if (show_path_input_) {
-        content.push_back(
+        left_content.push_back(
             hbox({text(" Path: ") | color(colors.keyword) | bold,
                   text(path_input_ + "_") | color(colors.foreground) | bgcolor(colors.selection)}));
-        content.push_back(separator());
+        left_content.push_back(separator());
     }
 
-    // 当前路径
-    content.push_back(hbox({text(" "), text(ui::icons::LOCATION) | color(colors.keyword), text(" "),
-                            text(current_path_) | color(colors.comment)}));
+    left_content.push_back(hbox({text(" "), text(ui::icons::LOCATION) | color(colors.keyword),
+                                 text(" "), text(current_path_) | color(colors.comment)}));
+    left_content.push_back(separator());
 
-    content.push_back(separator());
-
-    // 搜索框（始终可见）
     Element search_box;
     if (focus_in_search_) {
-        // 焦点在搜索框时高亮显示
         search_box = hbox(
             {text(" "), text(ui::icons::SEARCH) | color(colors.keyword) | bold,
              text(" Search: ") | color(colors.keyword) | bold,
              text(filter_input_ + "_") | color(colors.foreground) | bgcolor(colors.selection)});
     } else {
-        // 焦点不在搜索框时正常显示
         std::string search_display = filter_input_.empty() ? "Type to search..." : filter_input_;
         Color search_color = filter_input_.empty() ? colors.comment : colors.foreground;
         search_box = hbox({text(" "), text(ui::icons::SEARCH) | color(colors.comment),
                            text(" Search: ") | color(colors.comment),
                            text(search_display) | color(search_color)});
     }
-    content.push_back(search_box);
-    content.push_back(separator());
+    left_content.push_back(search_box);
+    left_content.push_back(separator());
 
-    // 文件列表
-    size_t visible_count = 15; // 显示15行
+    size_t visible_count = 15;
     size_t visible_start = 0;
-
-    if (selected_index_ >= visible_start + visible_count) {
+    if (selected_index_ >= visible_start + visible_count)
         visible_start = selected_index_ - visible_count + 1;
-    }
-    if (selected_index_ < visible_start) {
+    if (selected_index_ < visible_start)
         visible_start = selected_index_;
-    }
 
     for (size_t i = visible_start; i < items_.size() && i < visible_start + visible_count; ++i) {
         std::string item_path = items_[i];
         std::string item_name = getItemName(item_path);
-
-        // 使用缓存获取元数据
         FileItemMetadata metadata = getItemMetadata(item_path, item_name);
-
         std::string icon = metadata.icon;
         Color item_color = metadata.color;
         bool is_dir = metadata.is_dir;
-
-        if (is_dir) {
+        if (is_dir)
             item_name += "/";
-        }
-
-        // Icon and name color (use white when selected, otherwise use file type color)
         Color icon_color = (i == selected_index_) ? Color::White : item_color;
         Color name_color = (i == selected_index_) ? Color::White : item_color;
-
+        Element name_el =
+            pnana::utils::highlightMatch(item_name, filter_input_, name_color, colors.keyword) |
+            ((i == selected_index_) ? bold : nothing);
         Elements row_elements = {
             text(" "), text(icon) | color(icon_color) | ((i == selected_index_) ? bold : nothing),
-            text(" "),
-            text(item_name) | color(name_color) | ((i == selected_index_) ? bold : nothing),
-            filler()};
-
+            text(" "), name_el, filler()};
         auto item_text = hbox(row_elements);
-
-        if (i == selected_index_) {
-            item_text = item_text | bgcolor(colors.selection);
-        } else {
-            item_text = item_text | bgcolor(colors.background);
-        }
-
-        content.push_back(item_text);
+        item_text = (i == selected_index_) ? (item_text | bgcolor(colors.selection))
+                                           : (item_text | bgcolor(colors.background));
+        left_content.push_back(item_text);
     }
 
-    // 填充空行
-    while (content.size() < 20) {
-        content.push_back(text(""));
-    }
+    while (left_content.size() < 20)
+        left_content.push_back(text(""));
 
-    content.push_back(separator());
-
-    // 底部提示
-    Elements hints = {text(" "),  text("↑↓: Navigate/Switch") | color(colors.comment),
+    left_content.push_back(separator());
+    Elements hints = {text(" "),  text("↑↓: Navigate") | color(colors.comment),
                       text("  "), text("Enter: Select") | color(colors.comment),
-                      text("  "), text("Tab: Type Filter") | color(colors.comment),
-                      text("  "), text(":/: Path Input") | color(colors.comment),
-                      text("  "), text("Type: Search") | color(colors.comment),
+                      text("  "), text("Tab: Filter") | color(colors.comment),
+                      text("  "), text(":/: Path") | color(colors.comment),
                       text("  "), text("Esc: Cancel") | color(colors.comment),
                       filler()};
-    content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
+    left_content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
 
-    return vbox(content) | borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
-           size(WIDTH, GREATER_THAN, 60) | size(HEIGHT, GREATER_THAN, 20) | center;
+    Element left_panel = vbox(std::move(left_content)) | size(WIDTH, EQUAL, 64);
+
+    // ---------- 右侧：预览面板 ----------
+    Element right_panel = renderPreviewPanel() | size(WIDTH, EQUAL, 60);
+
+    return hbox({left_panel, separator(), right_panel}) | borderWithColor(colors.dialog_border) |
+           bgcolor(colors.background) | size(WIDTH, GREATER_THAN, 124) |
+           size(HEIGHT, GREATER_THAN, 26) | center;
 }
 
 void FilePicker::reset() {
@@ -348,6 +373,8 @@ void FilePicker::reset() {
     type_filter_active_ = false;
     current_type_filter_ = FilePickerType::BOTH;
     clearMetadataCache();
+    folder_tree_cache_.clear();
+    file_detail_cache_.clear();
     on_select_ = nullptr;
     on_cancel_ = nullptr;
 }
@@ -355,70 +382,147 @@ void FilePicker::reset() {
 void FilePicker::loadDirectory() {
     items_.clear();
 
-    // 如果路径改变，清除缓存
     if (current_path_ != cached_path_) {
         clearMetadataCache();
         cached_path_ = current_path_;
     }
 
-    try {
-        if (!fs::exists(current_path_) || !fs::is_directory(current_path_)) {
-            return;
+    auto nameOf = [](const std::string& p) -> std::string {
+        auto pos = p.rfind('/');
+        return (pos == std::string::npos) ? p : p.substr(pos + 1);
+    };
+
+    // 大小写不敏感排序比较器
+    auto caseInsensitiveLess = [](const std::string& a, const std::string& b) {
+        std::string al = a, bl = b;
+        std::transform(al.begin(), al.end(), al.begin(), ::tolower);
+        std::transform(bl.begin(), bl.end(), bl.begin(), ::tolower);
+        if (al != bl)
+            return al < bl;
+        return a < b; // 相同时按原始大小写次排
+    };
+
+    if (remote_list_dir_) {
+        // ── 远程模式 ──
+        auto entries = remote_list_dir_(current_path_);
+
+        // 更新 is_dir 缓存
+        remote_is_dir_cache_.clear();
+        std::vector<std::string> dirs, files;
+
+        // 如果不在根目录，插入".."导航项
+        if (current_path_ != "/" && !current_path_.empty()) {
+            std::string up_path = current_path_;
+            // 去掉尾部斜杠
+            while (up_path.size() > 1 && up_path.back() == '/')
+                up_path.pop_back();
+            auto pos = up_path.rfind('/');
+            if (pos != std::string::npos && pos > 0) {
+                up_path = up_path.substr(0, pos);
+            } else if (pos == 0) {
+                up_path = "/";
+            }
+            remote_is_dir_cache_[".."] = true;
+            items_.push_back("..");
         }
 
-        std::vector<std::string> dirs;
-        std::vector<std::string> files;
-
-        for (const auto& entry : fs::directory_iterator(current_path_)) {
-            std::string path = entry.path().string();
-
-            // 根据类型筛选
-            if (picker_type_ == FilePickerType::FILE && entry.is_directory()) {
+        for (const auto& [name, is_dir] : entries) {
+            if (name.empty() || name == "." || name == "..")
                 continue;
-            }
-            if (picker_type_ == FilePickerType::FOLDER && !entry.is_directory()) {
-                continue;
-            }
 
-            // 应用过滤
-            std::string name = entry.path().filename().string();
+            // 按类型筛选
+            if (picker_type_ == FilePickerType::FILE && is_dir)
+                continue;
+            if (picker_type_ == FilePickerType::FOLDER && !is_dir)
+                continue;
+
+            // 关键词过滤
             if (!filter_input_.empty()) {
-                std::string name_lower = name;
-                std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
-                std::string filter_lower = filter_input_;
-                std::transform(filter_lower.begin(), filter_lower.end(), filter_lower.begin(),
-                               ::tolower);
-                if (name_lower.find(filter_lower) == std::string::npos) {
+                std::string nl = name, fl = filter_input_;
+                std::transform(nl.begin(), nl.end(), nl.begin(), ::tolower);
+                std::transform(fl.begin(), fl.end(), fl.begin(), ::tolower);
+                if (nl.find(fl) == std::string::npos)
                     continue;
-                }
             }
 
-            if (entry.is_directory()) {
-                dirs.push_back(path);
-            } else {
-                files.push_back(path);
-            }
+            // 拼出远程完整路径（用于 items_）
+            std::string full = current_path_;
+            if (!full.empty() && full.back() != '/')
+                full += '/';
+            full += name;
+
+            remote_is_dir_cache_[full] = is_dir;
+
+            if (is_dir)
+                dirs.push_back(full);
+            else
+                files.push_back(full);
         }
 
-        // 排序
-        std::sort(dirs.begin(), dirs.end());
-        std::sort(files.begin(), files.end());
+        // 排序（大小写不敏感）
+        std::sort(dirs.begin(), dirs.end(), [&](const std::string& a, const std::string& b) {
+            return caseInsensitiveLess(nameOf(a), nameOf(b));
+        });
+        std::sort(files.begin(), files.end(), [&](const std::string& a, const std::string& b) {
+            return caseInsensitiveLess(nameOf(a), nameOf(b));
+        });
 
-        // 合并：目录在前，文件在后
         items_.insert(items_.end(), dirs.begin(), dirs.end());
         items_.insert(items_.end(), files.begin(), files.end());
 
-        // 确保选中索引有效
-        if (selected_index_ >= items_.size() && !items_.empty()) {
-            selected_index_ = items_.size() - 1;
-        }
-        if (items_.empty()) {
-            selected_index_ = 0;
-        }
+    } else {
+        // ── 本地模式 ──
+        try {
+            if (!fs::exists(current_path_) || !fs::is_directory(current_path_)) {
+                return;
+            }
 
-    } catch (const std::exception&) {
-        // 读取失败
+            std::vector<std::string> dirs;
+            std::vector<std::string> files;
+
+            for (const auto& entry : fs::directory_iterator(current_path_)) {
+                std::string path = entry.path().string();
+
+                if (picker_type_ == FilePickerType::FILE && entry.is_directory())
+                    continue;
+                if (picker_type_ == FilePickerType::FOLDER && !entry.is_directory())
+                    continue;
+
+                std::string name = entry.path().filename().string();
+                if (!filter_input_.empty()) {
+                    std::string nl = name, fl = filter_input_;
+                    std::transform(nl.begin(), nl.end(), nl.begin(), ::tolower);
+                    std::transform(fl.begin(), fl.end(), fl.begin(), ::tolower);
+                    if (nl.find(fl) == std::string::npos)
+                        continue;
+                }
+
+                if (entry.is_directory())
+                    dirs.push_back(path);
+                else
+                    files.push_back(path);
+            }
+
+            // 大小写不敏感排序
+            std::sort(dirs.begin(), dirs.end(), [&](const std::string& a, const std::string& b) {
+                return caseInsensitiveLess(nameOf(a), nameOf(b));
+            });
+            std::sort(files.begin(), files.end(), [&](const std::string& a, const std::string& b) {
+                return caseInsensitiveLess(nameOf(a), nameOf(b));
+            });
+
+            items_.insert(items_.end(), dirs.begin(), dirs.end());
+            items_.insert(items_.end(), files.begin(), files.end());
+
+        } catch (const std::exception&) {
+        }
     }
+
+    if (selected_index_ >= items_.size() && !items_.empty()) {
+        selected_index_ = items_.size() - 1;
+    }
+    if (items_.empty())
+        selected_index_ = 0;
 }
 
 void FilePicker::navigateUp() {
@@ -440,27 +544,38 @@ void FilePicker::selectItem() {
 
     std::string selected = items_[selected_index_];
 
-    // 如果是目录
+    // 远程模式特殊处理 ".."
+    if (remote_list_dir_ && selected == "..") {
+        std::string up = current_path_;
+        while (up.size() > 1 && up.back() == '/')
+            up.pop_back();
+        auto pos = up.rfind('/');
+        if (pos != std::string::npos && pos > 0) {
+            up = up.substr(0, pos);
+        } else {
+            up = "/";
+        }
+        current_path_ = up;
+        selected_index_ = 0;
+        loadDirectory();
+        return;
+    }
+
     if (isDirectory(selected)) {
-        // 如果类型筛选是 FOLDER，选择文件夹并返回
         if (picker_type_ == FilePickerType::FOLDER) {
-            if (on_select_) {
+            if (on_select_)
                 on_select_(selected);
-            }
             visible_ = false;
             return;
         }
-        // 否则进入目录
         current_path_ = selected;
         selected_index_ = 0;
         loadDirectory();
         return;
     }
 
-    // 如果是文件，调用回调
-    if (on_select_) {
+    if (on_select_)
         on_select_(selected);
-    }
     visible_ = false;
 }
 
@@ -472,6 +587,13 @@ void FilePicker::cancel() {
 }
 
 bool FilePicker::isDirectory(const std::string& path) const {
+    if (remote_list_dir_) {
+        auto it = remote_is_dir_cache_.find(path);
+        if (it != remote_is_dir_cache_.end())
+            return it->second;
+        // ".." 特殊处理
+        return path == "..";
+    }
     try {
         return fs::is_directory(path);
     } catch (...) {
@@ -480,6 +602,13 @@ bool FilePicker::isDirectory(const std::string& path) const {
 }
 
 std::string FilePicker::getItemName(const std::string& path) const {
+    if (remote_list_dir_) {
+        // 远程路径：取最后一段
+        if (path == "..")
+            return "..";
+        auto pos = path.rfind('/');
+        return (pos == std::string::npos) ? path : path.substr(pos + 1);
+    }
     try {
         return fs::path(path).filename().string();
     } catch (...) {
@@ -775,6 +904,253 @@ FilePicker::FileItemMetadata FilePicker::getItemMetadata(const std::string& item
 void FilePicker::clearMetadataCache() {
     item_metadata_cache_.clear();
     cached_path_ = "";
+}
+
+std::vector<FilePicker::FolderTreeEntry> FilePicker::getFolderTree(const std::string& dir_path) {
+    auto it = folder_tree_cache_.find(dir_path);
+    if (it != folder_tree_cache_.end())
+        return it->second;
+
+    std::vector<FolderTreeEntry> entries;
+
+    if (remote_list_dir_) {
+        // 远程目录预览
+        if (dir_path == "..")
+            return entries;
+        auto remEntries = remote_list_dir_(dir_path);
+        std::vector<FolderTreeEntry> dirs_e, files_e;
+        for (const auto& [name, is_dir] : remEntries) {
+            if (name.empty() || name == "." || name == "..")
+                continue;
+            if (dirs_e.size() + files_e.size() >= kMaxPreviewTreeEntries)
+                break;
+            if (is_dir)
+                dirs_e.push_back({name, true});
+            else
+                files_e.push_back({name, false});
+        }
+        auto cmp = [](const FolderTreeEntry& a, const FolderTreeEntry& b) {
+            std::string al = a.name, bl = b.name;
+            std::transform(al.begin(), al.end(), al.begin(), ::tolower);
+            std::transform(bl.begin(), bl.end(), bl.begin(), ::tolower);
+            return al < bl;
+        };
+        std::sort(dirs_e.begin(), dirs_e.end(), cmp);
+        std::sort(files_e.begin(), files_e.end(), cmp);
+        entries.reserve(dirs_e.size() + files_e.size());
+        entries.insert(entries.end(), dirs_e.begin(), dirs_e.end());
+        entries.insert(entries.end(), files_e.begin(), files_e.end());
+        folder_tree_cache_[dir_path] = entries;
+        return entries;
+    }
+
+    try {
+        if (!fs::exists(dir_path) || !fs::is_directory(dir_path))
+            return entries;
+
+        std::vector<FolderTreeEntry> dirs, files;
+        size_t count = 0;
+        for (const auto& entry : fs::directory_iterator(dir_path)) {
+            if (count >= kMaxPreviewTreeEntries)
+                break;
+            std::string name = entry.path().filename().string();
+            bool is_dir = entry.is_directory();
+            if (is_dir)
+                dirs.push_back({name, true});
+            else
+                files.push_back({name, false});
+            ++count;
+        }
+        std::sort(dirs.begin(), dirs.end(), [](const FolderTreeEntry& a, const FolderTreeEntry& b) {
+            return a.name < b.name;
+        });
+        std::sort(files.begin(), files.end(),
+                  [](const FolderTreeEntry& a, const FolderTreeEntry& b) {
+                      return a.name < b.name;
+                  });
+        entries.reserve(dirs.size() + files.size());
+        entries.insert(entries.end(), dirs.begin(), dirs.end());
+        entries.insert(entries.end(), files.begin(), files.end());
+        folder_tree_cache_[dir_path] = entries;
+    } catch (...) {
+    }
+    return entries;
+}
+
+FilePicker::FileDetail FilePicker::getFileDetail(const std::string& file_path) {
+    auto it = file_detail_cache_.find(file_path);
+    if (it != file_detail_cache_.end())
+        return it->second;
+
+    FileDetail detail;
+    detail.size_str = detail.permissions = detail.last_modified = "—";
+    detail.extension = detail.file_type = detail.full_path = detail.owner = "—";
+
+    if (remote_list_dir_) {
+        // 远程模式：仅填充文件名信息，无法获取本地 stat
+        detail.full_path = file_path;
+        std::string name = getItemName(file_path);
+        detail.extension = getFileExtension(name);
+        if (detail.extension.empty())
+            detail.extension = "(none)";
+        else
+            detail.extension = "." + detail.extension;
+        detail.size_str = "(remote)";
+        detail.permissions = "(remote)";
+        detail.owner = "(remote)";
+        return detail;
+    }
+
+    try {
+        if (!fs::exists(file_path) || !fs::is_regular_file(file_path))
+            return detail;
+
+        fs::path p(file_path);
+        try {
+            detail.full_path = fs::canonical(p).string();
+        } catch (...) {
+            detail.full_path = p.string();
+        }
+
+        std::string name = p.filename().string();
+        detail.extension = getFileExtension(name);
+        if (detail.extension.empty())
+            detail.extension = "(none)";
+        else
+            detail.extension = "." + detail.extension;
+
+        FileItemMetadata meta = getItemMetadata(file_path, name);
+        detail.file_type = meta.file_type;
+
+        uintmax_t size = fs::file_size(file_path);
+        std::ostringstream oss;
+        if (size >= 1024ULL * 1024 * 1024)
+            oss << (size / (1024.0 * 1024 * 1024)) << " GB";
+        else if (size >= 1024 * 1024)
+            oss << (size / (1024.0 * 1024)) << " MB";
+        else if (size >= 1024)
+            oss << (size / 1024.0) << " KB";
+        else
+            oss << size << " B";
+        detail.size_str = oss.str();
+
+        try {
+            fs::file_status status = fs::status(file_path);
+            fs::perms perm = status.permissions();
+            auto ch = [perm](fs::perms pm) {
+                return (perm & pm) != fs::perms::none;
+            };
+            detail.permissions.reserve(9);
+            detail.permissions += ch(fs::perms::owner_read) ? 'r' : '-';
+            detail.permissions += ch(fs::perms::owner_write) ? 'w' : '-';
+            detail.permissions += ch(fs::perms::owner_exec) ? 'x' : '-';
+            detail.permissions += ch(fs::perms::group_read) ? 'r' : '-';
+            detail.permissions += ch(fs::perms::group_write) ? 'w' : '-';
+            detail.permissions += ch(fs::perms::group_exec) ? 'x' : '-';
+            detail.permissions += ch(fs::perms::others_read) ? 'r' : '-';
+            detail.permissions += ch(fs::perms::others_write) ? 'w' : '-';
+            detail.permissions += ch(fs::perms::others_exec) ? 'x' : '-';
+        } catch (...) {
+        }
+
+#ifdef PNANA_HAVE_STAT_MTIME
+        struct stat st;
+        if (stat(file_path.c_str(), &st) == 0) {
+            std::time_t t = st.st_mtime;
+            std::tm* tm = std::localtime(&t);
+            if (tm) {
+                char buf[32];
+                if (std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", tm) > 0)
+                    detail.last_modified = buf;
+            }
+#ifdef PNANA_HAVE_OWNER
+            struct passwd* pw = getpwuid(st.st_uid);
+            if (pw && pw->pw_name)
+                detail.owner = pw->pw_name;
+#endif
+        }
+#endif
+        file_detail_cache_[file_path] = detail;
+    } catch (...) {
+    }
+    return detail;
+}
+
+Element FilePicker::renderPreviewPanel() {
+    auto& colors = theme_.getColors();
+    const size_t max_preview_lines = 18;
+
+    Element title = hbox({text(" Preview ") | bold | color(colors.keyword)});
+    Element content;
+
+    if (items_.empty()) {
+        content = vbox({
+            text("No items in current directory") | color(colors.comment),
+        });
+    } else if (selected_index_ >= items_.size()) {
+        content = text("Select a file or folder") | color(colors.comment);
+    } else {
+        std::string selected = items_[selected_index_];
+        bool is_dir = isDirectory(selected);
+
+        if (is_dir) {
+            auto entries = getFolderTree(selected);
+            Elements lines;
+            lines.push_back(hbox({text(ui::icons::FOLDER_OPEN) | color(colors.function),
+                                  text(" ") | color(colors.foreground),
+                                  text(getItemName(selected) + "/") | color(colors.function)}));
+            const char* branch = "├── ";
+            const char* last = "└── ";
+            for (size_t i = 0; i < entries.size() && i < max_preview_lines; ++i) {
+                const char* prefix =
+                    (i + 1 == entries.size() || i + 1 == max_preview_lines) ? last : branch;
+                std::string icon = entries[i].is_dir ? ui::icons::FOLDER : ui::icons::FILE;
+                Color c = entries[i].is_dir ? colors.function : colors.foreground;
+                std::string name = entries[i].name;
+                if (entries[i].is_dir)
+                    name += "/";
+                lines.push_back(hbox({text(prefix) | color(colors.comment), text(icon) | color(c),
+                                      text(" "), text(name) | color(c)}));
+            }
+            if (entries.size() > max_preview_lines)
+                lines.push_back(text("... and more") | color(colors.comment));
+            content = vbox(std::move(lines));
+        } else {
+            FileDetail d = getFileDetail(selected);
+            std::string name = getItemName(selected);
+            FileItemMetadata meta = getItemMetadata(selected, name);
+            Elements file_info = {
+                hbox({text(meta.icon) | color(meta.color), text(" "),
+                      text(name) | color(colors.foreground)}) |
+                    bold,
+                separator(),
+                hbox({text(" Type:        ") | color(colors.comment),
+                      text(d.file_type) | color(colors.foreground)}),
+                hbox({text(" Extension:   ") | color(colors.comment),
+                      text(d.extension) | color(colors.foreground)}),
+                hbox({text(" Size:        ") | color(colors.comment),
+                      text(d.size_str) | color(colors.foreground)}),
+                hbox({text(" Modified:    ") | color(colors.comment),
+                      text(d.last_modified) | color(colors.foreground)}),
+                hbox({text(" Owner:       ") | color(colors.comment),
+                      text(d.owner) | color(colors.foreground)}),
+                hbox({text(" Permissions: ") | color(colors.comment),
+                      text(d.permissions) | color(colors.foreground)}),
+                separator(),
+                hbox({text(" Path:") | color(colors.comment)}),
+                text(d.full_path) | color(colors.foreground) | dim,
+            };
+            content = vbox(std::move(file_info));
+        }
+    }
+
+    return vbox({
+               title,
+               separator(),
+               content,
+           }) |
+           borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
+           size(HEIGHT, EQUAL, 26);
 }
 
 } // namespace ui

@@ -14,14 +14,11 @@ TerminalHandler::TerminalHandler() = default;
 
 bool TerminalHandler::handleInput(Event event, Editor* editor) {
     if (!editor->isTerminalVisible()) {
-        LOG("TerminalHandler: Terminal not visible, ignoring input");
         return false;
     }
 
     EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
     if (current_region != EditorRegion::TERMINAL) {
-        LOG("TerminalHandler: Current region is " + editor->getRegionManager().getRegionName() +
-            ", switching to TERMINAL");
         editor->getRegionManager().setRegion(EditorRegion::TERMINAL);
     }
 

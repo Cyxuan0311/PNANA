@@ -1,6 +1,5 @@
 #include "input/key_binding_manager.h"
 #include "input/key_action.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <iostream>
 
@@ -35,7 +34,7 @@ void KeyBindingManager::initializeEditOperationBindings() {
     bindKey("ctrl_y", KeyAction::REDO);
     bindKeyAliases({"ctrl_shift_z"}, KeyAction::REDO);
     bindKey("ctrl_x", KeyAction::CUT);
-    bindKey("ctrl_p", KeyAction::COPY);
+    bindKey("ctrl_c", KeyAction::COPY);
     bindKey("ctrl_v", KeyAction::PASTE);
     bindKey("ctrl_a", KeyAction::SELECT_ALL);
     bindKey("alt_d", KeyAction::SELECT_WORD);
@@ -80,6 +79,7 @@ void KeyBindingManager::initializeViewOperationBindings() {
     bindKey("ctrl_shift_l", KeyAction::TOGGLE_LINE_NUMBERS);
     bindKey("f3", KeyAction::COMMAND_PALETTE);
     bindKey("ctrl_shift_a", KeyAction::AI_ASSISTANT);
+    bindKey("ctrl_l", KeyAction::AI_ASSISTANT); // Ctrl+L 打开/关闭 AI 面板（类似 Cursor）
     bindKey("f4", KeyAction::SSH_CONNECT);
     bindKey("alt_w", KeyAction::TOGGLE_MARKDOWN_PREVIEW);
 #ifdef BUILD_LUA_SUPPORT
@@ -99,6 +99,7 @@ void KeyBindingManager::initializeTabOperationBindings() {
     bindKeyAliases({"ctrl_pagedown"}, KeyAction::NEXT_TAB);
     bindKey("alt_shift_tab", KeyAction::PREV_TAB);
     bindKeyAliases({"ctrl_pageup"}, KeyAction::PREV_TAB);
+    bindKey("alt_t", KeyAction::FOCUS_TAB_BAR);
 }
 
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {

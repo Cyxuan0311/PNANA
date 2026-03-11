@@ -5,6 +5,7 @@ logs/
 __pycache__/
 data/
 .cursor/
+models/
 
 优化.md
 pnana.log

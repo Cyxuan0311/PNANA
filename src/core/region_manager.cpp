@@ -6,7 +6,8 @@ namespace core {
 RegionManager::RegionManager()
     : current_region_(EditorRegion::CODE_AREA), previous_region_(EditorRegion::CODE_AREA),
       tab_area_enabled_(false), file_browser_enabled_(false), terminal_enabled_(false),
-      git_panel_enabled_(false), help_window_enabled_(false), tab_index_(0) {}
+      git_panel_enabled_(false), ai_panel_enabled_(false), help_window_enabled_(false),
+      tab_index_(0) {}
 
 void RegionManager::setRegion(EditorRegion region) {
     if (canNavigateTo(region)) {
@@ -55,6 +56,15 @@ bool RegionManager::navigateUp() {
             }
             break;
 
+        case EditorRegion::AI_ASSISTANT_PANEL:
+            // 从 AI 面板向上导航到标签区或代码区
+            if (tab_area_enabled_) {
+                setRegion(EditorRegion::TAB_AREA);
+                return true;
+            }
+            setRegion(EditorRegion::CODE_AREA);
+            return true;
+
         case EditorRegion::HELP_WINDOW:
             // 帮助窗口是模态的，不导航
             return false;
@@ -94,6 +104,15 @@ bool RegionManager::navigateDown() {
                 return true;
             }
             return false;
+
+        case EditorRegion::AI_ASSISTANT_PANEL:
+            // 从 AI 面板向下导航到终端或代码区
+            if (terminal_enabled_) {
+                setRegion(EditorRegion::TERMINAL);
+                return true;
+            }
+            setRegion(EditorRegion::CODE_AREA);
+            return true;
 
         case EditorRegion::HELP_WINDOW:
             // 帮助窗口是模态的，不导航
@@ -138,6 +157,11 @@ bool RegionManager::navigateLeft() {
             setRegion(EditorRegion::CODE_AREA);
             return true;
 
+        case EditorRegion::AI_ASSISTANT_PANEL:
+            // 从 AI 面板向左回到主区域（上一区域）
+            setRegion(previous_region_);
+            return true;
+
         case EditorRegion::HELP_WINDOW:
             // 帮助窗口是模态的，不导航
             return false;
@@ -149,7 +173,11 @@ bool RegionManager::navigateLeft() {
 bool RegionManager::navigateRight() {
     switch (current_region_) {
         case EditorRegion::CODE_AREA:
-            // 代码区向右导航到Git面板（如果启用）
+            // 代码区向右：优先 AI 面板，否则 Git 面板
+            if (ai_panel_enabled_) {
+                setRegion(EditorRegion::AI_ASSISTANT_PANEL);
+                return true;
+            }
             if (git_panel_enabled_) {
                 setRegion(EditorRegion::GIT_PANEL);
                 return true;
@@ -162,19 +190,35 @@ bool RegionManager::navigateRight() {
             return true;
 
         case EditorRegion::FILE_BROWSER:
-            // 从文件浏览器向右导航到代码区
+            // 从文件浏览器向右：优先 AI 面板，否则代码区
+            if (ai_panel_enabled_) {
+                setRegion(EditorRegion::AI_ASSISTANT_PANEL);
+                return true;
+            }
             setRegion(EditorRegion::CODE_AREA);
             return true;
 
         case EditorRegion::TERMINAL:
-            // 终端向右导航到代码区
+            // 终端向右：优先 AI 面板，否则代码区
+            if (ai_panel_enabled_) {
+                setRegion(EditorRegion::AI_ASSISTANT_PANEL);
+                return true;
+            }
             setRegion(EditorRegion::CODE_AREA);
             return true;
 
         case EditorRegion::GIT_PANEL:
-            // 从Git面板向左导航到代码区
+            // 从 Git 面板向右：优先 AI 面板，否则代码区
+            if (ai_panel_enabled_) {
+                setRegion(EditorRegion::AI_ASSISTANT_PANEL);
+                return true;
+            }
             setRegion(EditorRegion::CODE_AREA);
             return true;
+
+        case EditorRegion::AI_ASSISTANT_PANEL:
+            // AI 面板已在最右
+            return false;
 
         case EditorRegion::HELP_WINDOW:
             // 帮助窗口是模态的，不导航
@@ -200,6 +244,8 @@ std::string RegionManager::getRegionName(EditorRegion region) const {
             return "Terminal";
         case EditorRegion::GIT_PANEL:
             return "Git Panel";
+        case EditorRegion::AI_ASSISTANT_PANEL:
+            return "AI Assistant";
         case EditorRegion::HELP_WINDOW:
             return "Help Window";
         default:
@@ -223,6 +269,9 @@ bool RegionManager::canNavigateTo(EditorRegion region) const {
 
         case EditorRegion::GIT_PANEL:
             return git_panel_enabled_;
+
+        case EditorRegion::AI_ASSISTANT_PANEL:
+            return ai_panel_enabled_;
 
         case EditorRegion::HELP_WINDOW:
             return help_window_enabled_;

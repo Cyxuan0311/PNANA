@@ -53,14 +53,16 @@ vim.cmd("InsertDate", function()
     vim.api.insert_text(pos.row, pos.col, date)
 end)
 
--- 监听文件打开事件
-vim.autocmd("FileOpened", function(filepath)
-    vim.api.set_status_message("File opened: " .. (filepath or "unknown"))
+-- 监听文件打开事件（autocmd 回调收到表参数：{ event = "FileOpened", file = "路径" }）
+vim.autocmd("FileOpened", function(args)
+    local path = (type(args) == "table" and args.file) or (type(args) == "string" and args) or "unknown"
+    vim.api.set_status_message("File opened: " .. (path or "unknown"))
 end)
 
--- 监听文件保存事件
-vim.autocmd("FileSaved", function(filepath)
-    vim.api.set_status_message("File saved: " .. (filepath or "unknown"))
+-- 监听文件保存事件（同上，参数为 { event = "FileSaved", file = "路径" }）
+vim.autocmd("FileSaved", function(args)
+    local path = (type(args) == "table" and args.file) or (type(args) == "string" and args) or "unknown"
+    vim.api.set_status_message("File saved: " .. (path or "unknown"))
 end)
 
 -- 注册键位映射：F2 显示文件信息

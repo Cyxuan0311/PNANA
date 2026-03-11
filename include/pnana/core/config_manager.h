@@ -25,12 +25,16 @@ struct DisplayConfig {
     bool relative_line_numbers = false;
     bool highlight_current_line = true;
     bool show_whitespace = false;
+    bool show_helpbar = true;
 
     // 光标配置
     std::string cursor_style = "block";       // block, underline, bar, hollow
     std::string cursor_color = "255,255,255"; // RGB格式，逗号分隔
     int cursor_blink_rate = 500;              // 闪烁频率（毫秒），0表示不闪烁
     bool cursor_smooth = false;               // 流动光标效果
+
+    // Logo 配置
+    bool logo_gradient = true; // Logo 是否使用渐变颜色
 };
 
 // 文件配置结构
@@ -93,6 +97,22 @@ struct PluginConfig {
     std::vector<std::string> enabled_plugins; // 已启用的插件列表
 };
 
+// LSP 服务器配置项（用于配置文件）
+struct LspServerConfigEntry {
+    std::string name;
+    std::string command;
+    std::string language_id;
+    std::vector<std::string> extensions;
+    std::vector<std::string> args;
+    std::map<std::string, std::string> env;
+};
+
+// LSP 配置结构
+struct LspConfig {
+    bool enabled = true;
+    std::vector<LspServerConfigEntry> servers; // 为空时使用内置默认配置
+};
+
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
@@ -100,6 +120,7 @@ struct AppConfig {
     FileConfig files;
     SearchConfig search;
     PluginConfig plugins;
+    LspConfig lsp;
 
     // 主题配置
     std::string current_theme = "monokai";

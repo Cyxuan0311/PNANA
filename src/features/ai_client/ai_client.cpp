@@ -41,7 +41,7 @@ size_t StreamingWriteCallback(void* contents, size_t size, size_t nmemb, void* u
 // AI客户端管理器实现
 AIClientManager::AIClientManager() {
     initializeClients();
-    current_provider_ = "openai"; // 默认使用OpenAI
+    refreshFromConfig(); // 使用 AIConfig 中的当前配置
 }
 
 void AIClientManager::setToolCallCallback(ToolCallCallback callback) {
@@ -60,23 +60,37 @@ AIClientManager& AIClientManager::getInstance() {
 }
 
 void AIClientManager::initializeClients() {
-    auto& ai_config = ai_config::AIConfig::getInstance();
+    // 不再预创建固定 provider，由 refreshFromConfig() 按当前配置创建
+}
 
-    // 初始化OpenAI客户端
-    try {
-        auto openai_config = ai_config.getProviderConfig("openai");
-        clients_["openai"] = std::make_shared<OpenAIClient>(openai_config);
-    } catch (...) {
-        // 配置不存在，跳过
+std::shared_ptr<AIClient> AIClientManager::getOrCreateClient(
+    const std::string& provider, const ai_config::AIProviderConfig& config) {
+    auto it = clients_.find(provider);
+    if (it != clients_.end() && it->second) {
+        return it->second;
     }
+    std::shared_ptr<AIClient> client;
+    if (provider == "anthropic" || provider == "claude") {
+        client = std::make_shared<ClaudeClient>(config);
+    } else {
+        // OpenAI 兼容 API：openai, deepseek, ollama, openrouter, groq 等
+        client = std::make_shared<OpenAIClient>(config);
+    }
+    if (tool_call_callback_) {
+        client->setToolCallCallback(tool_call_callback_);
+    }
+    clients_[provider] = client;
+    return client;
+}
 
-    // 初始化Claude客户端
-    try {
-        auto claude_config = ai_config.getProviderConfig("claude");
-        clients_["claude"] = std::make_shared<ClaudeClient>(claude_config);
-    } catch (...) {
-        // 配置不存在，跳过
-    }
+void AIClientManager::refreshFromConfig() {
+    auto& cfg = ai_config::AIConfig::getInstance();
+    ai_config::AIProviderConfig current = cfg.getCurrentConfig();
+    if (current.name.empty())
+        return;
+    current_provider_ = current.name;
+    std::shared_ptr<AIClient> client = getOrCreateClient(current.name, current);
+    (void)client;
 }
 
 void AIClientManager::setCurrentProvider(const std::string& provider) {
@@ -86,6 +100,7 @@ void AIClientManager::setCurrentProvider(const std::string& provider) {
 }
 
 std::shared_ptr<AIClient> AIClientManager::getCurrentClient() {
+    refreshFromConfig();
     auto it = clients_.find(current_provider_);
     return it != clients_.end() ? it->second : nullptr;
 }

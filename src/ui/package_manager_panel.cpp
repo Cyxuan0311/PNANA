@@ -2,6 +2,7 @@
 #include "ui/icons.h"
 #include "ui/package_detail_dialog.h"
 #include "utils/logger.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <chrono>
 #include <ftxui/component/event.hpp>
@@ -262,6 +263,17 @@ Element PackageManagerPanel::renderHeader() const {
     header_elements.push_back(text(icons::PACKAGE) | color(colors.success));
     header_elements.push_back(text(" Package Manager ") | color(colors.menubar_fg) | bold);
 
+    // 如果有远程 executor，显示当前主机标识
+    auto manager = getCurrentManager();
+    if (manager && manager->isRemote()) {
+        const std::string& label = manager->getRemoteLabel();
+        if (!label.empty()) {
+            header_elements.push_back(text("@ ") | color(colors.comment));
+            header_elements.push_back(text(label) | color(colors.string) | bold);
+            header_elements.push_back(text(" [remote]") | color(colors.comment) | dim);
+        }
+    }
+
     return hbox(std::move(header_elements)) | bgcolor(colors.menubar_bg);
 }
 
@@ -453,13 +465,14 @@ Element PackageManagerPanel::renderPackageItem(const features::package_manager::
     item_elements.push_back(text(icon) | color(colors.function));
     item_elements.push_back(text(" "));
 
-    // 包名
+    // 包名（匹配搜索高亮）
     std::string name_display = pkg.name;
     if (name_display.length() > 30) {
         name_display = name_display.substr(0, 27) + "...";
     }
-    item_elements.push_back(text(name_display) | (is_selected ? color(colors.foreground) | bold
-                                                              : color(colors.foreground)));
+    item_elements.push_back(pnana::utils::highlightMatch(name_display, search_filter_,
+                                                         colors.foreground, colors.keyword) |
+                            (is_selected ? bold : ftxui::nothing));
 
     item_elements.push_back(filler());
 

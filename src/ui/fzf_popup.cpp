@@ -1,6 +1,7 @@
 #include "ui/fzf_popup.h"
 #include "ui/icons.h"
 #include "utils/file_type_detector.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -126,6 +127,12 @@ void FzfPopup::open() {
     filtered_display_paths_.clear();
     root_path_.clear();
 
+    if (root_directory_.size() >= 6 && root_directory_.compare(0, 6, "ssh://") == 0 &&
+        on_remote_load_callback_) {
+        on_remote_load_callback_(root_directory_);
+        return;
+    }
+
     if (on_load_complete_callback_) {
         // 异步加载：立即显示弹窗，后台线程收集文件
         std::string root = root_directory_;
@@ -157,6 +164,10 @@ void FzfPopup::receiveFiles(std::vector<std::string> files, std::vector<std::str
 void FzfPopup::setOnLoadComplete(
     std::function<void(std::vector<std::string>, std::vector<std::string>, std::string)> callback) {
     on_load_complete_callback_ = std::move(callback);
+}
+
+void FzfPopup::setOnRemoteLoad(std::function<void(const std::string&)> callback) {
+    on_remote_load_callback_ = std::move(callback);
 }
 
 void FzfPopup::close() {
@@ -429,8 +440,9 @@ Element FzfPopup::renderFileList() const {
                 row.push_back(text("  "));
             }
             row.push_back(text(icon + " ") | color(file_color));
-            row.push_back(text(display_path) | (is_selected ? color(colors.dialog_fg) | bold
-                                                            : color(colors.foreground)));
+            ftxui::Color path_color = is_selected ? colors.dialog_fg : colors.foreground;
+            row.push_back(utils::highlightMatch(display_path, input_, path_color, colors.keyword) |
+                          (is_selected ? bold : ftxui::nothing));
 
             Element line = hbox(row);
             if (is_selected) {
@@ -505,6 +517,7 @@ Element FzfPopup::renderPreview() const {
 Element FzfPopup::renderHelpBar() const {
     const auto& colors = theme_.getColors();
     return hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
+                 text("PgUp/PgDn") | color(colors.helpbar_key) | bold, text(": Page scroll  "),
                  text("Enter") | color(colors.helpbar_key) | bold, text(": Open  "),
                  text("Tab") | color(colors.helpbar_key) | bold, text(": Preview next page  "),
                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel  "),
@@ -554,6 +567,40 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                 }
             }
             preview_page_ = 0; // 切换选中文件时重置预览页
+        }
+        return true;
+    }
+
+    // Page Down: 向下翻页快速滚动
+    if (event == ftxui::Event::PageDown) {
+        if (!filtered_files_.empty()) {
+            const size_t page_step = list_display_count_;
+            if (selected_index_ + page_step < filtered_files_.size()) {
+                selected_index_ += page_step;
+            } else {
+                selected_index_ = filtered_files_.size() - 1;
+            }
+            if (selected_index_ >= scroll_offset_ + list_display_count_) {
+                scroll_offset_ = selected_index_ - list_display_count_ + 1;
+            }
+            preview_page_ = 0;
+        }
+        return true;
+    }
+
+    // Page Up: 向上翻页快速滚动
+    if (event == ftxui::Event::PageUp) {
+        if (!filtered_files_.empty()) {
+            const size_t page_step = list_display_count_;
+            if (selected_index_ >= page_step) {
+                selected_index_ -= page_step;
+            } else {
+                selected_index_ = 0;
+            }
+            if (selected_index_ < scroll_offset_) {
+                scroll_offset_ = selected_index_;
+            }
+            preview_page_ = 0;
         }
         return true;
     }

@@ -51,6 +51,10 @@ bool DocumentManager::closeDocument(size_t index) {
         if (current_index_ >= documents_.size()) {
             current_index_ = documents_.size() - 1;
         }
+        // 通知文档切换回调，以便更新折叠、诊断等状态（避免显示已关闭文件的符号）
+        if (document_switched_callback_) {
+            document_switched_callback_(static_cast<size_t>(-1), current_index_);
+        }
     } else {
         // 所有文档已关闭，不自动创建新文档，保持空状态
         current_index_ = 0;

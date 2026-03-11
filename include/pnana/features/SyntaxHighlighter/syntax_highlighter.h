@@ -126,6 +126,9 @@ class SyntaxHighlighter {
     std::vector<Token> tokenizeRuby(const std::string& line);
     std::vector<Token> tokenizePHP(const std::string& line);
     std::vector<Token> tokenizeSwift(const std::string& line);
+    std::vector<Token> tokenizeJava(const std::string& line);
+    std::vector<Token> tokenizeGo(const std::string& line);
+    std::vector<Token> tokenizeRust(const std::string& line);
     std::vector<Token> tokenizeKotlin(const std::string& line);
     std::vector<Token> tokenizeScala(const std::string& line);
     std::vector<Token> tokenizeR(const std::string& line);
@@ -229,6 +232,16 @@ class SyntaxHighlighter {
 
     // 使用原有实现高亮
     ftxui::Element highlightLineNative(const std::string& line);
+
+#ifdef BUILD_TREE_SITTER_SUPPORT
+    // 从原生 tokenize 获取高亮片段
+    void getNativeSegments(const std::string& line, std::vector<HighlightSegment>& segments);
+
+    // 合并 Tree-sitter 与原生高亮片段并渲染
+    ftxui::Element mergeAndHighlight(const std::string& line,
+                                     const std::vector<HighlightSegment>& ts_segments,
+                                     const std::vector<HighlightSegment>& native_segments);
+#endif
 };
 
 } // namespace features

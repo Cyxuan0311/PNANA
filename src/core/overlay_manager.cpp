@@ -70,11 +70,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
-    // AI助手面板
+    // AI助手面板：以右侧侧边栏形式显示，而不是居中弹窗
     if (is_ai_assistant_visible_callback_ && is_ai_assistant_visible_callback_() &&
         render_ai_assistant_callback_) {
-        Elements dialog_elements = {main_ui, render_ai_assistant_callback_() | center};
-        return dbox(dialog_elements);
+        Element ai_panel = render_ai_assistant_callback_();
+        // 主界面在左侧，AI 面板在右侧
+        return hbox({main_ui | flex, separator(), ai_panel});
     }
 
 #ifdef BUILD_LUA_SUPPORT
@@ -98,6 +99,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     if (is_fzf_popup_visible_callback_ && is_fzf_popup_visible_callback_() &&
         render_fzf_popup_callback_) {
         return dbox({main_ui | dim, render_fzf_popup_callback_() | center});
+    }
+
+    // 如果 LSP 连接状态弹窗打开，叠加显示
+    if (is_lsp_status_popup_visible_callback_ && is_lsp_status_popup_visible_callback_() &&
+        render_lsp_status_popup_callback_) {
+        return dbox({main_ui | dim, render_lsp_status_popup_callback_() | center});
     }
 
     // 如果格式化对话框打开，叠加显示

@@ -1,5 +1,6 @@
 #include "ui/theme_menu.h"
 #include "ui/icons.h"
+#include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
 #include <ftxui/dom/elements.hpp>
@@ -38,6 +39,10 @@ void ThemeMenu::setSelectedIndex(size_t index) {
     }
 }
 
+void ThemeMenu::onMenuOpened() {
+    theme_before_preview_ = theme_.getCurrentThemeName();
+}
+
 void ThemeMenu::setCursorColorGetter(std::function<ftxui::Color()> getter) {
     cursor_color_getter_ = std::move(getter);
 }
@@ -48,22 +53,28 @@ bool ThemeMenu::handleInput(ftxui::Event event) {
             search_input_.clear();
             search_cursor_pos_ = 0;
             updateFilteredThemes();
-            return true; // 消费：仅清空搜索
+            applyPreviewTheme(); // 清空搜索后按当前选中项预览
+            return true;         // 消费：仅清空搜索
+        }
+        if (!theme_before_preview_.empty()) {
+            theme_.setTheme(theme_before_preview_); // 恢复打开菜单前的主题
         }
         return false; // 不消费：让父级关闭弹窗
     } else if (event == Event::Return) {
-        return false; // 不消费：让父级应用主题并关闭
+        return false; // 不消费：让父级关闭（主题已在预览中应用，Enter 确认）
     } else if (event == Event::Backspace) {
         if (search_cursor_pos_ > 0) {
             search_input_.erase(search_cursor_pos_ - 1, 1);
             search_cursor_pos_--;
             updateFilteredThemes();
+            applyPreviewTheme();
         }
         return true;
     } else if (event == Event::Delete) {
         if (search_cursor_pos_ < search_input_.size()) {
             search_input_.erase(search_cursor_pos_, 1);
             updateFilteredThemes();
+            applyPreviewTheme();
         }
         return true;
     } else if (event == Event::ArrowLeft) {
@@ -77,11 +88,36 @@ bool ThemeMenu::handleInput(ftxui::Event event) {
     } else if (event == Event::ArrowUp) {
         if (selected_index_ > 0) {
             selected_index_--;
+            applyPreviewTheme();
         }
         return true;
     } else if (event == Event::ArrowDown) {
         if (!filtered_themes_.empty() && selected_index_ < filtered_themes_.size() - 1) {
             selected_index_++;
+            applyPreviewTheme();
+        }
+        return true;
+    } else if (event == Event::PageUp) {
+        if (!filtered_themes_.empty()) {
+            const size_t page_size = 20; // 与 renderThemeList 中 max_display 一致
+            if (selected_index_ >= page_size) {
+                selected_index_ -= page_size;
+            } else {
+                selected_index_ = 0;
+            }
+            applyPreviewTheme();
+        }
+        return true;
+    } else if (event == Event::PageDown) {
+        if (!filtered_themes_.empty()) {
+            const size_t page_size = 20;
+            size_t next = selected_index_ + page_size;
+            if (next >= filtered_themes_.size()) {
+                selected_index_ = filtered_themes_.size() - 1;
+            } else {
+                selected_index_ = next;
+            }
+            applyPreviewTheme();
         }
         return true;
     } else if (event.is_character()) {
@@ -90,6 +126,7 @@ bool ThemeMenu::handleInput(ftxui::Event event) {
             search_input_.insert(search_cursor_pos_, ch);
             search_cursor_pos_ += ch.size();
             updateFilteredThemes();
+            applyPreviewTheme();
         }
         return true;
     }
@@ -130,6 +167,13 @@ void ThemeMenu::updateFilteredThemes() {
     }
     if (filtered_themes_.empty()) {
         selected_index_ = 0;
+    }
+}
+
+void ThemeMenu::applyPreviewTheme() {
+    std::string name = getSelectedThemeName();
+    if (!name.empty()) {
+        theme_.setTheme(name);
     }
 }
 
@@ -191,11 +235,15 @@ Element ThemeMenu::renderThemeList() const {
                 display_name += " " + std::string(icons::SUCCESS);
             }
 
+            Color name_color = is_selected ? current_colors.function : current_colors.foreground;
+            Element name_el = pnana::utils::highlightMatch(display_name, search_input_, name_color,
+                                                           current_colors.keyword);
+            if (is_selected)
+                name_el = name_el | bold;
             Elements row = {
                 text("  "),
                 (is_selected ? text("► ") | color(current_colors.function) | bold : text("  ")),
-                text(display_name) | (is_selected ? color(current_colors.function) | bold
-                                                  : color(current_colors.foreground))};
+                std::move(name_el)};
 
             Element line = hbox(row);
             if (is_selected) {
@@ -299,13 +347,13 @@ Element ThemeMenu::render() {
     Element main_content =
         hbox({left_panel, separator(), right_panel}) | flex | size(HEIGHT, EQUAL, 26);
 
-    // 底部提示
+    // 底部提示（选中即预览，Enter 才确认切换）
     Element help_bar =
-        hbox({text(" "), text("↑↓") | color(current_colors.helpbar_key) | bold,
-              text(": Navigate  "), text("Enter") | color(current_colors.helpbar_key) | bold,
-              text(": Apply  "), text("Type") | color(current_colors.helpbar_key) | bold,
-              text(": Filter  "), text("Esc") | color(current_colors.helpbar_key) | bold,
-              text(": Cancel"), filler()}) |
+        hbox({text(" "), text("↑↓") | color(current_colors.helpbar_key) | bold, text(": Preview  "),
+              text("PgUp/PgDn") | color(current_colors.helpbar_key) | bold, text(": Page  "),
+              text("Enter") | color(current_colors.helpbar_key) | bold, text(": Apply  "),
+              text("Type") | color(current_colors.helpbar_key) | bold, text(": Filter  "),
+              text("Esc") | color(current_colors.helpbar_key) | bold, text(": Cancel"), filler()}) |
         bgcolor(current_colors.helpbar_bg) | color(current_colors.helpbar_fg) | dim;
 
     return vbox({title_bar, separator(), main_content, separator(), help_bar}) |

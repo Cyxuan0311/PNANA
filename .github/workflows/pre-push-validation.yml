@@ -12,6 +12,8 @@ jobs:
     name: Validate Build Before Push
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      issues: write
 
     steps:
       - name: Checkout code

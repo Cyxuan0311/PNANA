@@ -449,16 +449,8 @@ bool PluginManager::disablePlugin(const std::string& plugin_name) {
 }
 
 void PluginManager::triggerEvent(const std::string& event, const std::vector<std::string>& args) {
-    LOG("PluginManager::triggerEvent: triggering event '" + event + "' with " +
-        std::to_string(args.size()) + " args");
-    for (size_t i = 0; i < args.size(); ++i) {
-        LOG("PluginManager::triggerEvent: arg[" + std::to_string(i) + "] = '" + args[i] + "'");
-    }
-
     if (lua_api_) {
         lua_api_->triggerEvent(event, args);
-    } else {
-        LOG("PluginManager::triggerEvent: lua_api_ is null");
     }
 }
 
@@ -519,8 +511,6 @@ void PluginManager::initializeSandbox() {
     sandbox_config_.allow_system_commands = false; // 禁用系统命令
     sandbox_config_.max_memory_mb = 512;           // 最大内存512MB
     sandbox_config_.max_execution_time_ms = 5000;  // 最大执行时间5秒
-
-    LOG("Plugin sandbox initialized: " + std::to_string(allowed_paths.size()) + " allowed paths");
 }
 
 } // namespace plugins
