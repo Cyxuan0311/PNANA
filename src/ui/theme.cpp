@@ -1,4 +1,5 @@
 #include "ui/theme.h"
+#include <array>
 #include <vector>
 
 using namespace ftxui;
