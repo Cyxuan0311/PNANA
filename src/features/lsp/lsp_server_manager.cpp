@@ -197,5 +197,18 @@ std::vector<LspStatusEntry> LspServerManager::getStatusSnapshot() const {
     return out;
 }
 
+int LspServerManager::getServerPid(const std::string& language_id) const {
+    std::lock_guard<std::mutex> lock(clients_mutex_);
+    auto it = clients_.find(language_id);
+    if (it == clients_.end() || !it->second) {
+        return -1;
+    }
+    try {
+        return it->second->getServerPid();
+    } catch (...) {
+        return -1;
+    }
+}
+
 } // namespace features
 } // namespace pnana

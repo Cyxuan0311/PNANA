@@ -383,6 +383,21 @@ bool LspStdioConnector::isRunning() const {
 #endif
 }
 
+int LspStdioConnector::getServerPid() const {
+#ifdef USE_BOOST_PROCESS
+    try {
+        if (server_process_) {
+            return static_cast<int>(server_process_->id());
+        }
+    } catch (...) {
+        return -1;
+    }
+    return -1;
+#else
+    return static_cast<int>(server_pid_);
+#endif
+}
+
 std::string LspStdioConnector::Send(const std::string& request) {
     if (!isRunning()) {
         throw jsonrpccxx::JsonRpcException(jsonrpccxx::error_type::internal_error,

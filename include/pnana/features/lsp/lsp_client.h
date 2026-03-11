@@ -135,6 +135,9 @@ class LspClient {
     // 检查连接状态
     bool isConnected() const;
 
+    // 获取语言服务器进程 PID（如果可用），否则返回 -1
+    int getServerPid() const;
+
     // 获取服务器能力
     jsonrpccxx::json getServerCapabilities() const {
         return server_capabilities_;

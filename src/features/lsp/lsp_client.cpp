@@ -725,6 +725,17 @@ bool LspClient::isConnected() const {
     return connector_ && connector_->isRunning();
 }
 
+int LspClient::getServerPid() const {
+    if (!connector_) {
+        return -1;
+    }
+    try {
+        return connector_->getServerPid();
+    } catch (...) {
+        return -1;
+    }
+}
+
 jsonrpccxx::json LspClient::positionToJson(const LspPosition& pos) {
     jsonrpccxx::json json;
     json["line"] = pos.line;

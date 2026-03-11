@@ -64,6 +64,9 @@ class LspServerManager {
     /** 获取当前所有 LSP 配置及连接状态快照（用于状态弹窗） */
     std::vector<LspStatusEntry> getStatusSnapshot() const;
 
+    // 根据语言 ID 获取对应服务器进程的 PID（如果客户端存在且已启动），否则返回 -1
+    int getServerPid(const std::string& language_id) const;
+
   private:
     LspServerConfigManager config_manager_;
 
