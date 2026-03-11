@@ -58,82 +58,88 @@ class Theme {
     Theme();
 
     // 预设主题
-    static ThemeColors Monokai();           // 经典Monokai主题
-    static ThemeColors Dracula();           // Dracula主题
-    static ThemeColors SolarizedDark();     // Solarized Dark
-    static ThemeColors SolarizedLight();    // Solarized Light
-    static ThemeColors OneDark();           // One Dark
-    static ThemeColors Nord();              // Nord
-    static ThemeColors Gruvbox();           // Gruvbox
-    static ThemeColors TokyoNight();        // Tokyo Night
-    static ThemeColors Catppuccin();        // Catppuccin
-    static ThemeColors Material();          // Material
-    static ThemeColors Ayu();               // Ayu
-    static ThemeColors GitHub();            // GitHub Light
-    static ThemeColors GitHubDark();        // GitHub Dark
-    static ThemeColors MarkdownDark();      // Markdown Dark
-    static ThemeColors VSCodeDark();        // VS Code Dark+
-    static ThemeColors NightOwl();          // Night Owl
-    static ThemeColors Palenight();         // Material Palenight
-    static ThemeColors OceanicNext();       // Oceanic Next
-    static ThemeColors Kanagawa();          // Kanagawa
-    static ThemeColors TomorrowNight();     // Tomorrow Night
-    static ThemeColors TomorrowNightBlue(); // Tomorrow Night Blue
-    static ThemeColors Cobalt();            // Cobalt
-    static ThemeColors Zenburn();           // Zenburn
-    static ThemeColors Base16Dark();        // Base16 Dark
-    static ThemeColors PaperColor();        // PaperColor Dark
-    static ThemeColors RosePine();          // Rose Pine
-    static ThemeColors Everforest();        // Everforest
-    static ThemeColors Jellybeans();        // Jellybeans
-    static ThemeColors Desert();            // Desert
-    static ThemeColors Slate();             // Slate
-    static ThemeColors AtomOneLight();      // Atom One Light
-    static ThemeColors TokyoNightDay();     // Tokyo Night Day
-    static ThemeColors BlueLight();         // Blue Light - 浅蓝主色，白字黑底
-    static ThemeColors Cyberpunk();         // Cyberpunk - 赛博朋克霓虹风
-    static ThemeColors Hacker();            // Hacker - 黑客/Matrix 终端风
-    static ThemeColors HatsuneMiku();       // 初音未来 - 葱色/粉/金黄
-    static ThemeColors Minions();           // 小黄人 - 黄蓝配色
-    static ThemeColors Batman();            // 蝙蝠侠 - 黑金/哥谭风
-    static ThemeColors SpongeBob();         // 海绵宝宝 - 海底黄蓝珊瑚风
-    static ThemeColors ModusVivendi();      // Modus Vivendi - 高对比度护眼深色
-    static ThemeColors ModusOperandi();     // Modus Operandi - 高对比度护眼浅色
-    static ThemeColors Horizon();           // Horizon - 暖色深色粉橙风
-    static ThemeColors Oxocarbon();         // Oxocarbon - IBM Carbon 风格深灰蓝
-    static ThemeColors Poimandres();        // Poimandres - 紫青深色主题
-    static ThemeColors Terafox();           // Terafox - 暖棕深色主题
-    static ThemeColors Mellow();            // Mellow - 柔和 pastel 深色
-    static ThemeColors Fleet();             // Fleet - JetBrains Fleet 风格深色
-    static ThemeColors Luna();              // Luna - 柔和紫蓝深色
-    static ThemeColors Retro();             // Retro - 复古 CRT 琥珀荧光屏
-    static ThemeColors Sunset();            // Sunset - 日落暖橙红风
-    static ThemeColors Forest();            // Forest - 森林绿深色
-    static ThemeColors Ocean();             // Ocean - 深海蓝青
-    static ThemeColors TangoDark();         // Tango Dark - Tango 调色板深色
-    static ThemeColors Synthwave();         // Synthwave - 80 年代霓虹紫青粉
-    static ThemeColors Decay();             // Decay - 冷灰蓝低饱和
-    static ThemeColors RiderDark();         // Rider Dark - JetBrains 灰底紫蓝
-    static ThemeColors ParchmentDark();     // Parchment Dark - 深褐羊皮纸风
-    static ThemeColors Crimson();           // Crimson - 深红黑绯红主色
-    static ThemeColors Frost();             // Frost - 冷冽冰蓝深色
-    static ThemeColors Lavender();          // Lavender - 薰衣草浅色
-    static ThemeColors Matcha();            // Matcha - 日式抹茶绿主题
-    static ThemeColors Aurora();            // Aurora - 极光青紫粉霓虹主题
-    static ThemeColors Amber();             // Amber - 暖黑琥珀金
-    static ThemeColors Mint();              // Mint - 深灰薄荷青终端风
-    static ThemeColors Obsidian();          // Obsidian - 深黑蓝灰冷静风
-    static ThemeColors Coffee();            // Coffee - 咖啡棕深色护眼
-    static ThemeColors Ink();               // Ink - 墨色深靛蓝+金/米色
-    static ThemeColors Sakura();            // Sakura - 樱浅粉白+玫瑰灰
-    static ThemeColors SakuraDark();        // Sakura Dark - 樱暗色版深玫底
-    static ThemeColors Monochrome();        // Monochrome - 黑白灰无彩色
-    static ThemeColors NeonNoir();          // Neon Noir - 霓虹 noir 深黑+青/品红
-    static ThemeColors WarmSepia();         // Warm Sepia - 暖棕褐旧报纸风
-    static ThemeColors Colorful();          // Colorful - 彩色多色高饱和语法高亮
-    static ThemeColors Microsoft();         // Microsoft - 微软/Fluent 深灰+蓝主色
-    static ThemeColors Google();            // Google - 谷歌品牌色蓝/红/黄/绿浅色
-    static ThemeColors Meta();              // Meta - Meta/Facebook 深色+蓝主色
+    static ThemeColors Monokai();                // 经典Monokai主题
+    static ThemeColors Dracula();                // Dracula主题
+    static ThemeColors SolarizedDark();          // Solarized Dark
+    static ThemeColors SolarizedLight();         // Solarized Light
+    static ThemeColors OneDark();                // One Dark
+    static ThemeColors Nord();                   // Nord
+    static ThemeColors Gruvbox();                // Gruvbox
+    static ThemeColors TokyoNight();             // Tokyo Night
+    static ThemeColors Catppuccin();             // Catppuccin
+    static ThemeColors Material();               // Material
+    static ThemeColors Ayu();                    // Ayu
+    static ThemeColors GitHub();                 // GitHub Light
+    static ThemeColors GitHubDark();             // GitHub Dark
+    static ThemeColors GitHubDarkDimmed();       // GitHub Dark Dimmed - 柔和暗色主题
+    static ThemeColors GitHubDarkHighContrast(); // GitHub Dark High Contrast - 高对比度主题
+    static ThemeColors MarkdownDark();           // Markdown Dark
+    static ThemeColors VSCodeDark();             // VS Code Dark+
+    static ThemeColors NightOwl();               // Night Owl
+    static ThemeColors Palenight();              // Material Palenight
+    static ThemeColors OceanicNext();            // Oceanic Next
+    static ThemeColors Kanagawa();               // Kanagawa
+    static ThemeColors TomorrowNight();          // Tomorrow Night
+    static ThemeColors TomorrowNightBlue();      // Tomorrow Night Blue
+    static ThemeColors Cobalt();                 // Cobalt
+    static ThemeColors Zenburn();                // Zenburn
+    static ThemeColors Base16Dark();             // Base16 Dark
+    static ThemeColors PaperColor();             // PaperColor Dark
+    static ThemeColors RosePine();               // Rose Pine
+    static ThemeColors Everforest();             // Everforest
+    static ThemeColors Jellybeans();             // Jellybeans
+    static ThemeColors Desert();                 // Desert
+    static ThemeColors Slate();                  // Slate
+    static ThemeColors AtomOneLight();           // Atom One Light
+    static ThemeColors TokyoNightDay();          // Tokyo Night Day
+    static ThemeColors BlueLight();              // Blue Light - 浅蓝主色，白字黑底
+    static ThemeColors Cyberpunk();              // Cyberpunk - 赛博朋克霓虹风
+    static ThemeColors Hacker();                 // Hacker - 黑客/Matrix 终端风
+    static ThemeColors HatsuneMiku();            // 初音未来 - 葱色/粉/金黄
+    static ThemeColors Minions();                // 小黄人 - 黄蓝配色
+    static ThemeColors Batman();                 // 蝙蝠侠 - 黑金/哥谭风
+    static ThemeColors SpongeBob();              // 海绵宝宝 - 海底黄蓝珊瑚风
+    static ThemeColors ModusVivendi();           // Modus Vivendi - 高对比度护眼深色
+    static ThemeColors ModusOperandi();          // Modus Operandi - 高对比度护眼浅色
+    static ThemeColors Horizon();                // Horizon - 暖色深色粉橙风
+    static ThemeColors Oxocarbon();              // Oxocarbon - IBM Carbon 风格深灰蓝
+    static ThemeColors Poimandres();             // Poimandres - 紫青深色主题
+    static ThemeColors Terafox();                // Terafox - 暖棕深色主题
+    static ThemeColors Mellow();                 // Mellow - 柔和 pastel 深色
+    static ThemeColors Fleet();                  // Fleet - JetBrains Fleet 风格深色
+    static ThemeColors Luna();                   // Luna - 柔和紫蓝深色
+    static ThemeColors Retro();                  // Retro - 复古 CRT 琥珀荧光屏
+    static ThemeColors Sunset();                 // Sunset - 日落暖橙红风
+    static ThemeColors Forest();                 // Forest - 森林绿深色
+    static ThemeColors Ocean();                  // Ocean - 深海蓝青
+    static ThemeColors TangoDark();              // Tango Dark - Tango 调色板深色
+    static ThemeColors Synthwave();              // Synthwave - 80 年代霓虹紫青粉
+    static ThemeColors Decay();                  // Decay - 冷灰蓝低饱和
+    static ThemeColors RiderDark();              // Rider Dark - JetBrains 灰底紫蓝
+    static ThemeColors ParchmentDark();          // Parchment Dark - 深褐羊皮纸风
+    static ThemeColors Crimson();                // Crimson - 深红黑绯红主色
+    static ThemeColors Frost();                  // Frost - 冷冽冰蓝深色
+    static ThemeColors Lavender();               // Lavender - 薰衣草浅色
+    static ThemeColors Matcha();                 // Matcha - 日式抹茶绿主题
+    static ThemeColors Aurora();                 // Aurora - 极光青紫粉霓虹主题
+    static ThemeColors Amber();                  // Amber - 暖黑琥珀金
+    static ThemeColors Mint();                   // Mint - 深灰薄荷青终端风
+    static ThemeColors Obsidian();               // Obsidian - 深黑蓝灰冷静风
+    static ThemeColors Coffee();                 // Coffee - 咖啡棕深色护眼
+    static ThemeColors Ink();                    // Ink - 墨色深靛蓝+金/米色
+    static ThemeColors Sakura();                 // Sakura - 樱浅粉白+玫瑰灰
+    static ThemeColors SakuraDark();             // Sakura Dark - 樱暗色版深玫底
+    static ThemeColors Monochrome();             // Monochrome - 黑白灰无彩色
+    static ThemeColors NeonNoir();               // Neon Noir - 霓虹 noir 深黑+青/品红
+    static ThemeColors WarmSepia();              // Warm Sepia - 暖棕褐旧报纸风
+    static ThemeColors Colorful();               // Colorful - 彩色多色高饱和语法高亮
+    static ThemeColors Microsoft();              // Microsoft - 微软/Fluent 深灰+蓝主色
+    static ThemeColors Google();                 // Google - 谷歌品牌色蓝/红/黄/绿浅色
+    static ThemeColors Meta();                   // Meta - Meta/Facebook 深色+蓝主色
+    static ThemeColors IntelliJDark(); // IntelliJ Dark - JetBrains IDEA 经典深色主题
+    static ThemeColors DoomOne();      // Doom One - Emacs Doom 默认主题
+    static ThemeColors VSCodeLight();  // VSCode Light - Visual Studio Code 默认浅色主题
+    static ThemeColors Andromeda();    // Andromeda - 深蓝紫基底流行 VSCode 主题
 
     void setTheme(const std::string& name);
 
@@ -178,6 +184,9 @@ class Theme {
 
     // 获取自定义主题名称
     std::vector<std::string> getCustomThemeNames() const;
+
+    // 获取当前主题的 Logo 渐变颜色
+    std::vector<ftxui::Color> getGradientColors() const;
 
   private:
     ThemeColors colors_;

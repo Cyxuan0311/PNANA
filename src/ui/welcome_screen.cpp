@@ -7,7 +7,8 @@ using namespace ftxui;
 namespace pnana {
 namespace ui {
 
-WelcomeScreen::WelcomeScreen(Theme& theme) : theme_(theme) {}
+WelcomeScreen::WelcomeScreen(Theme& theme, core::ConfigManager& config)
+    : theme_(theme), config_(config) {}
 
 Element WelcomeScreen::render() {
     auto& colors = theme_.getColors();
@@ -18,19 +19,29 @@ Element WelcomeScreen::render() {
     welcome_content.push_back(text(""));
     welcome_content.push_back(text(""));
 
-    // Logo和标题
+    // Logo 渐变色：根据配置决定是否使用渐变
+    std::vector<Color> gradient_colors;
+    if (config_.getConfig().display.logo_gradient) {
+        gradient_colors = theme_.getGradientColors();
+    } else {
+        // 不使用渐变时，使用单一颜色
+        gradient_colors = {colors.success, colors.success, colors.success,
+                           colors.success, colors.success, colors.success};
+    }
+
+    // Logo和标题（渐变效果）
     welcome_content.push_back(text("  ██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ ") |
-                              color(colors.success) | bold | center);
+                              color(gradient_colors[0]) | bold | center);
     welcome_content.push_back(text("  ██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗") |
-                              color(colors.success) | bold | center);
+                              color(gradient_colors[1]) | bold | center);
     welcome_content.push_back(text("  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║███████║") |
-                              color(colors.success) | bold | center);
+                              color(gradient_colors[2]) | bold | center);
     welcome_content.push_back(text("  ██╔═══╝ ██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║") |
-                              color(colors.success) | bold | center);
+                              color(gradient_colors[3]) | bold | center);
     welcome_content.push_back(text("  ██║     ██║ ╚████║██║  ██║██║ ╚████║██║  ██║") |
-                              color(colors.success) | bold | center);
+                              color(gradient_colors[4]) | bold | center);
     welcome_content.push_back(text("  ╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝") |
-                              color(colors.success) | bold | center);
+                              color(gradient_colors[5]) | bold | center);
 
     welcome_content.push_back(text(""));
     welcome_content.push_back(text("Modern Terminal Text Editor") | color(colors.foreground) |

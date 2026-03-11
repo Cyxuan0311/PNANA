@@ -569,6 +569,92 @@ ThemeColors Theme::GitHubDark() {
     return colors;
 }
 
+ThemeColors Theme::GitHubDarkDimmed() {
+    ThemeColors colors;
+    // GitHub Dark Dimmed: GitHub 官方柔和暗色主题，对比度更低，适合长时间阅读
+    colors.background = Color::RGB(34, 39, 46);             // #22272e - Dimmed background
+    colors.foreground = Color::RGB(201, 209, 217);          // #c9d1d9 - Dimmed foreground
+    colors.current_line = Color::RGB(42, 48, 56);           // #2a3038 - Current line
+    colors.selection = Color::RGB(54, 61, 71);              // #363d47 - Selection
+    colors.line_number = Color::RGB(110, 118, 129);         // #6e7681 - Line numbers
+    colors.line_number_current = Color::RGB(201, 209, 217); // #c9d1d9
+
+    colors.statusbar_bg = Color::RGB(42, 48, 56);    // #2a3038
+    colors.statusbar_fg = Color::RGB(201, 209, 217); // #c9d1d9
+
+    colors.menubar_bg = Color::RGB(34, 39, 46);    // #22272e
+    colors.menubar_fg = Color::RGB(201, 209, 217); // #c9d1d9
+
+    colors.helpbar_bg = Color::RGB(42, 48, 56);
+    colors.helpbar_fg = Color::RGB(110, 118, 129); // #6e7681
+    colors.helpbar_key = Color::RGB(88, 166, 255); // #58a6ff GitHub 蓝
+
+    // GitHub Dark Dimmed 语法高亮：粉关键词/蓝字符串/紫函数/橙数字/青类型
+    colors.keyword = Color::RGB(255, 123, 172);        // #ff7bac 粉
+    colors.string = Color::RGB(163, 186, 202);         // #a3bac8 浅蓝
+    colors.comment = Color::RGB(110, 118, 129);        // #6e7681 灰
+    colors.number = Color::RGB(121, 192, 255);         // #79c0ff 蓝
+    colors.function = Color::RGB(210, 168, 255);       // #d2a8ff 紫
+    colors.type = Color::RGB(56, 178, 172);            // #38b2ac 青
+    colors.operator_color = Color::RGB(255, 123, 172); // #ff7bac 粉
+
+    colors.error = Color::RGB(255, 123, 172);  // #ff7bac 粉
+    colors.warning = Color::RGB(210, 153, 34); // #d29922 黄
+    colors.info = Color::RGB(88, 166, 255);    // #58a6ff 蓝
+    colors.success = Color::RGB(63, 185, 80);  // #3fb950 绿
+
+    colors.dialog_bg = Color::RGB(42, 48, 56);          // #2a3038
+    colors.dialog_fg = Color::RGB(201, 209, 217);       // #c9d1d9
+    colors.dialog_title_bg = Color::RGB(34, 39, 46);    // #22272e
+    colors.dialog_title_fg = Color::RGB(201, 209, 217); // #c9d1d9
+    colors.dialog_border = Color::RGB(110, 118, 129);   // #6e7681
+
+    return colors;
+}
+
+ThemeColors Theme::GitHubDarkHighContrast() {
+    ThemeColors colors;
+    // GitHub Dark High Contrast: GitHub 官方高对比度暗色主题，边界清晰，适合视力需求
+    colors.background = Color::RGB(13, 17, 23);             // #0d1117 - 深黑背景
+    colors.foreground = Color::RGB(255, 255, 255);          // #ffffff - 纯白前景
+    colors.current_line = Color::RGB(39, 46, 56);           // #272e38 - 明显当前行
+    colors.selection = Color::RGB(54, 61, 71);              // #363d47 - 选中背景
+    colors.line_number = Color::RGB(184, 191, 200);         // #b8bfc8 - 亮灰行号
+    colors.line_number_current = Color::RGB(255, 255, 255); // #ffffff - 当前行号
+
+    colors.statusbar_bg = Color::RGB(39, 46, 56);    // #272e38
+    colors.statusbar_fg = Color::RGB(255, 255, 255); // #ffffff
+
+    colors.menubar_bg = Color::RGB(13, 17, 23);    // #0d1117
+    colors.menubar_fg = Color::RGB(255, 255, 255); // #ffffff
+
+    colors.helpbar_bg = Color::RGB(39, 46, 56);
+    colors.helpbar_fg = Color::RGB(184, 191, 200);  // #b8bfc8
+    colors.helpbar_key = Color::RGB(100, 180, 255); // #64b4ff 亮蓝
+
+    // GitHub Dark High Contrast 语法高亮：高饱和度色彩
+    colors.keyword = Color::RGB(255, 150, 180);        // #ff96b4 亮粉
+    colors.string = Color::RGB(180, 205, 220);         // #b4cddc 亮蓝
+    colors.comment = Color::RGB(184, 191, 200);        // #b8bfc8 亮灰
+    colors.number = Color::RGB(140, 210, 255);         // #8cd2ff 亮蓝
+    colors.function = Color::RGB(230, 190, 255);       // #e6beff 亮紫
+    colors.type = Color::RGB(80, 200, 190);            // #50c8be 亮青
+    colors.operator_color = Color::RGB(255, 150, 180); // #ff96b4 亮粉
+
+    colors.error = Color::RGB(255, 120, 120);  // #ff7878 亮红
+    colors.warning = Color::RGB(255, 200, 80); // #ffc850 亮黄
+    colors.info = Color::RGB(100, 180, 255);   // #64b4ff 亮蓝
+    colors.success = Color::RGB(80, 210, 100); // #50d264 亮绿
+
+    colors.dialog_bg = Color::RGB(39, 46, 56);          // #272e38
+    colors.dialog_fg = Color::RGB(255, 255, 255);       // #ffffff
+    colors.dialog_title_bg = Color::RGB(13, 17, 23);    // #0d1117
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #ffffff
+    colors.dialog_border = Color::RGB(184, 191, 200);   // #b8bfc8
+
+    return colors;
+}
+
 ThemeColors Theme::MarkdownDark() {
     ThemeColors colors;
     // Markdown Dark theme optimized with gray tones and colors matching code editor style
@@ -1292,7 +1378,7 @@ ThemeColors Theme::Slate() {
     colors.info = Color::RGB(130, 200, 255);
     colors.success = Color::RGB(70, 220, 170);
 
-    // 弹窗颜色 - 使用稍微不同的背景色来突出弹窗
+    // 弹窗颜色 - 使用稍微不同����背景色来突出弹窗
     colors.dialog_bg = Color::RGB(50, 57, 67);          // #323943 - 比背景稍亮的深蓝灰
     colors.dialog_fg = Color::RGB(215, 225, 235);       // #d7e1eb - 与前景色协调
     colors.dialog_title_bg = Color::RGB(34, 39, 46);    // #22272e - 比背景稍深
@@ -3245,6 +3331,178 @@ ThemeColors Theme::Meta() {
     return colors;
 }
 
+ThemeColors Theme::IntelliJDark() {
+    ThemeColors colors;
+    // IntelliJ IDEA Dark: 深灰蓝基底 + 紫/绿/蓝/橙，JetBrains 经典 IDE 主题，适合长时间编程
+    colors.background = Color::RGB(43, 43, 43);             // #2B2B2B
+    colors.foreground = Color::RGB(187, 187, 187);          // #BBBBBB
+    colors.current_line = Color::RGB(50, 50, 50);           // #323232
+    colors.selection = Color::RGB(65, 65, 65);              // #414141
+    colors.line_number = Color::RGB(128, 128, 128);         // #808080
+    colors.line_number_current = Color::RGB(187, 187, 187); // #BBBBBB
+
+    colors.statusbar_bg = Color::RGB(55, 55, 55);    // #373737
+    colors.statusbar_fg = Color::RGB(187, 187, 187); // #BBBBBB
+
+    colors.menubar_bg = Color::RGB(43, 43, 43);    // #2B2B2B
+    colors.menubar_fg = Color::RGB(187, 187, 187); // #BBBBBB
+
+    colors.helpbar_bg = Color::RGB(55, 55, 55);
+    colors.helpbar_fg = Color::RGB(128, 128, 128); // #808080
+    colors.helpbar_key = Color::RGB(78, 171, 255); // #4EABFF  IntelliJ 蓝
+
+    // IntelliJ Dark 语法高亮：紫关键词/绿字符串/蓝函数/橙数字/青类型
+    colors.keyword = Color::RGB(204, 120, 255);        // #CC78FF 紫
+    colors.string = Color::RGB(106, 213, 136);         // #6AD588 绿
+    colors.comment = Color::RGB(128, 128, 128);        // #808080 灰
+    colors.number = Color::RGB(187, 181, 41);          // #BBB529 黄
+    colors.function = Color::RGB(78, 171, 255);        // #4EABFF 蓝
+    colors.type = Color::RGB(210, 149, 53);            // #D29535 橙
+    colors.operator_color = Color::RGB(187, 187, 187); // #BBBBBB
+
+    colors.error = Color::RGB(255, 100, 100);   // #FF6464 红
+    colors.warning = Color::RGB(255, 191, 0);   // #FFBF00 黄
+    colors.info = Color::RGB(78, 171, 255);     // #4EABFF 蓝
+    colors.success = Color::RGB(106, 213, 136); // #6AD588 绿
+
+    colors.dialog_bg = Color::RGB(50, 50, 50);          // #323232
+    colors.dialog_fg = Color::RGB(187, 187, 187);       // #BBBBBB
+    colors.dialog_title_bg = Color::RGB(43, 43, 43);    // #2B2B2B
+    colors.dialog_title_fg = Color::RGB(187, 187, 187); // #BBBBBB
+    colors.dialog_border = Color::RGB(77, 77, 77);      // #4D4D4D
+
+    return colors;
+}
+
+ThemeColors Theme::DoomOne() {
+    ThemeColors colors;
+    // Doom One: Emacs Doom 默认主题，深灰蓝基底 + 紫红/绿/蓝/橙，经典 Emacs 风格
+    colors.background = Color::RGB(40, 44, 52);             // #282C34
+    colors.foreground = Color::RGB(171, 178, 191);          // #ABB2BF
+    colors.current_line = Color::RGB(44, 48, 57);           // #2C3039
+    colors.selection = Color::RGB(58, 63, 75);              // #3A3F4B
+    colors.line_number = Color::RGB(92, 99, 112);           // #5C6370
+    colors.line_number_current = Color::RGB(171, 178, 191); // #ABB2BF
+
+    colors.statusbar_bg = Color::RGB(35, 39, 46);    // #23272E
+    colors.statusbar_fg = Color::RGB(171, 178, 191); // #ABB2BF
+
+    colors.menubar_bg = Color::RGB(40, 44, 52);    // #282C34
+    colors.menubar_fg = Color::RGB(171, 178, 191); // #ABB2BF
+
+    colors.helpbar_bg = Color::RGB(35, 39, 46);
+    colors.helpbar_fg = Color::RGB(92, 99, 112);   // #5C6370
+    colors.helpbar_key = Color::RGB(97, 175, 239); // #61AFEF 亮蓝
+
+    // Doom One 语法高亮：紫红关键词/绿字符串/蓝函数/橙数字/青类型
+    colors.keyword = Color::RGB(198, 120, 221);        // #C678DD 紫红
+    colors.string = Color::RGB(152, 195, 121);         // #98C379 绿
+    colors.comment = Color::RGB(92, 99, 112);          // #5C6370 灰
+    colors.number = Color::RGB(209, 154, 102);         // #D19A66 橙
+    colors.function = Color::RGB(97, 175, 239);        // #61AFEF 蓝
+    colors.type = Color::RGB(229, 192, 123);           // #E5C07B 黄
+    colors.operator_color = Color::RGB(171, 178, 191); // #ABB2BF
+
+    colors.error = Color::RGB(224, 108, 117);   // #E06C75 红
+    colors.warning = Color::RGB(229, 192, 123); // #E5C07B 黄
+    colors.info = Color::RGB(97, 175, 239);     // #61AFEF 蓝
+    colors.success = Color::RGB(152, 195, 121); // #98C379 绿
+
+    colors.dialog_bg = Color::RGB(44, 48, 57);          // #2C3039
+    colors.dialog_fg = Color::RGB(171, 178, 191);       // #ABB2BF
+    colors.dialog_title_bg = Color::RGB(40, 44, 52);    // #282C34
+    colors.dialog_title_fg = Color::RGB(171, 178, 191); // #ABB2BF
+    colors.dialog_border = Color::RGB(76, 82, 97);      // #4C5261
+
+    return colors;
+}
+
+ThemeColors Theme::VSCodeLight() {
+    ThemeColors colors;
+    // VSCode Light: Visual Studio Code 默认浅色主题，白底黑字，经典编程配色
+    colors.background = Color::RGB(255, 255, 255);    // #FFFFFF
+    colors.foreground = Color::RGB(0, 0, 0);          // #000000
+    colors.current_line = Color::RGB(243, 243, 243);  // #F3F3F3
+    colors.selection = Color::RGB(221, 236, 255);     // #DDECFF
+    colors.line_number = Color::RGB(102, 102, 102);   // #666666
+    colors.line_number_current = Color::RGB(0, 0, 0); // #000000
+
+    colors.statusbar_bg = Color::RGB(0, 120, 215);   // #0078D7 VSCode 蓝
+    colors.statusbar_fg = Color::RGB(255, 255, 255); // #FFFFFF
+
+    colors.menubar_bg = Color::RGB(244, 244, 244); // #F4F4F4
+    colors.menubar_fg = Color::RGB(0, 0, 0);       // #000000
+
+    colors.helpbar_bg = Color::RGB(247, 247, 247); // #F7F7F7
+    colors.helpbar_fg = Color::RGB(102, 102, 102); // #666666
+    colors.helpbar_key = Color::RGB(0, 120, 215);  // #0078D7
+
+    // VSCode Light 语法高亮：蓝关键词/红棕字符串/绿注释/深绿数字/紫函数/蓝绿类型
+    colors.keyword = Color::RGB(0, 0, 255);      // #0000FF 蓝
+    colors.string = Color::RGB(163, 21, 21);     // #A31515 红棕
+    colors.comment = Color::RGB(0, 128, 0);      // #008000 绿
+    colors.number = Color::RGB(9, 134, 88);      // #098658 深绿
+    colors.function = Color::RGB(100, 0, 100);   // #640064 紫
+    colors.type = Color::RGB(43, 145, 175);      // #2B91AF 蓝绿
+    colors.operator_color = Color::RGB(0, 0, 0); // #000000
+
+    colors.error = Color::RGB(237, 0, 0);     // #ED0000 红
+    colors.warning = Color::RGB(172, 140, 0); // #AC8C00 黄褐
+    colors.info = Color::RGB(0, 120, 215);    // #0078D7 蓝
+    colors.success = Color::RGB(0, 128, 0);   // #008000 绿
+
+    colors.dialog_bg = Color::RGB(245, 245, 245);       // #F5F5F5
+    colors.dialog_fg = Color::RGB(0, 0, 0);             // #000000
+    colors.dialog_title_bg = Color::RGB(0, 120, 215);   // #0078D7
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF
+    colors.dialog_border = Color::RGB(204, 204, 204);   // #CCCCCC
+
+    return colors;
+}
+
+ThemeColors Theme::Andromeda() {
+    ThemeColors colors;
+    // Andromeda: 深蓝紫基底 + 鲜艳语法色，流行 VSCode 主题，适合长时间编程
+    colors.background = Color::RGB(27, 31, 43);             // #1B1F2B
+    colors.foreground = Color::RGB(205, 214, 244);          // #CDD6F4
+    colors.current_line = Color::RGB(35, 40, 55);           // #232837
+    colors.selection = Color::RGB(45, 51, 70);              // #2D3346
+    colors.line_number = Color::RGB(92, 102, 120);          // #5C6678
+    colors.line_number_current = Color::RGB(205, 214, 244); // #CDD6F4
+
+    colors.statusbar_bg = Color::RGB(22, 26, 36);    // #161A24
+    colors.statusbar_fg = Color::RGB(205, 214, 244); // #CDD6F4
+
+    colors.menubar_bg = Color::RGB(27, 31, 43);    // #1B1F2B
+    colors.menubar_fg = Color::RGB(205, 214, 244); // #CDD6F4
+
+    colors.helpbar_bg = Color::RGB(22, 26, 36);
+    colors.helpbar_fg = Color::RGB(92, 102, 120);  // #5C6678
+    colors.helpbar_key = Color::RGB(89, 151, 234); // #5997EA 亮蓝
+
+    // Andromeda 语法高亮：紫红关键词/绿字符串/蓝函数/橙数字/青类型
+    colors.keyword = Color::RGB(255, 105, 180);        // #FF69B4 紫红
+    colors.string = Color::RGB(152, 195, 121);         // #98C379 绿
+    colors.comment = Color::RGB(92, 102, 120);         // #5C6678 灰
+    colors.number = Color::RGB(255, 171, 82);          // #FFAB52 橙
+    colors.function = Color::RGB(89, 151, 234);        // #5997EA 蓝
+    colors.type = Color::RGB(255, 198, 109);           // #FFC66D 黄
+    colors.operator_color = Color::RGB(205, 214, 244); // #CDD6F4
+
+    colors.error = Color::RGB(255, 85, 85);     // #FF5555 红
+    colors.warning = Color::RGB(255, 198, 109); // #FFC66D 黄
+    colors.info = Color::RGB(89, 151, 234);     // #5997EA 蓝
+    colors.success = Color::RGB(152, 195, 121); // #98C379 绿
+
+    colors.dialog_bg = Color::RGB(35, 40, 55);          // #232837
+    colors.dialog_fg = Color::RGB(205, 214, 244);       // #CDD6F4
+    colors.dialog_title_bg = Color::RGB(27, 31, 43);    // #1B1F2B
+    colors.dialog_title_fg = Color::RGB(205, 214, 244); // #CDD6F4
+    colors.dialog_border = Color::RGB(68, 78, 100);     // #444E64
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -3281,6 +3539,10 @@ void Theme::setTheme(const std::string& name) {
         colors_ = GitHub();
     } else if (name == "github-dark") {
         colors_ = GitHubDark();
+    } else if (name == "github-dark-dimmed") {
+        colors_ = GitHubDarkDimmed();
+    } else if (name == "github-dark-high-contrast") {
+        colors_ = GitHubDarkHighContrast();
     } else if (name == "markdown-dark") {
         colors_ = MarkdownDark();
     } else if (name == "vscode-dark") {
@@ -3407,6 +3669,14 @@ void Theme::setTheme(const std::string& name) {
         colors_ = Google();
     } else if (name == "meta") {
         colors_ = Meta();
+    } else if (name == "intellij-dark") {
+        colors_ = IntelliJDark();
+    } else if (name == "doom-one") {
+        colors_ = DoomOne();
+    } else if (name == "vscode-light") {
+        colors_ = VSCodeLight();
+    } else if (name == "andromeda") {
+        colors_ = Andromeda();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -3533,6 +3803,8 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "ayu",
             "github",
             "github-dark",
+            "github-dark-dimmed",
+            "github-dark-high-contrast",
             "markdown-dark",
             "vscode-dark",
             "night-owl",
@@ -3595,7 +3867,11 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "colorful",
             "microsoft",
             "google",
-            "meta"};
+            "meta",
+            "intellij-dark",
+            "doom-one",
+            "vscode-light",
+            "andromeda"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {
@@ -3604,6 +3880,84 @@ std::vector<std::string> Theme::getCustomThemeNames() const {
         names.push_back(name);
     }
     return names;
+}
+
+std::vector<Color> Theme::getGradientColors() const {
+    using ColorMember = Color ThemeColors::*;
+    static const std::map<std::string, std::array<ColorMember, 6>> theme_gradients = {
+        {"monokai",
+         {&ThemeColors::success, &ThemeColors::type, &ThemeColors::keyword, &ThemeColors::type,
+          &ThemeColors::success, &ThemeColors::function}},
+        {"dracula",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::type, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"solarized-dark",
+         {&ThemeColors::function, &ThemeColors::type, &ThemeColors::keyword, &ThemeColors::type,
+          &ThemeColors::function, &ThemeColors::string}},
+        {"solarized-light",
+         {&ThemeColors::function, &ThemeColors::type, &ThemeColors::keyword, &ThemeColors::type,
+          &ThemeColors::function, &ThemeColors::string}},
+        {"onedark",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::string,
+          &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::type}},
+        {"nord",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
+        {"gruvbox",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"tokyo-night",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
+        {"catppuccin",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"material",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"ayu",
+         {&ThemeColors::keyword, &ThemeColors::string, &ThemeColors::function, &ThemeColors::string,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"github-dark",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::string,
+          &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
+        {"github",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::string,
+          &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
+        {"vscode-dark",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"night-owl",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"rose-pine",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"everforest",
+         {&ThemeColors::function, &ThemeColors::type, &ThemeColors::keyword, &ThemeColors::type,
+          &ThemeColors::function, &ThemeColors::success}},
+        {"horizon",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"cyberpunk",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+    };
+
+    auto it = theme_gradients.find(current_theme_);
+
+    if (it != theme_gradients.end()) {
+        return {
+            colors_.*(it->second[0]), colors_.*(it->second[1]), colors_.*(it->second[2]),
+            colors_.*(it->second[3]), colors_.*(it->second[4]), colors_.*(it->second[5]),
+        };
+    }
+
+    return {colors_.success, colors_.type,    colors_.keyword,
+            colors_.type,    colors_.success, colors_.function};
 }
 
 } // namespace ui
