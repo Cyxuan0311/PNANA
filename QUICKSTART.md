@@ -27,17 +27,17 @@ sudo dpkg -i pnana-0.0.4-amd64.deb
 ### 其他发行版 (Arch | SUSE | CentOS ...) / Other Distributions (Arch | SUSE | CentOS ...)
 
 可用软件包: / Available packages:
-- pnana-0.0.4.tar.bz2
-- pnana-0.0.4.tar.gz
-- pnana-0.0.4.tar.xz
+- pnana-0.0.5.tar.bz2
+- pnana-0.0.5.tar.gz
+- pnana-0.0.5.tar.xz
 
-本地下载软件包（以pnana-0.0.4.tar.bz2为例）: / Download the package locally (using pnana-0.0.4.tar.bz2 as an example):
+本地下载软件包（以pnana-0.0.5.tar.bz2为例）: / Download the package locally (using pnana-0.0.5.tar.bz2 as an example):
 ```bash
 # 解压 / Extract
-tar -xjvf pnana-0.0.4.tar.bz2
+tar -xjvf pnana-0.0.5.tar.bz2
 
 # 安装 / Install
-cd ./pnana-0.0.4
+cd ./pnana-0.0.5
 
 chmod +x ./install.sh
 
