@@ -433,7 +433,8 @@ Element Editor::overlayDialogs(Element main_ui) {
 
 #ifdef BUILD_LSP_SUPPORT
     overlay_manager_->setIsCompletionPopupVisibleCallback([this]() {
-        return completion_popup_.isVisible();
+        return config_manager_.getConfig().lsp.completion_popup_enabled &&
+               completion_popup_.isVisible();
     });
     overlay_manager_->setIsDiagnosticsPopupVisibleCallback([this]() {
         return show_diagnostics_popup_;

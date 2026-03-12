@@ -68,6 +68,9 @@ void Editor::handleInput(Event event) {
     // Ctrl+B: 符号导航（优先处理，在 InputRouter 之前）
     if (isCtrlKey(event, 'b')) {
         if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
+            if (pnana::utils::Logger::getInstance().isEnabled()) {
+                LOG("[SYMBOL] Ctrl+B pressed, showSymbolNavigation()");
+            }
             showSymbolNavigation();
             return;
         }

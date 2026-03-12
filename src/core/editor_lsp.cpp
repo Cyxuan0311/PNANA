@@ -559,6 +559,9 @@ void Editor::updateCurrentFileFolding() {
             folding_manager_->clear();
         }
 #endif
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            LOG("[FOLD] updateCurrentFileFolding: no document, cleared");
+        }
         return;
     }
 
@@ -576,6 +579,9 @@ void Editor::updateCurrentFileFolding() {
     }
 
     std::string uri = filepathToUri(filepath);
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[FOLD] updateCurrentFileFolding entry uri=" + uri);
+    }
 
     // 当前文件无 LSP 时：不请求折叠、不使用缓存（避免用其他语言的 LSP 分析当前文件导致错误折叠）
     bool has_lsp_client = false;
@@ -583,6 +589,9 @@ void Editor::updateCurrentFileFolding() {
         has_lsp_client = (lsp_manager_->getClientForFile(filepath) != nullptr);
     }
     if (!has_lsp_client) {
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            LOG("[FOLD] updateCurrentFileFolding: no LSP client for file, cleared");
+        }
         doc->clearFoldingRanges();
         if (folding_manager_) {
             folding_manager_->clear();
@@ -612,6 +621,11 @@ void Editor::updateCurrentFileFolding() {
                 }
 
                 cache_restored = true;
+                if (pnana::utils::Logger::getInstance().isEnabled()) {
+                    LOG("[FOLD] updateCurrentFileFolding: cache restored uri=" + uri +
+                        " ranges=" + std::to_string(cache_it->second.ranges.size()) +
+                        " folded_lines=" + std::to_string(cache_it->second.folded_lines.size()));
+                }
 
                 if (folding_manager_) {
                     // 直接设置状态而不调用clear()，避免触发同步回调
@@ -626,6 +640,9 @@ void Editor::updateCurrentFileFolding() {
 
     // 无缓存时先清空，避免显示上一个文件的折叠符号
     if (!cache_restored) {
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            LOG("[FOLD] updateCurrentFileFolding: no cache, cleared folding uri=" + uri);
+        }
         doc->clearFoldingRanges();
         if (folding_manager_) {
             folding_manager_->clear();
@@ -642,6 +659,10 @@ void Editor::updateCurrentFileFolding() {
 
     if (!folding_manager_->isInitialized()) {
         if (lsp_request_manager_) {
+            if (pnana::utils::Logger::getInstance().isEnabled()) {
+                LOG("[FOLD] updateCurrentFileFolding: posting async initializeFoldingRanges uri=" +
+                    uri);
+            }
             std::string fold_key = std::string("fold:switch:") + uri;
             lsp_request_manager_->postOrReplace(
                 fold_key, features::LspRequestManager::Priority::LOW, [this, uri]() {
@@ -655,6 +676,11 @@ void Editor::updateCurrentFileFolding() {
                     }
                 });
         } else {
+            if (pnana::utils::Logger::getInstance().isEnabled()) {
+                LOG("[FOLD] updateCurrentFileFolding: fallback thread initializeFoldingRanges "
+                    "uri=" +
+                    uri);
+            }
             std::thread([this, uri]() {
                 try {
                     if (folding_manager_) {
@@ -670,6 +696,10 @@ void Editor::updateCurrentFileFolding() {
 
     needs_render_ = true;
     last_render_source_ = "folding_update";
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[FOLD] updateCurrentFileFolding done uri=" + uri +
+            " cache_restored=" + std::string(cache_restored ? "1" : "0"));
+    }
 }
 
 void Editor::updateLspDocument(bool force_sync_for_completion) {
@@ -940,6 +970,12 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
 }
 
 void Editor::triggerCompletion() {
+    // 配置关闭代码补全弹窗时，不发起补全请求并隐藏已有弹窗
+    if (!config_manager_.getConfig().lsp.completion_popup_enabled) {
+        completion_popup_.hide();
+        return;
+    }
+
     // 补全项评分结构体
     struct ScoredItem {
         features::CompletionItem item;
@@ -1515,6 +1551,17 @@ ftxui::Element Editor::renderCompletionPopup() {
 void Editor::showCompletionPopupIfChanged(const std::vector<features::CompletionItem>& items,
                                           int row, int col, int screen_w, int screen_h,
                                           const std::string& query) {
+    // 配置关闭代码补全弹窗时不显示
+    if (!config_manager_.getConfig().lsp.completion_popup_enabled) {
+        completion_popup_.hide();
+        return;
+    }
+    // 无补全内容时不显示弹窗
+    if (items.empty()) {
+        completion_popup_.hide();
+        return;
+    }
+
     auto now = std::chrono::steady_clock::now();
     int count = static_cast<int>(items.size());
 
@@ -1581,6 +1628,9 @@ void Editor::hideDiagnosticsPopup() {
 
 #ifdef BUILD_LSP_SUPPORT
 void Editor::showSymbolNavigation() {
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] showSymbolNavigation entry");
+    }
     if (!lsp_enabled_) {
         setStatusMessage("LSP is not enabled. Cannot show symbol navigation.");
         return;
@@ -1588,6 +1638,9 @@ void Editor::showSymbolNavigation() {
 
     const Document* doc = getCurrentDocument();
     if (!doc) {
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            LOG("[SYMBOL] showSymbolNavigation: no document");
+        }
         setStatusMessage("No document open. Cannot show symbol navigation.");
         return;
     }
@@ -1597,10 +1650,16 @@ void Editor::showSymbolNavigation() {
         setStatusMessage("File not saved. Cannot show symbol navigation.");
         return;
     }
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] showSymbolNavigation file=" + file_path);
+    }
 
     // 获取当前文件的LSP客户端
     auto* lsp_client = lsp_manager_->getClientForFile(file_path);
     if (!lsp_client) {
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            LOG_WARNING("[SYMBOL] showSymbolNavigation: no LSP client for file");
+        }
         setStatusMessage("LSP server not available for this file.");
         return;
     }
@@ -1612,6 +1671,9 @@ void Editor::showSymbolNavigation() {
     // 确保文档已经通过 didOpen 添加到 LSP 服务器
     std::string uri = lsp_client->filepathToUri(file_path);
     std::string language_id = detectLanguageId(file_path);
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] showSymbolNavigation requesting documentSymbol uri=" + uri);
+    }
 
     // 检查文档是否已经打开
     bool needs_did_open = (file_language_map_.find(uri) == file_language_map_.end());
@@ -1635,36 +1697,100 @@ void Editor::showSymbolNavigation() {
         }
     }
 
-    // 异步获取符号列表
-    std::thread([this, file_path, lsp_client, uri]() {
-        std::vector<pnana::features::DocumentSymbol> symbols = lsp_client->documentSymbol(uri);
+    // 通过 LspRequestManager 执行 documentSymbol，避免 detach 线程导致退出时进程不终止
+    const std::string request_uri = uri;
+    features::LspClient* client = lsp_client;
+    if (lsp_request_manager_) {
+        lsp_request_manager_->postOrReplace(
+            "symbol_nav", features::LspRequestManager::Priority::NORMAL,
+            [this, client, request_uri]() {
+                std::vector<pnana::features::DocumentSymbol> symbols =
+                    client->documentSymbol(request_uri);
+                if (pnana::utils::Logger::getInstance().isEnabled()) {
+                    LOG("[SYMBOL] documentSymbol returned count=" + std::to_string(symbols.size()) +
+                        " uri=" + request_uri);
+                }
 
-        // 在主线程更新UI
-        screen_.Post([this, symbols]() {
-            symbol_navigation_popup_.setSymbols(symbols);
-            if (symbols.empty()) {
-                setStatusMessage("No symbols found in this file.");
-                return;
-            }
+                // 在主线程更新UI：仅当当前文档仍是请求时的文件时才应用结果，避免竞态
+                screen_.Post([this, symbols, request_uri]() {
+                    const Document* doc = getCurrentDocument();
+                    if (!doc) {
+                        return;
+                    }
+                    std::string current_uri = filepathToUri(doc->getFilePath());
+                    if (current_uri != request_uri) {
+                        if (pnana::utils::Logger::getInstance().isEnabled()) {
+                            LOG("[SYMBOL] popup skip stale response request_uri=" + request_uri +
+                                " current_uri=" + current_uri);
+                        }
+                        return;
+                    }
 
-            // 同步光标配置（搜索框使用块状光标与主题色）
-            pnana::ui::CursorConfig cfg;
-            cfg.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
-            cfg.color = getCursorColor();
-            cfg.smooth = getCursorSmooth();
-            cfg.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
-            symbol_navigation_popup_.setCursorConfig(cfg, getCursorBlinkRate());
+                    symbol_navigation_popup_.setSymbols(symbols);
+                    if (symbols.empty()) {
+                        if (pnana::utils::Logger::getInstance().isEnabled()) {
+                            LOG("[SYMBOL] popup: no symbols, status set");
+                        }
+                        setStatusMessage("No symbols found in this file.");
+                        return;
+                    }
 
-            // 设置跳转回调（用于预览跳转）
-            symbol_navigation_popup_.setJumpCallback(
-                [this](const pnana::features::DocumentSymbol& symbol) {
-                    jumpToSymbol(symbol);
+                    if (pnana::utils::Logger::getInstance().isEnabled()) {
+                        LOG("[SYMBOL] popup show symbols_count=" + std::to_string(symbols.size()));
+                    }
+                    pnana::ui::CursorConfig cfg;
+                    cfg.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
+                    cfg.color = getCursorColor();
+                    cfg.smooth = getCursorSmooth();
+                    cfg.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+                    symbol_navigation_popup_.setCursorConfig(cfg, getCursorBlinkRate());
+
+                    symbol_navigation_popup_.setJumpCallback(
+                        [this](const pnana::features::DocumentSymbol& symbol) {
+                            jumpToSymbol(symbol);
+                        });
+
+                    symbol_navigation_popup_.show();
+                    show_symbol_navigation_popup_ = true;
                 });
+            });
+    } else {
+        // 无 request manager 时退化为单次 detach 线程（仅此一路，避免大量线程）
+        std::thread([this, client, request_uri]() {
+            std::vector<pnana::features::DocumentSymbol> symbols =
+                client->documentSymbol(request_uri);
+            if (pnana::utils::Logger::getInstance().isEnabled()) {
+                LOG("[SYMBOL] documentSymbol returned count=" + std::to_string(symbols.size()) +
+                    " uri=" + request_uri);
+            }
+            screen_.Post([this, symbols, request_uri]() {
+                const Document* doc = getCurrentDocument();
+                if (!doc)
+                    return;
+                std::string current_uri = filepathToUri(doc->getFilePath());
+                if (current_uri != request_uri)
+                    return;
 
-            symbol_navigation_popup_.show();
-            show_symbol_navigation_popup_ = true;
-        });
-    }).detach();
+                symbol_navigation_popup_.setSymbols(symbols);
+                if (symbols.empty()) {
+                    setStatusMessage("No symbols found in this file.");
+                    return;
+                }
+                pnana::ui::CursorConfig cfg;
+                cfg.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
+                cfg.color = getCursorColor();
+                cfg.smooth = getCursorSmooth();
+                cfg.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
+                symbol_navigation_popup_.setCursorConfig(cfg, getCursorBlinkRate());
+                symbol_navigation_popup_.setJumpCallback(
+                    [this](const pnana::features::DocumentSymbol& symbol) {
+                        jumpToSymbol(symbol);
+                    });
+                symbol_navigation_popup_.show();
+                show_symbol_navigation_popup_ = true;
+            });
+        }).detach();
+    }
 }
 
 void Editor::hideSymbolNavigation() {
