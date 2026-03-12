@@ -89,6 +89,7 @@ pnana supports customizing LSP (Language Server Protocol) servers via the config
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable or disable LSP. Set to `false` to disable all language servers |
+| `completion_popup_enabled` | boolean | `true` | Show code completion popup when typing. Set to `false` to disable the completion popup |
 | `servers` | array | `[]` | Server configs. Same language_id as built-in overrides built-in; empty fields fall back to built-in; new language_id appends |
 
 ### Server Entry Format
@@ -248,7 +249,7 @@ Each element in the `servers` array is an object with these fields:
   },
   "themes": { "current": "monokai", "available": [] },
   "plugins": { "enabled_plugins": [] },
-  "lsp": { "enabled": true, "servers": [] }
+  "lsp": { "enabled": true, "completion_popup_enabled": true, "servers": [] }
 }
 ```
 
