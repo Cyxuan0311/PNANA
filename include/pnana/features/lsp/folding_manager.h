@@ -4,6 +4,7 @@
 #include "features/lsp/lsp_types.h"
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
@@ -24,10 +25,8 @@ class FoldingManager {
     // 初始化折叠范围（从LSP服务器获取）
     void initializeFoldingRanges(const std::string& uri);
 
-    // 获取折叠范围
-    const std::vector<FoldingRange>& getFoldingRanges() const {
-        return folding_ranges_;
-    }
+    // 获取折叠范围（返回副本以保证多线程安全）
+    std::vector<FoldingRange> getFoldingRanges() const;
 
     // 折叠操作
     void toggleFold(int start_line);
@@ -64,11 +63,10 @@ class FoldingManager {
     void setFoldedLinesDirectly(const std::set<int>& folded_lines);
 
     // 检查是否已初始化
-    bool isInitialized() const {
-        return !folding_ranges_.empty();
-    }
+    bool isInitialized() const;
 
   private:
+    mutable std::mutex mutex_;
     std::shared_ptr<LspClient> lsp_client_;
     std::vector<FoldingRange> folding_ranges_;
     std::set<int> folded_lines_; // 已折叠的起始行

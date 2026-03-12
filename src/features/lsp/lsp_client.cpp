@@ -645,6 +645,9 @@ std::vector<FoldingRange> LspClient::foldingRange(const std::string& uri) {
 
 std::vector<DocumentSymbol> LspClient::documentSymbol(const std::string& uri) {
     std::vector<DocumentSymbol> symbols;
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] LspClient::documentSymbol request uri=" + uri);
+    }
     if (!isConnected()) {
         return symbols;
     }
@@ -673,6 +676,10 @@ std::vector<DocumentSymbol> LspClient::documentSymbol(const std::string& uri) {
         (void)e;
     }
 
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] LspClient::documentSymbol response uri=" + uri +
+            " count=" + std::to_string(symbols.size()));
+    }
     return symbols;
 }
 

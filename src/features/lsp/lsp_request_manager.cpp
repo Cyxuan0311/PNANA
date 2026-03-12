@@ -114,6 +114,17 @@ void LspRequestManager::stop() {
     if (!running_.compare_exchange_strong(expected, false))
         return;
     cv_.notify_all();
+    // 等待 worker 退出，最多 2 秒；超时则 detach 避免进程无法退出
+    constexpr auto stop_timeout = std::chrono::seconds(2);
+    std::unique_lock<std::mutex> lock(done_mutex_);
+    if (!done_cv_.wait_for(lock, stop_timeout, [this]() {
+            return worker_done_.load();
+        })) {
+        if (worker_thread_.joinable())
+            worker_thread_.detach();
+        return;
+    }
+    lock.unlock();
     if (worker_thread_.joinable())
         worker_thread_.join();
 }
@@ -172,6 +183,8 @@ void LspRequestManager::workerLoop() {
             LOG_WARNING("Unknown exception executing LSP request id=" + std::to_string(req.id));
         }
     }
+    worker_done_.store(true);
+    done_cv_.notify_one();
 }
 
 } // namespace features

@@ -73,6 +73,11 @@ class LspRequestManager {
     std::atomic<bool> running_;
     std::atomic<int> next_id_;
     bool json_perf_enabled_; // format perf logs as JSON-lines when true
+
+    // 用于 stop() 超时：worker 退出前设置 worker_done_ 并 notify
+    std::atomic<bool> worker_done_{false};
+    std::mutex done_mutex_;
+    std::condition_variable done_cv_;
 };
 
 } // namespace features
