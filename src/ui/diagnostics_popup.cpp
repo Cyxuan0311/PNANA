@@ -4,6 +4,13 @@
 #include <sstream>
 
 using namespace ftxui;
+
+// 使用当前主题色的边框装饰器
+static inline Decorator borderWithColor(Color border_color) {
+    return [border_color](Element child) {
+        return child | border | ftxui::color(border_color);
+    };
+}
 using namespace pnana::ui::icons;
 
 namespace pnana {
@@ -122,11 +129,11 @@ Element DiagnosticsPopup::render() const {
 
     Element dialog_content = vbox(content);
 
-    // 使用 window 样式，固定宽度与高度，保证列表区域完整显示且选中高亮可见
-    return window(text("Diagnostics"), dialog_content) |
+    // 使用 window 样式，固定宽度与高度，边框与标题使用当前主题色
+    return window(text("Diagnostics") | color(colors.foreground), dialog_content) |
            size(WIDTH, EQUAL, kDiagnosticContentWidth + 4) |
            size(HEIGHT, EQUAL, kListVisibleHeight + 8) | bgcolor(colors.background) |
-           color(colors.dialog_border) | border;
+           borderWithColor(colors.dialog_border);
 }
 
 Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic& diagnostic,

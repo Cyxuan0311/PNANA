@@ -1,11 +1,19 @@
 #include "ui/symbol_navigation_popup.h"
 #include "ui/icons.h"
+#include "utils/logger.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
 
 using namespace ftxui;
+
+// 使用当前主题色的边框装饰器
+static inline Decorator borderWithColor(Color border_color) {
+    return [border_color](Element child) {
+        return child | border | ftxui::color(border_color);
+    };
+}
 using namespace pnana::ui::icons;
 
 namespace pnana {
@@ -28,6 +36,10 @@ void SymbolNavigationPopup::setSymbols(
     search_cursor_pos_ = 0;
     updateFilteredIndices();
     selected_index_ = 0;
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] SymbolNavigationPopup::setSymbols count=" + std::to_string(symbols.size()) +
+            " flattened=" + std::to_string(flattened_symbols_.size()));
+    }
 }
 
 void SymbolNavigationPopup::setCursorConfig(const CursorConfig& config, int blink_rate_ms) {
@@ -55,6 +67,10 @@ void SymbolNavigationPopup::show() {
     search_cursor_pos_ = 0;
     updateFilteredIndices();
     selected_index_ = 0;
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        LOG("[SYMBOL] SymbolNavigationPopup::show() visible=1 flattened=" +
+            std::to_string(flattened_symbols_.size()));
+    }
 }
 
 void SymbolNavigationPopup::updateFilteredIndices() {
@@ -296,9 +312,9 @@ Element SymbolNavigationPopup::render() const {
 
     Element dialog_content = vbox(content);
 
-    return window(text("Symbol Navigation"), dialog_content) | size(WIDTH, GREATER_THAN, 70) |
-           size(HEIGHT, GREATER_THAN, 15) | bgcolor(colors.background) |
-           color(colors.dialog_border) | border;
+    return window(text("Symbol Navigation") | color(colors.foreground), dialog_content) |
+           size(WIDTH, GREATER_THAN, 70) | size(HEIGHT, GREATER_THAN, 15) |
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentSymbol& symbol,

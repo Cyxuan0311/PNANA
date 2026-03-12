@@ -25,17 +25,40 @@ CompletionPopup::CompletionPopup()
 void CompletionPopup::show(const std::vector<features::CompletionItem>& items, int cursor_row,
                            int cursor_col, int screen_width, int screen_height,
                            const std::string& query) {
+    // 无补全内容时不显示弹窗，直接隐藏并返回
+    if (items.empty()) {
+        hide();
+        return;
+    }
+
+    // 过滤掉 label 为空的项，避免出现“空条”的弹窗
+    std::vector<features::CompletionItem> filtered;
+    filtered.reserve(items.size());
+    for (const auto& item : items) {
+        std::string display = item.label.empty() ? item.filterText : item.label;
+        if (!display.empty()) {
+            filtered.push_back(item);
+        }
+    }
+    if (filtered.empty()) {
+        hide();
+        return;
+    }
+
+    const std::vector<features::CompletionItem>& use_items = filtered;
+
     // 参考 VSCode：优化响应速度，减少不必要的更新
     bool was_visible = visible_;
 
     // 快速比较：检查内容是否真正变化
-    bool items_changed = (items_.size() != items.size()) || (current_query_ != query);
-    if (!items_changed && items_.size() > 0 && items.size() > 0) {
+    bool items_changed = (items_.size() != use_items.size()) || (current_query_ != query);
+    if (!items_changed && items_.size() > 0 && use_items.size() > 0) {
         // 比较前几个 item 的 label，如果相同则认为内容未变化
         bool content_same = true;
-        size_t compare_count = std::min({items_.size(), items.size(), size_t(5)}); // 比较前 5 个
+        size_t compare_count =
+            std::min({items_.size(), use_items.size(), size_t(5)}); // 比较前 5 个
         for (size_t i = 0; i < compare_count; ++i) {
-            if (items_[i].label != items[i].label) {
+            if (items_[i].label != use_items[i].label) {
                 content_same = false;
                 break;
             }
@@ -49,7 +72,7 @@ void CompletionPopup::show(const std::vector<features::CompletionItem>& items, i
     // 检查光标位置是否变化（需要重新计算位置）
     bool cursor_changed = (cursor_row_ != cursor_row || cursor_col_ != cursor_col);
 
-    items_ = items;
+    items_ = use_items;
     current_query_ = query;
     cursor_row_ = cursor_row;
     cursor_col_ = cursor_col;
