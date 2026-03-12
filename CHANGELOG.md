@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optimized release process to support multiple package formats
 - Added code quality checks and security scanning
 
+## [0.0.5 patch] - 2026-03-11 
+
+- Fix the version display issue on the welcome page
+- Fix the segmentation fault caused by race conditions in multi-threaded resource acquisition when switching documents
+- Optimize the border color effect of the diagnostic pop-up and symbol pop-up
+
+
 ## [0.0.5] - 2026-03-11
 
 ### Added
