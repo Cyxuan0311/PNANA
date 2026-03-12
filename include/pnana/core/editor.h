@@ -134,6 +134,7 @@ class Editor {
     Editor();
     explicit Editor(const std::string& filepath);
     Editor(const std::vector<std::string>& filepaths);
+    ~Editor();
 
     // 运行编辑器
     void run();

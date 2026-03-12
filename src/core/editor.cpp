@@ -321,6 +321,16 @@ Editor::Editor(const std::vector<std::string>& filepaths) : Editor() {
     }
 }
 
+Editor::~Editor() {
+#ifdef BUILD_LSP_SUPPORT
+    // 先关闭所有 LSP 连接，使 LspRequestManager worker 中可能阻塞的 documentSymbol() 等立即返回，
+    // 避免析构时 join(worker) 一直等待导致进程无法退出
+    if (lsp_manager_) {
+        lsp_manager_->shutdownAll();
+    }
+#endif
+}
+
 void Editor::run() {
     main_component_ = CatchEvent(Renderer([this] {
                                      return renderUI();
