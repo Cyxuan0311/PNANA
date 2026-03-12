@@ -1250,15 +1250,24 @@ ftxui::Element SyntaxHighlighter::highlightLineNative(const std::string& line) {
 
     // 对于超长行，限制处理长度以提高性能（支持长行但不卡顿）
     const size_t MAX_LINE_LENGTH = 10000; // 最大处理长度
-    std::string processed_line = line;
+    std::string processed_line;
     bool is_truncated = false;
     if (line.length() > MAX_LINE_LENGTH) {
         processed_line = line.substr(0, MAX_LINE_LENGTH);
         is_truncated = true;
+    } else {
+        processed_line = line;
     }
 
-    // 根据文件类型分词
-    std::vector<Token> tokens = tokenize(processed_line);
+    // 根据文件类型分词（捕获异常防止 tokenize 内部分配失败导致崩溃）
+    std::vector<Token> tokens;
+    try {
+        tokens = tokenize(processed_line);
+    } catch (const std::exception&) {
+        return text(processed_line) | color(theme_.getColors().foreground);
+    } catch (...) {
+        return text(processed_line) | color(theme_.getColors().foreground);
+    }
 
     if (tokens.empty()) {
         Element result = text(processed_line) | color(theme_.getColors().foreground);
@@ -1954,72 +1963,80 @@ std::vector<Token> SyntaxHighlighter::tokenizeProto(const std::string& line) {
 
 std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
     std::vector<Token> tokens;
+    if (line.empty())
+        return tokens;
+    // 防御性上限，避免异常长行导致过多分配或边界问题
+    const size_t max_len = 20000;
+    std::string work;
+    const std::string* lp = &line;
+    if (line.length() > max_len) {
+        work = line.substr(0, max_len);
+        lp = &work;
+    }
+    const std::string& L = *lp;
+    const size_t Ln = lp->length();
     size_t i = 0;
 
-    while (i < line.length()) {
+    while (i < Ln) {
         // 跳过空白
-        if (std::isspace(line[i])) {
+        if (std::isspace(L[i])) {
             size_t start = i;
-            while (i < line.length() && std::isspace(line[i]))
+            while (i < Ln && std::isspace(L[i]))
                 i++;
-            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            tokens.push_back({L.substr(start, i - start), TokenType::NORMAL, start, i});
             continue;
         }
 
         // 注释
-        if (line[i] == '#') {
-            tokens.push_back({line.substr(i), TokenType::COMMENT, i, line.length()});
+        if (L[i] == '#') {
+            tokens.push_back({L.substr(i), TokenType::COMMENT, i, Ln});
             break;
         }
 
         // 原始字符串 (r"..." 或 r'...')
-        if (i + 1 < line.length() && (line[i] == 'r' || line[i] == 'R') &&
-            (line[i + 1] == '"' || line[i + 1] == '\'')) {
-            char quote = line[i + 1];
+        if (i + 1 < Ln && (L[i] == 'r' || L[i] == 'R') && (L[i + 1] == '"' || L[i + 1] == '\'')) {
+            char quote = L[i + 1];
             size_t start = i;
             i += 2;
 
             // 三引号原始字符串
-            if (i + 1 < line.length() && line[i] == quote && line[i + 1] == quote) {
+            if (i + 1 < Ln && L[i] == quote && L[i + 1] == quote) {
                 i += 2;
-                while (i + 2 < line.length() &&
-                       !(line[i] == quote && line[i + 1] == quote && line[i + 2] == quote)) {
+                while (i + 2 < Ln && !(L[i] == quote && L[i + 1] == quote && L[i + 2] == quote)) {
                     i++;
                 }
-                if (i + 2 < line.length())
+                if (i + 2 < Ln)
                     i += 3;
             } else {
-                while (i < line.length() && line[i] != quote) {
+                while (i < Ln && L[i] != quote) {
                     i++; // 原始字符串不处理转义
                 }
-                if (i < line.length())
+                if (i < Ln)
                     i++;
             }
 
-            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            tokens.push_back({L.substr(start, i - start), TokenType::STRING, start, i});
             continue;
         }
 
         // f-string (f"..." 或 f'...')
-        if (i + 1 < line.length() && (line[i] == 'f' || line[i] == 'F') &&
-            (line[i + 1] == '"' || line[i + 1] == '\'')) {
-            char quote = line[i + 1];
+        if (i + 1 < Ln && (L[i] == 'f' || L[i] == 'F') && (L[i + 1] == '"' || L[i + 1] == '\'')) {
+            char quote = L[i + 1];
             size_t start = i;
             i += 2;
 
             // 三引号 f-string
-            if (i + 1 < line.length() && line[i] == quote && line[i + 1] == quote) {
+            if (i + 1 < Ln && L[i] == quote && L[i + 1] == quote) {
                 i += 2;
-                while (i + 2 < line.length() &&
-                       !(line[i] == quote && line[i + 1] == quote && line[i + 2] == quote)) {
-                    if (line[i] == '{') {
+                while (i + 2 < Ln && !(L[i] == quote && L[i + 1] == quote && L[i + 2] == quote)) {
+                    if (L[i] == '{') {
                         // f-string 表达式
                         i++;
                         int brace_count = 1;
-                        while (i < line.length() && brace_count > 0) {
-                            if (line[i] == '{')
+                        while (i < Ln && brace_count > 0) {
+                            if (L[i] == '{')
                                 brace_count++;
-                            else if (line[i] == '}')
+                            else if (L[i] == '}')
                                 brace_count--;
                             i++;
                         }
@@ -2027,20 +2044,20 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
                         i++;
                     }
                 }
-                if (i + 2 < line.length())
+                if (i + 2 < Ln)
                     i += 3;
             } else {
-                while (i < line.length() && line[i] != quote) {
-                    if (line[i] == '\\' && i + 1 < line.length()) {
+                while (i < Ln && L[i] != quote) {
+                    if (L[i] == '\\' && i + 1 < Ln) {
                         i += 2;
-                    } else if (line[i] == '{') {
+                    } else if (L[i] == '{') {
                         // f-string 表达式
                         i++;
                         int brace_count = 1;
-                        while (i < line.length() && brace_count > 0) {
-                            if (line[i] == '{')
+                        while (i < Ln && brace_count > 0) {
+                            if (L[i] == '{')
                                 brace_count++;
-                            else if (line[i] == '}')
+                            else if (L[i] == '}')
                                 brace_count--;
                             i++;
                         }
@@ -2048,75 +2065,74 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
                         i++;
                     }
                 }
-                if (i < line.length())
+                if (i < Ln)
                     i++;
             }
 
-            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            tokens.push_back({L.substr(start, i - start), TokenType::STRING, start, i});
             continue;
         }
 
         // 字符串
-        if (line[i] == '"' || line[i] == '\'') {
-            char quote = line[i];
+        if (L[i] == '"' || L[i] == '\'') {
+            char quote = L[i];
             size_t start = i;
             i++;
 
             // 三引号字符串
-            if (i + 1 < line.length() && line[i] == quote && line[i + 1] == quote) {
+            if (i + 1 < Ln && L[i] == quote && L[i + 1] == quote) {
                 i += 2;
-                while (i + 2 < line.length() &&
-                       !(line[i] == quote && line[i + 1] == quote && line[i + 2] == quote)) {
-                    if (line[i] == '\\' && i + 1 < line.length())
+                while (i + 2 < Ln && !(L[i] == quote && L[i + 1] == quote && L[i + 2] == quote)) {
+                    if (L[i] == '\\' && i + 1 < Ln)
                         i += 2;
                     else
                         i++;
                 }
-                if (i + 2 < line.length())
+                if (i + 2 < Ln)
                     i += 3;
             } else {
-                while (i < line.length() && line[i] != quote) {
-                    if (line[i] == '\\' && i + 1 < line.length())
+                while (i < Ln && L[i] != quote) {
+                    if (L[i] == '\\' && i + 1 < Ln)
                         i += 2;
                     else
                         i++;
                 }
-                if (i < line.length())
+                if (i < Ln)
                     i++;
             }
 
-            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            tokens.push_back({L.substr(start, i - start), TokenType::STRING, start, i});
             continue;
         }
 
         // 数字（支持复数、科学计数法）
-        if (std::isdigit(line[i]) ||
-            (line[i] == '.' && i + 1 < line.length() && std::isdigit(line[i + 1]))) {
+        if (std::isdigit(static_cast<unsigned char>(L[i])) ||
+            (L[i] == '.' && i + 1 < Ln && std::isdigit(static_cast<unsigned char>(L[i + 1])))) {
             size_t start = i;
-            while (i < line.length() && (std::isdigit(line[i]) || line[i] == '.'))
+            while (i < Ln && (std::isdigit(static_cast<unsigned char>(L[i])) || L[i] == '.'))
                 i++;
 
             // 科学计数法
-            if (i < line.length() && (line[i] == 'e' || line[i] == 'E')) {
+            if (i < Ln && (L[i] == 'e' || L[i] == 'E')) {
                 i++;
-                if (i < line.length() && (line[i] == '+' || line[i] == '-'))
+                if (i < Ln && (L[i] == '+' || L[i] == '-'))
                     i++;
-                while (i < line.length() && std::isdigit(line[i]))
+                while (i < Ln && std::isdigit(static_cast<unsigned char>(L[i])))
                     i++;
             }
 
             // 复数后缀
-            if (i < line.length() && (line[i] == 'j' || line[i] == 'J')) {
+            if (i < Ln && (L[i] == 'j' || L[i] == 'J')) {
                 i++;
             }
 
-            tokens.push_back({line.substr(start, i - start), TokenType::NUMBER, start, i});
+            tokens.push_back({L.substr(start, i - start), TokenType::NUMBER, start, i});
             continue;
         }
 
         // 多字符操作符 (Python特有)
-        if (i + 1 < line.length()) {
-            std::string two_char = line.substr(i, 2);
+        if (i + 1 < Ln) {
+            std::string two_char = L.substr(i, 2);
             if (two_char == "==" || two_char == "!=" || two_char == "<=" || two_char == ">=" ||
                 two_char == "**" || two_char == "//" || two_char == "<<" || two_char == ">>" ||
                 two_char == "+=" || two_char == "-=" || two_char == "*=" || two_char == "/=" ||
@@ -2129,12 +2145,12 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
         }
 
         // 标识符/关键字（支持ASCII字符，正确处理UTF-8多字节字符如中文）
-        unsigned char c = static_cast<unsigned char>(line[i]);
-        if (isAsciiAlpha(c) || line[i] == '_') {
+        unsigned char c = static_cast<unsigned char>(L[i]);
+        if (isAsciiAlpha(c) || L[i] == '_') {
             size_t start = i;
             // 只匹配ASCII字母数字和下划线，跳过UTF-8多字节字符（如中文）
-            while (i < line.length()) {
-                unsigned char ch = static_cast<unsigned char>(line[i]);
+            while (i < Ln) {
+                unsigned char ch = static_cast<unsigned char>(L[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
                 } else if ((ch & 0x80) != 0) {
@@ -2145,14 +2161,14 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
                     break;
                 }
             }
-            std::string word = line.substr(start, i - start);
+            std::string word = L.substr(start, i - start);
 
             TokenType type = TokenType::NORMAL;
             if (isKeyword(word)) {
                 type = TokenType::KEYWORD;
             } else if (isType(word)) {
                 type = TokenType::TYPE;
-            } else if (i < line.length() && line[i] == '(') {
+            } else if (i < Ln && L[i] == '(') {
                 type = TokenType::FUNCTION;
             }
 
@@ -2161,14 +2177,14 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
         }
 
         // 单字符操作符
-        if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+        if (isOperator(L[i])) {
+            tokens.push_back({std::string(1, L[i]), TokenType::OPERATOR, i, i + 1});
             i++;
             continue;
         }
 
         // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        tokens.push_back({std::string(1, L[i]), TokenType::NORMAL, i, i + 1});
         i++;
     }
 
