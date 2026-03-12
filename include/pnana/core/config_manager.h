@@ -110,6 +110,7 @@ struct LspServerConfigEntry {
 // LSP 配置结构
 struct LspConfig {
     bool enabled = true;
+    bool completion_popup_enabled = true;      // 是否显示代码补全提示弹窗
     std::vector<LspServerConfigEntry> servers; // 为空时使用内置默认配置
 };
 
