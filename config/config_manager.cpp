@@ -347,6 +347,8 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         size_t lsp_end = cleaned.find("}", lsp_pos + 1);
         if (lsp_end != std::string::npos) {
             config_.lsp.enabled = extractBool("enabled", lsp_pos, lsp_end, true);
+            config_.lsp.completion_popup_enabled =
+                extractBool("completion_popup_enabled", lsp_pos, lsp_end, true);
 
             // 解析 servers 数组
             size_t servers_pos = cleaned.find("\"servers\":[", lsp_pos);
@@ -554,6 +556,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"_comment\": \"LSP: config overrides built-in for same language_id; empty "
            "fields fall back to built-in. Add servers with new language_id to extend\",\n";
     oss << "    \"enabled\": " << (config_.lsp.enabled ? "true" : "false") << ",\n";
+    oss << "    \"completion_popup_enabled\": "
+        << (config_.lsp.completion_popup_enabled ? "true" : "false") << ",\n";
     oss << "    \"servers\": [\n";
     for (size_t i = 0; i < config_.lsp.servers.size(); ++i) {
         const auto& s = config_.lsp.servers[i];

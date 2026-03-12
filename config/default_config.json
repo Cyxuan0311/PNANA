@@ -54,6 +54,7 @@
     "_comment": "LSP: same language_id as built-in overrides built-in (config first); empty fields fall back to built-in. Add entries with new language_id to extend.",
     "_comment_format": "servers: [{name,command,language_id,extensions:[],args:[],env:{}}]",
     "enabled": true,
+    "completion_popup_enabled": true,
     "servers": []
   }
 }
