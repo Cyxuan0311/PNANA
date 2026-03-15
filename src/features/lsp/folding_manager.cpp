@@ -1,6 +1,5 @@
 #include "features/lsp/folding_manager.h"
 #include "features/lsp/lsp_client.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <limits>
 #include <set>
@@ -14,9 +13,6 @@ FoldingManager::FoldingManager(std::shared_ptr<LspClient> lsp_client) : lsp_clie
 }
 
 void FoldingManager::initializeFoldingRanges(const std::string& uri) {
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        LOG("[FOLD] FoldingManager::initializeFoldingRanges entry uri=" + uri);
-    }
     if (!lsp_client_) {
         return;
     }
@@ -26,17 +22,10 @@ void FoldingManager::initializeFoldingRanges(const std::string& uri) {
         new_ranges = lsp_client_->foldingRange(uri);
     } catch (const std::exception& e) {
         (void)e;
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            LOG_WARNING("[FOLD] FoldingManager::initializeFoldingRanges failed uri=" + uri);
-        }
         std::lock_guard<std::mutex> lock(mutex_);
         folding_ranges_.clear();
         folded_lines_.clear();
         return;
-    }
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        LOG("[FOLD] FoldingManager::initializeFoldingRanges uri=" + uri +
-            " ranges_count=" + std::to_string(new_ranges.size()));
     }
 
     // 按起始行排序
