@@ -347,10 +347,21 @@ Element TodoPanel::renderTodoItem(const features::todo::TodoItem& todo, size_t /
 
     // 选中标记 + 优先级
     std::string priority_str = "[" + std::to_string(todo.priority) + "] ";
+    // 根据优先级设置颜色
+    Color priority_color = colors.keyword;
+    if (todo.priority <= 2) {
+        priority_color = colors.error; // 高优先级（1-2）
+    } else if (todo.priority <= 4) {
+        priority_color = colors.warning; // 中高优先级（3-4）
+    } else if (todo.priority <= 6) {
+        priority_color = colors.keyword; // 中等优先级（5-6）
+    } else {
+        priority_color = colors.comment; // 低优先级（7-9）
+    }
     Element left = is_selected
                        ? (hbox({text("► ") | color(colors.success) | bold,
-                                text(priority_str) | color(colors.keyword) | dim}))
-                       : (hbox({text("  "), text(priority_str) | color(colors.keyword) | dim}));
+                                text(priority_str) | color(priority_color) | dim}))
+                       : (hbox({text("  "), text(priority_str) | color(priority_color) | dim}));
 
     // 内容（弹性，截断）
     std::string content_display = todo.content;
@@ -459,6 +470,8 @@ Element TodoPanel::renderCreateDialog() const {
         text("  Due       ") | size(WIDTH, EQUAL, label_width + 2),
         text(time_display) | color(colors.dialog_fg) | bgcolor(time_bg) | flex_grow,
     }));
+    dialog.push_back(text("  (Format: YYYY-MM-DD HH:MM or HH:MM or 1h/2d)") |
+                     color(colors.comment) | dim);
     dialog.push_back(text(""));
 
     // 优先级输入
@@ -614,9 +627,38 @@ void TodoPanel::cancelEditingPriority() {
     priority_input_.clear();
 }
 
-std::chrono::system_clock::time_point TodoPanel::parseTimeInput(const std::string& time_str) const {
-    // 解析时间格式：YYYY-MM-DD HH:MM 或 YYYY-MM-DD HH:MM:SS
-    // 也支持简化的格式：HH:MM（使用当前日期）
+// 时间工具函数
+namespace time_utils {
+// 解析时间输入字符串
+std::chrono::system_clock::time_point parseTimeInput(const std::string& time_str) {
+    // 解析时间格式：
+    // 1. 完整格式：YYYY-MM-DD HH:MM 或 YYYY-MM-DD HH:MM:SS
+    // 2. 简化格式：HH:MM（使用当前日期）
+    // 3. 相对时间：1h（1小时后）, 2d（2天后）, 30m（30分钟后）
+
+    // 尝试解析相对时间
+    if (time_str.length() > 1) {
+        char unit = time_str.back();
+        std::string num_str = time_str.substr(0, time_str.length() - 1);
+
+        try {
+            int value = std::stoi(num_str);
+            auto now = std::chrono::system_clock::now();
+
+            switch (unit) {
+                case 'm': // 分钟
+                    return now + std::chrono::minutes(value);
+                case 'h': // 小时
+                    return now + std::chrono::hours(value);
+                case 'd': // 天
+                    return now + std::chrono::hours(value * 24);
+                case 'w': // 周
+                    return now + std::chrono::hours(value * 24 * 7);
+            }
+        } catch (...) {
+            // 解析失败，继续尝试其他格式
+        }
+    }
 
     std::istringstream iss(time_str);
     std::tm tm = {};
@@ -691,7 +733,8 @@ std::chrono::system_clock::time_point TodoPanel::parseTimeInput(const std::strin
     return std::chrono::system_clock::now();
 }
 
-std::string TodoPanel::formatTime(const std::chrono::system_clock::time_point& time) const {
+// 格式化时间点为字符串
+std::string formatTime(const std::chrono::system_clock::time_point& time) {
     auto time_t = std::chrono::system_clock::to_time_t(time);
     std::tm* tm = std::localtime(&time_t);
 
@@ -702,6 +745,15 @@ std::string TodoPanel::formatTime(const std::chrono::system_clock::time_point& t
         << tm->tm_hour << ":" << std::setw(2) << tm->tm_min;
 
     return oss.str();
+}
+} // namespace time_utils
+
+std::chrono::system_clock::time_point TodoPanel::parseTimeInput(const std::string& time_str) const {
+    return time_utils::parseTimeInput(time_str);
+}
+
+std::string TodoPanel::formatTime(const std::chrono::system_clock::time_point& time) const {
+    return time_utils::formatTime(time);
 }
 
 bool TodoPanel::isTimeDue(const std::chrono::system_clock::time_point& time) const {
