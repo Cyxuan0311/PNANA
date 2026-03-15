@@ -9,7 +9,7 @@
     "auto_indent": true
   },
   "display": {
-    "_comment": "Display: line numbers, highlight, cursor style, helpbar, logo gradient",
+    "_comment": "Display: line numbers, highlight, cursor style, helpbar, logo gradient, side panels, terminal position",
     "show_line_numbers": true,
     "relative_line_numbers": false,
     "highlight_current_line": true,
@@ -19,16 +19,22 @@
     "cursor_color": "255,255,255",
     "cursor_blink_rate": 500,
     "cursor_smooth": false,
-    "logo_gradient": true
+    "logo_gradient": true,
+    "logo_style": "block",
+    "file_browser_side": "left",
+    "ai_panel_side": "right",
+    "terminal_side": "bottom",
+    "statusbar_style": "default"
   },
   "files": {
-    "_comment": "Files: encoding, line ending, auto save",
+    "_comment": "Files: encoding, line ending, auto save, large file prompt",
     "encoding": "UTF-8",
     "line_ending": "LF",
     "trim_trailing_whitespace": true,
     "insert_final_newline": true,
     "auto_save": false,
-    "auto_save_interval": 60
+    "auto_save_interval": 60,
+    "max_file_size_before_prompt_mb": 50
   },
   "search": {
     "_comment": "Search: case, whole word, regex, wrap",
@@ -38,13 +44,15 @@
     "wrap_around": true
   },
   "themes": {
-    "_comment": "Themes: current theme, available list for reference",
+    "_comment": "Themes: current, optional available list, custom themes (see docs)",
     "current": "monokai",
     "available": [],
+    "custom": {},
     "_comment_available_themes_1": "monokai, dracula, solarized-dark, solarized-light, onedark, nord, gruvbox, tokyo-night, catppuccin, material",
     "_comment_available_themes_2": "ayu, github, github-dark, markdown-dark, vscode-dark, night-owl, palenight, oceanic-next, kanagawa, tomorrow-night",
     "_comment_available_themes_3": "tomorrow-night-blue, cobalt, zenburn, base16-dark, papercolor, rose-pine, everforest, jellybeans, desert, slate",
-    "_comment_available_themes_4": "atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker, hatsune-miku, minions, batman, spongebob"
+    "_comment_available_themes_4": "atom-one-light, tokyo-night-day, blue-light, cyberpunk, hacker, hatsune-miku, minions, batman, spongebob",
+    "_comment_custom": "Add custom themes here: \"custom\": {\"my-theme\": {\"background\": [r,g,b], ...}}"
   },
   "plugins": {
     "_comment": "Plugins: enabled plugin names",

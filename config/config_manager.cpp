@@ -261,6 +261,30 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         config_.display.show_helpbar = extractBool("show_helpbar", display_pos, display_end, true);
         config_.display.logo_gradient =
             extractBool("logo_gradient", display_pos, display_end, true);
+        std::string logo_style = extractStr("logo_style", display_pos, display_end);
+        if (!logo_style.empty()) {
+            config_.display.logo_style = logo_style;
+        }
+
+        // 面板布局：文件列表和 AI 面板左右位置，可选 "left"/"right"
+        std::string fb_side = extractStr("file_browser_side", display_pos, display_end);
+        if (fb_side == "left" || fb_side == "right") {
+            config_.display.file_browser_side = fb_side;
+        }
+        std::string ai_side = extractStr("ai_panel_side", display_pos, display_end);
+        if (ai_side == "left" || ai_side == "right") {
+            config_.display.ai_panel_side = ai_side;
+        }
+        // 终端位置：可选 "top"/"bottom"
+        std::string term_side = extractStr("terminal_side", display_pos, display_end);
+        if (term_side == "top" || term_side == "bottom") {
+            config_.display.terminal_side = term_side;
+        }
+        // 状态栏样式：default, neovim, vscode, minimal, classic, highlight
+        std::string sb_style = extractStr("statusbar_style", display_pos, display_end);
+        if (!sb_style.empty()) {
+            config_.display.statusbar_style = sb_style;
+        }
     }
 
     // 解析 files 配置
@@ -280,6 +304,8 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         config_.files.auto_save = extractBool("auto_save", files_pos, files_end, false);
         config_.files.auto_save_interval =
             extractInt("auto_save_interval", files_pos, files_end, 60);
+        config_.files.max_file_size_before_prompt_mb =
+            extractInt("max_file_size_before_prompt_mb", files_pos, files_end, 50);
     }
 
     // 解析 search 配置
@@ -306,8 +332,132 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
             }
         }
 
-        // 解析自定义主题（简化处理）
-        // 这里可以扩展解析 custom 主题
+        // 解析 available 主题列表（可选，用于控制主题菜单展示顺序/子集）
+        size_t available_pos = cleaned.find("\"available\":[", themes_pos);
+        if (available_pos != std::string::npos) {
+            available_pos += 12; // 跳过 "available":[
+            size_t avail_end = cleaned.find("]", available_pos);
+            if (avail_end != std::string::npos) {
+                std::string array_content =
+                    cleaned.substr(available_pos, avail_end - available_pos);
+                size_t p = 0;
+                config_.available_themes.clear();
+                while ((p = array_content.find("\"", p)) != std::string::npos) {
+                    p++;
+                    size_t e = array_content.find("\"", p);
+                    if (e == std::string::npos)
+                        break;
+                    std::string name = array_content.substr(p, e - p);
+                    if (!name.empty())
+                        config_.available_themes.push_back(name);
+                    p = e + 1;
+                }
+            }
+        }
+
+        // 解析 custom 主题（可选）：themes.custom 是一个对象，每个 key 是主题名
+        size_t custom_pos = cleaned.find("\"custom\":{", themes_pos);
+        if (custom_pos != std::string::npos) {
+            custom_pos += 9; // 跳过 "custom":{
+            size_t custom_end = custom_pos;
+            int depth = 1;
+            while (depth > 0 && custom_end < cleaned.size()) {
+                char c = cleaned[custom_end++];
+                if (c == '{')
+                    depth++;
+                else if (c == '}')
+                    depth--;
+            }
+            if (depth == 0) {
+                std::string custom_content =
+                    cleaned.substr(custom_pos, custom_end - custom_pos - 1);
+                size_t p = 0;
+                while ((p = custom_content.find("\"", p)) != std::string::npos) {
+                    // 解析主题名
+                    p++;
+                    size_t key_end = custom_content.find("\"", p);
+                    if (key_end == std::string::npos)
+                        break;
+                    std::string theme_name = custom_content.substr(p, key_end - p);
+                    p = key_end + 1;
+                    // 找到冒号和值对象
+                    size_t colon = custom_content.find(":", p);
+                    if (colon == std::string::npos)
+                        break;
+                    size_t val_start = custom_content.find("{", colon);
+                    if (val_start == std::string::npos)
+                        break;
+                    int vdepth = 1;
+                    size_t val_end = val_start + 1;
+                    while (vdepth > 0 && val_end < custom_content.size()) {
+                        char c = custom_content[val_end++];
+                        if (c == '{')
+                            vdepth++;
+                        else if (c == '}')
+                            vdepth--;
+                    }
+                    if (vdepth != 0)
+                        break;
+                    std::string theme_obj =
+                        custom_content.substr(val_start, val_end - val_start); // 包含花括号
+
+                    ThemeColorConfig tcfg;
+                    auto extractRgb = [&theme_obj](const std::string& key, std::vector<int>& out) {
+                        size_t kpos = theme_obj.find("\"" + key + "\":[");
+                        if (kpos == std::string::npos)
+                            return;
+                        kpos += key.length() + 4; // 跳过 "key":[
+                        size_t end = theme_obj.find("]", kpos);
+                        if (end == std::string::npos)
+                            return;
+                        std::string nums = theme_obj.substr(kpos, end - kpos);
+                        out.clear();
+                        size_t p2 = 0;
+                        while (p2 < nums.size()) {
+                            size_t comma = nums.find(",", p2);
+                            std::string part = nums.substr(
+                                p2, comma == std::string::npos ? std::string::npos : comma - p2);
+                            try {
+                                int v = std::stoi(part);
+                                out.push_back(v);
+                            } catch (...) {
+                            }
+                            if (comma == std::string::npos)
+                                break;
+                            p2 = comma + 1;
+                        }
+                    };
+
+                    extractRgb("background", tcfg.background);
+                    extractRgb("foreground", tcfg.foreground);
+                    extractRgb("current_line", tcfg.current_line);
+                    extractRgb("selection", tcfg.selection);
+                    extractRgb("line_number", tcfg.line_number);
+                    extractRgb("line_number_current", tcfg.line_number_current);
+                    extractRgb("statusbar_bg", tcfg.statusbar_bg);
+                    extractRgb("statusbar_fg", tcfg.statusbar_fg);
+                    extractRgb("menubar_bg", tcfg.menubar_bg);
+                    extractRgb("menubar_fg", tcfg.menubar_fg);
+                    extractRgb("helpbar_bg", tcfg.helpbar_bg);
+                    extractRgb("helpbar_fg", tcfg.helpbar_fg);
+                    extractRgb("helpbar_key", tcfg.helpbar_key);
+                    extractRgb("keyword", tcfg.keyword);
+                    extractRgb("string", tcfg.string);
+                    extractRgb("comment", tcfg.comment);
+                    extractRgb("number", tcfg.number);
+                    extractRgb("function", tcfg.function);
+                    extractRgb("type", tcfg.type);
+                    extractRgb("operator", tcfg.operator_color);
+                    extractRgb("error", tcfg.error);
+                    extractRgb("warning", tcfg.warning);
+                    extractRgb("info", tcfg.info);
+                    extractRgb("success", tcfg.success);
+
+                    config_.custom_themes[theme_name] = tcfg;
+                    p = val_end;
+                }
+            }
+        }
     }
 
     // 解析 plugins 配置
@@ -486,7 +636,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"auto_indent\": " << (config_.editor.auto_indent ? "true" : "false") << "\n";
     oss << "  },\n";
     oss << "  \"display\": {\n";
-    oss << "    \"_comment\": \"Display: line numbers, highlight, cursor style\",\n";
+    oss << "    \"_comment\": \"Display: line numbers, highlight, cursor style, side panels, "
+           "terminal position\",\n";
     oss << "    \"show_line_numbers\": " << (config_.display.show_line_numbers ? "true" : "false")
         << ",\n";
     oss << "    \"relative_line_numbers\": "
@@ -500,7 +651,12 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"cursor_blink_rate\": " << config_.display.cursor_blink_rate << ",\n";
     oss << "    \"cursor_smooth\": " << (config_.display.cursor_smooth ? "true" : "false") << ",\n";
     oss << "    \"show_helpbar\": " << (config_.display.show_helpbar ? "true" : "false") << ",\n";
-    oss << "    \"logo_gradient\": " << (config_.display.logo_gradient ? "true" : "false") << "\n";
+    oss << "    \"logo_gradient\": " << (config_.display.logo_gradient ? "true" : "false") << ",\n";
+    oss << "    \"logo_style\": \"" << config_.display.logo_style << "\",\n";
+    oss << "    \"file_browser_side\": \"" << config_.display.file_browser_side << "\",\n";
+    oss << "    \"ai_panel_side\": \"" << config_.display.ai_panel_side << "\",\n";
+    oss << "    \"terminal_side\": \"" << config_.display.terminal_side << "\",\n";
+    oss << "    \"statusbar_style\": \"" << config_.display.statusbar_style << "\"\n";
     oss << "  },\n";
     oss << "  \"files\": {\n";
     oss << "    \"_comment\": \"Files: encoding, line ending, auto save\",\n";
@@ -511,7 +667,9 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"insert_final_newline\": "
         << (config_.files.insert_final_newline ? "true" : "false") << ",\n";
     oss << "    \"auto_save\": " << (config_.files.auto_save ? "true" : "false") << ",\n";
-    oss << "    \"auto_save_interval\": " << config_.files.auto_save_interval << "\n";
+    oss << "    \"auto_save_interval\": " << config_.files.auto_save_interval << ",\n";
+    oss << "    \"max_file_size_before_prompt_mb\": "
+        << config_.files.max_file_size_before_prompt_mb << "\n";
     oss << "  },\n";
     oss << "  \"search\": {\n";
     oss << "    \"_comment\": \"Search: case, whole word, regex, wrap\",\n";
