@@ -34,7 +34,19 @@ struct DisplayConfig {
     bool cursor_smooth = false;               // 流动光标效果
 
     // Logo 配置
-    bool logo_gradient = true; // Logo 是否使用渐变颜色
+    bool logo_gradient = true;        // Logo 是否使用渐变颜色
+    std::string logo_style = "block"; // Logo 样式: block, roman, box, unicode, script, big, diagram
+
+    // 面板布局配置
+    // file_browser_side: "left" 或 "right"，控制文件列表相对于代码区的位置
+    // ai_panel_side: "left" 或 "right"，控制 AI 弹窗相对于代码区的位置
+    std::string file_browser_side = "left";
+    std::string ai_panel_side = "right";
+    // terminal_side: "top" 或 "bottom"，控制终端相对于代码区的位置
+    std::string terminal_side = "bottom";
+    // statusbar_style: 状态栏样式名称，持久化到配置
+    // 可选: default, neovim, vscode, minimal, classic, highlight, rounded, unicode
+    std::string statusbar_style = "default";
 };
 
 // 文件配置结构
@@ -45,6 +57,8 @@ struct FileConfig {
     bool insert_final_newline = true;
     bool auto_save = false;
     int auto_save_interval = 60;
+    // 超过此大小（MB）时打开前弹出确认对话框，0 表示不提示
+    int max_file_size_before_prompt_mb = 50;
 };
 
 // 搜索配置结构
@@ -125,8 +139,8 @@ struct AppConfig {
 
     // 主题配置
     std::string current_theme = "monokai";
-    std::map<std::string, ThemeColorConfig> custom_themes;
-    std::vector<std::string> available_themes;
+    std::map<std::string, ThemeColorConfig> custom_themes; // 用户自定义主题
+    std::vector<std::string> available_themes;             // 供主题面板显示的主题名称
 };
 
 // 配置管理器
