@@ -57,6 +57,60 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `cursor_smooth` | boolean | `false` | Smooth cursor effect |
 | `show_helpbar` | boolean | `true` | showing buttom help bar (true or false) |
 | `logo_gradient` | boolean | `true` | Use gradient colors for welcome screen Logo |
+| `file_browser_side` | string | `"left"` | Position of file list panel relative to code area: `"left"` or `"right"` |
+| `ai_panel_side` | string | `"right"` | Position of AI assistant side panel relative to code area: `"left"` or `"right"` |
+| `terminal_side` | string | `"bottom"` | Position of integrated terminal relative to code area: `"bottom"` (default) or `"top"` |
+| `logo_style` | string | `"default"` | Logo style: `"default"`, `"ascii"`, `"big-ascii"` |
+| `statusbar_style` | string | `"default"` | Statusbar style: `"default"`, `"neovim"`, `"vscode"`, `"minimal"`, `"classic"`, `"highlight"` |
+
+### themes
+
+The `themes` section controls the current theme, optional theme list, and user-defined custom themes.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `current` | string | `"monokai"` | Name of the active theme at startup. Must match a built‑in theme, a plugin theme, or a custom theme name. |
+| `available` | array\<string> | `[]` (auto) | Optional list of theme names to show in the theme menu. If empty or omitted, all built‑in themes are shown; custom themes are appended automatically. |
+| `custom` | object | `{}` | Optional map of custom theme definitions keyed by theme name. Each value is a color object; see below. |
+
+Each entry under `themes.custom` is an object with RGB arrays (0–255) for various UI elements. All fields are optional but these are recommended:
+
+```json
+"themes": {
+  "current": "my-dark",
+  "available": ["monokai", "dracula", "my-dark"],
+  "custom": {
+    "my-dark": {
+      "background": [10, 10, 10],
+      "foreground": [230, 230, 230],
+      "current_line": [25, 25, 25],
+      "selection": [40, 40, 40],
+      "line_number": [120, 120, 120],
+      "line_number_current": [230, 230, 230],
+      "statusbar_bg": [20, 20, 20],
+      "statusbar_fg": [230, 230, 230],
+      "menubar_bg": [20, 20, 20],
+      "menubar_fg": [230, 230, 230],
+      "helpbar_bg": [20, 20, 20],
+      "helpbar_fg": [150, 150, 150],
+      "helpbar_key": [166, 226, 46],
+      "keyword": [249, 38, 114],
+      "string": [230, 219, 116],
+      "comment": [117, 113, 94],
+      "number": [174, 129, 255],
+      "function": [166, 226, 46],
+      "type": [102, 217, 239],
+      "operator": [249, 38, 114],
+      "error": [249, 38, 114],
+      "warning": [253, 151, 31],
+      "info": [102, 217, 239],
+      "success": [166, 226, 46]
+    }
+  }
+}
+```
+
+Any field you omit falls back to the internal default colors. Once defined, custom themes appear in the theme menu alongside built‑in themes and can be previewed/selected normally.
 
 ### files
 
@@ -68,6 +122,7 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `insert_final_newline` | boolean | `true` | Insert newline at end of file on save |
 | `auto_save` | boolean | `false` | Enable auto save |
 | `auto_save_interval` | number | `60` | Auto save interval (seconds) |
+| `max_file_size_before_prompt_mb` | number | `50` | Maximum file size before prompt when opening (MB) |
 
 ### search
 
@@ -231,7 +286,14 @@ Each element in the `servers` array is an object with these fields:
     "cursor_style": "block",
     "cursor_color": "255,255,255",
     "cursor_blink_rate": 500,
-    "cursor_smooth": false
+    "cursor_smooth": false,
+    "show_helpbar": true,
+    "logo_gradient": true,
+    "logo_style": "default",
+    "file_browser_side": "left",
+    "ai_panel_side": "right",
+    "terminal_side": "bottom",
+    "statusbar_style": "default"
   },
   "files": {
     "encoding": "UTF-8",
@@ -239,7 +301,8 @@ Each element in the `servers` array is an object with these fields:
     "trim_trailing_whitespace": true,
     "insert_final_newline": true,
     "auto_save": false,
-    "auto_save_interval": 60
+    "auto_save_interval": 60,
+    "max_file_size_before_prompt_mb": 50
   },
   "search": {
     "case_sensitive": false,
