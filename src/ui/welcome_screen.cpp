@@ -1,4 +1,5 @@
 #include "ui/welcome_screen.h"
+#include "features/logo_manager.h"
 #include "ui/icons.h"
 #include <ftxui/dom/elements.hpp>
 
@@ -24,29 +25,31 @@ Element WelcomeScreen::render() {
     if (config_.getConfig().display.logo_gradient) {
         gradient_colors = theme_.getGradientColors();
     } else {
-        // 不使用渐变时，使用单一颜色
+        gradient_colors = {colors.success, colors.success, colors.success,
+                           colors.success, colors.success, colors.success};
+    }
+    if (gradient_colors.size() < 6) {
         gradient_colors = {colors.success, colors.success, colors.success,
                            colors.success, colors.success, colors.success};
     }
 
-    // Logo和标题（渐变效果）
-    welcome_content.push_back(text("  ██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ ") |
-                              color(gradient_colors[0]) | bold | center);
-    welcome_content.push_back(text("  ██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗") |
-                              color(gradient_colors[1]) | bold | center);
-    welcome_content.push_back(text("  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║███████║") |
-                              color(gradient_colors[2]) | bold | center);
-    welcome_content.push_back(text("  ██╔═══╝ ██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║") |
-                              color(gradient_colors[3]) | bold | center);
-    welcome_content.push_back(text("  ██║     ██║ ╚████║██║  ██║██║ ╚████║██║  ██║") |
-                              color(gradient_colors[4]) | bold | center);
-    welcome_content.push_back(text("  ╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝") |
-                              color(gradient_colors[5]) | bold | center);
+    // Logo：根据 display.logo_style 从 LogoManager 取对应样式行并渲染
+    std::string logo_style = config_.getConfig().display.logo_style;
+    std::vector<std::string> logo_lines = features::LogoManager::getLogoLines(logo_style);
+    for (size_t i = 0; i < logo_lines.size(); ++i) {
+        size_t g = i % gradient_colors.size();
+        welcome_content.push_back(text("  " + logo_lines[i]) | color(gradient_colors[g]) | bold |
+                                  center);
+    }
 
     welcome_content.push_back(text(""));
     welcome_content.push_back(text("Modern Terminal Text Editor") | color(colors.foreground) |
                               bold | center);
-    welcome_content.push_back(text("Version 0.0.5") | color(colors.comment) | dim | center);
+    welcome_content.push_back(
+        hbox({text("Version") | color(colors.comment) | dim, text("  "),
+              text("0.0.5") | bgcolor(colors.success) | color(colors.background) | bold}) |
+        center);
+    // welcome_content.push_back(text("0.0.5") | bgcolor(colors.foreground) | bold | center);
 
     welcome_content.push_back(text(""));
     welcome_content.push_back(text(""));
@@ -99,7 +102,7 @@ Element WelcomeScreen::render() {
     // 提示信息
     welcome_content.push_back(
         hbox({text(icons::BULB), text(" Tip: Just start typing to begin editing!")}) |
-        color(colors.success) | center);
+        color(colors.success) | bold | center);
 
     welcome_content.push_back(text(""));
 
@@ -107,13 +110,15 @@ Element WelcomeScreen::render() {
                               color(colors.comment) | dim | center);
 
     welcome_content.push_back(text(""));
-    welcome_content.push_back(text(""));
+    // welcome_content.push_back(text(""));
 
     // 底部信息
     welcome_content.push_back(text("─────────────────────────────────────────────────") |
                               color(colors.comment) | bold | center);
     welcome_content.push_back(text("Check the bottom bar for more shortcuts") |
                               color(colors.comment) | dim | center);
+    welcome_content.push_back(text(""));
+    welcome_content.push_back(text(""));
 
     return vbox(welcome_content) | center | flex;
 }

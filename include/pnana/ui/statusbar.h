@@ -5,7 +5,6 @@
 #include "utils/file_type_icon_mapper.h"
 #include "utils/version_detector.h"
 #include <algorithm>
-#include <chrono>
 #include <ftxui/dom/elements.hpp>
 #include <future>
 #include <mutex>
@@ -38,6 +37,9 @@ struct StatusbarBeautifyConfig {
     // 图标样式
     std::string icon_style = "default"; // default, filled, outlined
 
+    // 当前选择的整体样式名称（neovim / vscode / minimal / classic 等）
+    std::string style_name;
+
     // 图标增强配置（保留兼容性，实际由 Lua 控制）
     std::map<std::string, std::string> file_icons;
     std::map<std::string, std::string> region_icons;
@@ -53,9 +55,19 @@ class Statusbar {
   public:
     explicit Statusbar(Theme& theme);
 
-    // 设置美化配置
+    // 设置美化配置（样式名未变时跳过，减少无效重绘）
     void setBeautifyConfig(const StatusbarBeautifyConfig& config) {
+        if (config.style_name == beautify_config_.style_name &&
+            config.file_icons == beautify_config_.file_icons) {
+            return;
+        }
+        std::string preserved_platform_icon = beautify_config_.platform_icon;
         beautify_config_ = config;
+        // 保留已检测的平台图标，避免每次切换样式后 render 里再次 popen 检测导致卡顿（约
+        // 150–200ms/次）
+        if (beautify_config_.platform_icon.empty() && !preserved_platform_icon.empty()) {
+            beautify_config_.platform_icon = std::move(preserved_platform_icon);
+        }
 
         // 更新图标映射器
         icon_mapper_.clearCustomIcons();

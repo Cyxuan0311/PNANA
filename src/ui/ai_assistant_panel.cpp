@@ -491,7 +491,7 @@ Element AIAssistantPanel::renderInput() {
     return vbox({
         text("Your message (or /help for commands):") | color(colors.comment),
         input_block,
-        text("Enter: Send  •  Alt+J: New line  •  Esc: Close  •  ←(in messages): Switch panel  •  "
+        text("Enter: Send  •  Alt+J: New line  •  Esc: Close  •  Arrow keys: Switch panel  •  "
              "↑↓/Tab: Navigate") |
             color(colors.comment) | dim,
     });

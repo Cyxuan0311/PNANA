@@ -140,6 +140,12 @@ class Theme {
     static ThemeColors DoomOne();      // Doom One - Emacs Doom 默认主题
     static ThemeColors VSCodeLight();  // VSCode Light - Visual Studio Code 默认浅色主题
     static ThemeColors Andromeda();    // Andromeda - 深蓝紫基底流行 VSCode 主题
+    static ThemeColors DeepSpace(); // Deep Space - 深空宇宙主题，深蓝紫基底配合星云色彩
+    static ThemeColors Volcanic(); // Volcanic - 火山岩浆主题，深黑红基底配合岩浆橙/红色调
+    static ThemeColors Arctic(); // Arctic - 北极冰雪主题，纯白冰蓝基底，清新冷冽
+    static ThemeColors NeonTokyo(); // Neon Tokyo - 霓虹东京主题，深紫黑基底配合霓虹粉/青/绿
+    static ThemeColors TraeDark(); // Trae Dark - Trae 暗色主题，深灰黑基底配合蓝/紫/绿
+    static ThemeColors TraeDeepBlue(); // Trae Deep Blue - Trae 深蓝主题，深蓝灰基底配合蓝/青/紫
 
     void setTheme(const std::string& name);
 
@@ -152,25 +158,23 @@ class Theme {
     // 清除所有自定义主题
     void clearCustomThemes();
 
-    // 从颜色配置结构加载主题
-    bool loadThemeFromConfig(const std::vector<int>& background, const std::vector<int>& foreground,
-                             const std::vector<int>& current_line,
-                             const std::vector<int>& selection, const std::vector<int>& line_number,
-                             const std::vector<int>& line_number_current,
-                             const std::vector<int>& statusbar_bg,
-                             const std::vector<int>& statusbar_fg,
-                             const std::vector<int>& menubar_bg, const std::vector<int>& menubar_fg,
-                             const std::vector<int>& helpbar_bg, const std::vector<int>& helpbar_fg,
-                             const std::vector<int>& helpbar_key, const std::vector<int>& keyword,
-                             const std::vector<int>& string, const std::vector<int>& comment,
-                             const std::vector<int>& number, const std::vector<int>& function,
-                             const std::vector<int>& type, const std::vector<int>& operator_color,
-                             const std::vector<int>& error, const std::vector<int>& warning,
-                             const std::vector<int>& info, const std::vector<int>& success,
-                             const std::vector<int>& dialog_bg, const std::vector<int>& dialog_fg,
-                             const std::vector<int>& dialog_title_bg,
-                             const std::vector<int>& dialog_title_fg,
-                             const std::vector<int>& dialog_border);
+    // 从颜色配置结构加载主题并注册为自定义主题
+    bool loadThemeFromConfig(
+        const std::string& name, const std::vector<int>& background,
+        const std::vector<int>& foreground, const std::vector<int>& current_line,
+        const std::vector<int>& selection, const std::vector<int>& line_number,
+        const std::vector<int>& line_number_current, const std::vector<int>& statusbar_bg,
+        const std::vector<int>& statusbar_fg, const std::vector<int>& menubar_bg,
+        const std::vector<int>& menubar_fg, const std::vector<int>& helpbar_bg,
+        const std::vector<int>& helpbar_fg, const std::vector<int>& helpbar_key,
+        const std::vector<int>& keyword, const std::vector<int>& string,
+        const std::vector<int>& comment, const std::vector<int>& number,
+        const std::vector<int>& function, const std::vector<int>& type,
+        const std::vector<int>& operator_color, const std::vector<int>& error,
+        const std::vector<int>& warning, const std::vector<int>& info,
+        const std::vector<int>& success, const std::vector<int>& dialog_bg,
+        const std::vector<int>& dialog_fg, const std::vector<int>& dialog_title_bg,
+        const std::vector<int>& dialog_title_fg, const std::vector<int>& dialog_border);
 
     const ThemeColors& getColors() const {
         return colors_;
