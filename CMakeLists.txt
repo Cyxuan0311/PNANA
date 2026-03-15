@@ -328,12 +328,15 @@ set(SOURCES
     # UI模块
     src/ui/theme.cpp
     src/ui/statusbar.cpp
+    src/ui/statusbar_theme.cpp
     src/ui/helpbar.cpp
     src/ui/tabbar.cpp
     src/ui/welcome_screen.cpp
     src/ui/split_welcome_screen.cpp
     src/ui/new_file_prompt.cpp
     src/ui/theme_menu.cpp
+    src/ui/logo_menu.cpp
+    src/ui/statusbar_style_menu.cpp
     src/ui/create_folder_dialog.cpp
     src/ui/cursor_config_dialog.cpp
     src/ui/save_as_dialog.cpp
@@ -390,6 +393,7 @@ set(SOURCES
     src/features/extract.cpp
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
+    src/features/logo_manager.cpp
     src/features/todo/todo_manager.cpp
     src/utils/comment_syntax.cpp
     src/features/vgit/git_manager.cpp
@@ -520,12 +524,15 @@ set(HEADERS
     # UI模块头文件
     include/pnana/ui/theme.h
     include/pnana/ui/statusbar.h
+    include/pnana/ui/statusbar_theme.h
     include/pnana/ui/helpbar.h
     include/pnana/ui/tabbar.h
     include/pnana/ui/help.h
     include/pnana/ui/welcome_screen.h
     include/pnana/ui/new_file_prompt.h
     include/pnana/ui/theme_menu.h
+    include/pnana/ui/logo_menu.h
+    include/pnana/ui/statusbar_style_menu.h
     include/pnana/ui/create_folder_dialog.h
     include/pnana/ui/save_as_dialog.h
     include/pnana/ui/cursor_config_dialog.h
@@ -553,6 +560,7 @@ set(HEADERS
     include/pnana/features/SyntaxHighlighter/syntax_highlighter.h
     include/pnana/features/SyntaxHighlighter/makefile_syntax_constants.h
     include/pnana/features/command_palette.h
+    include/pnana/features/logo_manager.h
     include/pnana/features/todo/todo_manager.h
     include/pnana/features/vgit/git_manager.h
     include/pnana/ui/git_panel.h
@@ -739,6 +747,10 @@ endif()
 
 # 配置 Tree-sitter 库链接
 include(ConfigureTreeSitterLinking)
+
+# 生成选项摘要图表
+include(OptionsSummary)
+generate_options_summary()
 
 # 安装配置在后面定义
 
