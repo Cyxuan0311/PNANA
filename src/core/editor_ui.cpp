@@ -193,15 +193,23 @@ Element Editor::renderUI() {
 Element Editor::renderUILegacy() {
     Element editor_content;
 
-    // 如果文件浏览器打开，使用左右分栏布局
+    // 如果文件浏览器打开，使用左右分栏布局，位置可通过配置切换
     if (file_browser_.isVisible()) {
-        editor_content = hbox({renderFileBrowser() | size(WIDTH, EQUAL, file_browser_width_),
-                               separator(), renderEditor() | flex});
+        auto fb = renderFileBrowser() | size(WIDTH, EQUAL, file_browser_width_);
+        auto code = renderEditor() | flex;
+        // 默认文件列表在左侧；当 display.file_browser_side == "right" 时放到右侧
+        const auto& display_cfg = config_manager_.getConfig().display;
+        bool file_browser_on_left = display_cfg.file_browser_side != "right";
+        if (file_browser_on_left) {
+            editor_content = hbox({fb, separator(), code});
+        } else {
+            editor_content = hbox({code, separator(), fb});
+        }
     } else {
         editor_content = renderEditor() | flex;
     }
 
-    // 如果终端打开，使用上下分栏布局
+    // 如果终端打开，使用上下分栏布局，位置可通过配置切换
     Element main_content;
     if (terminal_.isVisible()) {
         int terminal_height = terminal_height_;
@@ -209,8 +217,14 @@ Element Editor::renderUILegacy() {
             // 使用默认高度（屏幕高度的1/3）
             terminal_height = screen_.dimy() / 3;
         }
-        main_content = vbox({editor_content | flex, separator(),
-                             renderTerminal() | size(HEIGHT, EQUAL, terminal_height)});
+        bool terminal_on_top = config_manager_.getConfig().display.terminal_side == "top";
+        if (terminal_on_top) {
+            main_content = vbox({renderTerminal() | size(HEIGHT, EQUAL, terminal_height),
+                                 separator(), editor_content | flex});
+        } else {
+            main_content = vbox({editor_content | flex, separator(),
+                                 renderTerminal() | size(HEIGHT, EQUAL, terminal_height)});
+        }
     } else {
         main_content = editor_content;
     }
@@ -235,6 +249,12 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setRenderThemeMenuCallback([this]() {
         return theme_menu_.render();
+    });
+    overlay_manager_->setRenderLogoMenuCallback([this]() {
+        return logo_menu_.render();
+    });
+    overlay_manager_->setRenderStatusbarStyleMenuCallback([this]() {
+        return statusbar_style_menu_.render();
     });
     overlay_manager_->setRenderCreateFolderCallback([this]() {
         return create_folder_dialog_.render();
@@ -366,6 +386,12 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsThemeMenuVisibleCallback([this]() {
         return show_theme_menu_;
+    });
+    overlay_manager_->setIsLogoMenuVisibleCallback([this]() {
+        return show_logo_menu_;
+    });
+    overlay_manager_->setIsStatusbarStyleMenuVisibleCallback([this]() {
+        return show_statusbar_style_menu_;
     });
     overlay_manager_->setIsCreateFolderVisibleCallback([this]() {
         return show_create_folder_;

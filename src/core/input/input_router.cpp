@@ -95,7 +95,15 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
 }
 
 bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
-    // 对话框优先级：命令面板 > 最近文件弹窗 > TUI配置弹窗
+    // 对话框优先级：通用对话框（如大文件确认）> 命令面板 > 最近文件弹窗 > TUI配置弹窗
+
+    // 0. 通用对话框（大文件确认等）：优先处理，确保从文件列表打开大文件时弹窗能接收输入
+    if (editor->isDialogVisible()) {
+        if (editor->handleDialogInput(event)) {
+            return true;
+        }
+        return true; // 对话框打开时独占输入
+    }
 
     // 1. 命令面板
     if (editor->command_palette_.isOpen()) {

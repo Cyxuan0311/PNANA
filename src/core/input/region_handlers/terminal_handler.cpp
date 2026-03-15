@@ -172,18 +172,31 @@ bool TerminalHandler::handleNavigation(Event event, Editor* editor) {
         return false;
     }
 
+    // 终端区域导航：左右键在不同 panel 间切换，方向由 file_browser_side 决定
+    const auto& display_cfg = editor->getConfigManager().getConfig().display;
+    bool browser_on_left = display_cfg.file_browser_side != "right";
+
     if (event == Event::ArrowLeft) {
-        if (editor->isFileBrowserVisible()) {
+        if (editor->isFileBrowserVisible() && browser_on_left) {
+            // 文件列表在左侧：← 进入文件列表
             editor->getRegionManager().setRegion(EditorRegion::FILE_BROWSER);
             editor->setStatusMessage("Switched to file browser | Press → to return to terminal");
         } else {
+            // 否则：← 进入代码区
             editor->getRegionManager().setRegion(EditorRegion::CODE_AREA);
             editor->setStatusMessage("Switched to code area | Press → to return to terminal");
         }
         return true;
     } else if (event == Event::ArrowRight) {
-        editor->getRegionManager().setRegion(EditorRegion::CODE_AREA);
-        editor->setStatusMessage("Switched to code area | Press ← to return to terminal");
+        if (editor->isFileBrowserVisible() && !browser_on_left) {
+            // 文件列表在右侧：→ 进入文件列表
+            editor->getRegionManager().setRegion(EditorRegion::FILE_BROWSER);
+            editor->setStatusMessage("Switched to file browser | Press ← to return to terminal");
+        } else {
+            // 否则：→ 进入代码区
+            editor->getRegionManager().setRegion(EditorRegion::CODE_AREA);
+            editor->setStatusMessage("Switched to code area | Press ← to return to terminal");
+        }
         return true;
     }
 

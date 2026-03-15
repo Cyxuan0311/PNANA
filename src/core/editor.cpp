@@ -14,6 +14,7 @@
 #include "features/package_manager/yarn_manager.h"
 #include "features/package_manager/yum_manager.h"
 #include "ui/icons.h"
+#include "ui/statusbar_theme.h"
 #include "utils/file_type_detector.h"
 #include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
@@ -24,6 +25,7 @@
 #include "features/ai_client/assistant_system_prompt.h"
 #include "features/ai_config/ai_config.h"
 #endif
+#include "features/logo_manager.h"
 #include "features/md_render/markdown_renderer.h"
 #include <algorithm>
 #include <cctype>
@@ -52,18 +54,18 @@ Editor::Editor()
       file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
       ssh_transfer_dialog_(theme_), welcome_screen_(theme_, config_manager_),
       split_welcome_screen_(theme_), new_file_prompt_(theme_), theme_menu_(theme_),
-      create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
-      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
-      format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
-      tui_config_popup_(theme_), extract_dialog_(theme_), extract_path_dialog_(theme_),
-      extract_progress_dialog_(theme_), ai_assistant_panel_(theme_), ai_config_dialog_(theme_),
-      todo_panel_(theme_), package_manager_panel_(theme_),
+      logo_menu_(theme_), create_folder_dialog_(theme_), save_as_dialog_(theme_),
+      move_file_dialog_(theme_), cursor_config_dialog_(theme_), binary_file_view_(theme_),
+      encoding_dialog_(theme_), format_dialog_(theme_), recent_files_popup_(theme_),
+      fzf_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
+      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
+      ai_config_dialog_(theme_), todo_panel_(theme_), package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
-      git_panel_(theme_), search_engine_(), file_browser_(theme_), search_highlight_active_(false),
-      word_highlight_active_(false), current_word_(""), word_highlight_row_(0),
-      word_highlight_col_(0),
+      git_panel_(theme_), statusbar_style_menu_(statusbar_, theme_), search_engine_(),
+      file_browser_(theme_), search_highlight_active_(false), word_highlight_active_(false),
+      current_word_(""), word_highlight_row_(0), word_highlight_col_(0),
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
       image_preview_(),
 #endif
@@ -73,7 +75,8 @@ Editor::Editor()
       symbol_navigation_popup_(theme_), lsp_status_popup_(theme_),
 #endif
       mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
-      view_offset_col_(0), show_theme_menu_(false), show_help_(false), show_create_folder_(false),
+      view_offset_col_(0), show_theme_menu_(false), show_logo_menu_(false),
+      show_statusbar_style_menu_(false), show_help_(false), show_create_folder_(false),
       show_save_as_(false), show_move_file_(false), show_extract_dialog_(false),
       show_extract_path_dialog_(false), show_extract_progress_dialog_(false),
       selection_active_(false), selection_start_row_(0), selection_start_col_(0),
@@ -98,6 +101,13 @@ Editor::Editor()
     // 加载配置文件（使用默认路径）
     loadConfig();
 
+    // 根据配置设置 AI 面板位置（左/右）
+    if (overlay_manager_) {
+        const auto& display_cfg = config_manager_.getConfig().display;
+        bool ai_on_left = (display_cfg.ai_panel_side == "left");
+        overlay_manager_->setAIPanelOnLeft(ai_on_left);
+    }
+
     // 文件浏览器延迟加载：不在构造函数中加载目录，只在首次显示时才加载
     // 这样可以避免启动时扫描大目录导致的延迟
 
@@ -117,6 +127,12 @@ Editor::Editor()
 
     // 初始化命令面板
     initializeCommandPalette();
+
+    // 状态栏样式确认时持久化到配置
+    statusbar_style_menu_.setOnStyleConfirmed([this](const std::string& name) {
+        config_manager_.getConfig().display.statusbar_style = name;
+        config_manager_.saveConfig();
+    });
 
     // 初始化最近文件管理器
     recent_files_manager_.setFileOpenCallback([this](const std::string& filepath) {
@@ -417,11 +433,15 @@ void Editor::loadConfig(const std::string& config_path) {
         theme_name = "monokai"; // 默认主题
     }
 
-    // 检查主题是否可用（预设主题或已加载插件提供的主题）
+    // 检查主题是否可用（预设主题、配置声明的主题或已加载插件提供的主题）
     std::vector<std::string> check_available_themes = ::pnana::ui::Theme::getAvailableThemes();
     std::vector<std::string> check_custom_themes = theme_.getCustomThemeNames();
     check_available_themes.insert(check_available_themes.end(), check_custom_themes.begin(),
                                   check_custom_themes.end());
+    if (!config.available_themes.empty()) {
+        check_available_themes.insert(check_available_themes.end(), config.available_themes.begin(),
+                                      config.available_themes.end());
+    }
 
     bool theme_available = false;
     for (const auto& available_theme : check_available_themes) {
@@ -440,22 +460,37 @@ void Editor::loadConfig(const std::string& config_path) {
         config_manager_.saveConfig();
     }
 
+    // 先清空自定义主题，再从配置加载（插件提供的主题会在其加载时注册）
+    theme_.clearCustomThemes();
+    for (const auto& [name, tcfg] : config.custom_themes) {
+        theme_.loadThemeFromConfig(
+            name, tcfg.background, tcfg.foreground, tcfg.current_line, tcfg.selection,
+            tcfg.line_number, tcfg.line_number_current, tcfg.statusbar_bg, tcfg.statusbar_fg,
+            tcfg.menubar_bg, tcfg.menubar_fg, tcfg.helpbar_bg, tcfg.helpbar_fg, tcfg.helpbar_key,
+            tcfg.keyword, tcfg.string, tcfg.comment, tcfg.number, tcfg.function, tcfg.type,
+            tcfg.operator_color, tcfg.error, tcfg.warning, tcfg.info, tcfg.success,
+            /*dialog_bg*/ tcfg.background,
+            /*dialog_fg*/ tcfg.foreground,
+            /*dialog_title_bg*/ tcfg.statusbar_bg,
+            /*dialog_title_fg*/ tcfg.statusbar_fg,
+            /*dialog_border*/ tcfg.line_number);
+    }
+
+    // 设置当前主题
     theme_.setTheme(theme_name);
 
-    // 更新可用主题列表
+    // 更新可用主题列表：优先使用配置中的 available；否则用内置列表
     std::vector<std::string> available_themes;
     if (!config.available_themes.empty()) {
         available_themes = config.available_themes;
     } else {
-        // 使用 Theme 类提供的所有可用主题
         available_themes = ::pnana::ui::Theme::getAvailableThemes();
     }
-
-    // 注意：自定义主题由插件系统管理，不在这里自动添加
-    // 插件加载时会通过 Lua API 更新主题菜单
-
-    // 清除所有自定义主题，确保只有当前加载的插件的主题会被显示
-    theme_.clearCustomThemes();
+    // 把通过配置加载的自定义主题名也追加进去，让主题面板可选
+    {
+        std::vector<std::string> custom_names = theme_.getCustomThemeNames();
+        available_themes.insert(available_themes.end(), custom_names.begin(), custom_names.end());
+    }
 
     theme_menu_.setAvailableThemes(available_themes);
     theme_menu_.setCursorColorGetter([this]() {
@@ -466,6 +501,12 @@ void Editor::loadConfig(const std::string& config_path) {
     show_line_numbers_ = config.display.show_line_numbers;
     relative_line_numbers_ = config.display.relative_line_numbers;
     show_helpbar_ = config.display.show_helpbar;
+
+    // 应用状态栏样式（持久化）
+    {
+        std::string sb_style = config.display.statusbar_style;
+        statusbar_.setBeautifyConfig(pnana::ui::getStatusbarConfigForStyle(sb_style));
+    }
 
     // 应用 search 配置（默认搜索选项）
     search_options_[0] = config.search.case_sensitive;
@@ -627,6 +668,13 @@ void Editor::toggleThemeMenu() {
     }
 }
 
+void Editor::toggleStatusbarStyleMenu() {
+    show_statusbar_style_menu_ = !show_statusbar_style_menu_;
+    if (show_statusbar_style_menu_) {
+        setStatusMessage("↑↓: Select style  Enter: Apply  Esc: Cancel");
+    }
+}
+
 void Editor::selectNextTheme() {
     size_t current_index = theme_menu_.getSelectedIndex();
     const auto& themes = theme_menu_.getAvailableThemes();
@@ -645,6 +693,23 @@ void Editor::selectPreviousTheme() {
         theme_menu_.setSelectedIndex(themes.size() - 1);
     } else {
         theme_menu_.setSelectedIndex(current_index - 1);
+    }
+}
+
+void Editor::toggleLogoMenu() {
+    show_logo_menu_ = !show_logo_menu_;
+    if (show_logo_menu_) {
+        logo_menu_.setCurrentStyle(config_manager_.getConfig().display.logo_style);
+        setStatusMessage("↑↓: Select logo style  Enter: Apply  Esc: Cancel");
+    }
+}
+
+void Editor::applySelectedLogoStyle() {
+    std::string style_id = logo_menu_.getSelectedStyleId();
+    if (features::LogoManager::isValidStyle(style_id)) {
+        config_manager_.getConfig().display.logo_style = style_id;
+        config_manager_.saveConfig();
+        setStatusMessage("Logo style set to: " + style_id);
     }
 }
 
@@ -2598,6 +2663,14 @@ void Editor::openPluginManager() {
 
 bool Editor::isFileBrowserVisible() const {
     return file_browser_.isVisible();
+}
+
+bool Editor::isDialogVisible() const {
+    return dialog_.isVisible();
+}
+
+bool Editor::handleDialogInput(ftxui::Event event) {
+    return dialog_.handleInput(event);
 }
 
 bool Editor::isTerminalVisible() const {

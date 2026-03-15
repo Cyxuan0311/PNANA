@@ -559,9 +559,6 @@ void Editor::updateCurrentFileFolding() {
             folding_manager_->clear();
         }
 #endif
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            LOG("[FOLD] updateCurrentFileFolding: no document, cleared");
-        }
         return;
     }
 
@@ -579,9 +576,6 @@ void Editor::updateCurrentFileFolding() {
     }
 
     std::string uri = filepathToUri(filepath);
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        LOG("[FOLD] updateCurrentFileFolding entry uri=" + uri);
-    }
 
     // 当前文件无 LSP 时：不请求折叠、不使用缓存（避免用其他语言的 LSP 分析当前文件导致错误折叠）
     bool has_lsp_client = false;
@@ -589,9 +583,6 @@ void Editor::updateCurrentFileFolding() {
         has_lsp_client = (lsp_manager_->getClientForFile(filepath) != nullptr);
     }
     if (!has_lsp_client) {
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            LOG("[FOLD] updateCurrentFileFolding: no LSP client for file, cleared");
-        }
         doc->clearFoldingRanges();
         if (folding_manager_) {
             folding_manager_->clear();
@@ -621,11 +612,6 @@ void Editor::updateCurrentFileFolding() {
                 }
 
                 cache_restored = true;
-                if (pnana::utils::Logger::getInstance().isEnabled()) {
-                    LOG("[FOLD] updateCurrentFileFolding: cache restored uri=" + uri +
-                        " ranges=" + std::to_string(cache_it->second.ranges.size()) +
-                        " folded_lines=" + std::to_string(cache_it->second.folded_lines.size()));
-                }
 
                 if (folding_manager_) {
                     // 直接设置状态而不调用clear()，避免触发同步回调
@@ -640,9 +626,6 @@ void Editor::updateCurrentFileFolding() {
 
     // 无缓存时先清空，避免显示上一个文件的折叠符号
     if (!cache_restored) {
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            LOG("[FOLD] updateCurrentFileFolding: no cache, cleared folding uri=" + uri);
-        }
         doc->clearFoldingRanges();
         if (folding_manager_) {
             folding_manager_->clear();
@@ -659,10 +642,6 @@ void Editor::updateCurrentFileFolding() {
 
     if (!folding_manager_->isInitialized()) {
         if (lsp_request_manager_) {
-            if (pnana::utils::Logger::getInstance().isEnabled()) {
-                LOG("[FOLD] updateCurrentFileFolding: posting async initializeFoldingRanges uri=" +
-                    uri);
-            }
             std::string fold_key = std::string("fold:switch:") + uri;
             lsp_request_manager_->postOrReplace(
                 fold_key, features::LspRequestManager::Priority::LOW, [this, uri]() {
@@ -676,11 +655,6 @@ void Editor::updateCurrentFileFolding() {
                     }
                 });
         } else {
-            if (pnana::utils::Logger::getInstance().isEnabled()) {
-                LOG("[FOLD] updateCurrentFileFolding: fallback thread initializeFoldingRanges "
-                    "uri=" +
-                    uri);
-            }
             std::thread([this, uri]() {
                 try {
                     if (folding_manager_) {
@@ -696,10 +670,6 @@ void Editor::updateCurrentFileFolding() {
 
     needs_render_ = true;
     last_render_source_ = "folding_update";
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        LOG("[FOLD] updateCurrentFileFolding done uri=" + uri +
-            " cache_restored=" + std::string(cache_restored ? "1" : "0"));
-    }
 }
 
 void Editor::updateLspDocument(bool force_sync_for_completion) {

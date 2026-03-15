@@ -75,20 +75,26 @@ Element UIRouter::renderMainContent(Editor* editor) {
         editor_content = hbox({code_area | size(WIDTH, EQUAL, half_width), separator(),
                                preview_area | size(WIDTH, EQUAL, half_width)});
     }
-    // 如果文件浏览器打开，使用左右分栏布局
+    // 如果文件浏览器打开，使用左右分栏布局，位置由 display.file_browser_side 配置决定
     else if (editor->isFileBrowserVisible()) {
-        Element left_panel = editor->renderFileBrowser();
+        Element file_browser_panel = editor->renderFileBrowser();
         bool is_browser_active = (current_region == EditorRegion::FILE_BROWSER);
-        left_panel = border_manager_.applyBorder(left_panel, EditorRegion::FILE_BROWSER,
-                                                 is_browser_active, editor->getTheme());
+        file_browser_panel = border_manager_.applyBorder(
+            file_browser_panel, EditorRegion::FILE_BROWSER, is_browser_active, editor->getTheme());
+        file_browser_panel = file_browser_panel | size(WIDTH, EQUAL, editor->getFileBrowserWidth());
 
         Element code_area = editor->renderEditor();
         bool is_code_active = (current_region == EditorRegion::CODE_AREA);
         code_area = border_manager_.applyBorder(code_area, EditorRegion::CODE_AREA, is_code_active,
                                                 editor->getTheme());
 
-        editor_content = hbox({left_panel | size(WIDTH, EQUAL, editor->getFileBrowserWidth()),
-                               separator(), code_area | flex});
+        bool file_browser_on_left =
+            editor->getConfigManager().getConfig().display.file_browser_side != "right";
+        if (file_browser_on_left) {
+            editor_content = hbox({file_browser_panel, separator(), code_area | flex});
+        } else {
+            editor_content = hbox({code_area | flex, separator(), file_browser_panel});
+        }
     } else {
         editor_content = editor->renderEditor();
         bool is_code_active = (current_region == EditorRegion::CODE_AREA);
@@ -97,7 +103,7 @@ Element UIRouter::renderMainContent(Editor* editor) {
         editor_content = editor_content | flex;
     }
 
-    // 如果终端打开，使用上下分栏布局
+    // 如果终端打开，使用上下分栏布局，位置由 display.terminal_side 决定
     if (editor->isTerminalVisible()) {
         int terminal_height = editor->getTerminalHeight();
         if (terminal_height <= 0) {
@@ -109,6 +115,12 @@ Element UIRouter::renderMainContent(Editor* editor) {
         terminal = border_manager_.applyBorder(terminal, EditorRegion::TERMINAL, is_terminal_active,
                                                editor->getTheme());
 
+        bool terminal_on_top =
+            editor->getConfigManager().getConfig().display.terminal_side == "top";
+        if (terminal_on_top) {
+            return vbox({terminal | size(HEIGHT, EQUAL, terminal_height), separator(),
+                         editor_content | flex});
+        }
         return vbox(
             {editor_content | flex, separator(), terminal | size(HEIGHT, EQUAL, terminal_height)});
     }

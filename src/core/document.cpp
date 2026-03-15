@@ -2,11 +2,14 @@
 #include "utils/logger.h"
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -25,6 +28,8 @@ Document::Document(const std::string& filepath) : Document() {
 }
 
 bool Document::load(const std::string& filepath) {
+    auto load_t0 = std::chrono::high_resolution_clock::now();
+
     // 检查路径是否是目录
     try {
         if (std::filesystem::exists(filepath) && std::filesystem::is_directory(filepath)) {
@@ -37,52 +42,59 @@ bool Document::load(const std::string& filepath) {
 
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
-        // 如果文件不存在，创建新文件
         filepath_ = filepath;
         lines_.clear();
         lines_.push_back("");
         modified_ = false;
+        lazy_loaded_ = false;
+        line_offsets_.clear();
+        line_cache_.clear();
+        line_cache_lru_.clear();
         return true;
     }
 
     lines_.clear();
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
-
-    // 检测二进制文件
     is_binary_ = false;
-    if (!content.empty()) {
-        // 检查是否包含大量空字符（二进制文件的典型特征）
-        size_t null_count = 0;
-        size_t check_size = std::min(content.size(), size_t(8192)); // 只检查前8KB
-        for (size_t i = 0; i < check_size; ++i) {
-            if (content[i] == '\0') {
-                null_count++;
-            }
-        }
+    lazy_loaded_ = false;
+    line_offsets_.clear();
+    line_cache_.clear();
+    line_cache_lru_.clear();
 
-        // 如果前8KB中有超过1%的空字符，认为是二进制文件
-        if (null_count > check_size / 100) {
+    // 只读前 8KB 做二进制检测与行尾检测，避免整文件读入内存（流式优化）
+    const size_t check_size = 8192;
+    std::string prefix(check_size, '\0');
+    file.read(&prefix[0], check_size);
+    prefix.resize(static_cast<size_t>(file.gcount()));
+
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::high_resolution_clock::now() - load_t0)
+                      .count();
+        LOG("[perf] Document::load prefix_read us=" + std::to_string(us));
+    }
+
+    if (!prefix.empty()) {
+        size_t null_count = 0;
+        size_t limit = std::min(prefix.size(), check_size);
+        for (size_t i = 0; i < limit; ++i) {
+            if (prefix[i] == '\0')
+                null_count++;
+        }
+        if (null_count > limit / 100) {
             is_binary_ = true;
         } else {
-            // 检查是否包含大量非可打印字符（排除常见的空白字符）
             size_t non_printable = 0;
-            for (size_t i = 0; i < check_size; ++i) {
-                unsigned char ch = static_cast<unsigned char>(content[i]);
-                // 允许的字符：可打印字符、换行符、制表符、回车符
-                if (ch < 32 && ch != '\n' && ch != '\r' && ch != '\t') {
+            for (size_t i = 0; i < limit; ++i) {
+                unsigned char ch = static_cast<unsigned char>(prefix[i]);
+                if (ch < 32 && ch != '\n' && ch != '\r' && ch != '\t')
                     non_printable++;
-                }
             }
-
-            // 如果非可打印字符超过5%，认为是二进制文件
-            if (non_printable > check_size / 20) {
+            if (non_printable > limit / 20) {
                 is_binary_ = true;
             }
         }
     }
 
-    // 如果是二进制文件，不解析内容
     if (is_binary_) {
         lines_.push_back("");
         filepath_ = filepath;
@@ -90,33 +102,146 @@ bool Document::load(const std::string& filepath) {
         return true;
     }
 
-    if (content.empty()) {
-        lines_.push_back("");
-    } else {
-        detectLineEnding(content);
+    detectLineEnding(prefix);
 
-        std::istringstream iss(content);
-        std::string line;
-        while (std::getline(iss, line)) {
-            // 移除行尾的\r（如果有）
-            if (!line.empty() && line.back() == '\r') {
-                line.pop_back();
-            }
-            lines_.push_back(line);
-        }
+    file.clear();
+    file.seekg(0);
+    std::streamoff file_size = 0;
+    file.seekg(0, std::ios::end);
+    file_size = file.tellg();
+    file.seekg(0);
 
-        // 如果内容以换行符结尾，添加空行
-        if (!content.empty() && (content.back() == '\n' || content.back() == '\r')) {
-            if (lines_.empty() || !lines_.back().empty()) {
-                lines_.push_back("");
+    // 第一遍：只构建行偏移表（不存行内容），用于判断是否走懒加载
+    const size_t lazy_line_threshold = 100000;
+    auto stream_t0 = std::chrono::high_resolution_clock::now();
+    const size_t chunk_size = 512 * 1024;
+    std::string buffer(chunk_size, '\0');
+    line_offsets_.clear();
+    line_offsets_.push_back(0);
+    uint64_t offset = 0;
+    while (true) {
+        file.read(&buffer[0], chunk_size);
+        const size_t n = static_cast<size_t>(file.gcount());
+        if (n == 0)
+            break;
+        for (size_t i = 0; i < n; ++i) {
+            if (buffer[i] == '\n') {
+                line_offsets_.push_back(offset + i + 1);
             }
         }
+        offset += n;
+    }
+    if (file_size > 0 && line_offsets_.back() != static_cast<uint64_t>(file_size)) {
+        line_offsets_.push_back(static_cast<uint64_t>(file_size));
+    }
+    size_t num_lines = line_offsets_.empty() ? 0 : (line_offsets_.size() - 1);
+    if (num_lines == 0) {
+        line_offsets_.push_back(0);
+    }
+
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::high_resolution_clock::now() - stream_t0)
+                      .count();
+        LOG("[perf] Document::load line_offsets us=" + std::to_string(us) +
+            " lines=" + std::to_string(num_lines));
     }
 
     filepath_ = filepath;
     modified_ = false;
-    // 保存原始内容快照
-    saveOriginalContent();
+
+    if (num_lines > lazy_line_threshold) {
+        // 懒加载：不读行内容，打开即完成
+        lazy_loaded_ = true;
+        lines_.clear();
+        lines_.shrink_to_fit();
+        original_lines_.clear();
+        original_lines_.shrink_to_fit();
+        large_file_skip_original_ = true;
+        line_cache_.clear();
+        line_cache_lru_.clear();
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::high_resolution_clock::now() - load_t0)
+                                .count();
+            LOG("[perf] Document::load lazy_loaded total us=" + std::to_string(total_us));
+        }
+        return true;
+    }
+
+    // 小文件：第二遍按行加载到 lines_（复用当前逻辑）
+    lazy_loaded_ = false;
+    line_offsets_.clear();
+    line_offsets_.shrink_to_fit();
+    lines_.clear();
+    std::string carry;
+    carry.reserve(4096);
+    file.clear();
+    file.seekg(0);
+    if (file_size > 0) {
+        size_t hint = static_cast<size_t>(file_size) / 50;
+        if (hint > 4000000u)
+            hint = 4000000u;
+        lines_.reserve(hint);
+    }
+    stream_t0 = std::chrono::high_resolution_clock::now();
+    while (true) {
+        file.read(&buffer[0], chunk_size);
+        const size_t n = static_cast<size_t>(file.gcount());
+        if (n == 0)
+            break;
+        size_t start = 0;
+        for (size_t i = 0; i < n; ++i) {
+            if (buffer[i] == '\n') {
+                carry.append(buffer.data() + start, i - start);
+                if (!carry.empty() && carry.back() == '\r')
+                    carry.pop_back();
+                lines_.push_back(std::move(carry));
+                carry.clear();
+                carry.reserve(4096);
+                start = i + 1;
+            }
+        }
+        if (start < n)
+            carry.append(buffer.data() + start, n - start);
+    }
+    if (!carry.empty()) {
+        if (carry.back() == '\r')
+            carry.pop_back();
+        lines_.push_back(std::move(carry));
+    }
+    if (lines_.empty()) {
+        lines_.push_back("");
+    }
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::high_resolution_clock::now() - stream_t0)
+                      .count();
+        LOG("[perf] Document::load stream_lines us=" + std::to_string(us) +
+            " lines=" + std::to_string(lines_.size()));
+    }
+    const size_t large_file_line_threshold = 500000;
+    if (lines_.size() > large_file_line_threshold) {
+        large_file_skip_original_ = true;
+        original_lines_.clear();
+        original_lines_.shrink_to_fit();
+    } else {
+        large_file_skip_original_ = false;
+        auto save_orig_t0 = std::chrono::high_resolution_clock::now();
+        saveOriginalContent();
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                          std::chrono::high_resolution_clock::now() - save_orig_t0)
+                          .count();
+            LOG("[perf] Document::load saveOriginalContent us=" + std::to_string(us));
+        }
+    }
+    if (pnana::utils::Logger::getInstance().isEnabled()) {
+        auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::high_resolution_clock::now() - load_t0)
+                            .count();
+        LOG("[perf] Document::load total us=" + std::to_string(total_us));
+    }
     return true;
 }
 
@@ -128,6 +253,9 @@ bool Document::save() {
 }
 
 bool Document::saveAs(const std::string& filepath) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     // nano风格的安全保存：
     // 1. 获取原文件权限
     // 2. 写入临时文件
@@ -216,8 +344,9 @@ bool Document::saveAs(const std::string& filepath) {
     // 更新文档状态
     filepath_ = filepath;
     modified_ = false;
-    // 保存原始内容快照（保存后的内容就是新的原始内容）
-    saveOriginalContent();
+    if (!large_file_skip_original_) {
+        saveOriginalContent();
+    }
     clearHistory(); // 清除撤销历史，因为已经保存了
     last_error_.clear();
 
@@ -231,20 +360,70 @@ bool Document::reload() {
     return load(filepath_);
 }
 
+size_t Document::lineCount() const {
+    if (lazy_loaded_) {
+        return line_offsets_.empty() ? 0 : (line_offsets_.size() - 1);
+    }
+    return lines_.size();
+}
+
 const std::string& Document::getLine(size_t row) const {
     static const std::string empty;
+    if (lazy_loaded_) {
+        const size_t num_lines = line_offsets_.size() > 1 ? (line_offsets_.size() - 1) : 0;
+        if (row >= num_lines) {
+            return empty;
+        }
+        auto it = line_cache_.find(row);
+        if (it != line_cache_.end()) {
+            for (auto itlru = line_cache_lru_.begin(); itlru != line_cache_lru_.end(); ++itlru) {
+                if (*itlru == row) {
+                    line_cache_lru_.erase(itlru);
+                    break;
+                }
+            }
+            line_cache_lru_.push_front(row);
+            return it->second;
+        }
+        std::string line = loadLineFromFile(row);
+        while (line_cache_.size() >= LINE_CACHE_MAX && !line_cache_lru_.empty()) {
+            size_t evict = line_cache_lru_.back();
+            line_cache_lru_.pop_back();
+            line_cache_.erase(evict);
+        }
+        line_cache_lru_.push_front(row);
+        line_cache_[row] = std::move(line);
+        return line_cache_[row];
+    }
     if (row >= lines_.size()) {
         return empty;
     }
     return lines_[row];
 }
 
+const std::vector<std::string>& Document::getLines() const {
+    if (lazy_loaded_) {
+        const_cast<Document*>(this)->materialize();
+    }
+    return lines_;
+}
+
+std::vector<std::string>& Document::getLines() {
+    if (lazy_loaded_) {
+        materialize();
+    }
+    return lines_;
+}
+
 std::string Document::getContent() const {
+    if (lazy_loaded_) {
+        const_cast<Document*>(this)->materialize();
+    }
     std::string content;
     for (size_t i = 0; i < lines_.size(); ++i) {
         content += lines_[i];
         if (i < lines_.size() - 1) {
-            content += "\n"; // 添加换行符，除了最后一行
+            content += "\n";
         }
     }
     return content;
@@ -271,7 +450,84 @@ std::string Document::getFileExtension() const {
     return "";
 }
 
+void Document::materialize() {
+    if (!lazy_loaded_ || filepath_.empty() || line_offsets_.size() < 2) {
+        if (lazy_loaded_) {
+            lazy_loaded_ = false;
+            line_offsets_.clear();
+            line_cache_.clear();
+            line_cache_lru_.clear();
+        }
+        return;
+    }
+    std::ifstream file(filepath_, std::ios::binary);
+    if (!file.is_open()) {
+        lazy_loaded_ = false;
+        line_offsets_.clear();
+        line_cache_.clear();
+        line_cache_lru_.clear();
+        lines_.clear();
+        lines_.push_back("");
+        return;
+    }
+    const size_t num_lines = line_offsets_.size() - 1;
+    lines_.clear();
+    lines_.reserve(num_lines);
+    for (size_t i = 0; i < num_lines; ++i) {
+        const uint64_t start = line_offsets_[i];
+        const uint64_t end = line_offsets_[i + 1];
+        if (start >= end) {
+            lines_.push_back("");
+            continue;
+        }
+        const size_t len = static_cast<size_t>(end - start);
+        std::string line(len, '\0');
+        file.seekg(static_cast<std::streamoff>(start));
+        file.read(&line[0], static_cast<std::streamsize>(len));
+        line.resize(static_cast<size_t>(file.gcount()));
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        lines_.push_back(std::move(line));
+    }
+    if (lines_.empty()) {
+        lines_.push_back("");
+    }
+    line_offsets_.clear();
+    line_offsets_.shrink_to_fit();
+    line_cache_.clear();
+    line_cache_lru_.clear();
+    lazy_loaded_ = false;
+}
+
+std::string Document::loadLineFromFile(size_t row) const {
+    if (lazy_loaded_ && row + 1 < line_offsets_.size()) {
+        const uint64_t start = line_offsets_[row];
+        const uint64_t end = line_offsets_[row + 1];
+        if (start >= end) {
+            return "";
+        }
+        std::ifstream file(filepath_, std::ios::binary);
+        if (!file.is_open()) {
+            return "";
+        }
+        file.seekg(static_cast<std::streamoff>(start));
+        const size_t len = static_cast<size_t>(end - start);
+        std::string line(len, '\0');
+        file.read(&line[0], static_cast<std::streamsize>(len));
+        line.resize(static_cast<size_t>(file.gcount()));
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        return line;
+    }
+    return "";
+}
+
 void Document::insertChar(size_t row, size_t col, char ch) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (row >= lines_.size()) {
         return;
     }
@@ -287,6 +543,9 @@ void Document::insertChar(size_t row, size_t col, char ch) {
 }
 
 void Document::insertText(size_t row, size_t col, const std::string& text) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (row >= lines_.size() || text.empty()) {
         return;
     }
@@ -301,6 +560,9 @@ void Document::insertText(size_t row, size_t col, const std::string& text) {
 }
 
 void Document::insertLine(size_t row) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (row > lines_.size()) {
         row = lines_.size();
     }
@@ -312,6 +574,9 @@ void Document::insertLine(size_t row) {
 }
 
 void Document::deleteLine(size_t row) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (row >= lines_.size()) {
         return;
     }
@@ -329,6 +594,9 @@ void Document::deleteLine(size_t row) {
 }
 
 void Document::deleteChar(size_t row, size_t col) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (row >= lines_.size()) {
         return;
     }
@@ -352,7 +620,9 @@ void Document::deleteChar(size_t row, size_t col) {
 }
 
 void Document::deleteRange(size_t start_row, size_t start_col, size_t end_row, size_t end_col) {
-    // Treat end_col as exclusive.
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (start_row >= lines_.size() || end_row >= lines_.size() || start_row > end_row) {
         return;
     }
@@ -399,6 +669,9 @@ void Document::deleteRange(size_t start_row, size_t start_col, size_t end_row, s
 }
 
 void Document::replaceLine(size_t row, const std::string& content) {
+    if (lazy_loaded_) {
+        materialize();
+    }
     if (row >= lines_.size()) {
         return;
     }
@@ -822,12 +1095,13 @@ void Document::clearHistory() {
 
 std::string Document::getSelection(size_t start_row, size_t start_col, size_t end_row,
                                    size_t end_col) const {
-    if (start_row >= lines_.size() || end_row >= lines_.size()) {
+    const size_t n = lineCount();
+    if (start_row >= n || end_row >= n) {
         return "";
     }
 
     if (start_row == end_row) {
-        const std::string& line = lines_[start_row];
+        const std::string& line = getLine(start_row);
         if (start_col >= line.length()) {
             return "";
         }
@@ -838,12 +1112,13 @@ std::string Document::getSelection(size_t start_row, size_t start_col, size_t en
 
     std::string result;
     for (size_t row = start_row; row <= end_row; ++row) {
+        const std::string& line = getLine(row);
         if (row == start_row) {
-            result += lines_[row].substr(start_col);
+            result += line.substr(start_col);
         } else if (row == end_row) {
-            result += "\n" + lines_[row].substr(0, end_col);
+            result += "\n" + line.substr(0, end_col);
         } else {
-            result += "\n" + lines_[row];
+            result += "\n" + line;
         }
     }
 
@@ -877,17 +1152,19 @@ void Document::saveOriginalContent() {
 }
 
 bool Document::isContentSameAsOriginal() const {
+    // 大文件未保存 original 快照时，仅用 modified_ 判断
+    if (large_file_skip_original_) {
+        return !modified_;
+    }
     // 比较当前内容与原始内容是否完全相同
     if (lines_.size() != original_lines_.size()) {
         return false;
     }
-
     for (size_t i = 0; i < lines_.size(); ++i) {
         if (lines_[i] != original_lines_[i]) {
             return false;
         }
     }
-
     return true;
 }
 

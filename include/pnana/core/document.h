@@ -3,10 +3,12 @@
 
 #include "features/lsp/lsp_types.h"
 #include <chrono>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace pnana {
@@ -60,16 +62,10 @@ class Document {
     bool reload();
 
     // 内容访问
-    size_t lineCount() const {
-        return lines_.size();
-    }
+    size_t lineCount() const;
     const std::string& getLine(size_t row) const;
-    const std::vector<std::string>& getLines() const {
-        return lines_;
-    }
-    std::vector<std::string>& getLines() {
-        return lines_;
-    }
+    const std::vector<std::string>& getLines() const;
+    std::vector<std::string>& getLines();
 
     // 获取完整的文档内容（所有行合并）
     std::string getContent() const;
@@ -193,6 +189,19 @@ class Document {
 
     // 二进制文件标志
     bool is_binary_;
+
+    // 大文件不保存 original 快照，仅用 modified_ 判断是否修改（节省 saveOriginalContent
+    // 耗时与内存）
+    bool large_file_skip_original_ = false;
+
+    // 懒加载大文件：只建行偏移表，按需读行；首次编辑或 getLines() 时 materialize
+    bool lazy_loaded_ = false;
+    std::vector<uint64_t> line_offsets_; // line_offsets_[i] = 第 i 行起始字节偏移，size = 行数+1
+    mutable std::unordered_map<size_t, std::string> line_cache_;
+    mutable std::deque<size_t> line_cache_lru_;
+    static constexpr size_t LINE_CACHE_MAX = 4096;
+    void materialize(); // 将懒加载文档全部读入 lines_，并关闭懒加载
+    std::string loadLineFromFile(size_t row) const;
 
     // 折叠范围
     std::vector<pnana::features::FoldingRange> folding_ranges_;

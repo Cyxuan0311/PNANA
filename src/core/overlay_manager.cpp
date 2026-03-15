@@ -20,6 +20,18 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox({main_ui, render_theme_menu_callback_() | center});
     }
 
+    // 如果 Logo 样式菜单打开，叠加显示
+    if (is_logo_menu_visible_callback_ && is_logo_menu_visible_callback_() &&
+        render_logo_menu_callback_) {
+        return dbox({main_ui, render_logo_menu_callback_() | center});
+    }
+
+    // 如果状态栏样式菜单打开，叠加显示
+    if (is_statusbar_style_menu_visible_callback_ && is_statusbar_style_menu_visible_callback_() &&
+        render_statusbar_style_menu_callback_) {
+        return dbox({main_ui, render_statusbar_style_menu_callback_() | center});
+    }
+
     // 如果创建文件夹对话框打开，叠加显示
     if (is_create_folder_visible_callback_ && is_create_folder_visible_callback_() &&
         render_create_folder_callback_) {
@@ -70,11 +82,15 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
-    // AI助手面板：以右侧侧边栏形式显示，而不是居中弹窗
+    // AI助手面板：以侧边栏形式显示，位置可配置（左侧或右侧）
     if (is_ai_assistant_visible_callback_ && is_ai_assistant_visible_callback_() &&
         render_ai_assistant_callback_) {
         Element ai_panel = render_ai_assistant_callback_();
-        // 主界面在左侧，AI 面板在右侧
+        if (ai_panel_on_left_) {
+            // AI 面板在左侧，主界面在右侧
+            return hbox({ai_panel, separator(), main_ui | flex});
+        }
+        // 默认：主界面在左侧，AI 面板在右侧
         return hbox({main_ui | flex, separator(), ai_panel});
     }
 

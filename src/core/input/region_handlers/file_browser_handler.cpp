@@ -140,15 +140,28 @@ bool FileBrowserHandler::handleNavigation(Event event, Editor* editor) {
         return false;
     }
 
-    // 文件浏览器区域导航：左右键用于切换面板
-    if (event == Event::ArrowRight) {
-        // 右键：切换到代码区
-        editor->getRegionManager().setRegion(EditorRegion::CODE_AREA);
-        editor->setStatusMessage("Switched to code area | Press ← to return to file browser");
-        return true;
-    } else if (event == Event::ArrowLeft) {
-        // 左键：文件浏览器已经在最左侧，无法再向左
-        return false;
+    // 文件浏览器区域导航：左右键用于切换面板，方向由 file_browser_side 决定
+    const auto& display_cfg = editor->getConfigManager().getConfig().display;
+    bool browser_on_left = display_cfg.file_browser_side != "right";
+
+    if (browser_on_left) {
+        // 文件列表在左侧：→ 进入代码区，← 无效
+        if (event == Event::ArrowRight) {
+            editor->getRegionManager().setRegion(EditorRegion::CODE_AREA);
+            editor->setStatusMessage("Switched to code area | Press ← to return to file browser");
+            return true;
+        } else if (event == Event::ArrowLeft) {
+            return false;
+        }
+    } else {
+        // 文件列表在右侧：← 进入代码区，→ 无效
+        if (event == Event::ArrowLeft) {
+            editor->getRegionManager().setRegion(EditorRegion::CODE_AREA);
+            editor->setStatusMessage("Switched to code area | Press → to return to file browser");
+            return true;
+        } else if (event == Event::ArrowRight) {
+            return false;
+        }
     }
 
     // PageUp/PageDown键直接在这里处理

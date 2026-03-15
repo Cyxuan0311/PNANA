@@ -170,7 +170,8 @@ void Editor::handleInput(Event event) {
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
     bool in_dialog = show_save_as_ || show_create_folder_ || show_move_file_ || show_theme_menu_ ||
-                     show_help_ || split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
+                     show_logo_menu_ || show_statusbar_style_menu_ || show_help_ ||
+                     split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
                      cursor_config_dialog_.isVisible()
 #ifdef BUILD_LUA_SUPPORT
                      || plugin_manager_dialog_.isVisible()
@@ -403,6 +404,43 @@ void Editor::handleInput(Event event) {
         } else if (event == Event::Return) {
             applySelectedTheme();
             show_theme_menu_ = false;
+        }
+        return;
+    }
+
+    // 如果 Logo 样式菜单打开，优先处理
+    if (show_logo_menu_) {
+        if (logo_menu_.handleInput(event)) {
+            return;
+        }
+        if (event == Event::Escape) {
+            show_logo_menu_ = false;
+            setStatusMessage("Logo style selection cancelled | Region: " +
+                             region_manager_.getRegionName());
+        } else if (event == Event::Return) {
+            applySelectedLogoStyle();
+            show_logo_menu_ = false;
+        }
+        return;
+    }
+
+    // 如果状态栏样式菜单打开，优先处理
+    if (show_statusbar_style_menu_) {
+        // 使用 StatusbarStyleMenu 的 handleInput 处理搜索等功能
+        if (statusbar_style_menu_.handleInput(event)) {
+            return;
+        }
+
+        // 处理状态栏样式菜单的特定操作
+        if (event == Event::Escape) {
+            show_statusbar_style_menu_ = false;
+            setStatusMessage("Statusbar style selection cancelled | Region: " +
+                             region_manager_.getRegionName());
+        } else if (event == Event::Return) {
+            statusbar_style_menu_.applySelectedStyle();
+            show_statusbar_style_menu_ = false;
+            setStatusMessage("Statusbar style applied | Region: " +
+                             region_manager_.getRegionName());
         }
         return;
     }
@@ -1559,14 +1597,6 @@ void Editor::handleReplaceMode(Event event) {
 }
 
 void Editor::handleFileBrowserInput(Event event) {
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        std::string ev = event.is_character() ? ("char='" + event.character() + "'") : "non-char";
-        bool is_minus = (event == Event::Character('-'));
-        bool is_plus = (event == Event::Character('+'));
-        LOG("[FB_INPUT] handleFileBrowserInput entry: " + ev + " is_minus=" +
-            (is_minus ? "true" : "false") + " is_plus=" + (is_plus ? "true" : "false"));
-    }
-
     // 确保当前区域是文件浏览器
     if (region_manager_.getCurrentRegion() != EditorRegion::FILE_BROWSER) {
         region_manager_.setRegion(EditorRegion::FILE_BROWSER);
@@ -1758,15 +1788,20 @@ void Editor::handleFileBrowserInput(Event event) {
                     bool open_result = openFile(selected);
 
                     if (open_result) {
-                        Document* doc = getCurrentDocument();
-                        if (doc) {
-                            setStatusMessage(std::string(pnana::ui::icons::OPEN) +
-                                             " Opened: " + doc->getFileName() +
-                                             " | Press Ctrl+O to close browser | Region: " +
-                                             region_manager_.getRegionName());
+                        // 若大文件确认对话框已弹出，不关闭文件浏览器，等用户确认或取消
+                        if (!dialog_.isVisible()) {
+                            Document* doc = getCurrentDocument();
+                            if (doc) {
+                                setStatusMessage(std::string(pnana::ui::icons::OPEN) +
+                                                 " Opened: " + doc->getFileName() +
+                                                 " | Press Ctrl+O to close browser | Region: " +
+                                                 region_manager_.getRegionName());
+                            } else {
+                                setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                                                 " Failed to open file: Document is null");
+                            }
                         } else {
-                            setStatusMessage(std::string(pnana::ui::icons::ERROR) +
-                                             " Failed to open file: Document is null");
+                            setStatusMessage("Large file | [Enter] Open anyway [Esc] Cancel");
                         }
                     } else {
                         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
@@ -1779,8 +1814,11 @@ void Editor::handleFileBrowserInput(Event event) {
                     setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Unknown exception");
                 }
 
-                file_browser_.setVisible(false);
-                region_manager_.setRegion(EditorRegion::CODE_AREA);
+                // 仅当未显示大文件对话框时关闭文件浏览器并切到代码区（已实际打开）
+                if (!dialog_.isVisible()) {
+                    file_browser_.setVisible(false);
+                    region_manager_.setRegion(EditorRegion::CODE_AREA);
+                }
             }
         } else {
             setStatusMessage(std::string(pnana::ui::icons::FOLDER) + " " +

@@ -123,6 +123,18 @@ void Editor::initializeCommandPalette() {
                                                  toggleThemeMenu();
                                              }));
 
+    command_palette_.registerCommand(Command("view.logo", "Logo Style",
+                                             "Open logo style selection menu",
+                                             {"logo", "view", "appearance", "welcome"}, [this]() {
+                                                 toggleLogoMenu();
+                                             }));
+
+    command_palette_.registerCommand(Command("view.statusbar_style", "Statusbar Style",
+                                             "Open statusbar style menu",
+                                             {"statusbar", "style", "appearance"}, [this]() {
+                                                 toggleStatusbarStyleMenu();
+                                             }));
+
     command_palette_.registerCommand(Command("view.help", "Help", "Show help window",
                                              {"help", "view", "documentation"}, [this]() {
                                                  toggleHelp();

@@ -4,9 +4,11 @@
 #include "ui/icons.h"
 #include "utils/logger.h"
 #include "utils/text_analyzer.h"
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 // 前向声明辅助函数（在editor_ssh.cpp中定义）
 namespace pnana {
@@ -14,6 +16,30 @@ namespace core {
 bool parseSSHPath(const std::string& path, pnana::ui::SSHConfig& config);
 }
 } // namespace pnana
+
+namespace {
+// 将字节数格式化为 KB/MB/GB，用于大文件确认对话框
+std::string formatSize(std::uintmax_t bytes) {
+    if (bytes >= 1024ull * 1024 * 1024) {
+        unsigned long long gb = static_cast<unsigned long long>(bytes / (1024ull * 1024 * 1024));
+        unsigned int rem =
+            static_cast<unsigned int>((bytes % (1024ull * 1024 * 1024)) / (1024 * 1024));
+        if (rem >= 100)
+            return std::to_string(gb) + "." + std::to_string(rem / 100) + " GB";
+        return std::to_string(gb) + " GB";
+    }
+    if (bytes >= 1024 * 1024) {
+        unsigned long mb = static_cast<unsigned long>(bytes / (1024 * 1024));
+        unsigned int rem = static_cast<unsigned int>((bytes % (1024 * 1024)) / 1024);
+        if (rem >= 100)
+            return std::to_string(mb) + "." + std::to_string(rem / 100) + " MB";
+        return std::to_string(mb) + " MB";
+    }
+    if (bytes >= 1024)
+        return std::to_string(static_cast<unsigned long>(bytes / 1024)) + " KB";
+    return std::to_string(static_cast<unsigned long>(bytes)) + " B";
+}
+} // namespace
 
 namespace pnana {
 namespace core {
@@ -62,8 +88,48 @@ bool Editor::openFile(const std::string& filepath) {
         return true;
     }
 
+    // 本地文件：检查大小，超过阈值时弹出确认对话框
+    std::uintmax_t size_bytes = 0;
+    try {
+        if (std::filesystem::exists(filepath) && !std::filesystem::is_directory(filepath)) {
+            size_bytes = std::filesystem::file_size(filepath);
+        }
+    } catch (...) {
+        // 无法获取大小时继续尝试打开
+    }
+
+    int limit_mb = config_manager_.getConfig().files.max_file_size_before_prompt_mb;
+    if (limit_mb > 0 && size_bytes > static_cast<std::uintmax_t>(limit_mb) * 1024ull * 1024ull) {
+        std::string msg = "File is about " + formatSize(size_bytes) +
+                          ". Opening may be slow and use a lot of memory. Open anyway?";
+        dialog_.showConfirm(
+            "Large File", msg,
+            [this, filepath]() {
+                openFileInternal(filepath);
+                file_browser_.setVisible(false);
+                region_manager_.setRegion(EditorRegion::CODE_AREA);
+            },
+            [this]() {
+                setStatusMessage("Canceled opening large file");
+            });
+        return true;
+    }
+
+    return openFileInternal(filepath);
+}
+
+bool Editor::openFileInternal(const std::string& filepath) {
+    auto open_t0 = std::chrono::high_resolution_clock::now();
+
     try {
         document_manager_.openDocument(filepath);
+
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                          std::chrono::high_resolution_clock::now() - open_t0)
+                          .count();
+            LOG("[perf] openFileInternal openDocument us=" + std::to_string(us));
+        }
 
         cursor_row_ = 0;
         cursor_col_ = 0;
@@ -77,28 +143,42 @@ bool Editor::openFile(const std::string& filepath) {
             return false;
         }
 
+        // 大文件策略：根据文件大小禁用语法高亮与 LSP，减轻首帧卡顿（阶段二）
+        std::uintmax_t size_bytes = 0;
+        try {
+            if (std::filesystem::exists(filepath) && !std::filesystem::is_directory(filepath)) {
+                size_bytes = std::filesystem::file_size(filepath);
+            }
+        } catch (...) {
+        }
+        const std::uintmax_t large_threshold = 50ull * 1024 * 1024; // 50 MB
+        bool is_large_file = (size_bytes > large_threshold);
+
         bool has_chinese = false;
         std::string file_type;
-        try {
-            file_type = getFileType();
-            size_t max_check_lines = std::min(doc->lineCount(), static_cast<size_t>(50));
-            std::vector<std::string> lines;
-            for (size_t i = 0; i < max_check_lines; ++i) {
-                lines.push_back(doc->getLine(i));
+        if (!is_large_file) {
+            try {
+                file_type = getFileType();
+                size_t max_check_lines = std::min(doc->lineCount(), static_cast<size_t>(50));
+                std::vector<std::string> lines;
+                for (size_t i = 0; i < max_check_lines; ++i) {
+                    lines.push_back(doc->getLine(i));
+                }
+                has_chinese = utils::TextAnalyzer::hasChineseContent(lines, file_type, 500, 10);
+            } catch (const std::exception& e) {
+                LOG_WARNING("Chinese detection exception: " + std::string(e.what()));
+                has_chinese = false;
+            } catch (...) {
+                LOG_WARNING("Chinese detection unknown exception");
+                has_chinese = false;
             }
-            has_chinese = utils::TextAnalyzer::hasChineseContent(lines, file_type, 500, 10);
-        } catch (const std::exception& e) {
-            LOG_WARNING("Chinese detection exception: " + std::string(e.what()));
-            has_chinese = false; // 检测失败，默认不禁用语法高亮
-        } catch (...) {
-            LOG_WARNING("Chinese detection unknown exception");
-            has_chinese = false;
         }
 
         try {
-            // 如果文件主要是中文内容，默认会禁用语法高亮以节省性能。
-            // 但是对于 Markdown（markdown/md）文件，中文内容很常见，应继续启用高亮。
-            if (has_chinese && file_type != "markdown") {
+            if (is_large_file) {
+                syntax_highlighting_ = false;
+                syntax_highlighter_.setFileType("text");
+            } else if (has_chinese && file_type != "markdown") {
                 syntax_highlighting_ = false;
                 syntax_highlighter_.setFileType("text");
             } else {
@@ -113,32 +193,44 @@ bool Editor::openFile(const std::string& filepath) {
             LOG_WARNING("Syntax highlighter unknown exception");
         }
 
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                          std::chrono::high_resolution_clock::now() - open_t0)
+                          .count();
+            LOG("[perf] openFileInternal after_highlight us=" + std::to_string(us));
+        }
+
 #ifdef BUILD_LUA_SUPPORT
-        // 触发文件打开事件
         triggerPluginEvent("FileOpened", {filepath});
         triggerPluginEvent("BufEnter", {filepath});
 #endif
 
 #ifdef BUILD_LSP_SUPPORT
-        try {
-            static int file_open_count = 0;
-            if (++file_open_count % 10 == 0) {
-                cleanupExpiredCaches();
+        if (!is_large_file) {
+            try {
+                static int file_open_count = 0;
+                if (++file_open_count % 10 == 0) {
+                    cleanupExpiredCaches();
+                }
+                updateCurrentFileDiagnostics();
+                updateCurrentFileFolding();
+                updateLspDocument();
+            } catch (const std::exception& e) {
+                LOG_WARNING("LSP update failed: " + std::string(e.what()) +
+                            " (file will open without LSP features)");
+            } catch (...) {
+                LOG_WARNING(
+                    "LSP update failed: Unknown exception (file will open without LSP features)");
             }
-
-            updateCurrentFileDiagnostics();
-            updateCurrentFileFolding();
-            updateLspDocument();
-        } catch (const std::exception& e) {
-            LOG_WARNING("LSP update failed: " + std::string(e.what()) +
-                        " (file will open without LSP features)");
-            // LSP 更新失败不影响文件打开
-        } catch (...) {
-            LOG_WARNING(
-                "LSP update failed: Unknown exception (file will open without LSP features)");
-            // LSP 更新失败不影响文件打开
         }
 #endif
+
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                          std::chrono::high_resolution_clock::now() - open_t0)
+                          .count();
+            LOG("[perf] openFileInternal after_lsp us=" + std::to_string(us));
+        }
 
         if (doc) {
             setStatusMessage(std::string(pnana::ui::icons::OPEN) +
@@ -147,36 +239,34 @@ bool Editor::openFile(const std::string& filepath) {
             setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + filepath);
         }
 
-        // 添加到最近文件列表
         recent_files_manager_.addFile(filepath);
 
-        // 如果在分屏模式下，将新文档设置为当前激活区域的文档
         if (split_view_manager_.hasSplits()) {
             size_t new_doc_index = document_manager_.getCurrentIndex();
             size_t active_region_index = split_view_manager_.getActiveRegionIndex();
             const auto* active_region = split_view_manager_.getActiveRegion();
 
             if (active_region && active_region->current_document_index == SIZE_MAX) {
-                // 如果当前区域显示欢迎页面，直接设置新文档为该区域的当前文档
                 split_view_manager_.setDocumentIndexForRegion(active_region_index, new_doc_index);
-
-                // 确保该区域有正确的状态
                 if (region_states_.size() <= active_region_index) {
                     region_states_.resize(active_region_index + 1);
                 }
-                // 初始化新区域的状态
                 region_states_[active_region_index].cursor_row = 0;
                 region_states_[active_region_index].cursor_col = 0;
                 region_states_[active_region_index].view_offset_row = 0;
                 region_states_[active_region_index].view_offset_col = 0;
             } else {
-                // 否则添加到文档列表中
                 split_view_manager_.addDocumentIndexToRegion(active_region_index, new_doc_index);
-                // 更新当前激活区域显示这个新文档
                 split_view_manager_.setDocumentIndexForRegion(active_region_index, new_doc_index);
             }
         }
 
+        if (pnana::utils::Logger::getInstance().isEnabled()) {
+            auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::high_resolution_clock::now() - open_t0)
+                                .count();
+            LOG("[perf] openFileInternal total us=" + std::to_string(total_us));
+        }
         return true;
     } catch (const std::exception& e) {
         setStatusMessage(std::string(pnana::ui::icons::ERROR) +

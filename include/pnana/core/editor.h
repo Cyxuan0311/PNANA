@@ -27,6 +27,7 @@
 #include "ui/fzf_popup.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
+#include "ui/logo_menu.h"
 #include "ui/move_file_dialog.h"
 #include "ui/new_file_prompt.h"
 #include "ui/package_manager_panel.h"
@@ -37,6 +38,7 @@
 #include "ui/ssh_dialog.h"
 #include "ui/ssh_transfer_dialog.h"
 #include "ui/statusbar.h"
+#include "ui/statusbar_style_menu.h"
 #include "ui/tabbar.h"
 #include "ui/theme.h"
 #include "ui/theme_menu.h"
@@ -359,6 +361,10 @@ class Editor {
     // 根据文档行数返回行号区域所需字符宽度（用于光标位置等计算）
     int getLineNumberWidth(Document* doc) const;
 
+    // 通用对话框（如大文件确认）：供 InputRouter 优先派发输入
+    bool isDialogVisible() const;
+    bool handleDialogInput(ftxui::Event event);
+
     // 退出
     void quit();
     bool shouldQuit() const {
@@ -366,6 +372,9 @@ class Editor {
     }
 
   private:
+    // 实际执行打开文件（供 openFile 与“大文件确认”回调调用）
+    bool openFileInternal(const std::string& filepath);
+
     // 文档管理
     DocumentManager document_manager_;
 
@@ -399,6 +408,7 @@ class Editor {
     pnana::ui::SplitWelcomeScreen split_welcome_screen_;
     pnana::ui::NewFilePrompt new_file_prompt_;
     pnana::ui::ThemeMenu theme_menu_;
+    pnana::ui::LogoMenu logo_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
     pnana::ui::MoveFileDialog move_file_dialog_;
@@ -420,6 +430,7 @@ class Editor {
     pnana::ui::PluginManagerDialog plugin_manager_dialog_;
 #endif
     pnana::vgit::GitPanel git_panel_;
+    pnana::ui::StatusbarStyleMenu statusbar_style_menu_;
 
     // 功能模块
     features::SearchEngine search_engine_;
@@ -583,6 +594,12 @@ class Editor {
     // 主题选择
     bool show_theme_menu_;
 
+    // Logo 样式选择
+    bool show_logo_menu_;
+
+    // 状态栏样式菜单
+    bool show_statusbar_style_menu_;
+
     // 帮助窗口
     bool show_help_;
 
@@ -728,6 +745,13 @@ class Editor {
     void selectNextTheme();
     void selectPreviousTheme();
     void applySelectedTheme();
+
+    // Logo 样式菜单
+    void toggleLogoMenu();
+    void applySelectedLogoStyle();
+
+    // 状态栏样式菜单
+    void toggleStatusbarStyleMenu();
 
     // 文件浏览器
     void toggleFileBrowser();

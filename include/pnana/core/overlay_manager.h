@@ -13,12 +13,23 @@ class OverlayManager {
   public:
     OverlayManager();
 
+    // 配置 AI 面板的位置（默认在右侧）
+    void setAIPanelOnLeft(bool on_left) {
+        ai_panel_on_left_ = on_left;
+    }
+
     // 设置各种对话框的渲染回调
     void setRenderHelpCallback(std::function<ftxui::Element()> callback) {
         render_help_callback_ = callback;
     }
     void setRenderThemeMenuCallback(std::function<ftxui::Element()> callback) {
         render_theme_menu_callback_ = callback;
+    }
+    void setRenderLogoMenuCallback(std::function<ftxui::Element()> callback) {
+        render_logo_menu_callback_ = callback;
+    }
+    void setRenderStatusbarStyleMenuCallback(std::function<ftxui::Element()> callback) {
+        render_statusbar_style_menu_callback_ = callback;
     }
     void setRenderCreateFolderCallback(std::function<ftxui::Element()> callback) {
         render_create_folder_callback_ = callback;
@@ -112,6 +123,12 @@ class OverlayManager {
     void setIsThemeMenuVisibleCallback(std::function<bool()> callback) {
         is_theme_menu_visible_callback_ = callback;
     }
+    void setIsLogoMenuVisibleCallback(std::function<bool()> callback) {
+        is_logo_menu_visible_callback_ = callback;
+    }
+    void setIsStatusbarStyleMenuVisibleCallback(std::function<bool()> callback) {
+        is_statusbar_style_menu_visible_callback_ = callback;
+    }
     void setIsCreateFolderVisibleCallback(std::function<bool()> callback) {
         is_create_folder_visible_callback_ = callback;
     }
@@ -204,6 +221,8 @@ class OverlayManager {
     // 渲染回调函数
     std::function<ftxui::Element()> render_help_callback_;
     std::function<ftxui::Element()> render_theme_menu_callback_;
+    std::function<ftxui::Element()> render_logo_menu_callback_;
+    std::function<ftxui::Element()> render_statusbar_style_menu_callback_;
     std::function<ftxui::Element()> render_create_folder_callback_;
     std::function<ftxui::Element()> render_save_as_callback_;
     std::function<ftxui::Element()> render_move_file_callback_;
@@ -233,9 +252,14 @@ class OverlayManager {
     std::function<ftxui::Element()> render_tui_config_callback_;
     std::function<ftxui::Element()> render_dialog_callback_;
 
+    // AI 面板位置：false = 在右侧（默认），true = 在左侧
+    bool ai_panel_on_left_ = false;
+
     // 可见性检查回调函数
     std::function<bool()> is_help_visible_callback_;
     std::function<bool()> is_theme_menu_visible_callback_;
+    std::function<bool()> is_logo_menu_visible_callback_;
+    std::function<bool()> is_statusbar_style_menu_visible_callback_;
     std::function<bool()> is_create_folder_visible_callback_;
     std::function<bool()> is_save_as_visible_callback_;
     std::function<bool()> is_move_file_visible_callback_;
