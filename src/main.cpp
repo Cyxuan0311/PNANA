@@ -152,8 +152,7 @@ int main(int argc, char* argv[]) {
 
         if (enable_logging) {
             pnana::utils::Logger::getInstance().initialize(log_file);
-            pnana::utils::Logger::getInstance().log("[main] Logger 已初始化，日志文件: " +
-                                                    log_file);
+            pnana::utils::Logger::getInstance().log("Logger initialized: " + log_file);
         }
 
         pnana::core::Editor editor;
