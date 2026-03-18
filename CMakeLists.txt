@@ -30,6 +30,11 @@ option(BUILD_LUA "Enable Lua plugin system" OFF)
 # Go SSH模块支持（手动启用）
 option(BUILD_GO "Enable Go SSH module" OFF)
 
+# libvterm 终端模拟支持（手动启用，参考 Lua 插件模式）
+option(BUILD_LIBVTERM "Enable libvterm for full terminal emulation" OFF)
+
+# 默认关闭，需系统安装 libvterm 开发包后手动开启
+
 # AI客户端支持（手动启用）
 option(BUILD_AI_CLIENT "Enable AI client support" OFF)
 
@@ -300,6 +305,9 @@ else()
     message(STATUS "  Requires: Go compiler — install via your package manager or go.dev")
 endif()
 
+# 配置 libvterm（终端 VT 解析与屏幕模型）
+include(ConfigureLibVTerm)
+
 # 包含目录
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/pnana)
 
@@ -319,6 +327,11 @@ set(SOURCES
     src/core/overlay_manager.cpp
     src/core/editor_input.cpp
     src/core/region_manager.cpp
+    # 缓冲区后端实现
+    src/core/gap_buffer.cpp
+    src/core/sqrt_decomposition.cpp
+    src/core/rope.cpp
+    src/core/piece_table.cpp
     config/config_manager.cpp
     # 新的输入处理模块
     src/input/event_parser.cpp
@@ -350,6 +363,7 @@ set(SOURCES
     src/ui/terminal_ui.cpp
     src/ui/ssh_dialog.cpp
     src/ui/ssh_transfer_dialog.cpp
+    src/ui/terminal_session_dialog.cpp
     src/ui/ai_config_dialog.cpp
     src/ui/ai_assistant_panel.cpp
     src/ui/completion_popup.cpp
@@ -417,6 +431,11 @@ set(SOURCES
     src/features/terminal/terminal_completion.cpp
     src/features/terminal/terminal_pty.cpp
     src/features/terminal/terminal_job.cpp
+    src/features/terminal/terminal_pty_backend.cpp
+    src/features/terminal/terminal_session.cpp
+    src/features/terminal/terminal_key_map.cpp
+    $<$<BOOL:${BUILD_LIBVTERM_SUPPORT}>:src/features/terminal/terminal_vterm_screen.cpp>
+    $<$<BOOL:${BUILD_LIBVTERM_SUPPORT}>:src/features/terminal/terminal_view.cpp>
     src/features/split_view/split_view.cpp
     src/features/md_render/markdown_parser.cpp
     src/features/md_render/markdown_renderer.cpp
@@ -524,6 +543,7 @@ set(HEADERS
     # UI模块头文件
     include/pnana/ui/theme.h
     include/pnana/ui/statusbar.h
+    include/pnana/ui/terminal_session_dialog.h
     include/pnana/ui/statusbar_theme.h
     include/pnana/ui/helpbar.h
     include/pnana/ui/tabbar.h
@@ -691,6 +711,14 @@ if(BUILD_AI_CLIENT_SUPPORT)
     target_link_libraries(pnana PRIVATE CURL::libcurl)
     target_compile_definitions(pnana PRIVATE BUILD_AI_CLIENT_SUPPORT)
     message(STATUS "AI client support configured with libcurl")
+endif()
+
+# libvterm 库（如果启用）
+if(BUILD_LIBVTERM_SUPPORT)
+    target_link_libraries(pnana PRIVATE ${LIBVTERM_LIBRARIES})
+    target_include_directories(pnana PRIVATE ${LIBVTERM_INCLUDE_DIRS})
+    target_compile_definitions(pnana PRIVATE BUILD_LIBVTERM_SUPPORT)
+    message(STATUS "libvterm configured for terminal emulation")
 endif()
 
 # iconv 库（如果找到）
