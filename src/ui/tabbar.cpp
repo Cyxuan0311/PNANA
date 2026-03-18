@@ -63,10 +63,12 @@ Element Tabbar::renderTab(const core::DocumentManager::TabInfo& tab, size_t /*in
 
     auto tab_element = hbox(content);
 
-    // 当前标签高亮
+    // 当前标签高亮：使用主题色反白显示
     if (tab.is_current) {
-        return tab_element | bgcolor(colors.current_line) | bold | color(colors.foreground);
+        // 使用 success 颜色 + 前景色反白，加粗显示
+        return tab_element | bgcolor(colors.success) | color(colors.background) | bold;
     } else {
+        // 非当前标签使用注释颜色
         return tab_element | color(colors.comment);
     }
 }
