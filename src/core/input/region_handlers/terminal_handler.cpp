@@ -206,9 +206,13 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
         return true;
     }
     if (event == Event::CtrlW) {
+#ifdef BUILD_LIBVTERM_SUPPORT
         if (editor->getTerminal().sessionCount() <= 1) {
             editor->getTerminal().handleKeyEvent("ctrl_w");
         }
+#else
+        editor->getTerminal().handleKeyEvent("ctrl_w");
+#endif
         return true;
     }
     if (event == Event::CtrlX) {
