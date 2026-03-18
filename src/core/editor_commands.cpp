@@ -177,6 +177,18 @@ void Editor::initializeCommandPalette() {
                     toggleTerminal();
                 }));
 
+#ifdef BUILD_LIBVTERM_SUPPORT
+    command_palette_.registerCommand(Command(
+        "terminal.new_tab", "New Terminal Tab", "Open new terminal tab",
+        {"terminal", "tab", "new", "shell"}, [this]() {
+            if (!terminal_.isVisible())
+                toggleTerminal();
+            int idx = terminal_.newLocalShellSession();
+            if (idx >= 0)
+                setStatusMessage("New terminal tab opened | Alt+1-9 switch, Ctrl+Shift+W close");
+        }));
+#endif
+
     // 编码转换命令
     command_palette_.registerCommand(Command("file.reopen_with_encoding", "Reopen with Encoding",
                                              "Reopen current file with different encoding",

@@ -1,11 +1,13 @@
 // 单词高亮相关实现
 #include "core/editor.h"
-#include "utils/logger.h"
 #include <algorithm>
 #include <cctype>
 
 namespace pnana {
 namespace core {
+
+// 超过此行数时禁用自动单词高亮，避免大文件（如日志）卡顿
+constexpr size_t WORD_HIGHLIGHT_LARGE_FILE_THRESHOLD = 50000;
 
 // 获取光标位置的单词
 std::string Editor::getWordAtCursor() const {
@@ -59,6 +61,12 @@ std::string Editor::getWordAtCursor() const {
 void Editor::updateWordHighlight() {
     Document* doc = getCurrentDocument();
     if (!doc) {
+        clearWordHighlight();
+        return;
+    }
+
+    // 大文件禁用自动单词高亮，避免全文档扫描导致卡顿
+    if (doc->lineCount() > WORD_HIGHLIGHT_LARGE_FILE_THRESHOLD) {
         clearWordHighlight();
         return;
     }

@@ -88,11 +88,13 @@ static std::string expandTabsForDisplay(const std::string& s, int tab_size) {
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <climits>
 #include <ftxui/dom/elements.hpp>
 #include <map>
 #include <mutex>
+#include <regex>
 #include <sstream>
 #include <thread>
 
@@ -100,6 +102,57 @@ using namespace ftxui;
 
 namespace pnana {
 namespace core {
+
+// 与 editor_input 中一致：超过此行数视为大文件，搜索高亮用按行即时计算
+constexpr size_t LARGE_FILE_SEARCH_HIGHLIGHT_THRESHOLD = 50000;
+
+// 在单行内找出所有匹配（用于大文件搜索时的按行高亮），与 SearchEngine 的选项一致
+static void findMatchesInLine(const std::string& line, size_t line_num, const std::string& pattern,
+                              const features::SearchOptions& options,
+                              std::vector<features::SearchMatch>& out) {
+    if (pattern.empty())
+        return;
+    if (options.regex) {
+        try {
+            std::regex::flag_type flags = std::regex::ECMAScript;
+            if (!options.case_sensitive)
+                flags |= std::regex::icase;
+            std::regex re(pattern, flags);
+            std::sregex_iterator it(line.begin(), line.end(), re), end;
+            for (; it != end; ++it) {
+                out.emplace_back(line_num, it->position(), it->length());
+            }
+        } catch (const std::regex_error&) {
+        }
+        return;
+    }
+    std::string search_line = line;
+    std::string search_pattern = pattern;
+    if (!options.case_sensitive) {
+        std::transform(search_line.begin(), search_line.end(), search_line.begin(), ::tolower);
+        std::transform(search_pattern.begin(), search_pattern.end(), search_pattern.begin(),
+                       ::tolower);
+    }
+    size_t pos = 0;
+    while (pos < search_line.size()) {
+        size_t col = search_line.find(search_pattern, pos);
+        if (col == std::string::npos)
+            break;
+        if (options.whole_word) {
+            bool word_start =
+                (col == 0) || !std::isalnum(static_cast<unsigned char>(search_line[col - 1]));
+            bool word_end =
+                (col + pattern.size() >= search_line.size()) ||
+                !std::isalnum(static_cast<unsigned char>(search_line[col + pattern.size()]));
+            if (!word_start || !word_end) {
+                pos = col + 1;
+                continue;
+            }
+        }
+        out.emplace_back(line_num, col, pattern.size());
+        pos = col + pattern.size();
+    }
+}
 
 // 根据文档最大行号计算行号区域所需字符宽度（至少 2 格便于对齐）
 static size_t getLineNumberWidthForLineCount(size_t line_count) {
@@ -113,6 +166,12 @@ static size_t getLineNumberWidthForLineCount(size_t line_count) {
 
 // UI渲染
 Element Editor::renderUI() {
+    // PTY 有新输出时强制刷新（由 on_output_added_ 原子标记，主线程在此消费）
+    if (terminal_has_output_.exchange(false, std::memory_order_relaxed)) {
+        force_ui_update_ = true;
+        needs_render_ = true;
+    }
+
     // 检查是否暂停渲染
     if (rendering_paused_) {
         needs_render_ = true;
@@ -211,13 +270,38 @@ Element Editor::renderUILegacy() {
 
     // 如果终端打开，使用上下分栏布局，位置可通过配置切换
     Element main_content;
+    int screen_height = screen_.dimy();
+    int reserved_height = 0;
+    reserved_height += 1; // tabbar
+    reserved_height += 1; // separator
+    reserved_height += 1; // statusbar
+    if (mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) {
+        reserved_height += 1; // input box
+    }
+    if (show_helpbar_) {
+        reserved_height += 1; // helpbar
+    }
+    int main_available = std::max(3, screen_height - reserved_height);
     if (terminal_.isVisible()) {
         int terminal_height = terminal_height_;
         if (terminal_height <= 0) {
-            // 使用默认高度（屏幕高度的1/3）
-            terminal_height = screen_.dimy() / 3;
+            // 使用默认高度（主区域高度的1/3）
+            terminal_height = main_available / 3;
+        }
+        int min_editor_height = 3;
+        int max_terminal = std::max(1, main_available - min_editor_height - 1); // 分隔线占1行
+        if (terminal_height > max_terminal) {
+            terminal_height = max_terminal;
+        }
+        if (terminal_height < 1) {
+            terminal_height = 1;
         }
         bool terminal_on_top = config_manager_.getConfig().display.terminal_side == "top";
+        LOG_DEBUG("[TerminalLayout] screen=" + std::to_string(screen_height) + " reserved=" +
+                  std::to_string(reserved_height) + " main=" + std::to_string(main_available) +
+                  " term=" + std::to_string(terminal_height) +
+                  " editor_min=" + std::to_string(min_editor_height) +
+                  " on_top=" + std::string(terminal_on_top ? "1" : "0") + " visible=1");
         if (terminal_on_top) {
             main_content = vbox({renderTerminal() | size(HEIGHT, EQUAL, terminal_height),
                                  separator(), editor_content | flex});
@@ -226,6 +310,9 @@ Element Editor::renderUILegacy() {
                                  renderTerminal() | size(HEIGHT, EQUAL, terminal_height)});
         }
     } else {
+        LOG_DEBUG("[TerminalLayout] screen=" + std::to_string(screen_height) +
+                  " reserved=" + std::to_string(reserved_height) +
+                  " main=" + std::to_string(main_available) + " visible=0");
         main_content = editor_content;
     }
 
@@ -318,6 +405,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setRenderSSHDialogCallback([this]() {
         return ssh_dialog_.render();
+    });
+    overlay_manager_->setRenderTerminalSessionDialogCallback([this]() {
+        return terminal_session_dialog_.render();
     });
     overlay_manager_->setRenderEncodingDialogCallback([this]() {
         return encoding_dialog_.render();
@@ -446,6 +536,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsSSHDialogVisibleCallback([this]() {
         return ssh_dialog_.isVisible();
+    });
+    overlay_manager_->setIsTerminalSessionDialogVisibleCallback([this]() {
+        return terminal_session_dialog_.isVisible();
     });
     overlay_manager_->setIsEncodingDialogVisibleCallback([this]() {
         return encoding_dialog_.isVisible();
@@ -934,20 +1027,24 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                 line_matches.push_back(match);
             }
         }
+    } else if ((mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) &&
+               !search_input_.empty() && doc &&
+               doc->lineCount() > LARGE_FILE_SEARCH_HIGHLIGHT_THRESHOLD) {
+        // 大文件搜索模式：未做全量搜索，对当前可见行即时计算匹配并高亮
+        findMatchesInLine(content, line_num, search_input_, current_search_options_, line_matches);
     }
 
     // 获取当前行的单词高亮匹配（优先级低于搜索高亮）
     std::vector<features::SearchMatch> word_line_matches;
     if (!search_highlight_active_) {
-        // 如果提供了区域特定的单词匹配，使用它；否则使用全局的
+        const std::vector<features::SearchMatch>* word_src = nullptr;
         if (use_region_word_highlight && region_word_highlight_active && region_word_matches) {
-            for (const auto& match : *region_word_matches) {
-                if (match.line == line_num) {
-                    word_line_matches.push_back(match);
-                }
-            }
+            word_src = region_word_matches;
         } else if (word_highlight_active_ && !word_matches_.empty()) {
-            for (const auto& match : word_matches_) {
+            word_src = &word_matches_;
+        }
+        if (word_src) {
+            for (const auto& match : *word_src) {
                 if (match.line == line_num) {
                     word_line_matches.push_back(match);
                 }
@@ -1882,16 +1979,24 @@ Element Editor::renderCommandPalette() {
 Element Editor::renderTerminal() {
     int height = terminal_height_;
     if (height <= 0) {
-        // 使用默认高度（屏幕高度的1/3）
         height = screen_.dimy() / 3;
     }
-    // 复用编辑器光标配置，统一终端与代码区光标样式
     pnana::ui::TerminalCursorOptions cursor_opts;
     cursor_opts.config.style = static_cast<pnana::ui::CursorStyle>(getCursorStyle());
     cursor_opts.config.color = getCursorColor();
     cursor_opts.config.smooth = getCursorSmooth();
     cursor_opts.config.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
     cursor_opts.blink_rate_ms = getCursorBlinkRate();
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    if (terminal_.sessionCount() > 1) {
+        // 标签栏 + 终端内容，使用 vbox 但去除元素间隔
+        return ftxui::vbox({
+            pnana::ui::renderTerminalTabs(terminal_),
+            pnana::ui::renderTerminal(terminal_, height - 1, &cursor_opts), // 减去标签栏高度
+        });
+    }
+#endif
     return pnana::ui::renderTerminal(terminal_, height, &cursor_opts);
 }
 

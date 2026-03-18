@@ -6,9 +6,11 @@
 #include "ui/icons.h"
 #include "utils/logger.h"
 #include "utils/text_utils.h"
+#include <cctype>
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <iostream>
+#include <regex>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -1458,29 +1460,26 @@ void Editor::handleSearchMode(Event event) {
     } else if (event.is_character()) {
         // 支持UTF-8多字节字符（如中文）
         std::string ch = event.character();
+        bool is_printable = false;
         if (!ch.empty()) {
-            bool is_printable = false;
             if (ch.length() == 1) {
                 char c = ch[0];
-                // ASCII可打印字符
                 if (c >= 32 && c < 127) {
                     is_printable = true;
                 }
             } else {
-                // 多字节UTF-8字符（如中文、日文、韩文等）
                 unsigned char first_byte = static_cast<unsigned char>(ch[0]);
-                if (first_byte >= 0xC0) { // UTF-8多字节字符的首字节范围
+                if (first_byte >= 0xC0) {
                     is_printable = true;
                 }
             }
+        }
 
-            if (is_printable && search_cursor_pos_ <= search_input_.length()) {
-                search_input_.insert(search_cursor_pos_, ch);
-                search_cursor_pos_ += ch.length(); // 按字节数移动光标
-                // 实时执行搜索（不移动光标，只高亮），使用当前选择的选项
-                features::SearchOptions options = buildSearchOptions();
-                performSearch(search_input_, options);
-            }
+        if (!ch.empty() && is_printable && search_cursor_pos_ <= search_input_.length()) {
+            search_input_.insert(search_cursor_pos_, ch);
+            search_cursor_pos_ += ch.length();
+            features::SearchOptions options = buildSearchOptions();
+            performSearch(search_input_, options);
         }
     }
     // 其他事件在搜索模式下被忽略
@@ -1906,17 +1905,182 @@ features::SearchOptions Editor::buildSearchOptions() const {
     return options;
 }
 
+// 超过此行数时不进行全量搜索，避免大文件卡死；改用 Enter/Ctrl+G 从光标处增量查找
+constexpr size_t LARGE_FILE_SEARCH_THRESHOLD = 50000;
+
+namespace {
+
+// 在单行中从 pos 起查找下一个匹配，返回匹配起始列或 string::npos；整词/大小写与 SearchEngine 一致
+size_t findInLine(const std::string& line, const std::string& pattern,
+                  const features::SearchOptions& options, size_t pos, size_t* out_len) {
+    if (pattern.empty() || pos > line.size()) {
+        return std::string::npos;
+    }
+    std::string search_pattern = pattern;
+    std::string line_lower;
+    const std::string* search_line = &line;
+    if (!options.case_sensitive) {
+        line_lower = line;
+        std::transform(line_lower.begin(), line_lower.end(), line_lower.begin(), ::tolower);
+        std::transform(search_pattern.begin(), search_pattern.end(), search_pattern.begin(),
+                       ::tolower);
+        search_line = &line_lower;
+    }
+    size_t col = search_line->find(search_pattern, pos);
+    if (col == std::string::npos) {
+        return std::string::npos;
+    }
+    if (options.whole_word) {
+        bool word_start = (col == 0) || !std::isalnum((*search_line)[col - 1]);
+        bool word_end = (col + pattern.length() >= search_line->length()) ||
+                        !std::isalnum((*search_line)[col + pattern.length()]);
+        if (!word_start || !word_end) {
+            return findInLine(line, pattern, options, col + 1, out_len);
+        }
+    }
+    if (out_len) {
+        *out_len = pattern.length();
+    }
+    return col;
+}
+
+// 大文件模式：用 doc->getLine() 逐行查找，不调用 getLines() 避免 materialize 整文件
+bool findNextFromCursorDoc(Document* doc, const std::string& pattern,
+                           const features::SearchOptions& options, size_t start_line,
+                           size_t start_col, size_t& out_line, size_t& out_col, size_t& out_len) {
+    if (!doc || pattern.empty() || start_line >= doc->lineCount()) {
+        return false;
+    }
+    const size_t n = doc->lineCount();
+    size_t line_idx = start_line;
+    size_t col = start_col;
+
+    auto searchFrom = [&]() -> bool {
+        for (; line_idx < n; ++line_idx) {
+            const std::string& line = doc->getLine(line_idx);
+            if (line_idx == start_line && col > line.size()) {
+                col = 0;
+                continue;
+            }
+            size_t pos = (line_idx == start_line) ? col : 0;
+            if (options.regex) {
+                try {
+                    std::regex::flag_type flags = std::regex::ECMAScript;
+                    if (!options.case_sensitive)
+                        flags |= std::regex::icase;
+                    std::regex re(pattern, flags);
+                    std::string sub = (pos < line.size()) ? line.substr(pos) : "";
+                    std::smatch m;
+                    if (std::regex_search(sub, m, re)) {
+                        out_line = line_idx;
+                        out_col = pos + m.position();
+                        out_len = m.length();
+                        return true;
+                    }
+                } catch (const std::regex_error&) {
+                }
+            }
+            size_t match_col = findInLine(line, pattern, options, pos, &out_len);
+            if (match_col != std::string::npos) {
+                out_line = line_idx;
+                out_col = match_col;
+                return true;
+            }
+            col = 0;
+        }
+        return false;
+    };
+
+    if (searchFrom())
+        return true;
+    if (options.wrap_around) {
+        line_idx = 0;
+        col = 0;
+        return searchFrom();
+    }
+    return false;
+}
+
+// 大文件模式：用 doc->getLine() 向前找上一个匹配，不调用 getLines()
+bool findPreviousFromCursorDoc(Document* doc, const std::string& pattern,
+                               const features::SearchOptions& options, size_t start_line,
+                               size_t start_col, size_t& out_line, size_t& out_col,
+                               size_t& out_len) {
+    if (!doc || pattern.empty()) {
+        return false;
+    }
+    const size_t n = doc->lineCount();
+    auto searchBackward = [&](size_t from_line, size_t from_col) -> bool {
+        for (size_t L = from_line;; --L) {
+            if (L >= n)
+                return false;
+            const std::string& line = doc->getLine(L);
+            size_t end_limit = (L == from_line) ? (from_col > 0 ? from_col : 0) : line.size();
+            if (L == from_line && end_limit == 0) {
+                if (L == 0)
+                    return false;
+                continue;
+            }
+            size_t last_c = std::string::npos;
+            size_t last_len = 0;
+            size_t p = 0;
+            for (;;) {
+                size_t len = 0;
+                size_t c = findInLine(line, pattern, options, p, &len);
+                if (c == std::string::npos || c >= end_limit)
+                    break;
+                if (c + len <= end_limit) {
+                    last_c = c;
+                    last_len = len;
+                }
+                p = c + 1;
+            }
+            if (last_c != std::string::npos) {
+                out_line = L;
+                out_col = last_c;
+                out_len = last_len;
+                return true;
+            }
+            if (L == 0)
+                return false;
+        }
+        return false;
+    };
+
+    if (searchBackward(start_line, start_col))
+        return true;
+    if (options.wrap_around) {
+        return searchBackward(n - 1, n > 0 ? doc->getLine(n - 1).size() : 0);
+    }
+    return false;
+}
+
+} // namespace
+
 void Editor::performSearch(const std::string& pattern, const features::SearchOptions& options) {
     if (!getCurrentDocument()) {
         setStatusMessage("No document to search in");
         return;
     }
 
-    // 执行搜索
-    const auto& lines = getCurrentDocument()->getLines();
-    search_engine_.search(pattern, lines, options);
-
+    Document* doc = getCurrentDocument();
     current_search_options_ = options;
+
+    // 大文件：先用 lineCount() 判断（不调用 getLines()，避免懒加载文档被整文件 materialize 卡死）
+    if (doc->lineCount() > LARGE_FILE_SEARCH_THRESHOLD) {
+        search_engine_.clearSearch();
+        search_highlight_active_ = false;
+        current_search_match_ = 0;
+        total_search_matches_ = 0;
+        if (mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) {
+            setStatusMessage("Search: " + pattern +
+                             " (large file - type to search, Enter/Ctrl+G: find next)");
+        }
+        return;
+    }
+
+    const auto& lines = doc->getLines();
+    search_engine_.search(pattern, lines, options);
 
     if (search_engine_.hasMatches()) {
         search_highlight_active_ = true;
@@ -2076,6 +2240,49 @@ void Editor::startReplace() {
 }
 
 void Editor::searchNext() {
+    Document* doc = getCurrentDocument();
+    const bool large_file =
+        doc && doc->lineCount() > LARGE_FILE_SEARCH_THRESHOLD && !search_input_.empty();
+
+    if (large_file && !search_engine_.hasMatches()) {
+        size_t start_line = cursor_row_;
+        size_t start_col = cursor_col_;
+        if (cursor_row_ < doc->lineCount()) {
+            const std::string& cur = doc->getLine(cursor_row_);
+            if (start_col < cur.size()) {
+                start_col++;
+            } else {
+                if (cursor_row_ + 1 >= doc->lineCount()) {
+                    if (!current_search_options_.wrap_around) {
+                        setStatusMessage("No more matches (end of file)");
+                        return;
+                    }
+                    start_line = 0;
+                    start_col = 0;
+                } else {
+                    start_line = cursor_row_ + 1;
+                    start_col = 0;
+                }
+            }
+        } else {
+            start_line = 0;
+            start_col = 0;
+        }
+        size_t out_line = 0, out_col = 0, out_len = 0;
+        if (findNextFromCursorDoc(doc, search_input_, current_search_options_, start_line,
+                                  start_col, out_line, out_col, out_len)) {
+            cursor_row_ = out_line;
+            cursor_col_ = out_col;
+            adjustViewOffset();
+            setStatusMessage("Search: " + search_input_ + " (large file - match at " +
+                             std::to_string(out_line + 1) + ":" + std::to_string(out_col + 1) +
+                             ")");
+        } else {
+            setStatusMessage("Search: " + search_input_ + " [no more matches]");
+        }
+        return;
+    }
+
     if (search_engine_.findNext()) {
         const auto* match = search_engine_.getCurrentMatch();
         if (match) {
@@ -2097,6 +2304,26 @@ void Editor::searchNext() {
 }
 
 void Editor::searchPrevious() {
+    Document* doc = getCurrentDocument();
+    const bool large_file =
+        doc && doc->lineCount() > LARGE_FILE_SEARCH_THRESHOLD && !search_input_.empty();
+
+    if (large_file && !search_engine_.hasMatches()) {
+        size_t out_line = 0, out_col = 0, out_len = 0;
+        if (findPreviousFromCursorDoc(doc, search_input_, current_search_options_, cursor_row_,
+                                      cursor_col_, out_line, out_col, out_len)) {
+            cursor_row_ = out_line;
+            cursor_col_ = out_col;
+            adjustViewOffset();
+            setStatusMessage("Search: " + search_input_ + " (large file - match at " +
+                             std::to_string(out_line + 1) + ":" + std::to_string(out_col + 1) +
+                             ")");
+        } else {
+            setStatusMessage("Search: " + search_input_ + " [no more matches]");
+        }
+        return;
+    }
+
     if (search_engine_.findPrevious()) {
         const auto* match = search_engine_.getCurrentMatch();
         if (match) {
