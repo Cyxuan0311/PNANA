@@ -58,7 +58,8 @@ jobs:
             git \
             ccache \
             curl \
-            libcurl4-openssl-dev
+            libcurl4-openssl-dev \
+            libvterm-dev
 
       - name: Build and install FTXUI
         run: |
@@ -105,7 +106,8 @@ jobs:
             -DBUILD_IMAGE_PREVIEW=ON \
             -DBUILD_TREE_SITTER=ON \
             -DBUILD_LUA=ON \
-            -DBUILD_GO=ON
+            -DBUILD_GO=ON \
+            -DBUILD_LIBVTERM=ON
 
       - name: Build
         run: |
