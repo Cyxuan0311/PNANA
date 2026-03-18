@@ -34,6 +34,8 @@ class PTYExecutor {
     // cwd: 工作目录
     // 返回的 shell 持续运行，提示符由 shell 自身输出
     static PTYResult createInteractiveShell(const std::string& cwd);
+    static PTYResult createInteractiveShellWithPath(const std::string& cwd,
+                                                    const std::string& shell_path);
 
     // 从 PTY 读取输出（非阻塞）
     // master_fd: PTY master 文件描述符

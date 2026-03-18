@@ -365,6 +365,160 @@ PTYResult PTYExecutor::createInteractiveShell(const std::string& cwd) {
     return result;
 }
 
+PTYResult PTYExecutor::createInteractiveShellWithPath(const std::string& cwd,
+                                                      const std::string& shell_path) {
+    PTYResult result;
+    std::string resolved_shell = shell_path.empty() ? getShellPath() : shell_path;
+    std::string shell_name = getShellBasename(resolved_shell);
+
+#ifdef __linux__
+    int master_fd = -1;
+    pid_t pid = forkpty(&master_fd, nullptr, nullptr, nullptr);
+
+    if (pid < 0) {
+        result.error = "forkpty failed: " + std::string(strerror(errno));
+        return result;
+    }
+
+    if (pid == 0) {
+        struct termios tio;
+        if (tcgetattr(STDIN_FILENO, &tio) == 0) {
+            tio.c_cc[VERASE] = '\x08';
+#ifdef VKILL
+            tio.c_cc[VKILL] = '\x15';
+#endif
+            tcsetattr(STDIN_FILENO, TCSANOW, &tio);
+        }
+        setenv("TERM", "xterm", 1);
+        if (chdir(cwd.c_str()) != 0) {
+            _exit(1);
+        }
+        execl(resolved_shell.c_str(), shell_name.c_str(), "-i", nullptr);
+        _exit(1);
+    }
+
+    result.pid = pid;
+    result.master_fd = master_fd;
+    result.slave_fd = -1;
+    if (master_fd >= 0) {
+        const char* slave_name = ptsname(master_fd);
+        if (slave_name) {
+            result.slave_fd = open(slave_name, O_RDWR | O_NOCTTY);
+        }
+    }
+    result.success = true;
+
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+    int master_fd = -1;
+    pid_t pid = forkpty(&master_fd, nullptr, nullptr, nullptr);
+
+    if (pid < 0) {
+        result.error = "forkpty failed: " + std::string(strerror(errno));
+        return result;
+    }
+
+    if (pid == 0) {
+        struct termios tio;
+        if (tcgetattr(STDIN_FILENO, &tio) == 0) {
+            tio.c_cc[VERASE] = '\x08';
+#ifdef VKILL
+            tio.c_cc[VKILL] = '\x15';
+#endif
+            tcsetattr(STDIN_FILENO, TCSANOW, &tio);
+        }
+        setenv("TERM", "xterm", 1);
+        if (chdir(cwd.c_str()) != 0) {
+            _exit(1);
+        }
+        execl(resolved_shell.c_str(), shell_name.c_str(), "-i", nullptr);
+        _exit(1);
+    }
+
+    result.pid = pid;
+    result.master_fd = master_fd;
+    result.slave_fd = -1;
+    if (master_fd >= 0) {
+        const char* slave_name = ptsname(master_fd);
+        if (slave_name) {
+            result.slave_fd = open(slave_name, O_RDWR | O_NOCTTY);
+        }
+    }
+    result.success = true;
+
+#else
+    int master_fd = posix_openpt(O_RDWR | O_NOCTTY);
+    if (master_fd < 0) {
+        result.error = "posix_openpt failed: " + std::string(strerror(errno));
+        return result;
+    }
+    if (grantpt(master_fd) != 0) {
+        close(master_fd);
+        result.error = "grantpt failed: " + std::string(strerror(errno));
+        return result;
+    }
+    if (unlockpt(master_fd) != 0) {
+        close(master_fd);
+        result.error = "unlockpt failed: " + std::string(strerror(errno));
+        return result;
+    }
+    char* slave_name = ptsname(master_fd);
+    if (!slave_name) {
+        close(master_fd);
+        result.error = "ptsname failed: " + std::string(strerror(errno));
+        return result;
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(master_fd);
+        result.error = "fork failed: " + std::string(strerror(errno));
+        return result;
+    }
+    if (pid == 0) {
+        close(master_fd);
+        int slave_fd = open(slave_name, O_RDWR);
+        if (slave_fd < 0) {
+            _exit(1);
+        }
+        setsid();
+        ioctl(slave_fd, TIOCSCTTY, nullptr);
+        dup2(slave_fd, STDIN_FILENO);
+        dup2(slave_fd, STDOUT_FILENO);
+        dup2(slave_fd, STDERR_FILENO);
+        if (slave_fd > 2) {
+            close(slave_fd);
+        }
+        struct termios tio;
+        if (tcgetattr(STDIN_FILENO, &tio) == 0) {
+            tio.c_cc[VERASE] = '\x08';
+#ifdef VKILL
+            tio.c_cc[VKILL] = '\x15';
+#endif
+            tcsetattr(STDIN_FILENO, TCSANOW, &tio);
+        }
+        setenv("TERM", "xterm", 1);
+        if (chdir(cwd.c_str()) != 0) {
+            _exit(1);
+        }
+        execl(resolved_shell.c_str(), shell_name.c_str(), "-i", nullptr);
+        _exit(1);
+    }
+    result.pid = pid;
+    result.master_fd = master_fd;
+    result.slave_fd = open(slave_name, O_RDWR | O_NOCTTY);
+    result.success = true;
+#endif
+
+    if (result.success) {
+        setNonBlocking(result.master_fd);
+        setTerminalSize(result.master_fd, 24, 80);
+        if (result.slave_fd >= 0) {
+            setSlaveTermios(result.slave_fd);
+            tcsetpgrp(result.slave_fd, result.pid);
+        }
+    }
+    return result;
+}
+
 void PTYExecutor::setSlaveTermios(int slave_fd) {
     if (slave_fd < 0)
         return;
