@@ -96,7 +96,7 @@ static int sb_popline_cb(int cols, VTermScreenCell* cells, void* user) {
 }
 
 #if VTERM_HAS_OUTPUT_CALLBACK
-static [[maybe_unused]] void output_callback(const char* s, size_t len, void* user) {
+[[maybe_unused]] static void output_callback(const char* s, size_t len, void* user) {
     auto* self = static_cast<pnana::features::terminal::VTermScreenModel*>(user);
     self->onOutput(s, len);
 }
