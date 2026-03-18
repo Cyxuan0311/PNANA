@@ -1,7 +1,9 @@
 #include "features/terminal.h"
 #include "features/terminal/terminal_color.h"
+#include "features/terminal/terminal_key_map.h"
 #include "features/terminal/terminal_line_buffer.h"
 #include "features/terminal/terminal_pty.h"
+#include "utils/logger.h"
 #include <chrono>
 #include <cstdlib>
 #include <ftxui/dom/elements.hpp>
@@ -63,6 +65,8 @@ std::string keyToEscape(const std::string& key) {
         return "\x05";
     if (key == "ctrl_w")
         return "\x17";
+    if (key == "ctrl_x")
+        return "\x18";
     return "";
 }
 
@@ -94,16 +98,17 @@ Terminal::~Terminal() {
 void Terminal::setVisible(bool visible) {
     if (visible_ == visible)
         return;
+    LOG("[Terminal] setVisible(" + std::string(visible ? "true" : "false") + ")");
     visible_ = visible;
     if (visible) {
         startShellSession();
     } else {
         stopShellSession();
     }
+    LOG("[Terminal] setVisible done");
 }
 
 void Terminal::handleKeyEvent(const std::string& key) {
-    // PageUp/PageDown 用于滚动，不发送到 shell
     if (key == "PageUp") {
         scrollUp();
         return;
@@ -112,6 +117,23 @@ void Terminal::handleKeyEvent(const std::string& key) {
         scrollDown();
         return;
     }
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    auto* sess = getActiveSession();
+    if (sess && sess->isRunning()) {
+        terminal::KeyEvent ev = terminal::ftxuiKeyToKeyEvent(key);
+        if (ev.type != terminal::KeyEvent::Type::Char || ev.ch != 0) {
+            sess->sendKey(ev);
+            return;
+        }
+        if (key.length() == 1) {
+            ev.type = terminal::KeyEvent::Type::Char;
+            ev.ch = key[0];
+            sess->sendKey(ev);
+        }
+        return;
+    }
+#endif
 
     std::string esc = keyToEscape(key);
     if (!esc.empty()) {
@@ -136,8 +158,29 @@ void Terminal::handleKeyEvent(const std::string& key) {
 }
 
 void Terminal::writeToShell(const std::string& input) {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    auto* sess = getActiveSession();
+    if (sess && sess->isRunning()) {
+        sess->sendBytes(input);
+        return;
+    }
+#endif
     if (shell_running_ && current_pty_fd_ >= 0) {
         terminal::PTYExecutor::writeInput(current_pty_fd_, input);
+    }
+}
+
+void Terminal::resize(int cols, int rows) {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    if (useLibVTermPath()) {
+        auto* sess = getActiveSession();
+        if (sess)
+            sess->resize(cols, rows);
+        return;
+    }
+#endif
+    if (current_pty_fd_ >= 0) {
+        terminal::PTYExecutor::setTerminalSize(current_pty_fd_, rows, cols);
     }
 }
 
@@ -153,6 +196,16 @@ void Terminal::clear() {
 }
 
 void Terminal::interruptCommand() {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    auto* sess = getActiveSession();
+    if (sess && sess->isRunning()) {
+        terminal::KeyEvent ev;
+        ev.type = terminal::KeyEvent::Type::CtrlC;
+        ev.ch = 0;
+        sess->sendKey(ev);
+        return;
+    }
+#endif
     if (shell_running_ && current_pid_ > 0) {
         terminal::PTYExecutor::sendSignal(current_pid_, SIGINT);
     }
@@ -188,6 +241,24 @@ size_t Terminal::getPendingCursorPositionSnapshot() const {
 }
 
 void Terminal::startShellSession() {
+    LOG("[Terminal] startShellSession enter");
+#ifdef BUILD_LIBVTERM_SUPPORT
+    if (sessions_.empty()) {
+        LOG("[Terminal] sessions empty, calling newLocalShellSession");
+        int idx = newLocalShellSession(current_directory_);
+        if (idx >= 0) {
+            LOG("[Terminal] newLocalShellSession ok idx=" + std::to_string(idx));
+            shell_running_ = true;
+            return;
+        }
+        LOG("[Terminal] newLocalShellSession failed");
+        addOutputLine("Error: Could not start shell session");
+        return;
+    }
+    LOG("[Terminal] startShellSession done (sessions exist)");
+    return;
+#endif
+
     if (shell_running_)
         return;
 
@@ -202,13 +273,25 @@ void Terminal::startShellSession() {
     current_pty_fd_ = result.master_fd;
     current_slave_fd_ = result.slave_fd;
     startOutputThread(result.master_fd);
-    // termios 已在 createInteractiveShell 子进程中设置 VERASE=\x08，与 keyToEscape 的 Backspace
-    // 映射一致
 }
 
 void Terminal::stopShellSession() {
     if (!shell_running_)
         return;
+#ifdef BUILD_LIBVTERM_SUPPORT
+    auto* sess = getActiveSession();
+    if (sess) {
+        sess->sendBytes("exit\n");
+        if (sessions_.size() == 1) {
+            sessions_.clear();
+            active_session_index_ = 0;
+        } else {
+            closeSession(active_session_index_);
+        }
+        shell_running_ = sessions_.empty() ? false : true;
+        return;
+    }
+#endif
     writeToShell("exit\n");
     output_thread_running_ = false;
     if (output_thread_.joinable()) {
@@ -349,6 +432,13 @@ void Terminal::readPTYOutput(int pty_fd) {
 }
 
 void Terminal::cleanupShell() {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    for (auto& s : sessions_)
+        if (s)
+            s->terminate();
+    sessions_.clear();
+    active_session_index_ = 0;
+#endif
     stopOutputThread();
     if (current_pty_fd_ >= 0) {
         terminal::PTYExecutor::closePTY(current_pty_fd_);
@@ -375,6 +465,14 @@ static std::string escapeSingleQuotes(const std::string& s) {
 
 void Terminal::startSSHSession(const std::string& host, const std::string& user, int port,
                                const std::string& key_path, const std::string& password) {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    int idx = newSSHSession(host, user, port, key_path, password);
+    if (idx >= 0)
+        return;
+    addOutputLine("SSH failed: could not start session");
+    return;
+#endif
+
     cleanupShell();
     int p = (port > 0) ? port : 22;
     std::string port_opt = (p != 22) ? (" -p " + std::to_string(p)) : "";
@@ -406,11 +504,140 @@ void Terminal::restoreLocalShell() {
     startShellSession();
 }
 
+#ifdef BUILD_LIBVTERM_SUPPORT
+terminal::TerminalSession* Terminal::getActiveSession() const {
+    if (sessions_.empty() || active_session_index_ < 0 ||
+        active_session_index_ >= static_cast<int>(sessions_.size()))
+        return nullptr;
+    return sessions_[active_session_index_].get();
+}
+
+bool Terminal::useLibVTermPath() const {
+    auto* sess = getActiveSession();
+    return sess != nullptr && sess->isRunning();
+}
+
+terminal::ScreenSnapshot Terminal::getSessionSnapshot(int view_height) const {
+    auto* sess = getActiveSession();
+    if (!sess || !sess->isRunning()) {
+        scroll_max_ = 0;
+        return terminal::ScreenSnapshot();
+    }
+    if (!sess->isReady()) {
+        scroll_max_ = 0;
+        return terminal::ScreenSnapshot();
+    }
+    sess->feedPending(); // 主线程处理待喂入数据，libvterm 仅在此线程访问
+    auto full = sess->getFullSnapshot(1000);
+    size_t total_lines = full.scrollback.size() + full.visible.size();
+    size_t view_rows = full.rows > 0 ? static_cast<size_t>(full.rows) : 0;
+    scroll_max_ = (total_lines > view_rows) ? (total_lines - view_rows) : 0;
+    if (scroll_offset_ > scroll_max_)
+        scroll_offset_ = scroll_max_;
+    return sess->getSnapshot(static_cast<int>(scroll_offset_), 1000, view_height);
+}
+
+int Terminal::sessionCount() const {
+    return static_cast<int>(sessions_.size());
+}
+
+void Terminal::setActiveSession(int index) {
+    if (index >= 0 && index < static_cast<int>(sessions_.size()))
+        active_session_index_ = index;
+}
+
+int Terminal::newLocalShellSession(const std::string& cwd, const std::string& shell_path) {
+    std::string dir = cwd.empty() ? current_directory_ : cwd;
+    auto s = std::make_unique<terminal::TerminalSession>();
+    s->setOnOutput([this]() {
+        if (on_output_added_)
+            on_output_added_();
+    });
+    s->setOnExit([this](int) {
+        if (on_shell_exit_)
+            on_shell_exit_();
+    });
+    if (shell_path.empty()) {
+        if (!s->startLocalShell(dir))
+            return -1;
+    } else {
+        if (!s->startLocalShellWithPath(dir, shell_path))
+            return -1;
+    }
+    int idx = static_cast<int>(sessions_.size());
+    sessions_.push_back(std::move(s));
+    active_session_index_ = idx;
+    shell_running_ = true;
+    return idx;
+}
+
+int Terminal::newSSHSession(const std::string& host, const std::string& user, int port,
+                            const std::string& key_path, const std::string& password) {
+    auto s = std::make_unique<terminal::TerminalSession>();
+    s->setOnOutput([this]() {
+        if (on_output_added_)
+            on_output_added_();
+    });
+    s->setOnExit([this](int) {
+        if (on_shell_exit_)
+            on_shell_exit_();
+    });
+    if (!s->startSSH(host, user, port, key_path, password))
+        return -1;
+    int idx = static_cast<int>(sessions_.size());
+    sessions_.push_back(std::move(s));
+    active_session_index_ = idx;
+    shell_running_ = true;
+    return idx;
+}
+
+int Terminal::newContainerSession(const std::string& container_id, const std::string& shell) {
+    auto s = std::make_unique<terminal::TerminalSession>();
+    s->setOnOutput([this]() {
+        if (on_output_added_)
+            on_output_added_();
+    });
+    s->setOnExit([this](int) {
+        if (on_shell_exit_)
+            on_shell_exit_();
+    });
+    if (!s->startContainer(container_id, shell))
+        return -1;
+    int idx = static_cast<int>(sessions_.size());
+    sessions_.push_back(std::move(s));
+    active_session_index_ = idx;
+    shell_running_ = true;
+    return idx;
+}
+
+void Terminal::closeSession(int index) {
+    if (index < 0 || index >= static_cast<int>(sessions_.size()))
+        return;
+    sessions_.erase(sessions_.begin() + index);
+    if (active_session_index_ >= static_cast<int>(sessions_.size()))
+        active_session_index_ = std::max(0, static_cast<int>(sessions_.size()) - 1);
+    shell_running_ = !sessions_.empty();
+}
+
+std::string Terminal::getSessionTitle(int index) const {
+    if (index < 0 || index >= static_cast<int>(sessions_.size()))
+        return "";
+    return sessions_[index]->getTitle();
+}
+#endif
+
 ftxui::Element Terminal::render(int /* height */) {
     return text("");
 }
 
 void Terminal::scrollUp() {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    if (useLibVTermPath()) {
+        if (scroll_offset_ < scroll_max_)
+            scroll_offset_ += 1;
+        return;
+    }
+#endif
     std::lock_guard<std::mutex> lock(output_mutex_);
     if (scroll_offset_ < output_lines_.size()) {
         scroll_offset_ += 1;
@@ -418,6 +645,13 @@ void Terminal::scrollUp() {
 }
 
 void Terminal::scrollDown() {
+#ifdef BUILD_LIBVTERM_SUPPORT
+    if (useLibVTermPath()) {
+        if (scroll_offset_ > 0)
+            scroll_offset_ -= 1;
+        return;
+    }
+#endif
     if (scroll_offset_ > 0) {
         scroll_offset_ -= 1;
     }

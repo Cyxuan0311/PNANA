@@ -7,10 +7,16 @@
 #include <chrono>
 #include <ftxui/dom/elements.hpp>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+#include "features/terminal/terminal_session.h"
+#include "features/terminal/terminal_vterm_screen.h"
+#endif
 
 namespace pnana {
 namespace features {
@@ -47,6 +53,9 @@ class Terminal {
 
     // 渲染
     ftxui::Element render(int height);
+
+    // 调整终端尺寸（cols, rows）
+    void resize(int cols, int rows);
 
     // 清空终端
     void clear();
@@ -88,6 +97,23 @@ class Terminal {
         on_shell_exit_ = std::move(cb);
     }
 
+#ifdef BUILD_LIBVTERM_SUPPORT
+    bool useLibVTermPath() const;
+    terminal::ScreenSnapshot getSessionSnapshot(int view_height) const;
+    // 多会话
+    int sessionCount() const;
+    int activeSessionIndex() const {
+        return active_session_index_;
+    }
+    void setActiveSession(int index);
+    int newLocalShellSession(const std::string& cwd = "", const std::string& shell_path = "");
+    int newSSHSession(const std::string& host, const std::string& user, int port = 22,
+                      const std::string& key_path = "", const std::string& password = "");
+    int newContainerSession(const std::string& container_id, const std::string& shell = "/bin/sh");
+    void closeSession(int index);
+    std::string getSessionTitle(int index) const;
+#endif
+
   private:
     ui::Theme& theme_;
     bool visible_;
@@ -99,7 +125,8 @@ class Terminal {
     size_t pending_cursor_pos_ = 0; // 光标在 pending 行中的位置
     terminal::PendingLineBuffer pending_line_buffer_;
     size_t max_output_lines_;
-    size_t scroll_offset_;
+    mutable size_t scroll_offset_;
+    mutable size_t scroll_max_ = 0;
 
     // 当前工作目录（用于启动 shell）
     std::string current_directory_;
@@ -128,6 +155,12 @@ class Terminal {
     std::chrono::steady_clock::time_point last_refresh_time_;
 
     static constexpr int REFRESH_THROTTLE_MS = 33; // ~30fps
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    std::vector<std::unique_ptr<terminal::TerminalSession>> sessions_;
+    int active_session_index_ = 0;
+    terminal::TerminalSession* getActiveSession() const;
+#endif
 
     void addOutputLine(const std::string& line);
     void addOutputLines(const std::vector<std::string>& lines);
