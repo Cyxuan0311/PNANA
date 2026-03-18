@@ -1,6 +1,8 @@
 #ifndef PNANA_CORE_DOCUMENT_H
 #define PNANA_CORE_DOCUMENT_H
 
+#include "core/buffer_backend.h"
+#include "core/buffer_factory.h"
 #include "features/lsp/lsp_types.h"
 #include <chrono>
 #include <cstdint>
@@ -61,6 +63,14 @@ class Document {
     bool saveAs(const std::string& filepath);
     bool reload();
 
+    // 缓冲区后端管理
+    BufferBackendType getBufferBackendType() const {
+        return backend_type_;
+    }
+    const char* getBufferBackendName() const;
+    void setBufferBackend(BufferBackendType type);
+    void autoSelectBufferBackend(); // 根据文件类型和大小自动选择
+
     // 内容访问
     size_t lineCount() const;
     const std::string& getLine(size_t row) const;
@@ -70,7 +80,7 @@ class Document {
     // 获取完整的文档内容（所有行合并）
     std::string getContent() const;
 
-    // 编辑操作
+    // 编辑操作（使用缓冲区后端）
     void insertChar(size_t row, size_t col, char ch);
     void insertText(size_t row, size_t col, const std::string& text);
     void insertLine(size_t row);
@@ -168,6 +178,11 @@ class Document {
     size_t actualLineToDisplayLine(size_t actual_line) const;
 
   private:
+    // 缓冲区后端（支持多种实现：GapBuffer, SqrtDecomposition, Rope, PieceTable）
+    std::unique_ptr<BufferBackend> buffer_backend_;
+    BufferBackendType backend_type_;
+
+    // 保留原有的 lines_ 作为缓存（兼容旧代码）
     std::vector<std::string> lines_;
     std::vector<std::string> original_lines_; // 保存原始内容（用于判断是否修改）
     std::string filepath_;

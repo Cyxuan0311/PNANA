@@ -1,4 +1,5 @@
 #include "core/document.h"
+#include "core/buffer_factory.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <cerrno>
@@ -17,14 +18,61 @@ namespace pnana {
 namespace core {
 
 Document::Document()
-    : filepath_(""), encoding_("UTF-8"), line_ending_(LineEnding::LF), modified_(false),
-      read_only_(false), is_binary_(false) {
+    : buffer_backend_(nullptr), backend_type_(BufferBackendType::PIECE_TABLE), filepath_(""),
+      encoding_("UTF-8"), line_ending_(LineEnding::LF), modified_(false), read_only_(false),
+      is_binary_(false) {
+    // 默认使用 PieceTable 后端
+    buffer_backend_ = std::make_unique<PieceTable>();
     lines_.push_back("");
     original_lines_.push_back("");
 }
 
 Document::Document(const std::string& filepath) : Document() {
     load(filepath);
+}
+
+const char* Document::getBufferBackendName() const {
+    return SmartBufferFactory::getBackendName(backend_type_);
+}
+
+void Document::setBufferBackend(BufferBackendType type) {
+    if (backend_type_ == type) {
+        return; // 已经是该类型
+    }
+
+    backend_type_ = type;
+
+    // 创建新的缓冲区后端
+    auto new_backend = SmartBufferFactory::create(type);
+
+    // 复制当前内容到新后端
+    std::string content = getContent();
+    new_backend->insert(0, content);
+
+    // 替换后端
+    buffer_backend_ = std::move(new_backend);
+
+    // 更新缓存
+    lines_.clear();
+    for (size_t i = 0; i < buffer_backend_->lineCount(); ++i) {
+        lines_.push_back(buffer_backend_->getLine(i));
+    }
+}
+
+void Document::autoSelectBufferBackend() {
+    // 根据文件大小和类型自动选择后端
+    size_t file_size = 0;
+    try {
+        if (std::filesystem::exists(filepath_)) {
+            file_size = std::filesystem::file_size(filepath_);
+        }
+    } catch (...) {
+        // 如果文件不存在或无法访问，使用默认后端
+    }
+
+    BufferBackendType selected_type = SmartBufferFactory::selectBackend(filepath_, file_size);
+
+    setBufferBackend(selected_type);
 }
 
 bool Document::load(const std::string& filepath) {
@@ -38,6 +86,23 @@ bool Document::load(const std::string& filepath) {
         }
     } catch (...) {
         // 如果检查失败，继续尝试打开（可能是新文件）
+    }
+
+    // 获取文件大小用于智能选择缓冲区后端
+    size_t file_size = 0;
+    try {
+        if (std::filesystem::exists(filepath)) {
+            file_size = std::filesystem::file_size(filepath);
+        }
+    } catch (...) {
+        // 忽略错误
+    }
+
+    // 根据文件类型和大小自动选择缓冲区后端
+    BufferBackendType selected_type = SmartBufferFactory::selectBackend(filepath, file_size);
+
+    if (selected_type != backend_type_) {
+        setBufferBackend(selected_type);
     }
 
     std::ifstream file(filepath, std::ios::binary);
@@ -106,9 +171,8 @@ bool Document::load(const std::string& filepath) {
 
     file.clear();
     file.seekg(0);
-    std::streamoff file_size = 0;
     file.seekg(0, std::ios::end);
-    file_size = file.tellg();
+    std::streamsize stream_file_size = file.tellg();
     file.seekg(0);
 
     // 第一遍：只构建行偏移表（不存行内容），用于判断是否走懒加载
@@ -131,8 +195,8 @@ bool Document::load(const std::string& filepath) {
         }
         offset += n;
     }
-    if (file_size > 0 && line_offsets_.back() != static_cast<uint64_t>(file_size)) {
-        line_offsets_.push_back(static_cast<uint64_t>(file_size));
+    if (stream_file_size > 0 && line_offsets_.back() != static_cast<uint64_t>(stream_file_size)) {
+        line_offsets_.push_back(static_cast<uint64_t>(stream_file_size));
     }
     size_t num_lines = line_offsets_.empty() ? 0 : (line_offsets_.size() - 1);
     if (num_lines == 0) {
@@ -178,8 +242,8 @@ bool Document::load(const std::string& filepath) {
     carry.reserve(4096);
     file.clear();
     file.seekg(0);
-    if (file_size > 0) {
-        size_t hint = static_cast<size_t>(file_size) / 50;
+    if (stream_file_size > 0) {
+        size_t hint = static_cast<size_t>(stream_file_size) / 50;
         if (hint > 4000000u)
             hint = 4000000u;
         lines_.reserve(hint);
@@ -242,6 +306,14 @@ bool Document::load(const std::string& filepath) {
                             .count();
         LOG("[perf] Document::load total us=" + std::to_string(total_us));
     }
+
+    // 将加载的内容同步到缓冲区后端
+    if (buffer_backend_) {
+        buffer_backend_->clear();
+        std::string full_content = getContent();
+        buffer_backend_->insert(0, full_content);
+    }
+
     return true;
 }
 
