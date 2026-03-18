@@ -107,6 +107,11 @@ configure_cmake() {
         cmake_args+=(-DBUILD_AI_CLIENT=ON)
         print_info "  - AI client support: ENABLED"
     fi
+
+    if [ "$BUILD_LIBVTERM" = "ON" ]; then
+        cmake_args+=(-DBUILD_LIBVTERM=ON)
+        print_info "  - libvterm terminal emulation: ENABLED"
+    fi
     
     cmake .. "${cmake_args[@]}"
     
@@ -170,6 +175,7 @@ show_help() {
     echo "  BUILD_LUA=ON              Enable Lua plugin system"
     echo "  BUILD_GO=ON              Enable Go SSH module"
     echo "  BUILD_AI_CLIENT=ON       Enable AI client support (requires libcurl)"
+    echo "  BUILD_LIBVTERM=ON        Enable libvterm terminal emulation"
     echo ""
     echo "Examples:"
     echo "  $0                                    # Build the project"
@@ -179,6 +185,7 @@ show_help() {
     echo "  $0 BUILD_LUA=ON BUILD_GO=ON           # Build with Lua and Go support"
     echo "  $0 --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
     echo "  $0 --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
+    echo "  $0 BUILD_LIBVTERM=ON                    # Build with libvterm support"
 }
 
 # 主函数
@@ -192,6 +199,7 @@ main() {
     BUILD_LUA=""
     BUILD_GO=""
     BUILD_AI_CLIENT=""
+    BUILD_LIBVTERM=""
     
     # 解析命令行参数
     while [[ $# -gt 0 ]]; do
@@ -226,6 +234,10 @@ main() {
                 ;;
             BUILD_AI_CLIENT=*)
                 BUILD_AI_CLIENT="${1#*=}"
+                shift
+                ;;
+            BUILD_LIBVTERM=*)
+                BUILD_LIBVTERM="${1#*=}"
                 shift
                 ;;
             *)
