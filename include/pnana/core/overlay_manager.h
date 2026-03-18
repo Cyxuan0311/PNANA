@@ -97,6 +97,9 @@ class OverlayManager {
     void setRenderSSHDialogCallback(std::function<ftxui::Element()> callback) {
         render_ssh_dialog_callback_ = callback;
     }
+    void setRenderTerminalSessionDialogCallback(std::function<ftxui::Element()> callback) {
+        render_terminal_session_dialog_callback_ = callback;
+    }
     void setRenderEncodingDialogCallback(std::function<ftxui::Element()> callback) {
         render_encoding_dialog_callback_ = callback;
     }
@@ -195,6 +198,9 @@ class OverlayManager {
     void setIsSSHDialogVisibleCallback(std::function<bool()> callback) {
         is_ssh_dialog_visible_callback_ = callback;
     }
+    void setIsTerminalSessionDialogVisibleCallback(std::function<bool()> callback) {
+        is_terminal_session_dialog_visible_callback_ = callback;
+    }
     void setIsEncodingDialogVisibleCallback(std::function<bool()> callback) {
         is_encoding_dialog_visible_callback_ = callback;
     }
@@ -245,6 +251,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_split_dialog_callback_;
     std::function<ftxui::Element()> render_ssh_transfer_callback_;
     std::function<ftxui::Element()> render_ssh_dialog_callback_;
+    std::function<ftxui::Element()> render_terminal_session_dialog_callback_;
     std::function<ftxui::Element()> render_encoding_dialog_callback_;
     std::function<ftxui::Element()> render_recent_files_callback_;
     std::function<ftxui::Element()> render_fzf_popup_callback_;
@@ -282,6 +289,7 @@ class OverlayManager {
     std::function<bool()> is_split_dialog_visible_callback_;
     std::function<bool()> is_ssh_transfer_visible_callback_;
     std::function<bool()> is_ssh_dialog_visible_callback_;
+    std::function<bool()> is_terminal_session_dialog_visible_callback_;
     std::function<bool()> is_encoding_dialog_visible_callback_;
     std::function<bool()> is_recent_files_visible_callback_;
     std::function<bool()> is_fzf_popup_visible_callback_;

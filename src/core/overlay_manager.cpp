@@ -206,6 +206,15 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(ssh_elements);
     }
 
+    // 新建终端会话对话框
+    if (is_terminal_session_dialog_visible_callback_ &&
+        is_terminal_session_dialog_visible_callback_() &&
+        render_terminal_session_dialog_callback_) {
+        Elements dialog_elements = {main_ui | dim,
+                                    render_terminal_session_dialog_callback_() | center};
+        return dbox(dialog_elements);
+    }
+
     // 如果编码对话框打开，叠加显示
     if (is_encoding_dialog_visible_callback_ && is_encoding_dialog_visible_callback_() &&
         render_encoding_dialog_callback_) {
