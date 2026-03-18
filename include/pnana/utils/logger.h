@@ -28,9 +28,13 @@ class Logger {
     void log(const std::string& message);
     void logError(const std::string& message);
     void logWarning(const std::string& message);
+    void logDebug(const std::string& message);
 
     // 关闭日志
     void close();
+
+    // 调试：线程与时间戳标签
+    std::string getThreadTag();
 
   private:
     Logger() : initialized_(false) {}
@@ -50,6 +54,7 @@ class Logger {
 #define LOG(msg) pnana::utils::Logger::getInstance().log(msg)
 #define LOG_ERROR(msg) pnana::utils::Logger::getInstance().logError(msg)
 #define LOG_WARNING(msg) pnana::utils::Logger::getInstance().logWarning(msg)
+#define LOG_DEBUG(msg) pnana::utils::Logger::getInstance().logDebug(msg)
 
 } // namespace utils
 } // namespace pnana
