@@ -52,14 +52,15 @@ Editor::Editor()
       overlay_manager_(std::make_unique<pnana::core::OverlayManager>()), theme_(),
       statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
       file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
-      ssh_transfer_dialog_(theme_), welcome_screen_(theme_, config_manager_),
-      split_welcome_screen_(theme_), new_file_prompt_(theme_), theme_menu_(theme_),
-      logo_menu_(theme_), create_folder_dialog_(theme_), save_as_dialog_(theme_),
-      move_file_dialog_(theme_), cursor_config_dialog_(theme_), binary_file_view_(theme_),
-      encoding_dialog_(theme_), format_dialog_(theme_), recent_files_popup_(theme_),
-      fzf_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
-      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
-      ai_config_dialog_(theme_), todo_panel_(theme_), package_manager_panel_(theme_),
+      ssh_transfer_dialog_(theme_), terminal_session_dialog_(theme_),
+      welcome_screen_(theme_, config_manager_), split_welcome_screen_(theme_),
+      new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_),
+      create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
+      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
+      format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
+      tui_config_popup_(theme_), extract_dialog_(theme_), extract_path_dialog_(theme_),
+      extract_progress_dialog_(theme_), ai_assistant_panel_(theme_), ai_config_dialog_(theme_),
+      todo_panel_(theme_), package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -168,12 +169,16 @@ Editor::Editor()
 
     // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
     // 必须设置 force_ui_update_=true，否则 renderUI 的渲染去抖可能跳过重绘，导致新输出不显示
+    // PTY 线程直接调用 screen_.PostEvent（线程安全），触发主线程重绘。
+    // 不能在 screen_.Post 回调里再调用 screen_.PostEvent，ftxui 会死锁（持锁重入）。
     terminal_.setOnOutputAdded([this]() {
-        screen_.Post([this]() {
-            force_ui_update_ = true;
-            needs_render_ = true; // 防止 force 被鼠标等事件提前消费后无法重绘
-            screen_.PostEvent(Event::Custom);
-        });
+        static std::atomic<int> output_count{0};
+        int n = ++output_count;
+        if (n <= 5 || n % 30 == 0)
+            pnana::utils::Logger::getInstance().log("[Editor] on_output_added_ #" +
+                                                    std::to_string(n) + " -> PostEvent");
+        terminal_has_output_.store(true, std::memory_order_relaxed);
+        screen_.PostEvent(Event::Custom);
     });
 
     // 用户输入 exit 导致 shell 退出时，关闭终端面板并切回代码区

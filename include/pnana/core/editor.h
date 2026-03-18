@@ -8,6 +8,7 @@
 #include "core/region_manager.h"
 #include "input/action_executor.h"
 #include "input/key_binding_manager.h"
+#include <atomic>
 // 前向声明（避免循环依赖，但需要完整类型用于 unique_ptr）
 #include "core/input/input_router.h"
 #include "core/ui/ui_router.h"
@@ -40,6 +41,7 @@
 #include "ui/statusbar.h"
 #include "ui/statusbar_style_menu.h"
 #include "ui/tabbar.h"
+#include "ui/terminal_session_dialog.h"
 #include "ui/theme.h"
 #include "ui/theme_menu.h"
 #include "ui/todo_panel.h"
@@ -404,6 +406,7 @@ class Editor {
     pnana::ui::SplitDialog split_dialog_;
     pnana::ui::SSHDialog ssh_dialog_;
     pnana::ui::SSHTransferDialog ssh_transfer_dialog_;
+    pnana::ui::TerminalSessionDialog terminal_session_dialog_;
     pnana::ui::WelcomeScreen welcome_screen_;
     pnana::ui::SplitWelcomeScreen split_welcome_screen_;
     pnana::ui::NewFilePrompt new_file_prompt_;
@@ -650,6 +653,8 @@ class Editor {
 
     // UI更新控制
     bool force_ui_update_;
+    // PTY 线程通知有新输出（atomic，供 on_output_added_ 跨线程设置）
+    std::atomic<bool> terminal_has_output_{false};
     // 简单的 Markdown 预览开关（重构后的轻量开关）
     bool markdown_preview_enabled_ = false;
 
