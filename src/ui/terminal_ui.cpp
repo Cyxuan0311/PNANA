@@ -1,5 +1,6 @@
 #include "ui/terminal_ui.h"
 #include "features/terminal/terminal_color.h"
+#include "utils/logger.h"
 #include <ftxui/dom/elements.hpp>
 
 using namespace ftxui;
@@ -39,8 +40,28 @@ Element renderTerminal(features::Terminal& terminal, int height,
         return text("");
     }
 
+    int width = ftxui::Terminal::Size().dimx;
+    LOG("[TerminalUI] render size w=" + std::to_string(width) + " h=" + std::to_string(height));
+    const int reserved_bottom = 2;
+    int terminal_height = height - reserved_bottom;
+    if (terminal_height < 1)
+        terminal_height = 1;
+
+    terminal.resize(width, terminal_height);
+    LOG("[TerminalUI] render size w=" + std::to_string(width) +
+        " h=" + std::to_string(terminal_height));
+
     auto& theme = terminal.getTheme();
     auto& colors = theme.getColors();
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    if (terminal.useLibVTermPath()) {
+        auto snap = terminal.getSessionSnapshot(terminal_height);
+        auto elem = features::terminal::renderScreenSnapshot(snap, terminal_height,
+                                                             colors.foreground, colors.background);
+        return elem;
+    }
+#endif
 
     Elements output_lines;
     const auto output_lines_data = terminal.getOutputLinesSnapshot();
@@ -49,7 +70,7 @@ Element renderTerminal(features::Terminal& terminal, int height,
     size_t total_lines = output_count + (pending.empty() ? 0 : 1);
     size_t scroll_offset = terminal.getScrollOffset();
 
-    int available_height = height;
+    int available_height = terminal_height;
     if (available_height < 1) {
         available_height = 1;
     }
@@ -108,8 +129,37 @@ Element renderTerminal(features::Terminal& terminal, int height,
         }
     }
 
-    return vbox(output_lines) | flex | size(HEIGHT, EQUAL, height) | bgcolor(colors.background);
+    return vbox(output_lines) | flex | size(HEIGHT, EQUAL, terminal_height) |
+           bgcolor(colors.background);
 }
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+Element renderTerminalTabs(features::Terminal& terminal) {
+    if (!terminal.isVisible() || terminal.sessionCount() <= 1)
+        return text("");
+
+    auto& theme = terminal.getTheme();
+    auto& colors = theme.getColors();
+
+    Elements tabs;
+    int active = terminal.activeSessionIndex();
+    for (int i = 0; i < terminal.sessionCount(); i++) {
+        std::string title = terminal.getSessionTitle(i);
+        if (title.empty())
+            title = "Terminal " + std::to_string(i + 1);
+        auto tab_text = text(" " + std::to_string(i + 1) + ":" + title + " ");
+        if (i == active)
+            // 当前终端标签：使用 success 颜色反白高亮
+            tab_text = tab_text | bgcolor(colors.success) | color(colors.background) | bold;
+        else
+            // 非当前终端标签：使用前景色
+            tab_text = tab_text | color(colors.foreground);
+        tabs.push_back(tab_text);
+    }
+    // 标签栏紧贴终端，使用 hbox 并设置高度为 1，去除边框和间隔
+    return hbox(tabs) | size(HEIGHT, EQUAL, 1);
+}
+#endif
 
 } // namespace ui
 } // namespace pnana
