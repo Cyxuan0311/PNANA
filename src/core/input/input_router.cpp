@@ -68,6 +68,12 @@ bool InputRouter::handleGlobalShortcuts(ftxui::Event event, Editor* editor) {
             // F1在终端区域用于增加终端高度，不执行全局的TOGGLE_HELP
             return false;
         }
+        if (action == pnana::input::KeyAction::NEW_FILE ||
+            action == pnana::input::KeyAction::CLOSE_TAB ||
+            action == pnana::input::KeyAction::FOCUS_TAB_BAR) {
+            // 终端区域内由终端快捷键接管，避免与编辑器快捷键冲突
+            return false;
+        }
         // F2在终端区域用于减少终端高度，但F2没有被绑定为全局快捷键，所以不需要特殊处理
     }
 
@@ -137,6 +143,14 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
         if (editor->tui_config_popup_.handleInput(event)) {
             return true;
         }
+    }
+
+    // 5. 新建终端弹窗
+    if (editor->terminal_session_dialog_.isVisible()) {
+        if (editor->terminal_session_dialog_.handleInput(event)) {
+            return true;
+        }
+        return true; // 弹窗打开时独占输入
     }
 
     // TODO: 添加其他对话框的处理

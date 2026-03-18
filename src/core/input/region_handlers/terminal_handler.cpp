@@ -1,6 +1,7 @@
 #include "core/input/region_handlers/terminal_handler.h"
 #include "core/editor.h"
 #include "features/terminal.h"
+#include "input/key_binding_manager.h"
 #include "utils/logger.h"
 #include <ftxui/component/event.hpp>
 
@@ -17,10 +18,65 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
         return false;
     }
 
+    std::string key_str = event.input();
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    for (int i = 1; i <= 9; i++) {
+        if (key_str == "alt_" + std::to_string(i)) {
+            editor->getTerminal().setActiveSession(i - 1);
+            editor->setStatusMessage("Terminal: Switched to tab " + std::to_string(i));
+            return true;
+        }
+    }
+#endif
+
     EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
     if (current_region != EditorRegion::TERMINAL) {
         editor->getRegionManager().setRegion(EditorRegion::TERMINAL);
     }
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    pnana::input::KeyAction action = editor->getKeyBindingManager().getAction(event);
+    if (action == pnana::input::KeyAction::NEW_FILE) {
+        editor->terminal_session_dialog_.show(
+            [editor](const pnana::ui::TerminalSessionChoice& choice) {
+                int idx = -1;
+                if (choice.shell_path.empty()) {
+                    idx = editor->getTerminal().newLocalShellSession();
+                } else {
+                    idx = editor->getTerminal().newLocalShellSession("", choice.shell_path);
+                }
+                if (idx >= 0) {
+                    editor->setStatusMessage("Terminal: New tab opened");
+                } else {
+                    editor->setStatusMessage("Terminal: Failed to open new session");
+                }
+                editor->getRegionManager().setRegion(EditorRegion::TERMINAL);
+            },
+            [editor]() {
+                editor->setStatusMessage("Terminal: New session cancelled");
+            });
+        return true;
+    }
+
+    if (action == pnana::input::KeyAction::FOCUS_TAB_BAR) {
+        int count = editor->getTerminal().sessionCount();
+        if (count > 1) {
+            int next = (editor->getTerminal().activeSessionIndex() + 1) % count;
+            editor->getTerminal().setActiveSession(next);
+            editor->setStatusMessage("Terminal: Switched to tab " + std::to_string(next + 1));
+        }
+        return true;
+    }
+
+    if (action == pnana::input::KeyAction::CLOSE_TAB) {
+        if (editor->getTerminal().sessionCount() > 1) {
+            editor->getTerminal().closeSession(editor->getTerminal().activeSessionIndex());
+            editor->setStatusMessage("Terminal: Tab closed");
+        }
+        return true;
+    }
+#endif
 
     // 终端高度调整
     if (event == Event::F1) {
@@ -150,7 +206,13 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
         return true;
     }
     if (event == Event::CtrlW) {
-        editor->getTerminal().handleKeyEvent("ctrl_w");
+        if (editor->getTerminal().sessionCount() <= 1) {
+            editor->getTerminal().handleKeyEvent("ctrl_w");
+        }
+        return true;
+    }
+    if (event == Event::CtrlX) {
+        editor->getTerminal().handleKeyEvent("ctrl_x");
         return true;
     }
     if (event == Event::CtrlH) {
