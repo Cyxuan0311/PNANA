@@ -150,6 +150,26 @@ cmake -DBUILD_GO=ON ..
 make -j$(nproc)
 ```
 
+### 终端模拟 (libvterm) / Terminal Emulation (libvterm)
+```bash
+# 安装依赖 / Install dependencies
+sudo apt install -y libvterm-dev
+
+# 编译时启用 / Enable during compilation
+cmake -DBUILD_LIBVTERM=ON ..
+make -j$(nproc)
+```
+
+### AI 客户端 / AI Client
+```bash
+# 安装依赖 / Install dependencies
+sudo apt install -y libcurl4-openssl-dev
+
+# 编译时启用 / Enable during compilation
+cmake -DBUILD_AI_CLIENT=ON ..
+make -j$(nproc)
+```
+
 ## 🎯 完整功能编译 / Full Feature Compilation
 
 ```bash
@@ -159,6 +179,8 @@ cmake \
   -DBUILD_TREE_SITTER=ON \
   -DBUILD_LUA=ON \
   -DBUILD_GO=ON \
+  -DBUILD_LIBVTERM=ON \
+  -DBUILD_AI_CLIENT=ON \
   ..
 
 # 编译 / Compile
