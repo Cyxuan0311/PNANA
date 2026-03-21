@@ -36,7 +36,7 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `theme` | string | `"monokai"` | Theme; options include `monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `cyberpunk`, `hacker`, etc. |
+| `theme` | string | `"monokai"` | Theme; options include `monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `material`, `ayu`, `github`, `github-dark`, `github-dark-dimmed`, `github-dark-high-contrast`, `markdown-dark`, `vscode-dark`, `night-owl`, `palenight`, `oceanic-next`, `kanagawa`, `tomorrow-night`, `tomorrow-night-blue`, `cobalt`, `zenburn`, `base16-dark`, `papercolor`, `rose-pine`, `everforest`, `jellybeans`, `desert`, `slate`, `atom-one-light`, `tokyo-night-day`, `blue-light`, `cyberpunk`, `hacker`, `hatsune-miku`, `minions`, `batman`, `spongebob`, `modus-vivendi`, `modus-operandi`, `horizon`, `oxocarbon`, `poimandres`, `midnight`, etc. |
 | `font_size` | number | `12` | Font size (pixels) |
 | `tab_size` | number | `4` | Number of spaces for Tab indent |
 | `insert_spaces` | boolean | `true` | Use spaces instead of Tab character |
@@ -60,7 +60,7 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `file_browser_side` | string | `"left"` | Position of file list panel relative to code area: `"left"` or `"right"` |
 | `ai_panel_side` | string | `"right"` | Position of AI assistant side panel relative to code area: `"left"` or `"right"` |
 | `terminal_side` | string | `"bottom"` | Position of integrated terminal relative to code area: `"bottom"` (default) or `"top"` |
-| `logo_style` | string | `"default"` | Logo style: `"default"`, `"ascii"`, `"big-ascii"` |
+| `logo_style` | string | `"default"` | Logo style: `"default"`, `"ascii"`, `"big-ascii"`, and more... |
 | `statusbar_style` | string | `"default"` | Statusbar style: `"default"`, `"neovim"`, `"vscode"`, `"minimal"`, `"classic"`, `"highlight"` |
 
 ### themes

@@ -34,7 +34,7 @@ pnana 的配置文件位于：
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `theme` | string | `"monokai"` | 主题，可选：`monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `cyberpunk`, `hacker` 等 |
+| `theme` | string | `"monokai"` | 主题，可选：`monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `material`, `ayu`, `github`, `github-dark`, `github-dark-dimmed`, `github-dark-high-contrast`, `markdown-dark`, `vscode-dark`, `night-owl`, `palenight`, `oceanic-next`, `kanagawa`, `tomorrow-night`, `tomorrow-night-blue`, `cobalt`, `zenburn`, `base16-dark`, `papercolor`, `rose-pine`, `everforest`, `jellybeans`, `desert`, `slate`, `atom-one-light`, `tokyo-night-day`, `blue-light`, `cyberpunk`, `hacker`, `hatsune-miku`, `minions`, `batman`, `spongebob`, `modus-vivendi`, `modus-operandi`, `horizon`, `oxocarbon`, `poimandres`, `midnight` 等 |
 | `font_size` | number | `12` | 字体大小（像素） |
 | `tab_size` | number | `4` | Tab 缩进空格数 |
 | `insert_spaces` | boolean | `true` | 用空格替代 Tab 字符 |
@@ -58,7 +58,7 @@ pnana 的配置文件位于：
 | `file_browser_side` | string | `"left"` | 文件列表面板相对于代码区的位置：`"left"`（左侧，默认）或 `"right"`（右侧） |
 | `ai_panel_side` | string | `"right"` | AI 弹窗（AI Assistant 侧边栏）相对于代码区的位置：`"left"` 或 `"right"`（默认在右侧） |
 | `terminal_side` | string | `"bottom"` | 终端面板相对于代码区的位置：`"bottom"`（下方，默认）或 `"top"`（上方） |
-| `logo_style` | string | `"default"` | Logo 样式：`"default"`, `"ascii"`, `"big-ascii"` |
+| `logo_style` | string | `"default"` | Logo 样式：`"default"`, `"ascii"`, `"big-ascii"`, 以及更多... |
 | `statusbar_style` | string | `"default"` | 状态栏样式：`"default"`, `"neovim"`, `"vscode"`, `"minimal"`, `"classic"`, `"highlight"` |
 
 ### themes（主题）
