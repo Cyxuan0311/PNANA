@@ -70,6 +70,12 @@ class FileBrowser {
     void setRemoteFileOpExecutor(RemoteFileOpExecutor fn);
     void clearRemoteFileOpExecutor();
 
+    // SSH 递归加载器：用于 SSH 模式下展开目录时加载子目录
+    // 接收完整路径，返回该路径下的所有 FileItem
+    using RemoteRecursiveLoader = std::function<std::vector<FileItem>(const std::string& path)>;
+    void setRemoteRecursiveLoader(RemoteRecursiveLoader fn);
+    void clearRemoteRecursiveLoader();
+
     // 导航
     void selectNext();
     void selectPrevious();
@@ -146,7 +152,8 @@ class FileBrowser {
     ui::Theme& theme_;
     std::string current_directory_;
     RemoteLoader remote_loader_; // 非空时表示远程模式，loadDirectory 用其获取列表
-    RemoteFileOpExecutor remote_file_op_exec_; // SSH 文件操作执行器
+    RemoteFileOpExecutor remote_file_op_exec_;      // SSH 文件操作执行器
+    RemoteRecursiveLoader remote_recursive_loader_; // SSH 递归加载器（展开目录用）
     std::vector<FileItem> items_;
     size_t selected_index_;
     bool visible_;

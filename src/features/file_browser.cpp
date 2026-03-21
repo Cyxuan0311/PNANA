@@ -53,6 +53,14 @@ void FileBrowser::clearRemoteFileOpExecutor() {
     remote_file_op_exec_ = nullptr;
 }
 
+void FileBrowser::setRemoteRecursiveLoader(RemoteRecursiveLoader fn) {
+    remote_recursive_loader_ = std::move(fn);
+}
+
+void FileBrowser::clearRemoteRecursiveLoader() {
+    remote_recursive_loader_ = nullptr;
+}
+
 // ── 静态辅助 ────────────────────────────────────────────────────────────────
 
 std::string FileBrowser::extractRemotePath(const std::string& ssh_uri) {
@@ -216,6 +224,36 @@ void FileBrowser::loadDirectoryRecursive(FileItem& item) {
         return;
     }
 
+    // SSH 远程模式：使用远程加载器
+    if (remote_recursive_loader_) {
+        std::vector<FileItem> loaded = remote_recursive_loader_(item.path);
+
+        // 按目录优先、大小写不敏感排序
+        std::vector<FileItem> rdirs, rfiles;
+        for (FileItem& child : loaded) {
+            if (child.is_directory)
+                rdirs.push_back(std::move(child));
+            else
+                rfiles.push_back(std::move(child));
+        }
+        auto ciLessRemote = [](const FileItem& a, const FileItem& b) {
+            std::string al = a.name, bl = b.name;
+            std::transform(al.begin(), al.end(), al.begin(), ::tolower);
+            std::transform(bl.begin(), bl.end(), bl.begin(), ::tolower);
+            if (al != bl)
+                return al < bl;
+            return a.name < b.name;
+        };
+        std::sort(rdirs.begin(), rdirs.end(), ciLessRemote);
+        std::sort(rfiles.begin(), rfiles.end(), ciLessRemote);
+
+        item.children.insert(item.children.end(), rdirs.begin(), rdirs.end());
+        item.children.insert(item.children.end(), rfiles.begin(), rfiles.end());
+        item.loaded = true;
+        return;
+    }
+
+    // 本地模式：使用本地文件系统
     try {
         item.children.clear();
         std::vector<FileItem> dirs;
@@ -346,12 +384,8 @@ bool FileBrowser::toggleSelected() {
     FileItem* item = flat_items_[selected_index_];
 
     if (item->is_directory) {
-        if (remote_loader_) {
-            if (item->name == "..") {
-                goUp();
-                return false;
-            }
-            openDirectory(item->path);
+        if (item->name == "..") {
+            goUp();
             return false;
         }
         // 切换展开/折叠状态
