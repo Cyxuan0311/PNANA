@@ -59,7 +59,8 @@ jobs:
             ccache \
             curl \
             libcurl4-openssl-dev \
-            libvterm-dev
+            libvterm-dev \
+            libchafa-dev
 
       - name: Build and install FTXUI
         run: |
