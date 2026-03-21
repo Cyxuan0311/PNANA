@@ -8,76 +8,17 @@
 #include <filesystem>
 #include <memory>
 #include <sstream>
+#include <string_view>
 #include <unistd.h>
 
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
-#include <libswscale/swscale.h>
-}
+#include <chafa.h>
 #endif
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "dsa/stb_image.h"
 
 namespace fs = std::filesystem;
-
-#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
-// RAII 包装类用于管理 FFmpeg 资源（在命名空间外部定义）
-struct AVFormatContextDeleter {
-    void operator()(AVFormatContext* ctx) {
-        if (ctx) {
-            avformat_close_input(&ctx);
-        }
-    }
-};
-
-struct AVCodecContextDeleter {
-    void operator()(AVCodecContext* ctx) {
-        if (ctx) {
-            avcodec_free_context(&ctx);
-        }
-    }
-};
-
-struct AVFrameDeleter {
-    void operator()(AVFrame* frame) {
-        if (frame) {
-            av_frame_free(&frame);
-        }
-    }
-};
-
-struct AVPacketDeleter {
-    void operator()(AVPacket* packet) {
-        if (packet) {
-            av_packet_free(&packet);
-        }
-    }
-};
-
-struct SwsContextDeleter {
-    void operator()(SwsContext* ctx) {
-        if (ctx) {
-            sws_freeContext(ctx);
-        }
-    }
-};
-
-struct AVBufferDeleter {
-    void operator()(uint8_t* buf) {
-        if (buf) {
-            av_free(buf);
-        }
-    }
-};
-
-using AVFormatContextPtr = std::unique_ptr<AVFormatContext, AVFormatContextDeleter>;
-using AVCodecContextPtr = std::unique_ptr<AVCodecContext, AVCodecContextDeleter>;
-using AVFramePtr = std::unique_ptr<AVFrame, AVFrameDeleter>;
-using AVPacketPtr = std::unique_ptr<AVPacket, AVPacketDeleter>;
-using SwsContextPtr = std::unique_ptr<SwsContext, SwsContextDeleter>;
-using AVBufferPtr = std::unique_ptr<uint8_t, AVBufferDeleter>;
-#endif
 
 namespace pnana {
 namespace features {
@@ -98,6 +39,12 @@ bool ImagePreview::isImageFile(const std::string& filepath) {
 }
 
 bool ImagePreview::isSupported() {
+    // 双后端模式：始终支持图片预览
+    // Chafa 可用时使用高质量渲染，否则使用块状字符渲染
+    return true;
+}
+
+bool ImagePreview::isChafaAvailable() {
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
     return true;
 #else
@@ -105,79 +52,15 @@ bool ImagePreview::isSupported() {
 #endif
 }
 
-bool ImagePreview::detectTrueColorSupport() {
-    const char* term = getenv("TERM");
-    const char* colorterm = getenv("COLORTERM");
-
-    if (colorterm) {
-        if (strstr(colorterm, "truecolor") || strstr(colorterm, "24bit")) {
-            return true;
-        }
-    }
-
-    if (term) {
-        const char* truecolor_terms[] = {
-            "xterm-256color", "screen-256color", "tmux-256color", "rxvt-unicode-256color",
-            "alacritty",      "kitty",           "wezterm",       "vscode",
-            "gnome-terminal", "konsole",         "terminator"};
-
-        for (size_t i = 0; i < sizeof(truecolor_terms) / sizeof(truecolor_terms[0]); i++) {
-            if (strstr(term, truecolor_terms[i])) {
-                return true;
-            }
-        }
-    }
-
-    if (isatty(STDOUT_FILENO)) {
-        return true; // 大多数现代终端都支持
-    }
-
-    return false;
-}
-
-unsigned char ImagePreview::rgbToGray(unsigned char r, unsigned char g, unsigned char b) {
-    return static_cast<unsigned char>(0.299 * r + 0.587 * g + 0.114 * b);
-}
-
-std::string ImagePreview::getCharForGray(unsigned char gray_value) {
-    // 使用 Unicode 块状字符
-    int index = (gray_value * 3) / 255;
-    if (index < 0)
-        index = 0;
-    if (index > 3)
-        index = 3;
-
-    const char* unicode_chars[] = {"░", "▒", "▓", "█"};
-    return std::string(unicode_chars[index]);
-}
-
-std::string ImagePreview::getColorCode(unsigned char r, unsigned char g, unsigned char b) {
-    if (detectTrueColorSupport()) {
-        // 24位真彩色
-        char buffer[64];
-        snprintf(buffer, sizeof(buffer), "\033[38;2;%d;%d;%dm", r, g, b);
-        return std::string(buffer);
-    } else {
-        // 256色模式（简化版）
-        int gray = (r + g + b) / 3;
-        int color_code = 232 + (gray * 23) / 255;
-        char buffer[32];
-        snprintf(buffer, sizeof(buffer), "\033[38;5;%dm", color_code);
-        return std::string(buffer);
-    }
-}
-
 bool ImagePreview::loadImage(const std::string& filepath, int width, int max_height) {
     clear();
 
-#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
     if (!fs::exists(filepath) || !fs::is_regular_file(filepath)) {
         return false;
     }
 
-    // 设置一个合理的上限，避免处理超大图片导致性能问题
-    const int MAX_PREVIEW_WIDTH = 300;  // 最大宽度限制
-    const int MAX_PREVIEW_HEIGHT = 150; // 最大高度限制
+    const int MAX_PREVIEW_WIDTH = 300;
+    const int MAX_PREVIEW_HEIGHT = 150;
     if (width > MAX_PREVIEW_WIDTH) {
         width = MAX_PREVIEW_WIDTH;
     }
@@ -185,247 +68,173 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
         max_height = MAX_PREVIEW_HEIGHT;
     }
 
-    // 初始化 FFmpeg（使用 RAII 确保清理）
-    class FFmpegInit {
-      public:
-        FFmpegInit() {
-            avformat_network_init();
-        }
-        ~FFmpegInit() {
-            avformat_network_deinit();
-        }
-    };
-    FFmpegInit ffmpeg_init;
-
-    // 使用 RAII 管理 FFmpeg 资源
-    AVFormatContext* format_ctx_raw = nullptr;
-    int ret = avformat_open_input(&format_ctx_raw, filepath.c_str(), nullptr, nullptr);
-    if (ret < 0) {
-        char errbuf[256];
-        av_strerror(ret, errbuf, sizeof(errbuf));
-        LOG_ERROR("ImagePreview::loadImage() - Failed to open file: " + std::string(errbuf));
-        return false;
-    }
-    AVFormatContextPtr format_ctx(format_ctx_raw);
-
-    // 查找流信息
-    ret = avformat_find_stream_info(format_ctx.get(), nullptr);
-    if (ret < 0) {
-        LOG_ERROR("ImagePreview::loadImage() - Failed to find stream info");
+    int image_width = 0;
+    int image_height = 0;
+    int channels = 0;
+    unsigned char* image_data =
+        stbi_load(filepath.c_str(), &image_width, &image_height, &channels, STBI_rgb_alpha);
+    if (!image_data) {
+        const char* reason = stbi_failure_reason();
+        LOG_ERROR("ImagePreview::loadImage() - stb_image decode failed: " +
+                  std::string(reason ? reason : "unknown error"));
+        stbi_image_free(image_data);
         return false;
     }
 
-    // 查找视频流（图片在 FFmpeg 中被视为单帧视频）
-    int video_stream_index = -1;
-    for (unsigned int i = 0; i < format_ctx->nb_streams; i++) {
-        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            video_stream_index = i;
-            break;
-        }
-    }
-
-    if (video_stream_index == -1) {
-        LOG_ERROR("ImagePreview::loadImage() - No video stream found");
-        return false;
-    }
-
-    // 获取解码器参数
-    AVCodecParameters* codecpar = format_ctx->streams[video_stream_index]->codecpar;
-    const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
-    if (!codec) {
-        LOG_ERROR("ImagePreview::loadImage() - Codec not found");
-        return false;
-    }
-
-    // 创建解码器上下文（RAII）
-    AVCodecContext* codec_ctx_raw = avcodec_alloc_context3(codec);
-    if (!codec_ctx_raw) {
-        LOG_ERROR("ImagePreview::loadImage() - Failed to allocate codec context");
-        return false;
-    }
-    AVCodecContextPtr codec_ctx(codec_ctx_raw);
-
-    ret = avcodec_parameters_to_context(codec_ctx.get(), codecpar);
-    if (ret < 0) {
-        LOG_ERROR("ImagePreview::loadImage() - Failed to copy codec parameters");
-        return false;
-    }
-
-    // 打开解码器
-    ret = avcodec_open2(codec_ctx.get(), codec, nullptr);
-    if (ret < 0) {
-        LOG_ERROR("ImagePreview::loadImage() - Failed to open codec");
-        return false;
-    }
-
-    int x = codec_ctx->width;
-    int y = codec_ctx->height;
-
-    image_width_ = x;
-    image_height_ = y;
+    image_width_ = image_width;
+    image_height_ = image_height;
     image_path_ = filepath;
 
-    // 分配帧（RAII）
-    AVFramePtr frame(av_frame_alloc());
-    AVFramePtr rgb_frame(av_frame_alloc());
-    AVPacketPtr packet(av_packet_alloc());
+    float scale = static_cast<float>(width) / image_width;
+    int new_height = static_cast<int>(image_height * scale * 0.6f);
 
-    if (!frame || !rgb_frame || !packet) {
-        LOG_ERROR("ImagePreview::loadImage() - Failed to allocate frames");
-        return false;
+    if (max_height > 0 && new_height > max_height) {
+        new_height = max_height;
+        scale = static_cast<float>(new_height) / (image_height * 0.6f);
+        width = static_cast<int>(image_width * scale);
+        if (width > MAX_PREVIEW_WIDTH) {
+            width = MAX_PREVIEW_WIDTH;
+            scale = static_cast<float>(width) / image_width;
+            new_height = static_cast<int>(image_height * scale * 0.6f);
+        }
+    } else if (new_height > MAX_PREVIEW_HEIGHT) {
+        new_height = MAX_PREVIEW_HEIGHT;
+        scale = static_cast<float>(new_height) / (image_height * 0.6f);
+        width = static_cast<int>(image_width * scale);
     }
 
-    // 读取并解码帧
-    ret = av_read_frame(format_ctx.get(), packet.get());
-    if (ret < 0) {
-        LOG_ERROR("ImagePreview::loadImage() - Failed to read frame");
-        return false;
+    if (new_height <= 0) {
+        new_height = 1;
+    }
+    if (width <= 0) {
+        width = 1;
     }
 
-    if (packet->stream_index == video_stream_index) {
-        ret = avcodec_send_packet(codec_ctx.get(), packet.get());
-        if (ret < 0) {
-            LOG_ERROR("ImagePreview::loadImage() - Failed to send packet");
-            return false;
-        }
+    render_width_ = width;
+    render_height_ = new_height;
 
-        ret = avcodec_receive_frame(codec_ctx.get(), frame.get());
-        if (ret < 0) {
-            LOG_ERROR("ImagePreview::loadImage() - Failed to receive frame");
-            return false;
-        }
-
-        // 创建图像转换上下文（RAII）
-        SwsContextPtr sws_ctx(sws_getContext(x, y, codec_ctx->pix_fmt, x, y, AV_PIX_FMT_RGB24,
-                                             SWS_BILINEAR, nullptr, nullptr, nullptr));
-
-        if (!sws_ctx) {
-            LOG_ERROR("ImagePreview::loadImage() - Failed to create sws context");
-            return false;
-        }
-
-        // 分配 RGB 缓冲区（RAII）
-        int rgb_buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGB24, x, y, 1);
-        AVBufferPtr rgb_buffer(static_cast<uint8_t*>(av_malloc(rgb_buffer_size)));
-        if (!rgb_buffer) {
-            LOG_ERROR("ImagePreview::loadImage() - Failed to allocate RGB buffer");
-            return false;
-        }
-
-        av_image_fill_arrays(rgb_frame->data, rgb_frame->linesize, rgb_buffer.get(),
-                             AV_PIX_FMT_RGB24, x, y, 1);
-
-        // 转换格式
-        sws_scale(sws_ctx.get(), frame->data, frame->linesize, 0, y, rgb_frame->data,
-                  rgb_frame->linesize);
-
-        // 现在 rgb_frame->data[0] 包含 RGB24 格式的数据
-        uint8_t* rgb_data = rgb_frame->data[0];
-
-        // 计算缩放比例，根据代码区尺寸精确计算，确保不截断
-        float scale = static_cast<float>(width) / x;
-        int new_height = static_cast<int>(y * scale * 0.6f); // 字符高度约为宽度的0.6倍
-
-        // 如果指定了最大高度，确保不超过
-        if (max_height > 0 && new_height > max_height) {
-            // 根据最大高度重新计算宽度和缩放比例
-            new_height = max_height;
-            scale = static_cast<float>(new_height) / (y * 0.6f);
-            width = static_cast<int>(x * scale);
-            // 确保宽度不超过原始请求的宽度
-            if (width > MAX_PREVIEW_WIDTH) {
-                width = MAX_PREVIEW_WIDTH;
-                scale = static_cast<float>(width) / x;
-                new_height = static_cast<int>(y * scale * 0.6f);
-            }
-        } else if (new_height > MAX_PREVIEW_HEIGHT) {
-            new_height = MAX_PREVIEW_HEIGHT;
-            scale = static_cast<float>(new_height) / (y * 0.6f);
-            width = static_cast<int>(x * scale);
-        }
-
-        if (new_height <= 0)
-            new_height = 1;
-        if (width <= 0)
-            width = 1;
-
-        render_width_ = width;
-        render_height_ = new_height;
-
-        bool use_color = true;
-
-        // 生成 ASCII 艺术
-        preview_lines_.clear();
-        preview_pixels_.clear();
-        preview_pixels_.resize(new_height);
-
-        for (int i = 0; i < new_height; i++) {
-            std::string line;
-            preview_pixels_[i].resize(width);
-
-            for (int j = 0; j < width; j++) {
-                // 计算原始图片中的对应位置
-                float orig_x_f = static_cast<float>(j) / scale;
-                float orig_y_f = static_cast<float>(i) / scale / 0.6f;
-
-                int orig_x = static_cast<int>(orig_x_f);
-                int orig_y = static_cast<int>(orig_y_f);
-
-                if (orig_x >= x)
-                    orig_x = x - 1;
-                if (orig_y >= y)
-                    orig_y = y - 1;
-                if (orig_x < 0)
-                    orig_x = 0;
-                if (orig_y < 0)
-                    orig_y = 0;
-
-                // 从 RGB 数据中读取像素（RGB24 格式：每像素3字节，按行存储）
-                int pixel_offset = (orig_y * rgb_frame->linesize[0]) + (orig_x * 3);
-                if (pixel_offset >= 0 && pixel_offset < rgb_buffer_size - 2) {
-                    unsigned char r = rgb_data[pixel_offset];
-                    unsigned char g = rgb_data[pixel_offset + 1];
-                    unsigned char b = rgb_data[pixel_offset + 2];
-
-                    unsigned char gray = rgbToGray(r, g, b);
-                    std::string char_str = getCharForGray(gray);
-
-                    // 保存像素数据
-                    PreviewPixel pixel;
-                    pixel.r = r;
-                    pixel.g = g;
-                    pixel.b = b;
-                    pixel.ch = char_str;
-                    preview_pixels_[i][j] = pixel;
-
-                    if (use_color) {
-                        std::string color_code = getColorCode(r, g, b);
-                        line += color_code + char_str + "\033[0m";
-                    } else {
-                        line += char_str;
-                    }
-                } else {
-                    line += " ";
-                    PreviewPixel pixel;
-                    pixel.r = pixel.g = pixel.b = 0;
-                    pixel.ch = " ";
-                    preview_pixels_[i][j] = pixel;
-                }
-            }
-
-            preview_lines_.push_back(line);
-        }
-
-        loaded_ = true;
-        return true;
-    }
-
-    return false;
+    bool success = false;
+#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
+    // 后端 1：使用 Chafa 进行高质量渲染
+    success = loadWithChafa(image_data, image_width, image_height);
 #else
-    // FFmpeg 未安装，图片预览功能被禁用
-    LOG_ERROR("ImagePreview::loadImage() - FFmpeg not available, image preview disabled");
-    return false;
+    // 后端 2：使用 stb_image + 块状字符进行渲染
+    success = loadWithBlockChars(image_data, image_width, image_height);
 #endif
+
+    stbi_image_free(image_data);
+    return success;
+}
+
+#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
+bool ImagePreview::loadWithChafa(unsigned char* image_data, int image_width, int image_height) {
+    ChafaCanvasConfig* config = chafa_canvas_config_new();
+    chafa_canvas_config_set_geometry(config, render_width_, render_height_);
+    chafa_canvas_config_set_canvas_mode(config, CHAFA_CANVAS_MODE_TRUECOLOR);
+    chafa_canvas_config_set_fg_only_enabled(config, TRUE);
+    chafa_canvas_config_set_color_extractor(config, CHAFA_COLOR_EXTRACTOR_AVERAGE);
+#if defined(CHAFA_COLOR_SPACE_SRGB)
+    chafa_canvas_config_set_color_space(config, CHAFA_COLOR_SPACE_SRGB);
+#else
+    chafa_canvas_config_set_color_space(config, CHAFA_COLOR_SPACE_RGB);
+#endif
+    chafa_canvas_config_set_dither_mode(config, CHAFA_DITHER_MODE_DIFFUSION);
+    chafa_canvas_config_set_cell_geometry(config, 1, 2);
+    chafa_canvas_config_set_pixel_mode(config, CHAFA_PIXEL_MODE_SYMBOLS);
+
+    ChafaSymbolMap* symbol_map = chafa_symbol_map_new();
+    chafa_symbol_map_add_by_tags(
+        symbol_map, static_cast<ChafaSymbolTags>(CHAFA_SYMBOL_TAG_BLOCK | CHAFA_SYMBOL_TAG_SOLID));
+    chafa_canvas_config_set_symbol_map(config, symbol_map);
+
+    ChafaCanvas* canvas = chafa_canvas_new(config);
+    chafa_canvas_draw_all_pixels(canvas, CHAFA_PIXEL_RGBA8_UNASSOCIATED, image_data, image_width,
+                                 image_height, image_width * 4);
+
+    preview_lines_.clear();
+    preview_pixels_.clear();
+    preview_pixels_.resize(render_height_);
+
+    for (int y = 0; y < render_height_; ++y) {
+        std::string line;
+        preview_pixels_[y].resize(render_width_);
+
+        for (int x = 0; x < render_width_; ++x) {
+            gunichar ch = chafa_canvas_get_char_at(canvas, x, y);
+            gint fg_color = 0;
+            chafa_canvas_get_raw_colors_at(canvas, x, y, &fg_color, nullptr);
+
+            PreviewPixel pixel{};
+            pixel.r = static_cast<unsigned char>((fg_color >> 16) & 0xFF);
+            pixel.g = static_cast<unsigned char>((fg_color >> 8) & 0xFF);
+            pixel.b = static_cast<unsigned char>(fg_color & 0xFF);
+
+            char utf8_buffer[8] = {};
+            int utf8_length = g_unichar_to_utf8(ch, utf8_buffer);
+            if (utf8_length <= 0) {
+                pixel.ch = " ";
+                line += " ";
+            } else {
+                pixel.ch.assign(utf8_buffer, static_cast<size_t>(utf8_length));
+                line += pixel.ch;
+            }
+
+            preview_pixels_[y][x] = pixel;
+        }
+
+        preview_lines_.push_back(line);
+    }
+
+    chafa_symbol_map_unref(symbol_map);
+    chafa_canvas_unref(canvas);
+    chafa_canvas_config_unref(config);
+
+    loaded_ = !preview_pixels_.empty();
+    return loaded_;
+}
+#endif
+
+bool ImagePreview::loadWithBlockChars(unsigned char* image_data, int image_width,
+                                      int image_height) {
+    preview_lines_.clear();
+    preview_pixels_.clear();
+    preview_pixels_.resize(render_height_);
+
+    const char* block_chars[] = {" ", "░", "▒", "▓", "█"};
+
+    for (int y = 0; y < render_height_; ++y) {
+        std::string line;
+        preview_pixels_[y].resize(render_width_);
+
+        for (int x = 0; x < render_width_; ++x) {
+            int src_x = static_cast<int>(x * image_width / render_width_);
+            int src_y = static_cast<int>(y * image_height / render_height_);
+
+            int pixel_index = (src_y * image_width + src_x) * 4;
+            unsigned char r = image_data[pixel_index];
+            unsigned char g = image_data[pixel_index + 1];
+            unsigned char b = image_data[pixel_index + 2];
+
+            float brightness = (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
+            int char_index = static_cast<int>(brightness * 4.0f);
+            if (char_index > 4)
+                char_index = 4;
+
+            PreviewPixel pixel{};
+            pixel.r = r;
+            pixel.g = g;
+            pixel.b = b;
+            pixel.ch = block_chars[char_index];
+            line += pixel.ch;
+
+            preview_pixels_[y][x] = pixel;
+        }
+
+        preview_lines_.push_back(line);
+    }
+
+    loaded_ = !preview_pixels_.empty();
+    return loaded_;
 }
 
 void ImagePreview::clear() {
@@ -443,41 +252,39 @@ ftxui::Element ImagePreview::render() const {
     using namespace ftxui;
 
     if (!loaded_ || preview_pixels_.empty()) {
-        return text("Failed to load image preview") | color(Color::Red);
+        return (text("Failed to load image preview") | color(Color::Red) | center) | flex |
+               bgcolor(Color::Black);
     }
 
-    Elements preview_lines;
+    Elements preview_rows;
 
-    // 添加图片信息
-    preview_lines.push_back(hbox({text(std::string(pnana::ui::icons::IMAGE) + " Image Preview: ") |
-                                      color(Color::Blue) | bold,
-                                  text(image_path_) | color(Color::White)}));
+    preview_rows.push_back(hbox({text(std::string(pnana::ui::icons::IMAGE) + " Image Preview: ") |
+                                     color(Color::Blue) | bold,
+                                 text(image_path_) | color(Color::White)}));
 
-    preview_lines.push_back(
+    preview_rows.push_back(
         hbox({text("  Size: ") | color(Color::GrayDark),
               text(std::to_string(image_width_) + "x" + std::to_string(image_height_)) |
                   color(Color::White)}));
 
-    preview_lines.push_back(separator());
+    preview_rows.push_back(separator());
 
-    // 使用像素数据直接渲染，使用 FTXUI 颜色 API（确保颜色正确显示）
     for (size_t i = 0; i < preview_pixels_.size(); ++i) {
         Elements pixel_elements;
         const auto& row = preview_pixels_[i];
 
-        // 渲染所有像素
         for (size_t j = 0; j < row.size(); ++j) {
             const auto& pixel = row[j];
-            // 使用 FTXUI 的颜色 API 直接设置颜色，不受主题影响
             ftxui::Color pixel_color = Color::RGB(pixel.r, pixel.g, pixel.b);
             pixel_elements.push_back(text(pixel.ch) | color(pixel_color));
         }
 
-        preview_lines.push_back(hbox(pixel_elements));
+        preview_rows.push_back(hbox(pixel_elements));
     }
 
-    // 使用黑色背景以确保图片颜色正确显示，不受主题影响
-    return vbox(preview_lines) | bgcolor(Color::Black);
+    // Center the preview block within the available editor (code area) space.
+    // `flex` ensures we occupy the available space, `center` positions the content.
+    return (vbox(preview_rows) | center) | flex | bgcolor(Color::Black);
 }
 
 } // namespace features
