@@ -58,6 +58,14 @@
     "_comment": "Plugins: enabled plugin names",
     "enabled_plugins": []
   },
+  "animation": {
+    "_comment": "Welcome animation panel config",
+    "enabled": false,
+    "effect": "none",
+    "_comment_effect": "Available effects: none, pulse, scanner, shimmer, wave, strobe, horizontal, rain, ripple, spiral, bounce, fade, glitch, neon, comet, breath, disco, matrix, aurora, flame, rainbow",
+    "refresh_interval_ms": 50,
+    "pulse_speed": 5
+  },
   "lsp": {
     "_comment": "LSP: same language_id as built-in overrides built-in (config first); empty fields fall back to built-in. Add entries with new language_id to extend.",
     "_comment_format": "servers: [{name,command,language_id,extensions:[],args:[],env:{}}]",

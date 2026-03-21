@@ -179,6 +179,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t themes_pos = cleaned.find("\"themes\":{");
     size_t plugins_pos = cleaned.find("\"plugins\":{");
     size_t lsp_pos = cleaned.find("\"lsp\":{");
+    size_t animation_pos = cleaned.find("\"animation\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
@@ -492,6 +493,21 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 animation 配置
+    if (animation_pos != std::string::npos) {
+        size_t animation_end = cleaned.find("}", animation_pos + 1);
+        if (animation_end != std::string::npos) {
+            config_.animation.enabled = extractBool("enabled", animation_pos, animation_end, false);
+            std::string effect = extractStr("effect", animation_pos, animation_end);
+            if (!effect.empty())
+                config_.animation.effect = effect;
+            config_.animation.refresh_interval_ms =
+                extractInt("refresh_interval_ms", animation_pos, animation_end, 50);
+            config_.animation.pulse_speed =
+                static_cast<float>(extractInt("pulse_speed", animation_pos, animation_end, 5));
+        }
+    }
+
     // 解析 lsp 配置
     if (lsp_pos != std::string::npos) {
         size_t lsp_end = cleaned.find("}", lsp_pos + 1);
@@ -709,6 +725,13 @@ std::string ConfigManager::generateJSON() const {
         oss << "\n";
     }
     oss << "    ]\n";
+    oss << "  },\n";
+    oss << "  \"animation\": {\n";
+    oss << "    \"_comment\": \"Welcome animation: effect and tuning\",\n";
+    oss << "    \"enabled\": " << (config_.animation.enabled ? "true" : "false") << ",\n";
+    oss << "    \"effect\": \"" << config_.animation.effect << "\",\n";
+    oss << "    \"refresh_interval_ms\": " << config_.animation.refresh_interval_ms << ",\n";
+    oss << "    \"pulse_speed\": " << static_cast<int>(config_.animation.pulse_speed) << "\n";
     oss << "  },\n";
     oss << "  \"lsp\": {\n";
     oss << "    \"_comment\": \"LSP: config overrides built-in for same language_id; empty "
