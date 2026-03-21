@@ -90,6 +90,7 @@ class GitPanel {
     std::string commit_message_;
     size_t commit_cursor_position_ = 0; // Cursor position in commit message
     std::string branch_name_;
+    size_t branch_cursor_position_ = 0; // Cursor position in branch input
     std::string clone_url_;
     std::string clone_path_;
     bool clone_focus_on_url_ = true; // true for URL, false for path

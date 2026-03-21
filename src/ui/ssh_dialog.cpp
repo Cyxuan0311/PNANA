@@ -55,6 +55,7 @@ void SSHDialog::show(std::function<void(const SSHConfig&)> on_confirm,
     }
 
     // 重置表单
+    name_input_.clear();
     host_input_.clear();
     user_input_.clear();
     password_input_.clear();
@@ -105,6 +106,7 @@ void SSHDialog::loadHistory() {
             return;
         for (const auto& item : j) {
             SSHHistoryEntry e;
+            e.name = item.value("name", "New session");
             e.host = item.value("host", "");
             e.user = item.value("user", "");
             e.port = item.value("port", 22);
@@ -124,7 +126,8 @@ void SSHDialog::saveHistory() const {
         std::filesystem::create_directories(std::filesystem::path(path).parent_path());
         json j = json::array();
         for (const auto& e : history_) {
-            j.push_back({{"host", e.host},
+            j.push_back({{"name", e.name},
+                         {"host", e.host},
                          {"user", e.user},
                          {"port", e.port},
                          {"key_path", e.key_path},
@@ -148,6 +151,7 @@ void SSHDialog::pushHistory(const SSHConfig& config) {
                    history_.end());
     // 插到最前
     SSHHistoryEntry entry;
+    entry.name = config.name;
     entry.host = config.host;
     entry.user = config.user;
     entry.port = config.port;
@@ -176,6 +180,8 @@ bool SSHDialog::handleInput(Event event) {
             return handlePasswordInput(event);
         case SSHDialogMode::CONNECTED:
             return handleConnectedInput(event);
+        case SSHDialogMode::EDIT:
+            return handleEditInput(event);
     }
     return false;
 }
@@ -211,6 +217,7 @@ bool SSHDialog::handleHistoryInput(Event event) {
     // n 或 Tab：切换到新建连接表单
     if (event == Event::Character('n') || event == Event::Tab) {
         mode_ = SSHDialogMode::NEW_FORM;
+        name_input_.clear();
         host_input_.clear();
         user_input_.clear();
         password_input_.clear();
@@ -228,6 +235,24 @@ bool SSHDialog::handleHistoryInput(Event event) {
             if (history_index_ >= (int)history_.size() && history_index_ > 0)
                 history_index_--;
             saveHistory();
+        }
+        return true;
+    }
+    // e：编辑选中的历史条目
+    if (event == Event::Character('e')) {
+        if (!history_.empty()) {
+            edit_entry_index_ = history_index_;
+            const auto& entry = history_[edit_entry_index_];
+            name_input_ = entry.name;
+            host_input_ = entry.host;
+            user_input_ = entry.user;
+            port_input_ = std::to_string(entry.port);
+            key_path_input_ = entry.key_path;
+            remote_path_input_ = entry.remote_path;
+            password_input_.clear();
+            current_field_ = 0;
+            cursor_position_ = 0;
+            mode_ = SSHDialogMode::EDIT;
         }
         return true;
     }
@@ -249,7 +274,7 @@ bool SSHDialog::handleNewFormInput(Event event) {
         return true;
     }
     if (event == Event::Return) {
-        if (current_field_ < 5) {
+        if (current_field_ < 6) {
             moveToNextField();
         } else {
             SSHConfig cfg = buildConfig();
@@ -306,7 +331,7 @@ bool SSHDialog::handleNewFormInput(Event event) {
         std::string ch = event.character();
         if (ch.length() == 1) {
             char c = ch[0];
-            if (current_field_ == 4) { // 端口只接受数字
+            if (current_field_ == 5) { // 端口只接受数字
                 if (c >= '0' && c <= '9')
                     insertChar(c);
             } else if (c >= 32 && c < 127) {
@@ -421,6 +446,8 @@ Element SSHDialog::render() {
             return renderPasswordView();
         case SSHDialogMode::CONNECTED:
             return renderConnectedView();
+        case SSHDialogMode::EDIT:
+            return renderEditView();
     }
     return text("");
 }
@@ -461,8 +488,10 @@ Element SSHDialog::renderHistoryView() {
     rows.push_back(text(""));
     rows.push_back(separator());
     rows.push_back(hbox({text("↑↓") | color(colors.keyword) | bold, text(": Select  "),
-                         text("Enter") | color(colors.keyword) | bold, text(": Connect  "),
-                         text("n") | color(colors.keyword) | bold, text(": New  "),
+                         text("Enter") | color(colors.keyword) | bold, text(": Connect")}) |
+                   color(colors.comment) | center);
+    rows.push_back(hbox({text("n") | color(colors.keyword) | bold, text(": New  "),
+                         text("e") | color(colors.keyword) | bold, text(": Edit  "),
                          text("Del") | color(colors.keyword) | bold, text(": Remove  "),
                          text("Esc") | color(colors.keyword) | bold, text(": Cancel")}) |
                    color(colors.comment) | center);
@@ -472,14 +501,16 @@ Element SSHDialog::renderHistoryView() {
            borderWithColor(colors.dialog_border);
 }
 
-// ── NEW_FORM 视图 ─────────────────────────────────────────────────────────────
+// ── NEW_FORM / EDIT 视图 ──────────────────────────────────────────────────────
 
 Element SSHDialog::renderNewFormView() {
     auto& colors = theme_.getColors();
     Elements fields;
 
+    bool is_edit = (mode_ == SSHDialogMode::EDIT);
+    std::string title = is_edit ? " SSH — Edit Connection " : " SSH — New Connection ";
     fields.push_back(hbox({text(icons::TERMINAL) | color(Color::Cyan),
-                           text(" SSH — New Connection ") | color(colors.foreground) | bold}) |
+                           text(title) | color(colors.foreground) | bold}) |
                      center);
     fields.push_back(separator());
     fields.push_back(text(""));
@@ -515,17 +546,19 @@ Element SSHDialog::renderNewFormView() {
         return hbox(fe);
     };
 
-    fields.push_back(renderField("Host", host_input_, 0));
-    fields.push_back(renderField("User", user_input_, 1));
-    fields.push_back(renderField("Port", port_input_, 4));
-    fields.push_back(renderField("Password", password_input_, 2, true));
-    fields.push_back(renderField("Key Path", key_path_input_, 3));
-    fields.push_back(renderField("Remote Path", remote_path_input_, 5));
+    fields.push_back(renderField("Name", name_input_, 0));
+    fields.push_back(renderField("Host", host_input_, 1));
+    fields.push_back(renderField("User", user_input_, 2));
+    fields.push_back(renderField("Password", password_input_, 3, true));
+    fields.push_back(renderField("Key Path", key_path_input_, 4));
+    fields.push_back(renderField("Port", port_input_, 5));
+    fields.push_back(renderField("Remote Path", remote_path_input_, 6));
 
     fields.push_back(text(""));
     fields.push_back(separator());
-    fields.push_back(hbox({text("↑↓/Tab") | color(colors.keyword) | bold, text(": Navigate  "),
-                           text("Enter") | color(colors.keyword) | bold, text(": Connect  "),
+    fields.push_back(hbox({text("↑↓/Tab") | color(colors.keyword) | bold, text(": Navigate")}) |
+                     color(colors.comment) | center);
+    fields.push_back(hbox({text("Enter") | color(colors.keyword) | bold, text(": Save  "),
                            text("Esc") | color(colors.keyword) | bold,
                            text(!history_.empty() ? ": Back to history" : ": Cancel")}) |
                      color(colors.comment) | center);
@@ -624,6 +657,95 @@ Element SSHDialog::renderConnectedView() {
            borderWithColor(colors.dialog_border);
 }
 
+// ── EDIT ─────────────────────────────────────────────────────────────────────
+
+bool SSHDialog::handleEditInput(Event event) {
+    if (event == Event::Escape) {
+        mode_ = SSHDialogMode::HISTORY;
+        edit_entry_index_ = -1;
+        return true;
+    }
+    if (event == Event::Return) {
+        if (current_field_ < 6) {
+            moveToNextField();
+        } else {
+            SSHConfig cfg = buildConfig();
+            cfg.name = name_input_;
+            cfg.password = password_input_;
+            if (edit_entry_index_ >= 0 && edit_entry_index_ < (int)history_.size()) {
+                history_[edit_entry_index_].name = cfg.name;
+                history_[edit_entry_index_].host = cfg.host;
+                history_[edit_entry_index_].user = cfg.user;
+                history_[edit_entry_index_].port = cfg.port;
+                history_[edit_entry_index_].key_path = cfg.key_path;
+                history_[edit_entry_index_].remote_path = cfg.remote_path;
+                saveHistory();
+            }
+            edit_entry_index_ = -1;
+            mode_ = SSHDialogMode::HISTORY;
+        }
+        return true;
+    }
+    if (event == Event::Tab) {
+        moveToNextField();
+        return true;
+    }
+    if (event == Event::TabReverse) {
+        moveToPreviousField();
+        return true;
+    }
+    if (event == Event::ArrowUp) {
+        moveToPreviousField();
+        return true;
+    }
+    if (event == Event::ArrowDown) {
+        moveToNextField();
+        return true;
+    }
+    if (event == Event::ArrowLeft) {
+        moveCursorLeft();
+        return true;
+    }
+    if (event == Event::ArrowRight) {
+        moveCursorRight();
+        return true;
+    }
+    if (event == Event::Backspace) {
+        backspace();
+        return true;
+    }
+    if (event == Event::Delete) {
+        deleteChar();
+        return true;
+    }
+    if (event == Event::Home) {
+        cursor_position_ = 0;
+        return true;
+    }
+    if (event == Event::End) {
+        cursor_position_ = getCurrentField()->size();
+        return true;
+    }
+    if (event.is_character()) {
+        std::string ch = event.character();
+        if (ch.length() == 1) {
+            char c = ch[0];
+            if (current_field_ == 5) {
+                if (c >= '0' && c <= '9')
+                    insertChar(c);
+            } else if (c >= 32 && c < 127) {
+                insertChar(c);
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+Element SSHDialog::renderEditView() {
+    return renderNewFormView();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 表单辅助方法
 // ─────────────────────────────────────────────────────────────────────────────
@@ -631,16 +753,18 @@ Element SSHDialog::renderConnectedView() {
 std::string* SSHDialog::getCurrentField() {
     switch (current_field_) {
         case 0:
-            return &host_input_;
+            return &name_input_;
         case 1:
-            return &user_input_;
+            return &host_input_;
         case 2:
-            return &password_input_;
+            return &user_input_;
         case 3:
-            return &key_path_input_;
+            return &password_input_;
         case 4:
-            return &port_input_;
+            return &key_path_input_;
         case 5:
+            return &port_input_;
+        case 6:
             return &remote_path_input_;
         default:
             return nullptr;
@@ -681,7 +805,7 @@ void SSHDialog::moveCursorRight() {
 }
 
 void SSHDialog::moveToNextField() {
-    if (current_field_ < 5) {
+    if (current_field_ < 6) {
         current_field_++;
         std::string* field = getCurrentField();
         if (field)
@@ -700,6 +824,7 @@ void SSHDialog::moveToPreviousField() {
 
 SSHConfig SSHDialog::buildConfig() const {
     SSHConfig config;
+    config.name = name_input_;
     config.host = host_input_;
     config.user = user_input_;
     config.password = password_input_;

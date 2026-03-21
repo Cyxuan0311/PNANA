@@ -13,6 +13,10 @@ static inline Decorator borderWithColor(Color border_color) {
     };
 }
 
+static inline Element padded(Element e) {
+    return hbox({text(" "), std::move(e), text(" ")});
+}
+
 namespace pnana {
 namespace ui {
 
@@ -143,48 +147,52 @@ Element CursorConfigDialog::render() {
         return text("");
 
     auto& colors = theme_.getColors();
-    Elements content;
 
-    // 标题
-    content.push_back(hbox({text(" "), text(icons::SETTINGS) | color(colors.keyword) | bold,
-                            text(" Cursor Configuration ") | bold, filler()}) |
-                      bgcolor(colors.menubar_bg));
-    content.push_back(separator());
+    Element header = hbox({
+                         text(" "),
+                         text(icons::SETTINGS) | color(colors.keyword) | bold,
+                         text(" Cursor Configuration ") | color(colors.menubar_fg) | bold,
+                         filler(),
+                         text("Enter") | color(colors.helpbar_key) | bold,
+                         text(" Apply  ") | color(colors.menubar_fg) | dim,
+                         text("Esc") | color(colors.helpbar_key) | bold,
+                         text(" Cancel ") | color(colors.menubar_fg) | dim,
+                     }) |
+                     bgcolor(colors.menubar_bg);
 
-    // 样式选择
-    content.push_back(renderStyleSelector());
-    content.push_back(text(""));
+    Element body = vbox({
+                       padded(renderStyleSelector()),
+                       separatorEmpty(),
+                       padded(renderColorSelector()),
+                       separatorEmpty(),
+                       padded(renderRateSelector()),
+                       separatorEmpty(),
+                       padded(renderBlinkEnabledSelector()),
+                       separatorEmpty(),
+                       padded(renderSmoothCursorSelector()),
+                   }) |
+                   flex;
 
-    // 颜色选择
-    content.push_back(renderColorSelector());
-    content.push_back(text(""));
+    Element footer = hbox({
+                         text(" "),
+                         text("↑↓") | color(colors.helpbar_key) | bold,
+                         text(": Navigate  ") | color(colors.helpbar_fg) | dim,
+                         text("←→") | color(colors.helpbar_key) | bold,
+                         text(": Change  ") | color(colors.helpbar_fg) | dim,
+                         text("Space/T") | color(colors.helpbar_key) | bold,
+                         text(": Toggle") | color(colors.helpbar_fg) | dim,
+                         filler(),
+                     }) |
+                     bgcolor(colors.helpbar_bg);
 
-    // 频率选择
-    content.push_back(renderRateSelector());
-    content.push_back(text(""));
-
-    // 闪烁开关
-    content.push_back(renderBlinkEnabledSelector());
-    content.push_back(text(""));
-
-    // 流动光标选项
-    content.push_back(renderSmoothCursorSelector());
-    content.push_back(text(""));
-
-    content.push_back(separator());
-
-    // 提示 - 分两行显示以避免文字被截断
-    content.push_back(
-        hbox({text("  "), text("↑↓") | color(colors.function) | bold, text(": Navigate  "),
-              text("←→") | color(colors.function) | bold, text(": Change  "),
-              text("Space/T") | color(colors.function) | bold, text(": Toggle"), filler()}) |
-        bgcolor(colors.menubar_bg) | dim);
-    content.push_back(
-        hbox({text("  "), text("Enter") | color(colors.function) | bold, text(": Apply  "),
-              text("Esc") | color(colors.function) | bold, text(": Cancel"), filler()}) |
-        bgcolor(colors.menubar_bg) | dim);
-
-    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 70) | size(HEIGHT, EQUAL, 21) |
+    return window(text(" Cursor ") | color(colors.keyword) | bold, vbox({
+                                                                       header,
+                                                                       separator(),
+                                                                       body,
+                                                                       separator(),
+                                                                       footer,
+                                                                   })) |
+           size(WIDTH, GREATER_THAN, 66) | size(HEIGHT, GREATER_THAN, 16) |
            bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
 }
 
@@ -211,9 +219,10 @@ Element CursorConfigDialog::renderStyleSelector() {
         }
     }
 
-    return hbox({text("  "), (is_selected ? text("► ") | color(colors.function) : text("  ")),
+    // 使用 hflow：选项很多时可自动换行
+    return hbox({(is_selected ? text("► ") | color(colors.function) : text("  ")),
                  text("Style: ") | color(is_selected ? colors.foreground : colors.comment),
-                 hbox(style_elements), filler()}) |
+                 hflow(style_elements), filler()}) |
            (is_selected ? bgcolor(colors.selection) : bgcolor(colors.background));
 }
 
@@ -226,7 +235,7 @@ Element CursorConfigDialog::renderColorSelector() {
     parseColor(color_input_, r, g, b);
     Color preview_color = Color::RGB(r, g, b);
 
-    return hbox({text("  "), (is_selected ? text("► ") | color(colors.function) : text("  ")),
+    return hbox({(is_selected ? text("► ") | color(colors.function) : text("  ")),
                  text("Color (R,G,B): ") | color(is_selected ? colors.foreground : colors.comment),
                  text("█") | color(preview_color) | bgcolor(preview_color), text(" "),
                  text(color_input_ + (is_selected ? "_" : "")) |
@@ -254,7 +263,7 @@ Element CursorConfigDialog::renderRateSelector() {
 
     std::string rate_desc = (rate_value == 0) ? " (No blink)" : " ms";
 
-    return hbox({text("  "), (is_selected ? text("► ") | color(colors.function) : text("  ")),
+    return hbox({(is_selected ? text("► ") | color(colors.function) : text("  ")),
                  text("Blink Rate: ") | color(is_selected ? colors.foreground : colors.comment),
                  text(rate_display) | color(is_selected ? colors.foreground : colors.comment) |
                      (is_selected ? bgcolor(colors.selection) : bgcolor(colors.background)),
@@ -269,7 +278,7 @@ Element CursorConfigDialog::renderBlinkEnabledSelector() {
     std::string status = blink_enabled_ ? "[ON]" : "[OFF]";
     Color status_color = blink_enabled_ ? colors.success : colors.comment;
 
-    return hbox({text("  "), (is_selected ? text("► ") | color(colors.function) : text("  ")),
+    return hbox({(is_selected ? text("► ") | color(colors.function) : text("  ")),
                  text("Blink: ") | color(is_selected ? colors.foreground : colors.comment),
                  text(" ") | color(status_color), text(status) | bold | color(status_color),
                  text(" (Space/T: toggle)") | color(colors.comment) | dim, filler()}) |
@@ -283,7 +292,7 @@ Element CursorConfigDialog::renderSmoothCursorSelector() {
     std::string status = smooth_cursor_ ? "[ON]" : "[OFF]";
     Color status_color = smooth_cursor_ ? colors.success : colors.comment;
 
-    return hbox({text("  "), (is_selected ? text("► ") | color(colors.function) : text("  ")),
+    return hbox({(is_selected ? text("► ") | color(colors.function) : text("  ")),
                  text("Smooth Cursor: ") | color(is_selected ? colors.foreground : colors.comment),
                  text(" ") | color(status_color), text(status) | bold | color(status_color),
                  text(" (Space/T: toggle)") | color(colors.comment) | dim, filler()}) |

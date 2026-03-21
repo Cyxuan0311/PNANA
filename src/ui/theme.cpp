@@ -2029,6 +2029,47 @@ ThemeColors Theme::Terafox() {
     return colors;
 }
 
+ThemeColors Theme::Galaxy() {
+    ThemeColors colors;
+    colors.background = Color::RGB(10, 8, 20);
+    colors.foreground = Color::RGB(220, 215, 255);
+    colors.current_line = Color::RGB(20, 15, 40);
+    colors.selection = Color::RGB(40, 30, 80);
+    colors.line_number = Color::RGB(80, 70, 120);
+    colors.line_number_current = Color::RGB(220, 215, 255);
+
+    colors.statusbar_bg = Color::RGB(20, 15, 40);
+    colors.statusbar_fg = Color::RGB(220, 215, 255);
+
+    colors.menubar_bg = Color::RGB(15, 12, 30);
+    colors.menubar_fg = Color::RGB(220, 215, 255);
+
+    colors.helpbar_bg = Color::RGB(20, 15, 40);
+    colors.helpbar_fg = Color::RGB(80, 70, 120);
+    colors.helpbar_key = Color::RGB(180, 160, 255);
+
+    colors.keyword = Color::RGB(180, 140, 255);
+    colors.string = Color::RGB(140, 220, 200);
+    colors.comment = Color::RGB(80, 70, 120);
+    colors.number = Color::RGB(255, 180, 140);
+    colors.function = Color::RGB(140, 200, 255);
+    colors.type = Color::RGB(255, 200, 140);
+    colors.operator_color = Color::RGB(180, 140, 255);
+
+    colors.error = Color::RGB(255, 120, 140);
+    colors.warning = Color::RGB(255, 200, 100);
+    colors.info = Color::RGB(100, 200, 255);
+    colors.success = Color::RGB(140, 220, 200);
+
+    colors.dialog_bg = Color::RGB(20, 15, 40);
+    colors.dialog_fg = Color::RGB(220, 215, 255);
+    colors.dialog_title_bg = Color::RGB(40, 30, 80);
+    colors.dialog_title_fg = Color::RGB(220, 215, 255);
+    colors.dialog_border = Color::RGB(80, 70, 120);
+
+    return colors;
+}
+
 ThemeColors Theme::Mellow() {
     ThemeColors colors;
     // Mellow：柔和 pastel 深色，低对比
@@ -3762,6 +3803,709 @@ ThemeColors Theme::TraeDeepBlue() {
     return colors;
 }
 
+ThemeColors Theme::Midnight() {
+    ThemeColors colors;
+    // Midnight: 午夜蓝主题，深邃神秘的蓝紫色调
+    colors.background = Color::RGB(20, 25, 40);             // #141928 深夜蓝
+    colors.foreground = Color::RGB(200, 205, 220);          // #C8CDE4 浅蓝白
+    colors.current_line = Color::RGB(35, 45, 70);           // #232D46 深蓝
+    colors.selection = Color::RGB(50, 65, 95);              // #32415F 选中蓝紫
+    colors.line_number = Color::RGB(90, 100, 130);          // #5A6482 蓝灰
+    colors.line_number_current = Color::RGB(180, 190, 230); // #B4BEE6 亮蓝白
+
+    colors.statusbar_bg = Color::RGB(30, 38, 55);    // #1E2637 深蓝
+    colors.statusbar_fg = Color::RGB(200, 205, 220); // #C8CDE4 浅蓝白
+
+    colors.menubar_bg = Color::RGB(20, 25, 40);    // #141928
+    colors.menubar_fg = Color::RGB(200, 205, 220); // #C8CDE4
+
+    colors.helpbar_bg = Color::RGB(30, 38, 55);
+    colors.helpbar_fg = Color::RGB(130, 145, 180);  // #8291B4 蓝紫灰
+    colors.helpbar_key = Color::RGB(180, 160, 255); // #B4A0FF 亮紫
+
+    // Midnight 语法高亮：紫关键词/青字符串/蓝灰注释/橙粉数字/蓝函数
+    colors.keyword = Color::RGB(180, 140, 255);        // #B48CFF 紫
+    colors.string = Color::RGB(100, 220, 200);         // #64DCC8 青绿
+    colors.comment = Color::RGB(90, 100, 130);         // #5A6482 蓝灰
+    colors.number = Color::RGB(255, 140, 180);         // #FF8CB4 粉橙
+    colors.function = Color::RGB(120, 180, 255);       // #78B4FF 蓝
+    colors.type = Color::RGB(160, 200, 255);           // #A0C8FF 浅蓝
+    colors.operator_color = Color::RGB(200, 205, 220); // #C8CDE4
+
+    colors.error = Color::RGB(255, 100, 130);   // #FF6482 红粉
+    colors.warning = Color::RGB(255, 200, 100); // #FFC864 橙黄
+    colors.info = Color::RGB(120, 180, 255);    // #78B4FF 蓝
+    colors.success = Color::RGB(100, 220, 200); // #64DCC8 青绿
+
+    colors.dialog_bg = Color::RGB(35, 45, 70);          // #232D46
+    colors.dialog_fg = Color::RGB(200, 205, 220);       // #C8CDE4
+    colors.dialog_title_bg = Color::RGB(20, 25, 40);    // #141928
+    colors.dialog_title_fg = Color::RGB(180, 160, 255); // #B4A0FF 亮紫
+    colors.dialog_border = Color::RGB(70, 85, 115);     // #465573 蓝紫边框
+
+    return colors;
+}
+
+ThemeColors Theme::Minecraft() {
+    ThemeColors colors;
+    // Minecraft: 我的世界主题，经典像素游戏配色
+    // 灵感来源：草地绿、泥土棕、石头灰、钻石蓝、黄金黄
+    colors.background = Color::RGB(28, 32, 34);     // #1C2022 深灰黑（基岩色）
+    colors.foreground = Color::RGB(220, 220, 220);  // #DCDCDC 浅灰白
+    colors.current_line = Color::RGB(42, 48, 51);   // #2A3033 深灰（选中行）
+    colors.selection = Color::RGB(56, 64, 68);      // #384044 灰黑（选择区）
+    colors.line_number = Color::RGB(102, 115, 119); // #667377 中灰（行号）
+    colors.line_number_current = Color::RGB(85, 255, 85); // #55FF55 荧光绿（当前行号 - Creeper 绿）
+
+    colors.statusbar_bg = Color::RGB(36, 42, 45);    // #242A2D 深灰（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 220, 220); // #DCDCDC 浅灰白
+
+    colors.menubar_bg = Color::RGB(28, 32, 34);    // #1C2022 深灰黑
+    colors.menubar_fg = Color::RGB(220, 220, 220); // #DCDCDC 浅灰白
+
+    colors.helpbar_bg = Color::RGB(36, 42, 45);
+    colors.helpbar_fg = Color::RGB(170, 170, 170); // #AAAAAA 浅灰
+    colors.helpbar_key = Color::RGB(85, 255, 85);  // #55FF55 Creeper 绿
+
+    // Minecraft 语法高亮：绿关键词/棕字符串/灰注释/黄金数字/蓝函数/青类型
+    colors.keyword = Color::RGB(85, 255, 85);          // #55FF55 Creeper 绿
+    colors.string = Color::RGB(181, 127, 85);          // #B57F55 泥土棕
+    colors.comment = Color::RGB(119, 119, 119);        // #777777 石头灰
+    colors.number = Color::RGB(255, 255, 85);          // #FFFF55 黄金黄
+    colors.function = Color::RGB(85, 170, 255);        // #55AAFF 钻石蓝
+    colors.type = Color::RGB(85, 255, 255);            // #55FFFF 青金石蓝
+    colors.operator_color = Color::RGB(220, 220, 220); // #DCDCDC 浅灰白
+
+    colors.error = Color::RGB(255, 85, 85);    // #FF5555 红石红
+    colors.warning = Color::RGB(255, 200, 85); // #FFC855 南瓜橙
+    colors.info = Color::RGB(85, 170, 255);    // #55AAFF 钻石蓝
+    colors.success = Color::RGB(85, 255, 85);  // #55FF55 Creeper 绿
+
+    colors.dialog_bg = Color::RGB(42, 48, 51);          // #2A3033 深灰（对话框）
+    colors.dialog_fg = Color::RGB(220, 220, 220);       // #DCDCDC 浅灰白
+    colors.dialog_title_bg = Color::RGB(85, 170, 255);  // #55AAFF 钻石蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(119, 119, 119);   // #777777 石头灰边框
+
+    return colors;
+}
+
+ThemeColors Theme::EVA() {
+    ThemeColors colors;
+    // EVA: 新世纪福音战士主题，NERV 标志配色 + EVA 机体色
+    // 灵感来源：初号机紫/绿、零号机橙/蓝、NERV 标志红/黑
+    colors.background = Color::RGB(20, 20, 30);           // #14141E 深紫黑（宇宙深渊）
+    colors.foreground = Color::RGB(200, 200, 210);        // #C8C8D2 浅灰紫
+    colors.current_line = Color::RGB(35, 35, 50);         // #232332 深紫（选中行）
+    colors.selection = Color::RGB(50, 50, 70);            // #323246 紫灰（选择区）
+    colors.line_number = Color::RGB(100, 100, 120);       // #646478 中紫灰（行号）
+    colors.line_number_current = Color::RGB(124, 255, 0); // #7CFF00 荧光绿（初号机绿）
+
+    colors.statusbar_bg = Color::RGB(28, 28, 40);    // #1C1C28 深紫（状态栏）
+    colors.statusbar_fg = Color::RGB(200, 200, 210); // #C8C8D2 浅灰紫
+
+    colors.menubar_bg = Color::RGB(20, 20, 30);    // #14141E 深紫黑
+    colors.menubar_fg = Color::RGB(200, 200, 210); // #C8C8D2 浅灰紫
+
+    colors.helpbar_bg = Color::RGB(28, 28, 40);
+    colors.helpbar_fg = Color::RGB(160, 160, 180); // #A0A0B4 浅紫灰
+    colors.helpbar_key = Color::RGB(124, 255, 0);  // #7CFF00 初号机绿
+
+    // EVA 语法高亮：紫关键词/绿字符串/灰注释/橙数字/蓝函数/青类型
+    colors.keyword = Color::RGB(140, 80, 200);         // #8C50C8 EVA 紫（初号机）
+    colors.string = Color::RGB(124, 255, 0);           // #7CFF00 初号机绿
+    colors.comment = Color::RGB(100, 100, 120);        // #646478 灰紫（背景融合）
+    colors.number = Color::RGB(255, 140, 80);          // #FF8C50 零号机橙
+    colors.function = Color::RGB(80, 180, 255);        // #50B4FF 贰号机蓝
+    colors.type = Color::RGB(80, 220, 200);            // #50DCC8 青蓝（EV 界面）
+    colors.operator_color = Color::RGB(200, 200, 210); // #C8C8D2 浅灰紫
+
+    colors.error = Color::RGB(255, 80, 100);   // #FF5064 使徒红（危险警报）
+    colors.warning = Color::RGB(255, 180, 80); // #FFB450 橙黄（警戒）
+    colors.info = Color::RGB(80, 180, 255);    // #50B4FF 蓝（EV 界面信息）
+    colors.success = Color::RGB(124, 255, 0);  // #7CFF00 初号机绿（同步成功）
+
+    colors.dialog_bg = Color::RGB(35, 35, 50);         // #232332 深紫（对话框）
+    colors.dialog_fg = Color::RGB(200, 200, 210);      // #C8C8D2 浅灰紫
+    colors.dialog_title_bg = Color::RGB(140, 80, 200); // #8C50C8 EVA 紫（标题栏 - NERV 标志）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(100, 100, 120);   // #646478 紫灰边框
+
+    return colors;
+}
+
+ThemeColors Theme::IronMan() {
+    ThemeColors colors;
+    // Iron Man: 钢铁侠主题，红金配色 + 反应堆蓝光
+    // 灵感来源：钢铁侠战甲红/金、方舟反应堆蓝、贾维斯界面
+    colors.background = Color::RGB(15, 15, 20);           // #0F0F14 深黑（战甲内舱）
+    colors.foreground = Color::RGB(220, 220, 230);        // #DCDCE6 银白（金属质感）
+    colors.current_line = Color::RGB(30, 30, 40);         // #1E1E28 深灰（选中行）
+    colors.selection = Color::RGB(45, 45, 60);            // #2D2D3C 灰黑（选择区）
+    colors.line_number = Color::RGB(120, 120, 130);       // #787882 中灰（行号）
+    colors.line_number_current = Color::RGB(255, 215, 0); // #FFD700 黄金（当前行号）
+
+    colors.statusbar_bg = Color::RGB(25, 25, 35);    // #191923 深灰（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 220, 230); // #DCDCE6 银白
+
+    colors.menubar_bg = Color::RGB(15, 15, 20);    // #0F0F14 深黑
+    colors.menubar_fg = Color::RGB(220, 220, 230); // #DCDCE6 银白
+
+    colors.helpbar_bg = Color::RGB(25, 25, 35);
+    colors.helpbar_fg = Color::RGB(180, 180, 190); // #B4B4BE 浅灰
+    colors.helpbar_key = Color::RGB(255, 215, 0);  // #FFD700 黄金
+
+    // Iron Man 语法高亮：红关键词/金字符串/灰注释/蓝数字/青函数
+    colors.keyword = Color::RGB(220, 60, 70);          // #DC3C46 钢铁红（战甲主色）
+    colors.string = Color::RGB(255, 215, 0);           // #FFD700 黄金金（战甲点缀）
+    colors.comment = Color::RGB(100, 100, 110);        // #64646E 深灰（低调注释）
+    colors.number = Color::RGB(0, 180, 255);           // #00B4FF 反应堆蓝（方舟能量）
+    colors.function = Color::RGB(0, 220, 200);         // #00DCC8 青蓝（贾维斯界面）
+    colors.type = Color::RGB(255, 180, 50);            // #FFB432 橙金（能量光束）
+    colors.operator_color = Color::RGB(220, 220, 230); // #DCDCE6 银白
+
+    colors.error = Color::RGB(255, 50, 60);    // #FF323C 危急红（战甲警报）
+    colors.warning = Color::RGB(255, 180, 50); // #FFB432 橙黄（能量警告）
+    colors.info = Color::RGB(0, 180, 255);     // #00B4FF 反应堆蓝（系统信息）
+    colors.success = Color::RGB(0, 220, 200);  // #00DCC8 青蓝（系统正常）
+
+    colors.dialog_bg = Color::RGB(30, 30, 40);        // #1E1E28 深灰（对话框）
+    colors.dialog_fg = Color::RGB(220, 220, 230);     // #DCDCE6 银白
+    colors.dialog_title_bg = Color::RGB(220, 60, 70); // #DC3C46 钢铁红（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 215, 0); // #FFD700 黄金（标题文字）
+    colors.dialog_border = Color::RGB(100, 100, 110); // #64646E 深灰边框
+
+    return colors;
+}
+
+ThemeColors Theme::SpiderMan() {
+    ThemeColors colors;
+    // Spider-Man: 蜘蛛侠主题，红蓝配色 + 蛛网元素
+    // 灵感来源：蜘蛛侠战衣红/蓝、蛛网白、蜘蛛标志黑
+    colors.background = Color::RGB(10, 15, 30);             // #0A0F1E 深蓝黑（夜幕）
+    colors.foreground = Color::RGB(220, 220, 230);          // #DCDCE6 白（蛛丝）
+    colors.current_line = Color::RGB(25, 35, 60);           // #19233C 深蓝（选中行）
+    colors.selection = Color::RGB(40, 55, 90);              // #28375A 蓝灰（选择区）
+    colors.line_number = Color::RGB(100, 120, 150);         // #647896 中蓝灰（行号）
+    colors.line_number_current = Color::RGB(255, 255, 255); // #FFFFFF 纯白（蛛丝高光）
+
+    colors.statusbar_bg = Color::RGB(20, 30, 55);    // #141E37 深蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 220, 230); // #DCDCE6 白
+
+    colors.menubar_bg = Color::RGB(10, 15, 30);    // #0A0F1E 深蓝黑
+    colors.menubar_fg = Color::RGB(220, 220, 230); // #DCDCE6 白
+
+    colors.helpbar_bg = Color::RGB(20, 30, 55);
+    colors.helpbar_fg = Color::RGB(160, 180, 210); // #A0B4D2 浅蓝灰
+    colors.helpbar_key = Color::RGB(255, 50, 50);  // #FF3232 蜘蛛红
+
+    // Spider-Man 语法高亮：红关键词/蓝字符串/灰注释/白数字/青函数
+    colors.keyword = Color::RGB(255, 50, 50);          // #FF3232 蜘蛛红（战衣主色）
+    colors.string = Color::RGB(50, 120, 220);          // #3278DC 蜘蛛蓝（战衣配色）
+    colors.comment = Color::RGB(90, 110, 140);         // #5A6E8C 蓝灰（低调注释）
+    colors.number = Color::RGB(255, 255, 255);         // #FFFFFF 纯白（蛛丝）
+    colors.function = Color::RGB(0, 200, 180);         // #00C8B4 青绿（蜘蛛感应）
+    colors.type = Color::RGB(100, 160, 255);           // #64A0FF 浅蓝（夜空）
+    colors.operator_color = Color::RGB(220, 220, 230); // #DCDCE6 白
+
+    colors.error = Color::RGB(255, 60, 70);    // #FF3C46 危险红（蜘蛛警报）
+    colors.warning = Color::RGB(255, 180, 50); // #FFB432 橙黄（警戒）
+    colors.info = Color::RGB(50, 120, 220);    // #3278DC 蜘蛛蓝（信息）
+    colors.success = Color::RGB(0, 200, 180);  // #00C8B4 青绿（感应正常）
+
+    colors.dialog_bg = Color::RGB(25, 35, 60);          // #19233C 深蓝（对话框）
+    colors.dialog_fg = Color::RGB(220, 220, 230);       // #DCDCE6 白
+    colors.dialog_title_bg = Color::RGB(255, 50, 50);   // #FF3232 蜘蛛红（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(50, 80, 130);     // #325082 深蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::CaptainAmerica() {
+    ThemeColors colors;
+    // Captain America: 美国队长主题，红白蓝配色 + 星条旗元素
+    // 灵感来源：美队战衣红/白/蓝、盾牌星徽、振银金属光泽
+    colors.background = Color::RGB(15, 20, 40);            // #0F1428 深蓝（夜空）
+    colors.foreground = Color::RGB(230, 230, 240);         // #E6E6F0 纯白（星星）
+    colors.current_line = Color::RGB(30, 40, 70);          // #1E2846 深蓝（选中行）
+    colors.selection = Color::RGB(45, 60, 100);            // #2D3C64 蓝灰（选择区）
+    colors.line_number = Color::RGB(110, 130, 170);        // #6E82AA 中蓝灰（行号）
+    colors.line_number_current = Color::RGB(255, 200, 50); // #FFC832 金色（星徽）
+
+    colors.statusbar_bg = Color::RGB(25, 35, 65);    // #192341 深蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(230, 230, 240); // #E6E6F0 纯白
+
+    colors.menubar_bg = Color::RGB(15, 20, 40);    // #0F1428 深蓝
+    colors.menubar_fg = Color::RGB(230, 230, 240); // #E6E6F0 纯白
+
+    colors.helpbar_bg = Color::RGB(25, 35, 65);
+    colors.helpbar_fg = Color::RGB(170, 185, 215); // #AAB9D7 浅蓝白
+    colors.helpbar_key = Color::RGB(220, 60, 70);  // #DC3C46 美国红
+
+    // Captain America 语法高亮：红关键词/蓝字符串/白数字/金函数
+    colors.keyword = Color::RGB(220, 60, 70);          // #DC3C46 美国红（星条旗红）
+    colors.string = Color::RGB(60, 100, 200);          // #3C64C8 美国蓝（星条旗蓝）
+    colors.comment = Color::RGB(100, 120, 150);        // #647896 蓝灰（低调注释）
+    colors.number = Color::RGB(255, 255, 255);         // #FFFFFF 纯白（星星）
+    colors.function = Color::RGB(255, 200, 50);        // #FFC832 金色（星徽）
+    colors.type = Color::RGB(100, 160, 230);           // #64A0E6 浅蓝（振银光泽）
+    colors.operator_color = Color::RGB(230, 230, 240); // #E6E6F0 纯白
+
+    colors.error = Color::RGB(255, 50, 60);    // #FF323C 危急红（战斗警报）
+    colors.warning = Color::RGB(255, 180, 50); // #FFB432 橙黄（警戒）
+    colors.info = Color::RGB(60, 100, 200);    // #3C64C8 美国蓝（信息）
+    colors.success = Color::RGB(255, 200, 50); // #FFC832 金色（胜利）
+
+    colors.dialog_bg = Color::RGB(30, 40, 70);          // #1E2846 深蓝（对话框）
+    colors.dialog_fg = Color::RGB(230, 230, 240);       // #E6E6F0 纯白
+    colors.dialog_title_bg = Color::RGB(60, 100, 200);  // #3C64C8 美国蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(220, 60, 70);     // #DC3C46 美国红边框
+
+    return colors;
+}
+
+ThemeColors Theme::Hulk() {
+    ThemeColors colors;
+    // Hulk: 绿巨人主题，绿色皮肤 + 愤怒力量 + 紫色裤子
+    // 灵感来源：浩克绿皮肤、伽马射线绿、愤怒红眼、紫裤子
+    colors.background = Color::RGB(10, 20, 15);             // #0A140F 深绿黑（愤怒前夕）
+    colors.foreground = Color::RGB(200, 230, 210);          // #C8E6D2 浅绿白（伽马光芒）
+    colors.current_line = Color::RGB(20, 40, 30);           // #14281E 深绿（选中行）
+    colors.selection = Color::RGB(30, 60, 45);              // #1E3C2D 绿灰（选择区）
+    colors.line_number = Color::RGB(80, 130, 100);          // #508264 中绿灰（行号）
+    colors.line_number_current = Color::RGB(100, 255, 100); // #64FF64 荧光绿（伽马射线）✨
+
+    colors.statusbar_bg = Color::RGB(15, 35, 25);    // #0F2319 深绿（状态栏）
+    colors.statusbar_fg = Color::RGB(200, 230, 210); // #C8E6D2 浅绿白
+
+    colors.menubar_bg = Color::RGB(10, 20, 15);    // #0A140F 深绿黑
+    colors.menubar_fg = Color::RGB(200, 230, 210); // #C8E6D2 浅绿白
+
+    colors.helpbar_bg = Color::RGB(15, 35, 25);
+    colors.helpbar_fg = Color::RGB(140, 190, 165);  // #8CBFA5 浅绿灰
+    colors.helpbar_key = Color::RGB(100, 255, 100); // #64FF64 伽马绿
+
+    // Hulk 语法高亮：绿关键词/紫字符串/灰注释/红数字/青函数
+    colors.keyword = Color::RGB(50, 255, 100);         // #32FF64 浩克绿（皮肤主色）
+    colors.string = Color::RGB(180, 100, 200);         // #B464C8 紫裤子（经典配色）
+    colors.comment = Color::RGB(70, 110, 90);          // #466E5A 深绿灰（低调注释）
+    colors.number = Color::RGB(255, 80, 100);          // #FF5064 愤怒红（绿巨人怒火）
+    colors.function = Color::RGB(50, 220, 180);        // #32DCB4 青绿（伽马能量）
+    colors.type = Color::RGB(100, 255, 150);           // #64FF96 亮绿（力量爆发）
+    colors.operator_color = Color::RGB(200, 230, 210); // #C8E6D2 浅绿白
+
+    colors.error = Color::RGB(255, 60, 80);     // #FF3C50 暴怒红（无法控制）
+    colors.warning = Color::RGB(255, 180, 50);  // #FFB432 橙黄（警戒）
+    colors.info = Color::RGB(50, 220, 180);     // #32DCB4 青绿（伽马信息）
+    colors.success = Color::RGB(100, 255, 100); // #64FF64 伽马绿（力量正常）
+
+    colors.dialog_bg = Color::RGB(20, 40, 30);         // #14281E 深绿（对话框）
+    colors.dialog_fg = Color::RGB(200, 230, 210);      // #C8E6D2 浅绿白
+    colors.dialog_title_bg = Color::RGB(50, 255, 100); // #32FF64 浩克绿（标题栏）
+    colors.dialog_title_fg = Color::RGB(10, 20, 15);   // #0A140F 深绿黑（标题文字）
+    colors.dialog_border = Color::RGB(70, 110, 90);    // #466E5A 深绿灰边框
+
+    return colors;
+}
+
+ThemeColors Theme::Superman() {
+    ThemeColors colors;
+    // Superman: 超人主题，红蓝配色 + 黄金 S 标志
+    // 灵感来源：超人战衣红/蓝、S 盾徽黄金、氪星科技蓝
+    colors.background = Color::RGB(10, 15, 40);           // #0A0F28 深蓝黑（大都会夜空）
+    colors.foreground = Color::RGB(220, 225, 240);        // #DCE1F0 白（云朵）
+    colors.current_line = Color::RGB(20, 30, 65);         // #141E41 深蓝（选中行）
+    colors.selection = Color::RGB(30, 45, 95);            // #1E2D5F 蓝灰（选择区）
+    colors.line_number = Color::RGB(90, 110, 160);        // #5A6EA0 中蓝灰（行号）
+    colors.line_number_current = Color::RGB(255, 215, 0); // #FFD700 黄金（S 标志）✨
+
+    colors.statusbar_bg = Color::RGB(15, 25, 60);    // #0F193C 深蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 225, 240); // #DCE1F0 白
+
+    colors.menubar_bg = Color::RGB(10, 15, 40);    // #0A0F28 深蓝黑
+    colors.menubar_fg = Color::RGB(220, 225, 240); // #DCE1F0 白
+
+    colors.helpbar_bg = Color::RGB(15, 25, 60);
+    colors.helpbar_fg = Color::RGB(150, 165, 200); // #96A5C8 浅蓝灰
+    colors.helpbar_key = Color::RGB(255, 50, 50);  // #FF3232 超人红
+
+    // Superman 语法高亮：红关键词/蓝字符串/金数字/青函数
+    colors.keyword = Color::RGB(255, 50, 50);          // #FF3232 超人红（披风主色）
+    colors.string = Color::RGB(50, 100, 220);          // #3264DC 超人蓝（战衣配色）
+    colors.comment = Color::RGB(80, 100, 140);         // #50648C 蓝灰（低调注释）
+    colors.number = Color::RGB(255, 215, 0);           // #FFD700 黄金（S 盾徽）
+    colors.function = Color::RGB(0, 200, 255);         // #00C8FF 青蓝（热视线）
+    colors.type = Color::RGB(100, 160, 255);           // #64A0FF 浅蓝（氪星科技）
+    colors.operator_color = Color::RGB(220, 225, 240); // #DCE1F0 白
+
+    colors.error = Color::RGB(255, 40, 50);    // #FF2832 氪石红（致命危险）
+    colors.warning = Color::RGB(255, 180, 50); // #FFB432 橙黄（警戒）
+    colors.info = Color::RGB(50, 100, 220);    // #3264DC 超人蓝（信息）
+    colors.success = Color::RGB(0, 200, 255);  // #00C8FF 青蓝（正义胜利）
+
+    colors.dialog_bg = Color::RGB(20, 30, 65);        // #141E41 深蓝（对话框）
+    colors.dialog_fg = Color::RGB(220, 225, 240);     // #DCE1F0 白
+    colors.dialog_title_bg = Color::RGB(255, 50, 50); // #FF3232 超人红（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 215, 0); // #FFD700 黄金（标题文字）
+    colors.dialog_border = Color::RGB(50, 80, 140);   // #32508C 深蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::Godfather() {
+    ThemeColors colors;
+    // The Godfather: 教父主题，黑金配色 + 意大利黑手党风格
+    // 灵感来源：黑色西装、金色徽章、暗红葡萄酒、复古棕
+    colors.background = Color::RGB(15, 15, 15);            // #0F0F0F 纯黑（黑色西装）
+    colors.foreground = Color::RGB(220, 210, 190);         // #DCD2BE 米白（复古纸张）
+    colors.current_line = Color::RGB(30, 30, 30);          // #1E1E1E 深灰（选中行）
+    colors.selection = Color::RGB(45, 45, 45);             // #2D2D2D 灰黑（选择区）
+    colors.line_number = Color::RGB(120, 110, 100);        // #786E64 棕灰（行号）
+    colors.line_number_current = Color::RGB(212, 175, 55); // #D4AF37 黄金（权力徽章）✨
+
+    colors.statusbar_bg = Color::RGB(25, 25, 25);    // #191919 深灰（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 210, 190); // #DCD2BE 米白
+
+    colors.menubar_bg = Color::RGB(15, 15, 15);    // #0F0F0F 纯黑
+    colors.menubar_fg = Color::RGB(220, 210, 190); // #DCD2BE 米白
+
+    colors.helpbar_bg = Color::RGB(25, 25, 25);
+    colors.helpbar_fg = Color::RGB(170, 160, 145); // #AAA091 浅棕灰
+    colors.helpbar_key = Color::RGB(212, 175, 55); // #D4AF37 黄金
+
+    // Godfather 语法高亮：金关键词/红字符串/棕注释/白数字
+    colors.keyword = Color::RGB(212, 175, 55);         // #D4AF37 黄金（权力与荣耀）
+    colors.string = Color::RGB(180, 60, 70);           // #B43C46 暗红（葡萄酒/鲜血）
+    colors.comment = Color::RGB(100, 90, 80);          // #645A50 深棕（低语密谋）
+    colors.number = Color::RGB(240, 230, 220);         // #F0E6DC 米白（金钱数字）
+    colors.function = Color::RGB(200, 170, 120);       // #C8AA78 古铜（家族徽章）
+    colors.type = Color::RGB(190, 160, 130);           // #BEA082 棕褐（皮革质感）
+    colors.operator_color = Color::RGB(220, 210, 190); // #DCD2BE 米白
+
+    colors.error = Color::RGB(220, 50, 60);    // #DC323C 血红色（背叛代价）
+    colors.warning = Color::RGB(212, 175, 55); // #D4AF37 黄金（警告）
+    colors.info = Color::RGB(170, 160, 145);   // #AAA091 棕灰（信息）
+    colors.success = Color::RGB(212, 175, 55); // #D4AF37 黄金（家族胜利）
+
+    colors.dialog_bg = Color::RGB(30, 30, 30);         // #1E1E1E 深灰（对话框）
+    colors.dialog_fg = Color::RGB(220, 210, 190);      // #DCD2BE 米白
+    colors.dialog_title_bg = Color::RGB(212, 175, 55); // #D4AF37 黄金（标题栏 - 权力象征）
+    colors.dialog_title_fg = Color::RGB(15, 15, 15);   // #0F0F0F 纯黑（标题文字）
+    colors.dialog_border = Color::RGB(100, 90, 80);    // #645A50 深棕边框
+
+    return colors;
+}
+
+ThemeColors Theme::RoboCop() {
+    ThemeColors colors;
+    // RoboCop: 机械战警主题，银色金属 + HUD 界面蓝 + 警示红
+    // 灵感来源：ED-209 银色装甲、战术 HUD 蓝屏、红色扫描光、底特律警局
+    colors.background = Color::RGB(20, 25, 30);           // #14191E 深灰蓝（金属内舱）
+    colors.foreground = Color::RGB(200, 210, 220);        // #C8D2DC 银白（金属光泽）
+    colors.current_line = Color::RGB(35, 45, 55);         // #232D37 深灰蓝（选中行）
+    colors.selection = Color::RGB(50, 65, 80);            // #324150 蓝灰（选择区）
+    colors.line_number = Color::RGB(110, 130, 150);       // #6E8296 中灰蓝（行号）
+    colors.line_number_current = Color::RGB(0, 255, 255); // #00FFFF 青色（HUD 高亮）✨
+
+    colors.statusbar_bg = Color::RGB(30, 40, 50);    // #1E2832 深灰蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(200, 210, 220); // #C8D2DC 银白
+
+    colors.menubar_bg = Color::RGB(20, 25, 30);    // #14191E 深灰蓝
+    colors.menubar_fg = Color::RGB(200, 210, 220); // #C8D2DC 银白
+
+    colors.helpbar_bg = Color::RGB(30, 40, 50);
+    colors.helpbar_fg = Color::RGB(150, 170, 190); // #96AABE 浅蓝灰
+    colors.helpbar_key = Color::RGB(0, 255, 255);  // #00FFFF 青色（HUD）
+
+    // RoboCop 语法高亮：银关键词/蓝字符串/灰注释/红数字/青函数
+    colors.keyword = Color::RGB(190, 200, 210);        // #BEC8D2 银色（金属主色）
+    colors.string = Color::RGB(50, 150, 220);          // #3296DC HUD 蓝（战术界面）
+    colors.comment = Color::RGB(90, 110, 130);         // #5A6E82 灰蓝（低调注释）
+    colors.number = Color::RGB(255, 80, 100);          // #FF5064 警示红（扫描光）
+    colors.function = Color::RGB(0, 220, 200);         // #00DCC8 青绿（系统功能）
+    colors.type = Color::RGB(100, 200, 255);           // #64C8FF 浅蓝（数据流）
+    colors.operator_color = Color::RGB(200, 210, 220); // #C8D2DC 银白
+
+    colors.error = Color::RGB(255, 60, 80);    // #FF3C50 危急红（系统故障）
+    colors.warning = Color::RGB(255, 180, 50); // #FFB432 橙黄（警戒）
+    colors.info = Color::RGB(0, 200, 255);     // #00C8FF 青蓝（HUD 信息）
+    colors.success = Color::RGB(0, 255, 200);  // #00FFC8 青绿（系统正常）
+
+    colors.dialog_bg = Color::RGB(35, 45, 55);          // #232D37 深灰蓝（对话框）
+    colors.dialog_fg = Color::RGB(200, 210, 220);       // #C8D2DC 银白
+    colors.dialog_title_bg = Color::RGB(0, 180, 255);   // #00B4FF HUD 蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(90, 110, 130);    // #5A6E82 灰蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::Icy() {
+    ThemeColors colors;
+    // Icy: 冰蓝主题，灰色与浅蓝色配色，清新冷冽
+    // 灵感来源：冬日霜雪、冰川蓝灰、冷冽空气、冰雪世界
+    colors.background = Color::RGB(30, 35, 40);             // #1E2328 深灰（冬日夜空）
+    colors.foreground = Color::RGB(210, 220, 230);          // #D2DCE6 浅灰白（霜雪）
+    colors.current_line = Color::RGB(45, 52, 60);           // #2D343C 中灰（选中行）
+    colors.selection = Color::RGB(60, 72, 85);              // #3C4855 蓝灰（选择区）
+    colors.line_number = Color::RGB(120, 135, 150);         // #788796 中灰蓝（行号）
+    colors.line_number_current = Color::RGB(180, 210, 235); // #B4D2EB 浅蓝（霜花高亮）✨
+
+    colors.statusbar_bg = Color::RGB(40, 48, 56);    // #283038 深灰（状态栏）
+    colors.statusbar_fg = Color::RGB(210, 220, 230); // #D2DCE6 浅灰白
+
+    colors.menubar_bg = Color::RGB(30, 35, 40);    // #1E2328 深灰
+    colors.menubar_fg = Color::RGB(210, 220, 230); // #D2DCE6 浅灰白
+
+    colors.helpbar_bg = Color::RGB(40, 48, 56);
+    colors.helpbar_fg = Color::RGB(160, 175, 190);  // #A0AFBE 浅蓝灰
+    colors.helpbar_key = Color::RGB(150, 190, 220); // #96BEDC 浅蓝
+
+    // Icy 语法高亮：灰关键词/浅蓝字符串/深灰注释/蓝灰数字
+    colors.keyword = Color::RGB(180, 190, 200);        // #B4BEC8 浅灰（霜雪主色）
+    colors.string = Color::RGB(160, 200, 230);         // #A0C8E6 浅蓝（冰川蓝）
+    colors.comment = Color::RGB(100, 115, 130);        // #647382 深灰蓝（低调注释）
+    colors.number = Color::RGB(170, 195, 220);         // #AAC3DC 蓝灰（冰晶）
+    colors.function = Color::RGB(140, 185, 220);       // #8CB9DC 天蓝（晴空）
+    colors.type = Color::RGB(165, 205, 235);           // #A5CDEB 浅蓝（冰层）
+    colors.operator_color = Color::RGB(200, 210, 220); // #C8D2DC 灰白
+
+    colors.error = Color::RGB(220, 100, 120);   // #DC6478 冷红（冰霜警告）
+    colors.warning = Color::RGB(230, 180, 100); // #E6B464 橙黄（警戒）
+    colors.info = Color::RGB(140, 185, 220);    // #8CB9DC 天蓝（信息）
+    colors.success = Color::RGB(130, 200, 180); // #82C8B4 青绿（正常）
+
+    colors.dialog_bg = Color::RGB(45, 52, 60);          // #2D343C 中灰（对话框）
+    colors.dialog_fg = Color::RGB(210, 220, 230);       // #D2DCE6 浅灰白
+    colors.dialog_title_bg = Color::RGB(100, 130, 160); // #6482A0 灰蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(230, 240, 245); // #E6F0F5 极浅蓝白
+    colors.dialog_border = Color::RGB(100, 115, 130);   // #647382 深灰蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::Silver() {
+    ThemeColors colors;
+    // Silver: 银色主题，高端金属质感，银白 + 深灰 + 亮银点缀
+    // 灵感来源：铂金金属、银器光泽、高端科技产品、液态金属
+    colors.background = Color::RGB(25, 28, 32);             // #191C20 深炭灰（金属基底）
+    colors.foreground = Color::RGB(220, 225, 230);          // #DCE1E6 银白（金属主色）✨
+    colors.current_line = Color::RGB(40, 45, 50);           // #282D32 深灰（选中行）
+    colors.selection = Color::RGB(55, 62, 70);              // #373E46 银灰（选择区）
+    colors.line_number = Color::RGB(130, 140, 150);         // #828C96 中银灰（行号）
+    colors.line_number_current = Color::RGB(240, 245, 250); // #F0F5FA 亮银（高亮）✨
+
+    colors.statusbar_bg = Color::RGB(35, 40, 45);    // #23282D 深灰（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 225, 230); // #DCE1E6 银白
+
+    colors.menubar_bg = Color::RGB(25, 28, 32);    // #191C20 深炭灰
+    colors.menubar_fg = Color::RGB(220, 225, 230); // #DCE1E6 银白
+
+    colors.helpbar_bg = Color::RGB(35, 40, 45);
+    colors.helpbar_fg = Color::RGB(180, 190, 200);  // #B4BEC8 浅银灰
+    colors.helpbar_key = Color::RGB(230, 235, 240); // #E6EBF0 亮银
+
+    // Silver 语法高亮：银白关键词/浅灰字符串/深灰注释/亮银数字
+    colors.keyword = Color::RGB(210, 215, 220);        // #D2D7DC 银白（金属关键词）
+    colors.string = Color::RGB(190, 200, 210);         // #BEC8D2 浅银灰（字符串）
+    colors.comment = Color::RGB(110, 120, 130);        // #6E7882 深银灰（注释）
+    colors.number = Color::RGB(240, 242, 245);         // #F0F2F5 亮银（数字）
+    colors.function = Color::RGB(200, 210, 220);       // #C8D2DC 银灰（函数）
+    colors.type = Color::RGB(215, 225, 235);           // #D7E1EB 浅银蓝（类型）
+    colors.operator_color = Color::RGB(220, 225, 230); // #DCE1E6 银白
+
+    colors.error = Color::RGB(230, 90, 100);    // #E65A64 金属红（错误）
+    colors.warning = Color::RGB(240, 180, 80);  // #F0B450 金属橙（警告）
+    colors.info = Color::RGB(180, 200, 220);    // #B4C8DC 银蓝（信息）
+    colors.success = Color::RGB(160, 210, 190); // #A0D2BE 银绿（成功）
+
+    colors.dialog_bg = Color::RGB(40, 45, 50);          // #282D32 深灰（对话框）
+    colors.dialog_fg = Color::RGB(220, 225, 230);       // #DCE1E6 银白
+    colors.dialog_title_bg = Color::RGB(70, 80, 90);    // #46505A 银灰（标题栏）
+    colors.dialog_title_fg = Color::RGB(245, 248, 252); // #F5F8FC 极亮银
+    colors.dialog_border = Color::RGB(110, 120, 130);   // #6E7882 深银灰边框
+
+    return colors;
+}
+
+ThemeColors Theme::Egypt() {
+    ThemeColors colors;
+    // Egypt: 古埃及主题，沙漠金 + 尼罗河蓝 + 金字塔金 + 纸莎草棕
+    // 灵感来源：金字塔、法老宝藏、尼罗河、沙漠落日、象形文字
+    colors.background = Color::RGB(35, 28, 20);             // #231C14 深棕（沙漠夜空）
+    colors.foreground = Color::RGB(235, 220, 180);          // #EBDCB4 沙金（沙漠之色）✨
+    colors.current_line = Color::RGB(50, 40, 30);           // #32281E 深棕（选中行）
+    colors.selection = Color::RGB(65, 52, 38);              // #413426 棕褐（选择区）
+    colors.line_number = Color::RGB(180, 160, 120);         // #B4A078 沙褐（行号）
+    colors.line_number_current = Color::RGB(255, 215, 100); // #FFD764 亮金（高亮）✨
+
+    colors.statusbar_bg = Color::RGB(45, 35, 25);    // #2D2319 深棕（状态栏）
+    colors.statusbar_fg = Color::RGB(235, 220, 180); // #EBDCB4 沙金
+
+    colors.menubar_bg = Color::RGB(35, 28, 20);    // #231C14 深棕
+    colors.menubar_fg = Color::RGB(235, 220, 180); // #EBDCB4 沙金
+
+    colors.helpbar_bg = Color::RGB(45, 35, 25);
+    colors.helpbar_fg = Color::RGB(200, 180, 150); // #C8B496 浅棕
+    colors.helpbar_key = Color::RGB(255, 200, 80); // #FFC850 金色
+
+    // Egypt 语法高亮：金关键词/青金石字符串/棕注释/宝石数字
+    colors.keyword = Color::RGB(255, 200, 80);         // #FFC850 金色（法老权杖）
+    colors.string = Color::RGB(80, 180, 200);          // #50B4C8 青金石（尼罗河蓝）
+    colors.comment = Color::RGB(150, 130, 100);        // #968264 纸莎草棕（古老注释）
+    colors.number = Color::RGB(255, 180, 100);         // #FFB464 琥珀金（数字）
+    colors.function = Color::RGB(100, 200, 180);       // #64C8B4 绿松石（功能）
+    colors.type = Color::RGB(220, 160, 100);           // #DCA064 黄褐（类型）
+    colors.operator_color = Color::RGB(235, 220, 180); // #EBDCB4 沙金
+
+    colors.error = Color::RGB(220, 80, 70);     // #DC5046 赤陶红（错误）
+    colors.warning = Color::RGB(240, 160, 60);  // #F0A03C 沙漠橙（警告）
+    colors.info = Color::RGB(100, 180, 220);    // #64B4DC 尼罗河蓝（信息）
+    colors.success = Color::RGB(120, 200, 160); // #78C8A0 绿洲绿（成功）
+
+    colors.dialog_bg = Color::RGB(50, 40, 30);          // #32281E 深棕（对话框）
+    colors.dialog_fg = Color::RGB(235, 220, 180);       // #EBDCB4 沙金
+    colors.dialog_title_bg = Color::RGB(180, 140, 60);  // #B48C3C 金字塔金（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 245, 220); // #FFF5DC 象牙白
+    colors.dialog_border = Color::RGB(150, 130, 100);   // #968264 棕褐边框
+
+    return colors;
+}
+
+ThemeColors Theme::Greece() {
+    ThemeColors colors;
+    // Greece: 希腊主题，爱琴海蓝 + 圣托里尼白 + 阳光黄 + 橄榄绿
+    // 灵感来源：圣托里尼蓝顶教堂、爱琴海、希腊国旗、橄榄树、雅典卫城
+    colors.background = Color::RGB(20, 35, 60);     // #14233C 深蓝（爱琴海夜空）
+    colors.foreground = Color::RGB(245, 248, 250);  // #F5F8FA 纯白（圣托里尼白墙）✨
+    colors.current_line = Color::RGB(35, 50, 75);   // #23324B 深蓝（选中行）
+    colors.selection = Color::RGB(50, 70, 100);     // #324664 海蓝（选择区）
+    colors.line_number = Color::RGB(140, 165, 195); // #8CA5C3 浅蓝灰（行号）
+    colors.line_number_current = Color::RGB(255, 220, 80); // #FFDC50 阳光黄（高亮）✨
+
+    colors.statusbar_bg = Color::RGB(30, 45, 70);    // #1E2D46 深蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(245, 248, 250); // #F5F8FA 纯白
+
+    colors.menubar_bg = Color::RGB(20, 35, 60);    // #14233C 深蓝
+    colors.menubar_fg = Color::RGB(245, 248, 250); // #F5F8FA 纯白
+
+    colors.helpbar_bg = Color::RGB(30, 45, 70);
+    colors.helpbar_fg = Color::RGB(180, 200, 220); // #B4C8DC 浅蓝
+    colors.helpbar_key = Color::RGB(255, 210, 70); // #FFD246 阳光黄
+
+    // Greece 语法高亮：蓝关键词/白字符串/浅蓝注释/黄数字
+    colors.keyword = Color::RGB(100, 160, 220);        // #64A0DC 爱琴海蓝（关键词）
+    colors.string = Color::RGB(230, 235, 240);         // #E6EBF0 纯白（字符串）
+    colors.comment = Color::RGB(130, 155, 180);        // #829BB4 浅蓝灰（注释）
+    colors.number = Color::RGB(255, 200, 60);          // #FFC83C 金黄（数字）
+    colors.function = Color::RGB(120, 180, 230);       // #78B4E6 天蓝（函数）
+    colors.type = Color::RGB(255, 190, 70);            // #FFBE46 阳光黄（类型）
+    colors.operator_color = Color::RGB(245, 248, 250); // #F5F8FA 纯白
+
+    colors.error = Color::RGB(220, 70, 80);     // #DC4650 深红（错误）
+    colors.warning = Color::RGB(255, 180, 50);  // #FFB432 橙黄（警告）
+    colors.info = Color::RGB(90, 170, 230);     // #5AAAE6 爱琴海蓝（信息）
+    colors.success = Color::RGB(120, 190, 140); // #78BE8C 橄榄绿（成功）
+
+    colors.dialog_bg = Color::RGB(35, 50, 75);          // #23324B 深蓝（对话框）
+    colors.dialog_fg = Color::RGB(245, 248, 250);       // #F5F8FA 纯白
+    colors.dialog_title_bg = Color::RGB(80, 140, 200);  // #508CC8 希腊蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(100, 150, 200);   // #6496C8 浅蓝边框
+
+    return colors;
+}
+
+ThemeColors Theme::Denmark() {
+    ThemeColors colors;
+    // Denmark: 丹麦主题，丹麦国旗红 + 纯白 + 北欧简约风 + 金色点缀
+    // 灵感来源：丹麦国旗、安徒生童话、哥本哈根新港、北欧设计、乐高积木
+    colors.background = Color::RGB(25, 30, 35);            // #191E23 深灰（北欧冬夜）
+    colors.foreground = Color::RGB(240, 242, 245);         // #F0F2F5 纯白（北欧简约）✨
+    colors.current_line = Color::RGB(40, 48, 56);          // #283038 深灰（选中行）
+    colors.selection = Color::RGB(55, 68, 80);             // #374450 蓝灰（选择区）
+    colors.line_number = Color::RGB(140, 155, 170);        // #8C9BAA 浅灰（行号）
+    colors.line_number_current = Color::RGB(255, 200, 80); // #FFC850 金色（高亮）✨
+
+    colors.statusbar_bg = Color::RGB(35, 43, 51);    // #232B33 深灰（状态栏）
+    colors.statusbar_fg = Color::RGB(240, 242, 245); // #F0F2F5 纯白
+
+    colors.menubar_bg = Color::RGB(25, 30, 35);    // #191E23 深灰
+    colors.menubar_fg = Color::RGB(240, 242, 245); // #F0F2F5 纯白
+
+    colors.helpbar_bg = Color::RGB(35, 43, 51);
+    colors.helpbar_fg = Color::RGB(170, 185, 200); // #AAB9C8 浅灰
+    colors.helpbar_key = Color::RGB(255, 190, 70); // #FFBE46 金色
+
+    // Denmark 语法高亮：红关键词/白字符串/灰注释/金数字
+    colors.keyword = Color::RGB(220, 60, 60);          // #DC3C3C 丹麦红（关键词）
+    colors.string = Color::RGB(235, 238, 242);         // #EBEEF2 纯白（字符串）
+    colors.comment = Color::RGB(120, 135, 150);        // #788796 中灰（注释）
+    colors.number = Color::RGB(255, 190, 60);          // #FFBE3C 金黄（数字）
+    colors.function = Color::RGB(100, 170, 220);       // #64AADC 北欧蓝（函数）
+    colors.type = Color::RGB(240, 180, 70);            // #F0B446 琥珀金（类型）
+    colors.operator_color = Color::RGB(240, 242, 245); // #F0F2F5 纯白
+
+    colors.error = Color::RGB(230, 70, 70);     // #E64646 鲜红（错误）
+    colors.warning = Color::RGB(255, 170, 60);  // #FFAA3C 橙黄（警告）
+    colors.info = Color::RGB(90, 160, 210);     // #5AA0D2 北欧蓝（信息）
+    colors.success = Color::RGB(110, 190, 150); // #6EBE96 北欧绿（成功）
+
+    colors.dialog_bg = Color::RGB(40, 48, 56);          // #283038 深灰（对话框）
+    colors.dialog_fg = Color::RGB(240, 242, 245);       // #F0F2F5 纯白
+    colors.dialog_title_bg = Color::RGB(200, 50, 50);   // #C83232 丹麦红（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(120, 135, 150);   // #788796 中灰边框
+
+    return colors;
+}
+
+ThemeColors Theme::Antarctica() {
+    ThemeColors colors;
+    // Antarctica: 南极主题，冰雪白 + 冰川蓝 + 极光绿 + 企鹅黑
+    // 灵感来源：南极冰川、极光、企鹅、科考站、极夜星空
+    colors.background = Color::RGB(15, 20, 30);     // #0F141E 极夜蓝（南极夜空）
+    colors.foreground = Color::RGB(245, 250, 255);  // #F5FAFF 冰雪白（纯净冰雪）✨
+    colors.current_line = Color::RGB(30, 40, 55);   // #1E2837 深蓝（选中行）
+    colors.selection = Color::RGB(45, 60, 80);      // #2D3C50 冰蓝（选择区）
+    colors.line_number = Color::RGB(150, 170, 195); // #96AAC3 冰灰（行号）
+    colors.line_number_current = Color::RGB(120, 255, 180); // #78FFB4 极光绿（高亮）✨
+
+    colors.statusbar_bg = Color::RGB(25, 35, 50);    // #192332 深蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(245, 250, 255); // #F5FAFF 冰雪白
+
+    colors.menubar_bg = Color::RGB(15, 20, 30);    // #0F141E 极夜蓝
+    colors.menubar_fg = Color::RGB(245, 250, 255); // #F5FAFF 冰雪白
+
+    colors.helpbar_bg = Color::RGB(25, 35, 50);
+    colors.helpbar_fg = Color::RGB(180, 200, 220);  // #B4C8DC 浅蓝
+    colors.helpbar_key = Color::RGB(100, 240, 160); // #64F0A0 极光绿
+
+    // Antarctica 语法高亮：白关键词/冰蓝字符串/灰注释/极光绿数字
+    colors.keyword = Color::RGB(230, 240, 250);        // #E6F0FA 冰雪白（关键词）
+    colors.string = Color::RGB(160, 200, 240);         // #A0C8F0 冰川蓝（字符串）
+    colors.comment = Color::RGB(130, 150, 170);        // #8296AA 冰灰（注释）
+    colors.number = Color::RGB(140, 250, 200);         // #8CFAC8 冰晶绿（数字）
+    colors.function = Color::RGB(100, 230, 170);       // #64E6AA 极光绿（函数）
+    colors.type = Color::RGB(150, 220, 255);           // #96DCFF 天空蓝（类型）
+    colors.operator_color = Color::RGB(245, 250, 255); // #F5FAFF 冰雪白
+
+    colors.error = Color::RGB(240, 100, 120);   // #F06478 珊瑚红（错误）
+    colors.warning = Color::RGB(255, 200, 100); // #FFC864 企鹅黄（警告）
+    colors.info = Color::RGB(120, 200, 255);    // #78C8FF 冰川蓝（信息）
+    colors.success = Color::RGB(80, 240, 160);  // #50F0A0 极光绿（成功）
+
+    colors.dialog_bg = Color::RGB(30, 40, 55);          // #1E2837 深蓝（对话框）
+    colors.dialog_fg = Color::RGB(245, 250, 255);       // #F5FAFF 冰雪白
+    colors.dialog_title_bg = Color::RGB(60, 100, 150);  // #3C6496 冰川蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(100, 130, 160);   // #6482A0 冰蓝边框
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -3866,6 +4610,8 @@ void Theme::setTheme(const std::string& name) {
         colors_ = Poimandres();
     } else if (name == "terafox") {
         colors_ = Terafox();
+    } else if (name == "galaxy") {
+        colors_ = Galaxy();
     } else if (name == "mellow") {
         colors_ = Mellow();
     } else if (name == "fleet") {
@@ -3948,6 +4694,38 @@ void Theme::setTheme(const std::string& name) {
         colors_ = TraeDark();
     } else if (name == "trae-deep-blue") {
         colors_ = TraeDeepBlue();
+    } else if (name == "midnight") {
+        colors_ = Midnight();
+    } else if (name == "minecraft") {
+        colors_ = Minecraft();
+    } else if (name == "eva") {
+        colors_ = EVA();
+    } else if (name == "iron-man") {
+        colors_ = IronMan();
+    } else if (name == "spider-man") {
+        colors_ = SpiderMan();
+    } else if (name == "captain-america") {
+        colors_ = CaptainAmerica();
+    } else if (name == "hulk") {
+        colors_ = Hulk();
+    } else if (name == "superman") {
+        colors_ = Superman();
+    } else if (name == "godfather") {
+        colors_ = Godfather();
+    } else if (name == "robocop") {
+        colors_ = RoboCop();
+    } else if (name == "icy") {
+        colors_ = Icy();
+    } else if (name == "silver") {
+        colors_ = Silver();
+    } else if (name == "egypt") {
+        colors_ = Egypt();
+    } else if (name == "greece") {
+        colors_ = Greece();
+    } else if (name == "denmark") {
+        colors_ = Denmark();
+    } else if (name == "antarctica") {
+        colors_ = Antarctica();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -4108,6 +4886,7 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "oxocarbon",
             "poimandres",
             "terafox",
+            "galaxy",
             "mellow",
             "fleet",
             "luna",
@@ -4148,7 +4927,23 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "arctic",
             "neon-tokyo",
             "trae-dark",
-            "trae-deep-blue"};
+            "trae-deep-blue",
+            "midnight",
+            "minecraft",
+            "eva",
+            "iron-man",
+            "spider-man",
+            "captain-america",
+            "hulk",
+            "superman",
+            "godfather",
+            "robocop",
+            "icy",
+            "silver",
+            "egypt",
+            "greece",
+            "denmark",
+            "antarctica"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {

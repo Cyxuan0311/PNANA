@@ -17,6 +17,11 @@ static inline Decorator borderWithColor(Color border_color) {
     };
 }
 
+static inline Element padded(Element e) {
+    // 兼容旧版本 FTXUI：用左右空格实现 padding
+    return hbox({text(" "), std::move(e), text(" ")});
+}
+
 namespace pnana {
 namespace ui {
 
@@ -52,23 +57,27 @@ Element PackageManagerPanel::render() {
         return detail_dialog_.render();
     }
 
-    Elements content;
+    // 三段式布局：顶栏（标题+tabs+搜索）、内容区（可伸缩）、底栏（状态+帮助）
+    Element top = vbox({
+                      renderHeader(),
+                      padded(renderTabs()),
+                      padded(renderSearchBox()),
+                  }) |
+                  bgcolor(colors.menubar_bg);
 
-    content.push_back(renderHeader());
-    content.push_back(separator());
-    content.push_back(renderTabs());
-    content.push_back(separator());
-    content.push_back(renderSearchBox());
-    content.push_back(separator());
-    content.push_back(renderCurrentTab());
-    content.push_back(separator());
-    content.push_back(renderStatusBar());
-    content.push_back(separator());
-    content.push_back(renderHelpBar());
+    Element body = padded(renderCurrentTab()) | flex;
 
-    return window(text(" Package Manager ") | color(colors.success) | bold,
-                  vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, 90) | size(HEIGHT, GREATER_THAN, 25) |
+    Element footer = renderFooter();
+
+    return window(text(" Package Manager ") | color(colors.success) | bold, vbox({
+                                                                                top,
+                                                                                separator(),
+                                                                                body,
+                                                                                separator(),
+                                                                                footer,
+                                                                            })) |
+           // 让面板尽量适配终端：给最小尺寸，剩余空间交给 flex
+           size(WIDTH, GREATER_THAN, 72) | size(HEIGHT, GREATER_THAN, 18) |
            bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
@@ -293,17 +302,18 @@ Element PackageManagerPanel::renderTabs() const {
     };
 
     Elements elements;
-    elements.reserve(available.size() * 2); // 预分配空间
+    elements.reserve(available.size() * 2);
     for (size_t i = 0; i < available.size(); ++i) {
         const auto& manager = available[i];
         bool is_active = (manager->getName() == current_manager_name_);
         elements.push_back(makeTab(manager->getDisplayName(), manager->getName(), is_active));
         if (i < available.size() - 1) {
-            elements.push_back(text(" │ ") | color(colors.comment));
+            elements.push_back(text("  ") | color(colors.comment));
         }
     }
 
-    return hbox(std::move(elements)) | center;
+    // 使用 hflow：管理器很多时自动换行，避免横向挤爆
+    return hflow(std::move(elements)) | center;
 }
 
 Element PackageManagerPanel::renderSearchBox() const {
@@ -337,23 +347,24 @@ Element PackageManagerPanel::renderSearchBox() const {
         }
     }
 
-    return hbox(std::move(search_elements)) | bgcolor(colors.menubar_bg);
+    // 给搜索条更清晰的对比度
+    return hbox(std::move(search_elements)) | bgcolor(colors.menubar_bg) | color(colors.menubar_fg);
 }
 
 Element PackageManagerPanel::renderCurrentTab() const {
     auto manager = getCurrentManager();
     if (!manager) {
         auto& colors = theme_.getColors();
-        return hbox({text("  "),
-                     text("No package manager available") | color(colors.comment) | center}) |
-               center;
+        return vbox({
+                   filler(),
+                   hbox({text("No package manager available") | color(colors.comment) | dim}) |
+                       center,
+                   filler(),
+               }) |
+               flex;
     }
 
-    Elements tab_content;
-
-    tab_content.push_back(renderPackageList(manager));
-
-    return vbox(std::move(tab_content));
+    return renderPackageList(manager) | flex;
 }
 
 Element PackageManagerPanel::renderPackageList(
@@ -535,6 +546,21 @@ Element PackageManagerPanel::renderStatusBar() const {
     status_elements.push_back(filler());
 
     return hbox(std::move(status_elements));
+}
+
+Element PackageManagerPanel::renderFooter() const {
+    auto& colors = theme_.getColors();
+
+    // 左侧：状态；右侧：帮助（必要时可折行）
+    Element status =
+        renderStatusBar() | bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;
+    Element help = renderHelpBar();
+
+    // 如果终端宽度不够，help bar 更容易撑爆；用 vbox 允许自然换行
+    return vbox({
+        status,
+        help,
+    });
 }
 
 void PackageManagerPanel::switchTab(const std::string& manager_name) {

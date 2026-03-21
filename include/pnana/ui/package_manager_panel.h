@@ -74,6 +74,7 @@ class PackageManagerPanel {
         std::shared_ptr<features::package_manager::PackageManagerBase> manager) const;
     ftxui::Element renderPackageItem(const features::package_manager::Package& pkg, size_t index,
                                      bool is_selected) const;
+    ftxui::Element renderFooter() const;
     ftxui::Element renderHelpBar() const;
     ftxui::Element renderStatusBar() const;
 

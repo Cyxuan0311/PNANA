@@ -14,6 +14,7 @@ namespace ui {
 
 // SSH 配置结构
 struct SSHConfig {
+    std::string name;
     std::string host;
     std::string user;
     std::string password;
@@ -24,6 +25,7 @@ struct SSHConfig {
 
 // SSH 历史记录条目（不保存密码）
 struct SSHHistoryEntry {
+    std::string name = "New session";
     std::string host;
     std::string user;
     int port = 22;
@@ -31,6 +33,9 @@ struct SSHHistoryEntry {
     std::string remote_path;
 
     std::string displayLabel() const {
+        if (!name.empty() && name != "New session") {
+            return name + " (" + (user.empty() ? host : user + "@" + host) + ")";
+        }
         std::string label = user.empty() ? host : user + "@" + host;
         if (port != 22)
             label += ":" + std::to_string(port);
@@ -41,9 +46,10 @@ struct SSHHistoryEntry {
 // 对话框内部模式
 enum class SSHDialogMode {
     HISTORY,   // 显示历史连接列表
-    NEW_FORM,  // 新建/编辑连接表单
+    NEW_FORM,  // 新建连接表单
     PASSWORD,  // 从历史选中后输入密码
     CONNECTED, // 已连接状态
+    EDIT,      // 编辑历史记录
 };
 
 // SSH 对话框类
@@ -90,18 +96,22 @@ class SSHDialog {
     int history_index_ = 0; // 当前选中项
 
     // ── 新建连接表单 ──────────────────────────────────────
+    std::string name_input_;
     std::string host_input_;
     std::string user_input_;
     std::string password_input_;
     std::string key_path_input_;
     std::string port_input_;
     std::string remote_path_input_;
-    size_t current_field_; // 0-5
+    size_t current_field_; // 0-6 (name, host, user, password, key_path, port, remote_path)
     size_t cursor_position_;
 
     // ── 密码输入（从历史选中后） ──────────────────────────
     std::string history_password_input_;
     size_t history_password_cursor_ = 0;
+
+    // ── 编辑历史记录 ──────────────────────────────────────
+    int edit_entry_index_ = -1; // 被编辑的历史记录索引
 
     // ── 已连接状态 ────────────────────────────────────────
     const SSHConfig* current_connection_ = nullptr;
@@ -136,12 +146,14 @@ class SSHDialog {
     ftxui::Element renderNewFormView();
     ftxui::Element renderPasswordView();
     ftxui::Element renderConnectedView();
+    ftxui::Element renderEditView();
 
     // ── 输入子处理 ────────────────────────────────────────
     bool handleHistoryInput(ftxui::Event event);
     bool handleNewFormInput(ftxui::Event event);
     bool handlePasswordInput(ftxui::Event event);
     bool handleConnectedInput(ftxui::Event event);
+    bool handleEditInput(ftxui::Event event);
 };
 
 } // namespace ui

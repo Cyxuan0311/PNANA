@@ -2,6 +2,7 @@
 #define PNANA_UI_WELCOME_SCREEN_H
 
 #include "core/config_manager.h"
+#include "features/welcome_logo_animation.h"
 #include "ui/theme.h"
 #include <ftxui/dom/elements.hpp>
 
@@ -19,6 +20,7 @@ class WelcomeScreen {
   private:
     Theme& theme_;
     core::ConfigManager& config_;
+    features::WelcomeLogoAnimation logo_animation_;
 };
 
 } // namespace ui

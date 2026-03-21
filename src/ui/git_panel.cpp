@@ -234,6 +234,7 @@ void GitPanel::switchMode(GitPanelMode mode) {
         commit_cursor_position_ = 0;
     } else if (mode == GitPanelMode::BRANCH) {
         branch_name_.clear();
+        branch_cursor_position_ = 0;
     } else if (mode == GitPanelMode::CLONE) {
         clone_url_.clear();
         clone_path_ = git_manager_->getRepositoryRoot().empty() ? fs::current_path().string()
@@ -452,6 +453,7 @@ void GitPanel::performCreateBranch() {
 
     if (git_manager_->createBranch(branch_name_)) {
         branch_name_.clear();
+        branch_cursor_position_ = 0;
         // Clear branch cache since current branch might have changed
         cached_current_branch_.clear();
         last_branch_update_ = std::chrono::steady_clock::now() - branch_cache_timeout_;
@@ -496,13 +498,14 @@ Element GitPanel::renderHeader() {
 
     header_elements.push_back(text(" │ ") | color(colors.comment));
     header_elements.push_back(text(getModeTitle(current_mode_)) | color(colors.keyword) | bold);
-    header_elements.push_back(text(" │ ") | color(colors.comment));
-    header_elements.push_back(text("Repository: ") | color(colors.menubar_fg));
 
+    // Right aligned repository label (keeps top bar readable on narrow terminals)
     std::string repo_path = getCachedRepoPathDisplay();
-    header_elements.push_back(text(repo_path) | color(colors.foreground));
+    Element left = hbox(std::move(header_elements));
+    Element right = hbox(
+        {text("Repo: ") | color(colors.menubar_fg), text(repo_path) | color(colors.foreground)});
 
-    return hbox(std::move(header_elements)) | bgcolor(colors.menubar_bg);
+    return hbox({left, filler(), right}) | bgcolor(colors.menubar_bg);
 }
 
 Element GitPanel::renderTabs() {
@@ -518,20 +521,26 @@ Element GitPanel::renderTabs() {
     };
 
     Elements elements = {
+        text(" ") | color(colors.menubar_fg),
         makeTab("Status", GitPanelMode::STATUS, current_mode_ == GitPanelMode::STATUS),
-        text(" │ ") | color(colors.comment),
+        text(" ") | color(colors.comment),
         makeTab("Commit", GitPanelMode::COMMIT, current_mode_ == GitPanelMode::COMMIT),
-        text(" │ ") | color(colors.comment),
+        text(" ") | color(colors.comment),
         makeTab("Branch", GitPanelMode::BRANCH, current_mode_ == GitPanelMode::BRANCH),
-        text(" │ ") | color(colors.comment),
+        text(" ") | color(colors.comment),
         makeTab("Remote", GitPanelMode::REMOTE, current_mode_ == GitPanelMode::REMOTE),
-        text(" │ ") | color(colors.comment),
+        text(" ") | color(colors.comment),
         makeTab("Clone", GitPanelMode::CLONE, current_mode_ == GitPanelMode::CLONE),
-        text(" │ ") | color(colors.comment),
+        text(" ") | color(colors.comment),
         makeTab("Diff", GitPanelMode::DIFF, current_mode_ == GitPanelMode::DIFF),
-        text(" │ ") | color(colors.comment),
-        makeTab("Graph", GitPanelMode::GRAPH, current_mode_ == GitPanelMode::GRAPH)};
-    return hbox(std::move(elements)) | center;
+        text(" ") | color(colors.comment),
+        makeTab("Graph", GitPanelMode::GRAPH, current_mode_ == GitPanelMode::GRAPH),
+        filler(),
+        text("Tab: switch") | color(colors.comment),
+        text("  Esc: close") | color(colors.comment),
+        text(" ") | color(colors.menubar_fg),
+    };
+    return hbox(std::move(elements)) | bgcolor(colors.helpbar_bg);
 }
 
 Element GitPanel::renderStatusPanel() {
@@ -544,7 +553,7 @@ Element GitPanel::renderStatusPanel() {
                center | size(HEIGHT, EQUAL, 10);
     }
 
-    Elements file_elements;
+    Elements list_elements;
 
     // Enhanced header with status summary (use cached stats for performance)
     if (!stats_cache_valid_) {
@@ -565,8 +574,8 @@ Element GitPanel::renderStatusPanel() {
         text(std::to_string(unstaged_count)) | color(colors.warning),
         text(" unstaged") | color(colors.comment),
         text(")") | color(colors.comment)};
-    file_elements.push_back(hbox(std::move(header_elements)));
-    file_elements.push_back(separator());
+    list_elements.push_back(hbox(std::move(header_elements)));
+    list_elements.push_back(separator());
 
     // File list with improved scrolling and display
     const size_t MAX_VISIBLE_FILES = 25; // Fixed maximum visible files for better UX
@@ -600,7 +609,7 @@ Element GitPanel::renderStatusPanel() {
         bool is_selected =
             std::find(selected_files_.begin(), selected_files_.end(), i) != selected_files_.end();
         bool is_highlighted = (i == selected_index_);
-        file_elements.push_back(renderFileItem(files_[i], i, is_selected, is_highlighted));
+        list_elements.push_back(renderFileItem(files_[i], i, is_selected, is_highlighted));
     }
 
     if (files_.empty()) {
@@ -608,10 +617,84 @@ Element GitPanel::renderStatusPanel() {
             text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success) | bold,
             text(" Working directory clean") | color(colors.success),
             text(" - no changes to commit") | color(colors.comment)};
-        file_elements.push_back(hbox(std::move(empty_elements)) | center);
+        list_elements.push_back(hbox(std::move(empty_elements)) | center);
     }
 
-    return vbox(std::move(file_elements));
+    // Borderless split panes: keep only the outer "Git Panel" window border.
+    Element left_title = hbox({text(pnana::ui::icons::LIST) | color(colors.comment),
+                               text(" Changes") | color(colors.foreground) | bold}) |
+                         bgcolor(colors.background);
+    Element left = vbox({
+                       left_title,
+                       separator(),
+                       vbox(std::move(list_elements)) | frame | vscroll_indicator | flex,
+                   }) |
+                   flex;
+
+    // Right details pane (modern TUI split view: list + detail)
+    Elements detail;
+    const int kDetailPaneWidth = 44;
+
+    auto truncate_middle = [](const std::string& s, size_t max_len) -> std::string {
+        if (s.size() <= max_len)
+            return s;
+        if (max_len <= 5)
+            return s.substr(0, max_len);
+        size_t keep = (max_len - 3) / 2;
+        size_t tail = max_len - 3 - keep;
+        return s.substr(0, keep) + "..." + s.substr(s.size() - tail);
+    };
+
+    if (files_.empty()) {
+        detail.push_back(text("No changes selected.") | color(colors.comment));
+        detail.push_back(separator());
+        detail.push_back(text("Tips:") | color(colors.menubar_fg) | bold);
+        detail.push_back(text("  - Press R/F5 to refresh") | color(colors.comment));
+        detail.push_back(text("  - Use Space to select files") | color(colors.comment));
+    } else {
+        const size_t idx = std::min(selected_index_, files_.size() - 1);
+        const auto& f = files_[idx];
+
+        // Keep a stable pane width and wrap long paths inside it.
+        const std::string display_path = truncate_middle(f.path, 96);
+        detail.push_back(hbox({text(pnana::ui::icons::FILE) | color(colors.function),
+                               text(" ") | color(colors.comment),
+                               paragraph(display_path) | color(colors.foreground) | bold}) |
+                         xflex);
+
+        detail.push_back(
+            hbox({text("Status: ") | color(colors.menubar_fg),
+                  text(getStatusText(f.status)) | color(getStatusColor(f.status)) | bold}));
+        detail.push_back(hbox({text("Staged: ") | color(colors.menubar_fg),
+                               text(f.staged ? "yes" : "no") |
+                                   color(f.staged ? colors.success : colors.warning) | bold}));
+
+        if (!f.old_path.empty() && f.old_path != f.path) {
+            detail.push_back(hbox({text("Renamed: ") | color(colors.menubar_fg),
+                                   paragraph(f.old_path) | color(colors.comment) | dim}));
+        }
+
+        detail.push_back(separator());
+        detail.push_back(text("Shortcuts:") | color(colors.menubar_fg) | bold);
+        detail.push_back(text("  - s/S: stage selected/all") | color(colors.comment));
+        detail.push_back(text("  - u/U: unstage selected/all") | color(colors.comment));
+        detail.push_back(text("  - Tab: switch panel") | color(colors.comment));
+    }
+
+    Element right = vbox({
+                        hbox({text(pnana::ui::icons::INFO_CIRCLE) | color(colors.comment),
+                              text(" Details") | color(colors.foreground) | bold}),
+                        separator(),
+                        vbox(std::move(detail)) | flex,
+                    }) |
+                    size(WIDTH, EQUAL, kDetailPaneWidth) | flex;
+
+    Elements panes;
+    panes.push_back(left | flex);
+    // `separator()` adapts: vertical in hbox, horizontal in vbox.
+    panes.push_back(separator() | color(colors.comment) | dim);
+    panes.push_back(right | flex);
+    return hbox(std::move(panes)) | borderWithColor(colors.dialog_border) | flex;
 }
 
 Element GitPanel::renderCommitPanel() {
@@ -642,96 +725,147 @@ Element GitPanel::renderCommitPanel() {
                                  text(std::to_string(unstaged_count)) | color(colors.warning),
                                  text(" files") | color(colors.menubar_fg)};
     elements.push_back(hbox(std::move(summary_elements)));
-
     elements.push_back(separator());
 
-    // Commit message input with better styling
-    Elements input_header = {text(pnana::ui::icons::FILE_EDIT) | color(colors.keyword),
-                             text(" Commit message:") | color(colors.menubar_fg)};
-    elements.push_back(hbox(std::move(input_header)));
+    auto truncate_middle = [](const std::string& s, size_t max_len) -> std::string {
+        if (s.size() <= max_len)
+            return s;
+        if (max_len <= 5)
+            return s.substr(0, max_len);
+        size_t keep = (max_len - 3) / 2;
+        size_t tail = max_len - 3 - keep;
+        return s.substr(0, keep) + "..." + s.substr(s.size() - tail);
+    };
 
-    // Show staged file list (immediate from files_ so user sees what will be committed)
-    if (staged_count > 0) {
-        Elements staged_list_header = {text(pnana::ui::icons::SAVED) | color(colors.success),
-                                       text(" Staged files:") | color(colors.menubar_fg)};
-        elements.push_back(hbox(std::move(staged_list_header)));
+    // Message editor (multi-line) + staged preview, modern split layout.
+    auto render_message_editor = [&]() -> Element {
+        // Normalize cursor
+        size_t cursor = std::min(commit_cursor_position_, commit_message_.size());
 
-        // List staged file names (limit visual lines to avoid overflow)
-        const size_t MAX_STAGED_SHOW = 10;
-        size_t shown = 0;
-        for (const auto& f : files_) {
-            if (f.staged) {
-                Elements row = {text("  ") | color(colors.background),
-                                text(pnana::ui::icons::FILE) | color(colors.function), text(" "),
-                                text(f.path) | color(colors.success)};
-                elements.push_back(hbox(std::move(row)));
-                shown++;
-                if (shown >= MAX_STAGED_SHOW)
-                    break;
+        // Split message into lines and compute cursor line/column.
+        std::vector<std::string> lines;
+        lines.reserve(8);
+        size_t line_start = 0;
+        size_t cursor_line = 0;
+        size_t cursor_col = 0;
+        for (size_t i = 0; i <= commit_message_.size(); ++i) {
+            bool at_end = (i == commit_message_.size());
+            bool is_nl = (!at_end && commit_message_[i] == '\n');
+            if (at_end || is_nl) {
+                lines.push_back(commit_message_.substr(line_start, i - line_start));
+                if (cursor >= line_start && cursor <= i) {
+                    cursor_line = lines.size() - 1;
+                    cursor_col = cursor - line_start;
+                }
+                line_start = i + 1;
             }
         }
-        if (shown < staged_count) {
-            elements.push_back(text("  ...") | color(colors.comment));
-        }
-        elements.push_back(separator());
-    }
-
-    // Show character count and validation
-    std::string char_count = "(" + std::to_string(commit_message_.length()) + " chars)";
-
-    // Render commit message with cursor
-    Element commit_input;
-    if (commit_message_.empty()) {
-        // Empty input: show block cursor
-        commit_input =
-            hbox({text(" ") | bgcolor(colors.selection) | color(colors.background) | bold,
-                  text(" ")}) |
-            border | bgcolor(colors.background);
-    } else {
-        // Ensure cursor position is valid
-        size_t safe_cursor_pos = std::min(commit_cursor_position_, commit_message_.length());
-
-        // Split message: before cursor, at cursor, after cursor
-        std::string before = commit_message_.substr(0, safe_cursor_pos);
-        std::string cursor_char = safe_cursor_pos < commit_message_.length()
-                                      ? commit_message_.substr(safe_cursor_pos, 1)
-                                      : " ";
-        std::string after = safe_cursor_pos < commit_message_.length()
-                                ? commit_message_.substr(safe_cursor_pos + 1)
-                                : "";
-
-        // Render with block cursor (highlight current character)
-        Elements input_elements;
-        if (!before.empty()) {
-            input_elements.push_back(text(before) | color(colors.foreground));
-        }
-        // Block cursor: highlight current character
-        input_elements.push_back(text(cursor_char) | bgcolor(colors.selection) |
-                                 color(colors.background) | bold);
-        if (!after.empty()) {
-            input_elements.push_back(text(after) | color(colors.foreground));
+        if (lines.empty()) {
+            lines.push_back("");
+            cursor_line = 0;
+            cursor_col = 0;
         }
 
-        commit_input = hbox(std::move(input_elements)) | border | bgcolor(colors.background);
-    }
+        Elements rendered_lines;
+        rendered_lines.reserve(lines.size());
+        for (size_t li = 0; li < lines.size(); ++li) {
+            const std::string& s = lines[li];
+            if (li == cursor_line) {
+                const size_t safe_col = std::min(cursor_col, s.size());
+                const std::string before = s.substr(0, safe_col);
+                const std::string cursor_char = (safe_col < s.size()) ? s.substr(safe_col, 1) : " ";
+                const std::string after = (safe_col < s.size()) ? s.substr(safe_col + 1) : "";
 
-    elements.push_back(commit_input);
-    elements.push_back(text(char_count) | color(colors.comment) | dim);
+                Elements row;
+                if (!before.empty())
+                    row.push_back(text(before) | color(colors.foreground));
+                row.push_back(text(cursor_char) | bgcolor(colors.selection) |
+                              color(colors.background) | bold);
+                if (!after.empty())
+                    row.push_back(text(after) | color(colors.foreground));
+                rendered_lines.push_back(hbox(std::move(row)));
+            } else {
+                rendered_lines.push_back(text(s) | color(colors.foreground));
+            }
+        }
 
-    // Validation and status messages
+        // Ensure we show a cursor even for an empty message.
+        if (commit_message_.empty()) {
+            rendered_lines.clear();
+            rendered_lines.push_back(
+                hbox({text(" ") | bgcolor(colors.selection) | color(colors.background) | bold}) |
+                xflex);
+        }
+
+        Element editor_body = vbox(std::move(rendered_lines)) | frame | vscroll_indicator | flex;
+        Element title = hbox({
+            text(pnana::ui::icons::FILE_EDIT) | color(colors.keyword),
+            text(" Message") | color(colors.foreground) | bold,
+            filler(),
+            text("Ctrl+Enter: newline") | color(colors.comment) | dim,
+            text("  Enter: commit") | color(colors.comment) | dim,
+        });
+        return vbox({title, separator(), editor_body}) | border | flex;
+    };
+
+    auto render_staged_preview = [&]() -> Element {
+        Elements rows;
+        rows.push_back(
+            hbox({text(pnana::ui::icons::SAVED) | color(colors.success),
+                  text(" Staged") | color(colors.foreground) | bold,
+                  text(" (" + std::to_string(staged_count) + ")") | color(colors.comment)}));
+        rows.push_back(separator());
+
+        if (staged_count == 0) {
+            rows.push_back(text("Stage files in Status tab first.") | color(colors.comment));
+        } else {
+            const size_t MAX_STAGED_SHOW = 12;
+            size_t shown = 0;
+            for (const auto& f : files_) {
+                if (!f.staged)
+                    continue;
+                std::string display = truncate_middle(f.path, 52);
+                rows.push_back(hbox({text(pnana::ui::icons::FILE) | color(colors.function),
+                                     text(" ") | color(colors.comment),
+                                     text(display) | color(colors.success)}));
+                if (++shown >= MAX_STAGED_SHOW)
+                    break;
+            }
+            if (shown < staged_count) {
+                rows.push_back(text("...") | color(colors.comment));
+            }
+        }
+        return vbox(std::move(rows)) | border | flex;
+    };
+
+    // Status line
+    Elements status_line;
     if (staged_count == 0) {
-        Elements warning_elements = {text(pnana::ui::icons::WARNING) | color(colors.error),
-                                     text(" No staged changes to commit") | color(colors.error)};
-        elements.push_back(hbox(warning_elements));
+        status_line = {text(pnana::ui::icons::WARNING) | color(colors.error),
+                       text(" No staged changes to commit") | color(colors.error)};
     } else if (commit_message_.empty()) {
-        Elements info_elements = {text(pnana::ui::icons::INFO_CIRCLE) | color(colors.warning),
-                                  text(" Commit message is required") | color(colors.warning)};
-        elements.push_back(hbox(info_elements));
+        status_line = {text(pnana::ui::icons::INFO_CIRCLE) | color(colors.warning),
+                       text(" Commit message is required") | color(colors.warning)};
     } else {
-        Elements ready_elements = {text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success),
-                                   text(" Ready to commit") | color(colors.success)};
-        elements.push_back(hbox(ready_elements));
+        status_line = {text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success),
+                       text(" Ready to commit") | color(colors.success)};
     }
+
+    std::string char_count = std::to_string(commit_message_.length()) + " chars";
+    Element status_bar = hbox({
+                             hbox(status_line),
+                             filler(),
+                             text(char_count) | color(colors.comment) | dim,
+                         }) |
+                         bgcolor(colors.background);
+
+    Element panes = hbox({render_message_editor() | flex, separator() | color(colors.comment) | dim,
+                          render_staged_preview() | flex}) |
+                    flex;
+
+    elements.push_back(panes);
+    elements.push_back(separator());
+    elements.push_back(status_bar);
 
     return vbox(std::move(elements));
 }
@@ -804,8 +938,33 @@ Element GitPanel::renderBranchPanel() {
     Elements input_elements = {text(pnana::ui::icons::FILE_PLUS) | color(colors.success),
                                text(" Create new branch:") | color(colors.menubar_fg)};
     branch_elements.push_back(hbox(input_elements));
-    branch_elements.push_back(text(branch_name_) | color(colors.foreground) | border |
-                              bgcolor(colors.background));
+
+    auto render_branch_input = [&]() -> Element {
+        size_t cursor = std::min(branch_cursor_position_, branch_name_.size());
+        const size_t safe_col = std::min(cursor, branch_name_.size());
+        const std::string before = branch_name_.substr(0, safe_col);
+        const std::string cursor_char =
+            (safe_col < branch_name_.size()) ? branch_name_.substr(safe_col, 1) : " ";
+        const std::string after =
+            (safe_col < branch_name_.size()) ? branch_name_.substr(safe_col + 1) : "";
+
+        Elements row;
+        if (!before.empty()) {
+            row.push_back(text(before) | color(colors.foreground));
+        }
+        row.push_back(text(cursor_char) | bgcolor(colors.selection) | color(colors.background) |
+                      bold);
+        if (!after.empty()) {
+            row.push_back(text(after) | color(colors.foreground));
+        }
+        if (branch_name_.empty()) {
+            row.clear();
+            row.push_back(text(" ") | bgcolor(colors.selection) | color(colors.background) | bold);
+        }
+        return hbox(std::move(row)) | xflex;
+    };
+
+    branch_elements.push_back(render_branch_input() | border | bgcolor(colors.background));
 
     return vbox(std::move(branch_elements));
 }
@@ -821,103 +980,88 @@ Element GitPanel::renderRemotePanel() {
     elements.push_back(hbox(std::move(header_elements)));
     elements.push_back(separator());
 
-    // Current branch and remote info
     std::string current_branch = getCachedCurrentBranch();
-    if (!current_branch.empty()) {
-        Elements branch_elements = {text(pnana::ui::icons::GIT_BRANCH) | color(colors.keyword),
-                                    text(" Current branch: ") | color(colors.menubar_fg),
-                                    text(current_branch) | color(colors.foreground) | bold};
-        elements.push_back(hbox(std::move(branch_elements)));
-        elements.push_back(separator());
-    }
-
-    // Branch status info (push/sync status)
     GitBranchStatus branch_status = getCachedBranchStatus();
-    if (branch_status.has_remote_tracking) {
-        Elements status_elements;
 
-        // Status icon and text
-        status_elements.push_back(text(pnana::ui::icons::REFRESH) | color(colors.comment));
+    auto build_status_card = [&]() -> Element {
+        Elements rows;
+        rows.push_back(hbox({text(pnana::ui::icons::INFO_CIRCLE) | color(colors.keyword),
+                             text(" Status") | color(colors.foreground) | bold}));
+        rows.push_back(separator());
 
-        if (branch_status.ahead > 0 && branch_status.behind == 0) {
-            // Ahead of remote - ready to push
-            status_elements.push_back(text(" Local commits ready to push") | color(colors.success) |
-                                      bold);
-            status_elements.push_back(
-                text(" (" + std::to_string(branch_status.ahead) + " commits ahead)") |
-                color(colors.success));
-        } else if (branch_status.ahead == 0 && branch_status.behind > 0) {
-            // Behind remote - need to pull
-            status_elements.push_back(text(" Remote has new commits") | color(colors.warning) |
-                                      bold);
-            status_elements.push_back(
-                text(" (" + std::to_string(branch_status.behind) + " commits behind)") |
-                color(colors.warning));
-        } else if (branch_status.ahead > 0 && branch_status.behind > 0) {
-            // Diverged - need to handle merge/rebase
-            status_elements.push_back(text(" Branch diverged from remote") | color(colors.warning) |
-                                      bold);
-            status_elements.push_back(text(" (" + std::to_string(branch_status.ahead) + " ahead, " +
-                                           std::to_string(branch_status.behind) + " behind)") |
-                                      color(colors.warning));
+        if (!current_branch.empty()) {
+            rows.push_back(hbox({text("Branch: ") | color(colors.menubar_fg),
+                                 text(current_branch) | color(colors.foreground) | bold}));
         } else {
-            // In sync
-            status_elements.push_back(text(" Branch is in sync with remote") |
-                                      color(colors.comment));
+            rows.push_back(text("Branch: (unknown)") | color(colors.comment));
         }
 
-        elements.push_back(hbox(std::move(status_elements)));
-        elements.push_back(separator());
-    } else if (!current_branch.empty()) {
-        // No remote tracking branch
-        Elements no_remote_elements = {
-            text(pnana::ui::icons::WARNING) | color(colors.warning),
-            text(" No remote tracking branch configured") | color(colors.comment)};
-        elements.push_back(hbox(std::move(no_remote_elements)));
-        elements.push_back(separator());
-    }
+        if (branch_status.has_remote_tracking) {
+            if (branch_status.ahead > 0 && branch_status.behind == 0) {
+                rows.push_back(hbox({text(pnana::ui::icons::UPLOAD) | color(colors.success),
+                                     text(" Ahead of remote") | color(colors.success) | bold,
+                                     text(" (" + std::to_string(branch_status.ahead) + ")") |
+                                         color(colors.success)}));
+            } else if (branch_status.ahead == 0 && branch_status.behind > 0) {
+                rows.push_back(hbox({text(pnana::ui::icons::DOWNLOAD) | color(colors.warning),
+                                     text(" Behind remote") | color(colors.warning) | bold,
+                                     text(" (" + std::to_string(branch_status.behind) + ")") |
+                                         color(colors.warning)}));
+            } else if (branch_status.ahead > 0 && branch_status.behind > 0) {
+                rows.push_back(hbox({text(pnana::ui::icons::WARNING) | color(colors.warning),
+                                     text(" Diverged") | color(colors.warning) | bold,
+                                     text(" (" + std::to_string(branch_status.ahead) + " ahead, " +
+                                          std::to_string(branch_status.behind) + " behind)") |
+                                         color(colors.warning)}));
+            } else {
+                rows.push_back(hbox({text(pnana::ui::icons::CHECK_CIRCLE) | color(colors.success),
+                                     text(" In sync") | color(colors.success)}));
+            }
+        } else if (!current_branch.empty()) {
+            rows.push_back(hbox({text(pnana::ui::icons::WARNING) | color(colors.warning),
+                                 text(" No remote tracking branch") | color(colors.comment)}));
+        } else {
+            rows.push_back(text("Remote status unavailable") | color(colors.comment));
+        }
 
-    // Available operations with enhanced visual design
-    elements.push_back(text("Available operations:") | color(colors.menubar_fg));
-    elements.push_back(separatorLight());
+        return vbox(std::move(rows)) | border | flex;
+    };
 
-    // Push operation
-    Elements push_elements = {
-        text("  ") | color(colors.background),
-        text("[p]") | color(colors.success) | bold | bgcolor(colors.selection),
-        text(" ") | color(colors.background),
-        text(pnana::ui::icons::UPLOAD) | color(colors.success),
-        text(" Push to remote") | color(colors.foreground),
-        text(" - Upload local commits") | color(colors.comment)};
-    elements.push_back(hbox(push_elements));
+    auto build_ops_card = [&]() -> Element {
+        Elements rows;
+        rows.push_back(hbox({text(pnana::ui::icons::GIT_REMOTE) | color(colors.function),
+                             text(" Operations") | color(colors.foreground) | bold}));
+        rows.push_back(separator());
 
-    // Pull operation
-    Elements pull_elements = {
-        text("  ") | color(colors.background),
-        text("[l]") | color(colors.warning) | bold | bgcolor(colors.selection),
-        text(" ") | color(colors.background),
-        text(pnana::ui::icons::DOWNLOAD) | color(colors.warning),
-        text(" Pull from remote") | color(colors.foreground),
-        text(" - Download and merge remote changes") | color(colors.comment)};
-    elements.push_back(hbox(pull_elements));
+        rows.push_back(hbox({text("[p]") | color(colors.success) | bold | bgcolor(colors.selection),
+                             text(" ") | color(colors.background),
+                             text(pnana::ui::icons::UPLOAD) | color(colors.success),
+                             text(" Push") | color(colors.foreground), filler(),
+                             text("upload commits") | color(colors.comment)}));
 
-    // Fetch operation
-    Elements fetch_elements = {
-        text("  ") | color(colors.background),
-        text("[f]") | color(colors.keyword) | bold | bgcolor(colors.selection),
-        text(" ") | color(colors.background),
-        text(pnana::ui::icons::REFRESH) | color(colors.keyword),
-        text(" Fetch from remote") | color(colors.foreground),
-        text(" - Download remote changes without merging") | color(colors.comment)};
-    elements.push_back(hbox(fetch_elements));
+        rows.push_back(hbox({text("[l]") | color(colors.warning) | bold | bgcolor(colors.selection),
+                             text(" ") | color(colors.background),
+                             text(pnana::ui::icons::DOWNLOAD) | color(colors.warning),
+                             text(" Pull") | color(colors.foreground), filler(),
+                             text("merge remote changes") | color(colors.comment)}));
 
-    elements.push_back(separatorLight());
+        rows.push_back(hbox({text("[f]") | color(colors.keyword) | bold | bgcolor(colors.selection),
+                             text(" ") | color(colors.background),
+                             text(pnana::ui::icons::REFRESH) | color(colors.keyword),
+                             text(" Fetch") | color(colors.foreground), filler(),
+                             text("download without merge") | color(colors.comment)}));
 
-    // Remote status info
-    Elements status_elements = {
-        text(pnana::ui::icons::INFO_CIRCLE) | color(colors.comment),
-        text(" Use the operations above to sync with remote repositories") | color(colors.comment)};
-    elements.push_back(hbox(status_elements));
+        rows.push_back(separatorLight());
+        rows.push_back(hbox({text(pnana::ui::icons::INFO_CIRCLE) | color(colors.comment),
+                             text(" Tip: fetch before pull if unsure") | color(colors.comment)}));
+
+        return vbox(std::move(rows)) | border | flex;
+    };
+
+    Element cards = hbox(
+        {build_status_card(), separator() | color(colors.comment) | dim, build_ops_card() | flex});
+
+    elements.push_back(cards | flex);
 
     return vbox(std::move(elements));
 }
@@ -1455,17 +1599,57 @@ Element GitPanel::renderDiffViewer() {
 
     Elements viewer_elements;
 
-    // Header with file name and controls
-    Elements header_elements = {text(pnana::ui::icons::FILE) | color(colors.function),
-                                text(" ") | color(colors.foreground),
-                                text(current_diff_file_) | color(colors.foreground) | bold,
-                                text(" │ ") | color(colors.comment),
-                                text("ESC") | color(colors.keyword) | bold,
-                                text(":close ") | color(colors.comment),
-                                text("PgUp/PgDn") | color(colors.keyword) | bold,
-                                text(":scroll") | color(colors.comment)};
-    viewer_elements.push_back(hbox(std::move(header_elements)));
-    viewer_elements.push_back(separator());
+    // Header: file path + stats + controls
+    std::string dir_part;
+    std::string base_part = current_diff_file_;
+    try {
+        fs::path p(current_diff_file_);
+        base_part = p.filename().string();
+        dir_part =
+            p.has_parent_path() ? (p.parent_path().string() + fs::path::preferred_separator) : "";
+    } catch (...) {
+        // best-effort only
+    }
+
+    // Truncate directory path if too long
+    if (dir_part.size() > 48) {
+        dir_part = "..." + dir_part.substr(dir_part.size() - 45);
+    }
+
+    // Diff stats (added/removed)
+    size_t added = 0;
+    size_t removed = 0;
+    for (const auto& l : diff_content_) {
+        if (!l.empty() && l[0] == '+' && l.rfind("+++", 0) != 0) {
+            added++;
+        } else if (!l.empty() && l[0] == '-' && l.rfind("---", 0) != 0) {
+            removed++;
+        }
+    }
+
+    Elements header_row = {text(pnana::ui::icons::GIT_DIFF) | color(colors.function),
+                           text(" ") | color(colors.foreground),
+                           text(dir_part) | color(colors.comment) | dim,
+                           text(base_part) | color(colors.foreground) | bold, text("  ")};
+
+    if (!diff_content_.empty()) {
+        header_row.push_back(text("+") | color(colors.success) | bold);
+        header_row.push_back(text(std::to_string(added)) | color(colors.success));
+        header_row.push_back(text(" ") | color(colors.comment));
+        header_row.push_back(text("-") | color(colors.error) | bold);
+        header_row.push_back(text(std::to_string(removed)) | color(colors.error));
+        header_row.push_back(text("  ") | color(colors.comment));
+    }
+
+    header_row.push_back(filler());
+    header_row.push_back(text("PgUp/PgDn") | color(colors.keyword) | bold);
+    header_row.push_back(text(":scroll  ") | color(colors.comment));
+    header_row.push_back(text("ESC") | color(colors.keyword) | bold);
+    header_row.push_back(text(":close") | color(colors.comment));
+
+    viewer_elements.push_back(hbox(std::move(header_row)) | bgcolor(colors.dialog_title_bg) |
+                              color(colors.dialog_title_fg));
+    viewer_elements.push_back(separatorLight());
 
     // Diff content with enhanced neovim-like styling
     const size_t VISIBLE_LINES = 25;
@@ -1508,14 +1692,25 @@ Element GitPanel::renderDiffViewer() {
             // Line content with appropriate styling
             Element content_element;
             if (is_addition) {
-                // Green for additions, like neovim
-                content_element = text(line_content) | color(colors.success);
+                // Additions: green foreground + subtle background (skip +++ header)
+                if (!is_file_header) {
+                    content_element = text(line_content) | color(colors.success) |
+                                      bgcolor(Color::RGB(20, 60, 30));
+                } else {
+                    content_element = text(line_content) | color(colors.success) | bold;
+                }
             } else if (is_deletion) {
-                // Red for deletions, like neovim
-                content_element = text(line_content) | color(colors.error);
+                // Deletions: red foreground + subtle background (skip --- header)
+                if (!is_file_header) {
+                    content_element =
+                        text(line_content) | color(colors.error) | bgcolor(Color::RGB(60, 20, 20));
+                } else {
+                    content_element = text(line_content) | color(colors.error) | bold;
+                }
             } else if (is_hunk_header) {
                 // Blue for hunk headers
-                content_element = text(line_content) | color(colors.keyword) | bold;
+                content_element = text(line_content) | color(colors.keyword) | bold |
+                                  bgcolor(Color::RGB(20, 30, 60));
             } else if (is_file_header) {
                 // File headers with appropriate colors
                 Color header_color =
@@ -1526,22 +1721,27 @@ Element GitPanel::renderDiffViewer() {
                 content_element = text(line_content) | color(colors.foreground);
             }
 
-            line_elements.push_back(content_element);
-            viewer_elements.push_back(hbox(std::move(line_elements)));
+            line_elements.push_back(content_element | flex_grow);
+            Element row = hbox(std::move(line_elements));
+            // Add gentle row padding for readability
+            viewer_elements.push_back(row);
         }
 
-        // Add scroll indicator if needed (no dashed separator)
+        // Bottom status line (page + range)
         if (diff_content_.size() > VISIBLE_LINES) {
-            size_t total_pages = (diff_content_.size() + VISIBLE_LINES - 1) / VISIBLE_LINES;
-            size_t current_page = diff_scroll_offset_ / VISIBLE_LINES + 1;
-            std::string scroll_info =
-                "[" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
-            viewer_elements.push_back(text(scroll_info) | color(colors.comment) | center);
+            size_t from = start_line + 1;
+            size_t to = end_line;
+            std::string info = " " + std::to_string(from) + "-" + std::to_string(to) + "/" +
+                               std::to_string(diff_content_.size()) + " ";
+            viewer_elements.push_back(separatorLight());
+            viewer_elements.push_back(text(info) | color(colors.comment) | center | dim);
         }
     }
 
-    return window(text("Diff Viewer"), vbox(std::move(viewer_elements))) |
-           size(WIDTH, GREATER_THAN, 100) | size(HEIGHT, GREATER_THAN, 30) |
+    // Modal-like viewer with more responsive sizing (avoid forcing ultra-wide windows)
+    return window(text(" Diff ") | color(colors.function) | bold,
+                  vbox(std::move(viewer_elements))) |
+           size(WIDTH, GREATER_THAN, 90) | size(HEIGHT, GREATER_THAN, 26) | flex |
            bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
@@ -1662,22 +1862,22 @@ Element GitPanel::renderFooter() {
     // Add scroll indicator if needed
     if (current_mode_ == GitPanelMode::STATUS && files_.size() > 25) {
         size_t total_pages = (files_.size() + 24) / 25; // Ceiling division
-        size_t current_page = scroll_offset_ / 40 + 1;
-        std::string scroll_info =
-            " [" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
-        footer_elements.push_back(text(scroll_info) | color(colors.menubar_fg));
+        size_t current_page = scroll_offset_ / 25 + 1;
+        (void)current_page;
+        (void)total_pages;
+        // 移除页码显示
     } else if (current_mode_ == GitPanelMode::BRANCH && branches_.size() > 18) {
         size_t total_pages = (branches_.size() + 17) / 18; // Ceiling division
         size_t current_page = scroll_offset_ / 18 + 1;
-        std::string scroll_info =
-            " [" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
-        footer_elements.push_back(text(scroll_info) | color(colors.menubar_fg));
+        (void)current_page;
+        (void)total_pages;
+        // 移除页码显示
     } else if (current_mode_ == GitPanelMode::DIFF && files_.size() > 20) {
         size_t total_pages = (files_.size() + 19) / 20; // Ceiling division
         size_t current_page = scroll_offset_ / 20 + 1;
-        std::string scroll_info =
-            " [" + std::to_string(current_page) + "/" + std::to_string(total_pages) + "]";
-        footer_elements.push_back(text(scroll_info) | color(colors.menubar_fg));
+        (void)current_page;
+        (void)total_pages;
+        // 移除页码显示
     }
 
     return vbox(std::move(footer_elements)) | bgcolor(colors.menubar_bg);
@@ -1691,7 +1891,8 @@ Element GitPanel::renderError() {
 }
 
 Element GitPanel::separatorLight() {
-    return text(std::string(80, '-')) | color(theme_.getColors().comment);
+    // Avoid fixed-width separators that can force the UI to grow wider.
+    return separator() | color(theme_.getColors().comment);
 }
 
 // Component builders
@@ -1706,7 +1907,7 @@ Component GitPanel::buildMainComponent() {
                Elements content_elements;
                content_elements.push_back(renderHeader());
                content_elements.push_back(renderTabs());
-               content_elements.push_back(separator());
+               content_elements.push_back(separatorLight());
 
                switch (current_mode_) {
                    case GitPanelMode::STATUS:
@@ -1733,11 +1934,11 @@ Component GitPanel::buildMainComponent() {
                }
 
                if (!error_message_.empty()) {
-                   content_elements.push_back(separatorLight());
+                   content_elements.push_back(separator());
                    content_elements.push_back(renderError());
                }
 
-               content_elements.push_back(separator());
+               content_elements.push_back(separatorLight());
                content_elements.push_back(renderFooter());
 
                Element dialog_content = vbox(std::move(content_elements));
@@ -1991,6 +2192,29 @@ bool GitPanel::handleCommitModeKey(Event event) {
         return true;
     }
 
+    auto is_ctrl_modified_return = [&]() -> bool {
+        if (!(event == Event::Return || event == Event::CtrlM)) {
+            return false;
+        }
+        std::string in = event.input();
+        std::transform(in.begin(), in.end(), in.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+        return in.find("ctrl") != std::string::npos;
+    };
+
+    // Ctrl+Enter: insert newline inside commit message (multi-line commit).
+    // Fall back: Ctrl+J is commonly delivered as newline on terminals.
+    if (is_ctrl_modified_return() || event == Event::CtrlJ) {
+        if (commit_cursor_position_ > commit_message_.length()) {
+            commit_cursor_position_ = commit_message_.length();
+        }
+        commit_message_.insert(commit_cursor_position_, "\n");
+        commit_cursor_position_ += 1;
+        return true;
+    }
+
+    // Enter: commit
     if (event == Event::Return) {
         performCommit();
         return true;
@@ -2095,6 +2319,7 @@ bool GitPanel::handleBranchModeKey(Event event) {
     // Ctrl+N to create new branch (avoid plain 'n' to reduce accidental creates)
     if (event == Event::CtrlN) {
         branch_name_.clear();
+        branch_cursor_position_ = 0;
         return true;
     }
     // Ctrl+D to delete selected branch
@@ -2112,11 +2337,52 @@ bool GitPanel::handleBranchModeKey(Event event) {
 
     // Handle text input for new branch name (always allow input for simplicity)
     if (event.is_character()) {
-        branch_name_ += event.character();
+        std::string char_str = event.character();
+        if (!char_str.empty()) {
+            if (branch_cursor_position_ >= branch_name_.length()) {
+                branch_name_ += char_str;
+            } else {
+                branch_name_.insert(branch_cursor_position_, char_str);
+            }
+            branch_cursor_position_ += char_str.length();
+        }
         return true;
     }
-    if (event == Event::Backspace && !branch_name_.empty()) {
-        branch_name_.pop_back();
+    if (event == Event::Backspace) {
+        if (branch_cursor_position_ > 0 && !branch_name_.empty()) {
+            if (branch_cursor_position_ >= branch_name_.length()) {
+                branch_name_.pop_back();
+            } else {
+                branch_name_.erase(branch_cursor_position_ - 1, 1);
+            }
+            branch_cursor_position_--;
+        }
+        return true;
+    }
+    if (event == Event::Delete) {
+        if (branch_cursor_position_ < branch_name_.length()) {
+            branch_name_.erase(branch_cursor_position_, 1);
+        }
+        return true;
+    }
+    if (event == Event::ArrowLeft) {
+        if (branch_cursor_position_ > 0) {
+            branch_cursor_position_--;
+        }
+        return true;
+    }
+    if (event == Event::ArrowRight) {
+        if (branch_cursor_position_ < branch_name_.length()) {
+            branch_cursor_position_++;
+        }
+        return true;
+    }
+    if (event == Event::Home) {
+        branch_cursor_position_ = 0;
+        return true;
+    }
+    if (event == Event::End) {
+        branch_cursor_position_ = branch_name_.length();
         return true;
     }
     if (event == Event::Return && !branch_name_.empty()) {

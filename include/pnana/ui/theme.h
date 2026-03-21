@@ -105,6 +105,7 @@ class Theme {
     static ThemeColors Oxocarbon();              // Oxocarbon - IBM Carbon 风格深灰蓝
     static ThemeColors Poimandres();             // Poimandres - 紫青深色主题
     static ThemeColors Terafox();                // Terafox - 暖棕深色主题
+    static ThemeColors Galaxy();                 // Galaxy - 深紫蓝星空主题
     static ThemeColors Mellow();                 // Mellow - 柔和 pastel 深色
     static ThemeColors Fleet();                  // Fleet - JetBrains Fleet 风格深色
     static ThemeColors Luna();                   // Luna - 柔和紫蓝深色
@@ -146,6 +147,22 @@ class Theme {
     static ThemeColors NeonTokyo(); // Neon Tokyo - 霓虹东京主题，深紫黑基底配合霓虹粉/青/绿
     static ThemeColors TraeDark(); // Trae Dark - Trae 暗色主题，深灰黑基底配合蓝/紫/绿
     static ThemeColors TraeDeepBlue(); // Trae Deep Blue - Trae 深蓝主题，深蓝灰基底配合蓝/青/紫
+    static ThemeColors Midnight();  // Midnight - 午夜蓝主题，深邃神秘的蓝紫色调
+    static ThemeColors Minecraft(); // Minecraft - 我的世界主题，经典像素游戏配色
+    static ThemeColors EVA(); // EVA - 新世纪福音战士主题，NERV 标志配色 + EVA 机体色
+    static ThemeColors IronMan();   // Iron Man - 钢铁侠主题，红金配色 + 反应堆蓝光
+    static ThemeColors SpiderMan(); // Spider-Man - 蜘蛛侠主题，红蓝配色 + 蛛网元素
+    static ThemeColors CaptainAmerica(); // Captain America - 美国队长主题，红白蓝配色 + 星条旗元素
+    static ThemeColors Hulk(); // Hulk - 绿巨人主题，绿色皮肤 + 愤怒力量 + 紫色裤子
+    static ThemeColors Superman(); // Superman - 超人主题，红蓝配色 + 黄金 S 标志
+    static ThemeColors Godfather(); // The Godfather - 教父主题，黑金配色 + 意大利黑手党风格
+    static ThemeColors RoboCop(); // RoboCop - 机械战警主题，银色金属 + HUD 界面蓝 + 警示红
+    static ThemeColors Icy(); // Icy - 冰蓝主题，灰色与浅蓝色配色，清新冷冽
+    static ThemeColors Silver(); // Silver - 银色主题，高端金属质感，银白 + 深灰 + 亮银点缀
+    static ThemeColors Egypt(); // Egypt - 古埃及主题，沙漠金 + 尼罗河蓝 + 金字塔金 + 纸莎草棕
+    static ThemeColors Greece(); // Greece - 希腊主题，爱琴海蓝 + 圣托里尼白 + 阳光黄 + 橄榄绿
+    static ThemeColors Denmark(); // Denmark - 丹麦主题，丹麦国旗红 + 纯白 + 北欧简约风 + 金色点缀
+    static ThemeColors Antarctica(); // Antarctica - 南极主题，冰雪白 + 冰川蓝 + 极光绿 + 企鹅黑
 
     void setTheme(const std::string& name);
 
