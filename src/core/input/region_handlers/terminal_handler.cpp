@@ -38,13 +38,19 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
 #ifdef BUILD_LIBVTERM_SUPPORT
     pnana::input::KeyAction action = editor->getKeyBindingManager().getAction(event);
     if (action == pnana::input::KeyAction::NEW_FILE) {
+        const auto& ssh_config = editor->getCurrentSSHConfig();
         editor->terminal_session_dialog_.show(
             [editor](const pnana::ui::TerminalSessionChoice& choice) {
                 int idx = -1;
-                if (choice.shell_path.empty()) {
-                    idx = editor->getTerminal().newLocalShellSession();
+                if (choice.type == pnana::ui::SessionType::SSH) {
+                    idx = editor->getTerminal().newSSHSession(choice.host, choice.user, choice.port,
+                                                              choice.key_path, choice.password);
                 } else {
-                    idx = editor->getTerminal().newLocalShellSession("", choice.shell_path);
+                    if (choice.shell_path.empty()) {
+                        idx = editor->getTerminal().newLocalShellSession();
+                    } else {
+                        idx = editor->getTerminal().newLocalShellSession("", choice.shell_path);
+                    }
                 }
                 if (idx >= 0) {
                     editor->setStatusMessage("Terminal: New tab opened");
@@ -55,7 +61,9 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
             },
             [editor]() {
                 editor->setStatusMessage("Terminal: New session cancelled");
-            });
+            },
+            ssh_config.host, ssh_config.user, ssh_config.port, ssh_config.key_path,
+            ssh_config.password);
         return true;
     }
 

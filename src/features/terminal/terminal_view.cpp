@@ -14,9 +14,9 @@ ftxui::Element cellToElement(const TerminalCell& cell, const ftxui::Color& defau
     ftxui::Color fg = default_fg;
     ftxui::Color bg = default_bg;
 
-    if (!cell.fg_default && (cell.fg_r != 255 || cell.fg_g != 255 || cell.fg_b != 255))
+    if (!cell.fg_default)
         fg = ftxui::Color::RGB(cell.fg_r, cell.fg_g, cell.fg_b);
-    if (!cell.bg_default && (cell.bg_r != 255 || cell.bg_g != 255 || cell.bg_b != 255))
+    if (!cell.bg_default)
         bg = ftxui::Color::RGB(cell.bg_r, cell.bg_g, cell.bg_b);
 
     auto elem = ftxui::text(cell.text.empty() ? " " : cell.text);

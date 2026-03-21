@@ -97,6 +97,15 @@ class Terminal {
         on_shell_exit_ = std::move(cb);
     }
 
+    // Check if there are any active sessions (SSH or local shell)
+    bool hasActiveSession() const {
+#ifdef BUILD_LIBVTERM_SUPPORT
+        return !sessions_.empty();
+#else
+        return shell_running_;
+#endif
+    }
+
 #ifdef BUILD_LIBVTERM_SUPPORT
     bool useLibVTermPath() const;
     terminal::ScreenSnapshot getSessionSnapshot(int view_height) const;
