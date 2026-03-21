@@ -203,12 +203,15 @@ void Rope::insert(size_t pos, const std::string& text) {
     if (text.empty())
         return;
 
+    const size_t current_len = root_ ? root_->length : 0;
+    pos = std::min(pos, current_len);
+
     root_ = insertAt(root_, pos, text);
     lines_dirty_ = true;
 }
 
 void Rope::remove(size_t pos, size_t length) {
-    if (length == 0 || !root_)
+    if (length == 0 || !root_ || pos >= root_->length)
         return;
 
     length = std::min(length, root_->length - pos);

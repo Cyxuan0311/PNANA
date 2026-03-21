@@ -95,6 +95,12 @@ class SqrtDecomposition : public BufferBackend {
     // 合并相邻块
     void mergeBlocks();
 
+    // 从指定块开始刷新累计长度
+    void refreshTotalsFrom(size_t start_idx);
+
+    // 获取块的起始逻辑偏移
+    size_t blockStartOffset(size_t block_idx) const;
+
     // 重新计算行数
     void recomputeLineCount() const;
 

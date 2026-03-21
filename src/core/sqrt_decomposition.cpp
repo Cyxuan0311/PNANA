@@ -26,16 +26,34 @@ size_t SqrtDecomposition::findBlock(size_t pos) const {
         return 0;
     }
 
-    size_t cum_len = 0;
-    for (size_t i = 0; i < blocks_.size(); ++i) {
-        size_t block_len = blocks_[i].data.size();
-        if (pos < cum_len + block_len) {
-            return i;
+    size_t left = 0;
+    size_t right = blocks_.size();
+    while (left < right) {
+        const size_t mid = left + (right - left) / 2;
+        if (pos < blocks_[mid].total_length) {
+            right = mid;
+        } else {
+            left = mid + 1;
         }
-        cum_len += block_len;
     }
 
-    return blocks_.size() - 1;
+    return std::min(left, blocks_.size() - 1);
+}
+
+void SqrtDecomposition::refreshTotalsFrom(size_t start_idx) {
+    if (blocks_.empty() || start_idx >= blocks_.size()) {
+        return;
+    }
+
+    size_t cum_len = (start_idx == 0) ? 0 : blocks_[start_idx - 1].total_length;
+    for (size_t i = start_idx; i < blocks_.size(); ++i) {
+        cum_len += blocks_[i].data.size();
+        blocks_[i].total_length = cum_len;
+    }
+}
+
+size_t SqrtDecomposition::blockStartOffset(size_t block_idx) const {
+    return (block_idx == 0) ? 0 : blocks_[block_idx - 1].total_length;
 }
 
 void SqrtDecomposition::splitBlock(size_t block_idx) {
@@ -48,28 +66,13 @@ void SqrtDecomposition::splitBlock(size_t block_idx) {
         return; // 不需要分割
     }
 
-    // 创建新块
     Block new_block;
-    size_t split_point = block.data.size() / 2;
-
+    const size_t split_point = block.data.size() / 2;
     new_block.data.insert(new_block.data.end(), block.data.begin() + split_point, block.data.end());
-
     block.data.resize(split_point);
 
-    // 更新累计长度
-    size_t cum_len = 0;
-    for (size_t i = 0; i <= block_idx; ++i) {
-        cum_len += blocks_[i].data.size();
-        blocks_[i].total_length = cum_len;
-    }
-
-    new_block.total_length = cum_len + new_block.data.size();
     blocks_.insert(blocks_.begin() + block_idx + 1, std::move(new_block));
-
-    // 更新后续块的累计长度
-    for (size_t i = block_idx + 2; i < blocks_.size(); ++i) {
-        blocks_[i].total_length += new_block.data.size();
-    }
+    refreshTotalsFrom(block_idx);
 }
 
 void SqrtDecomposition::mergeBlocks() {
@@ -77,30 +80,18 @@ void SqrtDecomposition::mergeBlocks() {
         return;
     }
 
-    bool merged = true;
-    while (merged) {
-        merged = false;
-        for (size_t i = 0; i < blocks_.size() - 1; ++i) {
-            size_t combined_size = blocks_[i].data.size() + blocks_[i + 1].data.size();
-
-            if (combined_size <= block_size_) {
-                // 合并两个块
-                blocks_[i].data.insert(blocks_[i].data.end(), blocks_[i + 1].data.begin(),
-                                       blocks_[i + 1].data.end());
-                blocks_.erase(blocks_.begin() + i + 1);
-
-                // 更新累计长度
-                size_t cum_len = 0;
-                for (size_t j = i; j < blocks_.size(); ++j) {
-                    cum_len += blocks_[j].data.size();
-                    blocks_[j].total_length = cum_len;
-                }
-
-                merged = true;
-                break;
-            }
+    for (size_t i = 0; i + 1 < blocks_.size();) {
+        const size_t combined_size = blocks_[i].data.size() + blocks_[i + 1].data.size();
+        if (combined_size <= block_size_) {
+            blocks_[i].data.insert(blocks_[i].data.end(), blocks_[i + 1].data.begin(),
+                                   blocks_[i + 1].data.end());
+            blocks_.erase(blocks_.begin() + i + 1);
+        } else {
+            ++i;
         }
     }
+
+    refreshTotalsFrom(0);
 }
 
 void SqrtDecomposition::recomputeLineCount() const {
@@ -139,83 +130,83 @@ void SqrtDecomposition::insert(size_t pos, const std::string& text) {
         return;
     }
 
+    pos = std::min(pos, total_length_);
     recalculateBlockSize();
 
     if (blocks_.empty()) {
         blocks_.emplace_back(text.size());
-        std::memcpy(blocks_[0].data.data(), text.c_str(), text.size());
+        std::memcpy(blocks_[0].data.data(), text.data(), text.size());
+        refreshTotalsFrom(0);
     } else {
         size_t block_idx = findBlock(pos);
+        if (pos == total_length_ && !blocks_.empty()) {
+            block_idx = blocks_.size() - 1;
+        }
+
         Block& block = blocks_[block_idx];
+        const size_t block_start = blockStartOffset(block_idx);
+        const size_t offset_in_block = std::min(pos - block_start, block.data.size());
 
-        size_t offset_in_block = pos - (block_idx > 0 ? blocks_[block_idx - 1].total_length : 0);
-
-        // 在块内插入
         block.data.insert(block.data.begin() + offset_in_block, text.begin(), text.end());
 
-        // 检查是否需要分割
         if (block.data.size() > block_size_ * 2) {
             splitBlock(block_idx);
+        } else {
+            refreshTotalsFrom(block_idx);
         }
     }
 
     total_length_ += text.size();
     lines_dirty_ = true;
-
-    // 更新累计长度
-    size_t cum_len = 0;
-    for (auto& block : blocks_) {
-        cum_len += block.data.size();
-        block.total_length = cum_len;
-    }
 }
 
 void SqrtDecomposition::remove(size_t pos, size_t length) {
-    if (length == 0 || pos >= total_length_) {
+    if (length == 0 || pos >= total_length_ || blocks_.empty()) {
         return;
     }
 
     length = std::min(length, total_length_ - pos);
+    const size_t end_pos = pos + length;
 
-    size_t start_block = findBlock(pos);
-    size_t end_block = findBlock(pos + length - 1);
+    const size_t start_block = findBlock(pos);
+    const size_t end_block = findBlock(end_pos - 1);
 
-    size_t offset_in_start = pos - (start_block > 0 ? blocks_[start_block - 1].total_length : 0);
+    const size_t start_block_start = blockStartOffset(start_block);
+    const size_t offset_in_start = pos - start_block_start;
 
     if (start_block == end_block) {
-        // 在同一个块内删除
         blocks_[start_block].data.erase(
             blocks_[start_block].data.begin() + offset_in_start,
             blocks_[start_block].data.begin() + offset_in_start + length);
     } else {
-        // 跨块删除
-        // 删除起始块中的部分
+        const size_t end_block_start = blockStartOffset(end_block);
+        const size_t offset_in_end = end_pos - end_block_start;
+
         blocks_[start_block].data.erase(blocks_[start_block].data.begin() + offset_in_start,
                                         blocks_[start_block].data.end());
 
-        // 删除中间的完整块
-        blocks_.erase(blocks_.begin() + start_block + 1, blocks_.begin() + end_block);
+        blocks_[end_block].data.erase(blocks_[end_block].data.begin(),
+                                      blocks_[end_block].data.begin() + offset_in_end);
 
-        // 删除结束块中的部分
-        if (start_block < blocks_.size()) {
-            size_t offset_in_end =
-                (pos + length) - (start_block > 0 ? blocks_[start_block - 1].total_length : 0);
-            blocks_[start_block].data.erase(blocks_[start_block].data.begin(),
-                                            blocks_[start_block].data.begin() + offset_in_end);
+        if (end_block > start_block + 1) {
+            blocks_.erase(blocks_.begin() + start_block + 1, blocks_.begin() + end_block);
+        }
+
+        if (start_block + 1 < blocks_.size()) {
+            blocks_[start_block].data.insert(blocks_[start_block].data.end(),
+                                             blocks_[start_block + 1].data.begin(),
+                                             blocks_[start_block + 1].data.end());
+            blocks_.erase(blocks_.begin() + start_block + 1);
         }
     }
 
     total_length_ -= length;
     lines_dirty_ = true;
 
-    // 更新累计长度
-    size_t cum_len = 0;
-    for (auto& block : blocks_) {
-        cum_len += block.data.size();
-        block.total_length = cum_len;
+    if (blocks_.empty()) {
+        blocks_.emplace_back();
     }
 
-    // 检查是否需要合并
     mergeBlocks();
 }
 

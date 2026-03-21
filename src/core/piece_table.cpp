@@ -261,6 +261,8 @@ void PieceTable::insert(size_t pos, const std::string& text) {
     if (text.empty())
         return;
 
+    pos = std::min(pos, total_length_);
+
     size_t start = append_buffer_.size();
     append_buffer_ += text;
 
@@ -323,28 +325,63 @@ std::string PieceTable::getText(size_t pos, size_t length) const {
     std::string result;
     result.reserve(length);
 
-    auto [start_node, start_offset] = findNodeAndOffset(pos);
-
-    if (!start_node)
+    auto [node, offset] = findNodeAndOffset(pos);
+    if (!node || node == nil_) {
         return "";
+    }
 
-    size_t remaining = length;
-    size_t current_offset = start_offset;
-    std::shared_ptr<RBNode> current = start_node;
+    auto leftMost = [this](std::shared_ptr<RBNode> current) {
+        while (current && current != nil_ && current->left && current->left != nil_) {
+            current = current->left;
+        }
+        return current;
+    };
 
-    while (remaining > 0 && current && current != nil_) {
-        const std::string& buffer =
-            current->piece.buffer_type == BufferType::ORIGINAL ? original_buffer_ : append_buffer_;
-
-        size_t copy_len = std::min(remaining, current->piece.length - current_offset);
-
-        if (current->piece.start + current_offset < buffer.size()) {
-            result += buffer.substr(current->piece.start + current_offset, copy_len);
+    auto nextInOrder = [this, &leftMost](std::shared_ptr<RBNode> current) {
+        if (!current || current == nil_) {
+            return std::shared_ptr<RBNode>(nullptr);
         }
 
-        remaining -= copy_len;
-        current_offset = 0;
-        current = current->right;
+        if (current->right && current->right != nil_) {
+            return leftMost(current->right);
+        }
+
+        auto child = current;
+        auto parent = current->parent;
+        while (parent && parent != nil_ && child == parent->right) {
+            child = parent;
+            parent = parent->parent;
+        }
+
+        if (!parent || parent == nil_) {
+            return std::shared_ptr<RBNode>(nullptr);
+        }
+        return parent;
+    };
+
+    size_t remaining = length;
+    while (node && node != nil_ && remaining > 0) {
+        const std::string& buffer =
+            (node->piece.buffer_type == BufferType::ORIGINAL) ? original_buffer_ : append_buffer_;
+
+        if (offset < node->piece.length && node->piece.start < buffer.size()) {
+            const size_t piece_available = node->piece.length - offset;
+            const size_t buffer_available = buffer.size() - node->piece.start;
+            const size_t safe_available = std::min(
+                piece_available, (offset < buffer_available) ? (buffer_available - offset) : 0UL);
+            const size_t take = std::min(remaining, safe_available);
+
+            if (take > 0) {
+                result.append(buffer, node->piece.start + offset, take);
+                remaining -= take;
+            }
+        }
+
+        offset = 0;
+        if (remaining == 0) {
+            break;
+        }
+        node = nextInOrder(node);
     }
 
     return result;

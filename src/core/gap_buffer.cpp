@@ -93,14 +93,15 @@ void GapBuffer::insert(size_t pos, const std::string& text) {
         return;
     }
 
+    pos = std::min(pos, length());
     moveGap(pos);
 
-    size_t text_len = text.length();
+    const size_t text_len = text.length();
     if (gap_size_ < text_len) {
         grow(text_len - gap_size_);
     }
 
-    std::memcpy(&buffer_[gap_start_], text.c_str(), text_len);
+    std::memcpy(&buffer_[gap_start_], text.data(), text_len);
     gap_start_ += text_len;
     gap_size_ -= text_len;
     lines_dirty_ = true;
@@ -121,18 +122,27 @@ void GapBuffer::remove(size_t pos, size_t len) {
 }
 
 std::string GapBuffer::getText(size_t pos, size_t len) const {
-    if (pos >= length() || len == 0) {
+    const size_t total_len = length();
+    if (pos >= total_len || len == 0) {
         return "";
     }
 
-    len = std::min(len, length() - pos);
+    len = std::min(len, total_len - pos);
     std::string result;
     result.reserve(len);
 
-    for (size_t i = 0; i < len; ++i) {
-        result += getChar(pos + i);
+    if (pos < gap_start_) {
+        const size_t left_len = std::min(len, gap_start_ - pos);
+        result.append(buffer_.data() + pos, left_len);
+
+        const size_t remaining = len - left_len;
+        if (remaining > 0) {
+            result.append(buffer_.data() + gap_end_, remaining);
+        }
+        return result;
     }
 
+    result.append(buffer_.data() + (pos + gap_size_), len);
     return result;
 }
 
@@ -140,15 +150,8 @@ std::string GapBuffer::getFullText() const {
     std::string result;
     result.reserve(length());
 
-    for (size_t i = 0; i < gap_start_; ++i) {
-        result += buffer_[i];
-    }
-    for (size_t i = gap_end_; i < buffer_.size(); ++i) {
-        if (buffer_[i] == '\0') {
-            break;
-        }
-        result += buffer_[i];
-    }
+    result.append(buffer_.data(), gap_start_);
+    result.append(buffer_.data() + gap_end_, buffer_.size() - gap_end_);
 
     return result;
 }
