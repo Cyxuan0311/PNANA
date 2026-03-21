@@ -18,8 +18,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # 检查原子操作支持（针对 RISC-V、ARM 等架构）
 include(CheckAtomic)
 
-# 图片预览支持（手动启用，使用FFmpeg）
-option(BUILD_IMAGE_PREVIEW "Enable image preview support with FFmpeg" OFF)
+# 图片预览支持（手动启用，使用Chafa）
+option(BUILD_IMAGE_PREVIEW "Enable image preview support with Chafa" OFF)
 
 # Tree-sitter语法高亮支持（手动启用）
 option(BUILD_TREE_SITTER "Enable Tree-sitter syntax highlighting" OFF)
@@ -39,33 +39,28 @@ option(BUILD_LIBVTERM "Enable libvterm for full terminal emulation" OFF)
 option(BUILD_AI_CLIENT "Enable AI client support" OFF)
 
 if(BUILD_IMAGE_PREVIEW)
-    message(STATUS "Image preview support enabled - checking for FFmpeg...")
+    message(STATUS "Image preview support enabled - checking for Chafa...")
 
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
-        pkg_check_modules(LIBAV QUIET
-            libavformat
-            libavcodec
-            libswscale
-            libavutil
-        )
+        pkg_check_modules(CHAFA REQUIRED chafa)
     endif()
 
-    if(LIBAV_FOUND)
+    if(CHAFA_FOUND)
         set(BUILD_IMAGE_PREVIEW_SUPPORT ON)
-        message(STATUS "✓ FFmpeg found - image preview enabled")
-        message(STATUS "  Libraries: ${LIBAV_LIBRARIES}")
-        message(STATUS "  Include dirs: ${LIBAV_INCLUDE_DIRS}")
+        message(STATUS "✓ Chafa found - image preview enabled")
+        message(STATUS "  Libraries: ${CHAFA_LIBRARIES}")
+        message(STATUS "  Include dirs: ${CHAFA_INCLUDE_DIRS}")
     else()
         set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
-        message(FATAL_ERROR "✗ FFmpeg not found but BUILD_IMAGE_PREVIEW is enabled")
-        message(STATUS "  Please install FFmpeg development libraries (libavformat, libavcodec, libswscale, libavutil)")
-        message(STATUS "  using your system package manager, then reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_IMAGE_PREVIEW=ON ..")
+        message(FATAL_ERROR "✗ Chafa not found but BUILD_IMAGE_PREVIEW is enabled")
+        message(STATUS "  Please install Chafa development package (libchafa-dev)")
+        message(STATUS "  Then reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_IMAGE_PREVIEW=ON ..")
     endif()
 else()
     set(BUILD_IMAGE_PREVIEW_SUPPORT OFF)
     message(STATUS "Image preview support disabled (use -DBUILD_IMAGE_PREVIEW=ON to enable)")
-    message(STATUS "  Requires: FFmpeg dev libraries (libavformat, libavcodec, libswscale, libavutil) — install via your package manager")
+    message(STATUS "  Requires: Chafa dev package (libchafa-dev) — install via your package manager")
 endif()
 
 # 检查 nlohmann/json (用于 AI 配置和 LSP 支持)
@@ -311,6 +306,11 @@ include(ConfigureLibVTerm)
 # 包含目录
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/pnana)
 
+# Package manager sources (auto-discovered)
+file(GLOB PACKAGE_MANAGER_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/src/features/package_manager/*.cpp"
+)
+
 # 源文件
 set(SOURCES
     src/main.cpp
@@ -349,6 +349,7 @@ set(SOURCES
     src/ui/new_file_prompt.cpp
     src/ui/theme_menu.cpp
     src/ui/logo_menu.cpp
+    src/ui/animation_menu.cpp
     src/ui/statusbar_style_menu.cpp
     src/ui/create_folder_dialog.cpp
     src/ui/cursor_config_dialog.cpp
@@ -408,19 +409,12 @@ set(SOURCES
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/logo_manager.cpp
+    src/features/welcome_logo_animation.cpp
+    src/features/ui_refresh_scheduler.cpp
     src/features/todo/todo_manager.cpp
     src/utils/comment_syntax.cpp
     src/features/vgit/git_manager.cpp
-    src/features/package_manager/package_manager_registry.cpp
-    src/features/package_manager/pip_manager.cpp
-    src/features/package_manager/apt_manager.cpp
-    src/features/package_manager/cargo_manager.cpp
-    src/features/package_manager/npm_manager.cpp
-    src/features/package_manager/yarn_manager.cpp
-    src/features/package_manager/conda_manager.cpp
-    src/features/package_manager/pacman_manager.cpp
-    src/features/package_manager/yum_manager.cpp
-    src/features/package_manager/brew_manager.cpp
+    ${PACKAGE_MANAGER_SOURCES}
     src/features/terminal/terminal.cpp
     src/features/terminal/terminal_line_buffer.cpp
     src/features/terminal/terminal_color.cpp
@@ -493,16 +487,13 @@ if(BUILD_LSP_SUPPORT)
     list(APPEND SOURCES ${SNIPPET_FILES})
 endif()
 
-# 图片预览模块（如果启用）
-if(BUILD_IMAGE_PREVIEW_SUPPORT)
-    list(APPEND SOURCES
-        src/features/image_preview.cpp
-    )
-    list(APPEND HEADERS
-        include/pnana/features/image_preview.h
-    )
-    message(STATUS "Image preview enabled with FFmpeg support")
-endif()
+# 图片预览模块（双后端模式，始终启用）
+list(APPEND SOURCES
+    src/features/image_preview.cpp
+)
+list(APPEND HEADERS
+    include/pnana/features/image_preview.h
+)
 
 # 插件系统模块（如果启用）
 if(BUILD_LUA_SUPPORT)
@@ -552,6 +543,7 @@ set(HEADERS
     include/pnana/ui/new_file_prompt.h
     include/pnana/ui/theme_menu.h
     include/pnana/ui/logo_menu.h
+    include/pnana/ui/animation_menu.h
     include/pnana/ui/statusbar_style_menu.h
     include/pnana/ui/create_folder_dialog.h
     include/pnana/ui/save_as_dialog.h
@@ -581,6 +573,8 @@ set(HEADERS
     include/pnana/features/SyntaxHighlighter/makefile_syntax_constants.h
     include/pnana/features/command_palette.h
     include/pnana/features/logo_manager.h
+    include/pnana/features/welcome_logo_animation.h
+    include/pnana/features/ui_refresh_scheduler.h
     include/pnana/features/todo/todo_manager.h
     include/pnana/features/vgit/git_manager.h
     include/pnana/ui/git_panel.h
@@ -698,11 +692,11 @@ target_link_libraries(pnana
 # 检查并配置原子操作支持
 check_and_configure_atomic(pnana)
 
-# 只在找到 FFmpeg 时链接
+# 只在找到 Chafa 时链接
 if(BUILD_IMAGE_PREVIEW_SUPPORT)
-    target_link_libraries(pnana PRIVATE ${LIBAV_LIBRARIES})
-    target_include_directories(pnana PRIVATE ${LIBAV_INCLUDE_DIRS})
-    target_compile_options(pnana PRIVATE ${LIBAV_CFLAGS_OTHER})
+    target_link_libraries(pnana PRIVATE ${CHAFA_LIBRARIES})
+    target_include_directories(pnana PRIVATE ${CHAFA_INCLUDE_DIRS})
+    target_compile_options(pnana PRIVATE ${CHAFA_CFLAGS_OTHER})
     target_compile_definitions(pnana PRIVATE BUILD_IMAGE_PREVIEW_SUPPORT)
 endif()
 
