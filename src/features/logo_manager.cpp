@@ -634,6 +634,17 @@ const std::vector<std::string> LOGO_CARET = {
     "/^^       /^^      /^^/^^         /^^/^^      /^^/^^         /^^",
 };
 
+// Question 风格（test.txt 第 724–730 行，??????）
+const std::vector<std::string> LOGO_QUESTION = {
+    " ???????  ???     ??      ?       ???     ??      ?       ",
+    " ??    ?? ? ?     ??     ? ?     ? ?     ??     ? ?      ",
+    " ??    ?? ?? ?    ??    ?  ?    ?? ?    ??    ?  ?      ",
+    " ???????  ??  ?   ??   ?   ?    ??  ?   ??   ?   ?      ",
+    " ??       ??   ?  ??  ????? ?   ??   ?  ??  ????? ?     ",
+    " ??       ??    ? ?? ?       ?  ??    ? ?? ?       ?    ",
+    " ??       ??     ??? ?        ? ??     ??? ?        ?   ",
+};
+
 // At 风格（test.txt 第 682–691 行，@@@@@@@）
 const std::vector<std::string> LOGO_AT = {
     "@@@@@@@   @@@  @@@   @@@@@@   @@@  @@@   @@@@@@   ",
@@ -924,7 +935,7 @@ const std::vector<std::string> LOGO_ROMAN_LINE = {
 };
 
 // Question 风格（test.txt 第 804–809 行，?88,.d88b）
-const std::vector<std::string> LOGO_QUESTION = {
+const std::vector<std::string> LOGO_QUESTION_88 = {
     "?88,.d88b,  88bd88b  d888b8b    88bd88b  d888b8b  ",
     "`?88'  ?88  88P' ?8bd8P' ?88    88P' ?8bd8P' ?88  ",
     "  88b  d8P d88   88P88b  ,88b  d88   88P88b  ,88b ",
@@ -932,6 +943,18 @@ const std::vector<std::string> LOGO_QUESTION = {
     "  88P'                                            ",
     " d88                                              ",
     " ?8P                                              ",
+};
+
+// Digital 风格（科技感数字风格）
+const std::vector<std::string> LOGO_DIGITAL = {
+    "╔════════════════════════════════════════════╗",
+    "║  ██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ ║",
+    "║  ██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗║",
+    "║  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║███████║║",
+    "║  ██╔═══╝ ██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║║",
+    "║  ██║     ██║ ╚████║██║  ██║██║ ╚████║██║  ██║║",
+    "║  ╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝║",
+    "╚════════════════════════════════════════════╝",
 };
 
 const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
@@ -1015,6 +1038,8 @@ const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"dash_star", LOGO_DASH_STAR},
     {"roman_line", LOGO_ROMAN_LINE},
     {"question", LOGO_QUESTION},
+    {"question88", LOGO_QUESTION_88},
+    {"digital", LOGO_DIGITAL},
 };
 
 const std::vector<LogoStyleEntry> STYLES = {
@@ -1098,6 +1123,8 @@ const std::vector<LogoStyleEntry> STYLES = {
     {"dash_star", "Dash Star"},
     {"roman_line", "Roman Line"},
     {"question", "Question"},
+    {"question88", "Question 88"},
+    {"digital", "Digital"},
 };
 
 } // namespace
