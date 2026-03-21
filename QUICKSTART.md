@@ -78,7 +78,11 @@ chmod +x ./install_user_config.sh
 ### 图片预览 / Image Preview
 ```bash
 # 安装依赖 / Install dependencies
-sudo apt install -y libavformat-dev libavcodec-dev libswscale-dev libavutil-dev
+# Ubuntu/Debian
+sudo apt install -y libchafa-dev
+
+# Arch
+yay -S chafa
 
 # 编译时启用 / Enable during compilation
 cmake -DBUILD_IMAGE_PREVIEW=ON ..

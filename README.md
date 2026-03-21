@@ -8,6 +8,8 @@
 ![C++](https://img.shields.io/badge/C++-17-blue)
 ![FTXUI](https://img.shields.io/badge/FTXUI-Terminal%20UI-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/Platform-Linux-blue)
+![Platform](https://img.shields.io/badge/Platform-macOS-purple)
 
 **中文** | [English](README_EN.md)
 
