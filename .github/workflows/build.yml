@@ -60,7 +60,8 @@ jobs:
             curl \
             libcurl4-openssl-dev \
             libvterm-dev \
-            libchafa-dev
+            libchafa-dev \
+            libglib2.0-dev
 
       - name: Build and install FTXUI
         run: |
