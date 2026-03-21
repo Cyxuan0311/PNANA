@@ -26,6 +26,12 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox({main_ui, render_logo_menu_callback_() | center});
     }
 
+    // 如果动画菜单打开，叠加显示
+    if (is_animation_menu_visible_callback_ && is_animation_menu_visible_callback_() &&
+        render_animation_menu_callback_) {
+        return dbox({main_ui, render_animation_menu_callback_() | center});
+    }
+
     // 如果状态栏样式菜单打开，叠加显示
     if (is_statusbar_style_menu_visible_callback_ && is_statusbar_style_menu_visible_callback_() &&
         render_statusbar_style_menu_callback_) {

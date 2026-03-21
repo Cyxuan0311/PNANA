@@ -28,6 +28,9 @@ class OverlayManager {
     void setRenderLogoMenuCallback(std::function<ftxui::Element()> callback) {
         render_logo_menu_callback_ = callback;
     }
+    void setRenderAnimationMenuCallback(std::function<ftxui::Element()> callback) {
+        render_animation_menu_callback_ = callback;
+    }
     void setRenderStatusbarStyleMenuCallback(std::function<ftxui::Element()> callback) {
         render_statusbar_style_menu_callback_ = callback;
     }
@@ -129,6 +132,9 @@ class OverlayManager {
     void setIsLogoMenuVisibleCallback(std::function<bool()> callback) {
         is_logo_menu_visible_callback_ = callback;
     }
+    void setIsAnimationMenuVisibleCallback(std::function<bool()> callback) {
+        is_animation_menu_visible_callback_ = callback;
+    }
     void setIsStatusbarStyleMenuVisibleCallback(std::function<bool()> callback) {
         is_statusbar_style_menu_visible_callback_ = callback;
     }
@@ -228,6 +234,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_help_callback_;
     std::function<ftxui::Element()> render_theme_menu_callback_;
     std::function<ftxui::Element()> render_logo_menu_callback_;
+    std::function<ftxui::Element()> render_animation_menu_callback_;
     std::function<ftxui::Element()> render_statusbar_style_menu_callback_;
     std::function<ftxui::Element()> render_create_folder_callback_;
     std::function<ftxui::Element()> render_save_as_callback_;
@@ -266,6 +273,7 @@ class OverlayManager {
     std::function<bool()> is_help_visible_callback_;
     std::function<bool()> is_theme_menu_visible_callback_;
     std::function<bool()> is_logo_menu_visible_callback_;
+    std::function<bool()> is_animation_menu_visible_callback_;
     std::function<bool()> is_statusbar_style_menu_visible_callback_;
     std::function<bool()> is_create_folder_visible_callback_;
     std::function<bool()> is_save_as_visible_callback_;

@@ -172,8 +172,8 @@ void Editor::handleInput(Event event) {
     // 如果当前在对话框中，其他快捷键不处理（让对话框处理输入）
     // 但文件选择器可以在任何情况下打开
     bool in_dialog = show_save_as_ || show_create_folder_ || show_move_file_ || show_theme_menu_ ||
-                     show_logo_menu_ || show_statusbar_style_menu_ || show_help_ ||
-                     split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
+                     show_logo_menu_ || show_animation_menu_ || show_statusbar_style_menu_ ||
+                     show_help_ || split_dialog_.isVisible() || ssh_dialog_.isVisible() ||
                      cursor_config_dialog_.isVisible()
 #ifdef BUILD_LUA_SUPPORT
                      || plugin_manager_dialog_.isVisible()
@@ -422,6 +422,22 @@ void Editor::handleInput(Event event) {
         } else if (event == Event::Return) {
             applySelectedLogoStyle();
             show_logo_menu_ = false;
+        }
+        return;
+    }
+
+    // 如果动画菜单打开，优先处理
+    if (show_animation_menu_) {
+        if (animation_menu_.handleInput(event)) {
+            return;
+        }
+        if (event == Event::Escape) {
+            show_animation_menu_ = false;
+            setStatusMessage("Animation config cancelled | Region: " +
+                             region_manager_.getRegionName());
+        } else if (event == Event::Return) {
+            applySelectedAnimationConfig();
+            show_animation_menu_ = false;
         }
         return;
     }

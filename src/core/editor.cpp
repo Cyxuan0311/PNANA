@@ -7,6 +7,7 @@
 #include "features/package_manager/brew_manager.h"
 #include "features/package_manager/cargo_manager.h"
 #include "features/package_manager/conda_manager.h"
+#include "features/package_manager/go_mod_manager.h"
 #include "features/package_manager/npm_manager.h"
 #include "features/package_manager/package_manager_registry.h"
 #include "features/package_manager/pacman_manager.h"
@@ -54,7 +55,7 @@ Editor::Editor()
       file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
       ssh_transfer_dialog_(theme_), terminal_session_dialog_(theme_),
       welcome_screen_(theme_, config_manager_), split_welcome_screen_(theme_),
-      new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_),
+      new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_), animation_menu_(theme_),
       create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
       cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
       format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
@@ -77,13 +78,14 @@ Editor::Editor()
 #endif
       mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
       view_offset_col_(0), show_theme_menu_(false), show_logo_menu_(false),
-      show_statusbar_style_menu_(false), show_help_(false), show_create_folder_(false),
-      show_save_as_(false), show_move_file_(false), show_extract_dialog_(false),
-      show_extract_path_dialog_(false), show_extract_progress_dialog_(false),
-      selection_active_(false), selection_start_row_(0), selection_start_col_(0),
-      show_line_numbers_(true), relative_line_numbers_(false), show_helpbar_(true),
-      syntax_highlighting_(true), zoom_level_(0), file_browser_width_(35), // 默认宽度35列
-      terminal_height_(0), // 0 表示使用默认值（屏幕高度的1/3）
+      show_animation_menu_(false), show_statusbar_style_menu_(false), show_help_(false),
+      show_create_folder_(false), show_save_as_(false), show_move_file_(false),
+      show_extract_dialog_(false), show_extract_path_dialog_(false),
+      show_extract_progress_dialog_(false), selection_active_(false), selection_start_row_(0),
+      selection_start_col_(0), show_line_numbers_(true), relative_line_numbers_(false),
+      show_helpbar_(true), syntax_highlighting_(true), zoom_level_(0),
+      file_browser_width_(35), // 默认宽度35列
+      terminal_height_(0),     // 0 表示使用默认值（屏幕高度的1/3）
       input_buffer_(""), search_input_(""), replace_input_(""), search_cursor_pos_(0),
       replace_cursor_pos_(0), current_search_match_(0), total_search_matches_(0),
       current_option_index_(0), search_options_{false, false, false, false},
@@ -118,6 +120,7 @@ Editor::Editor()
         registry.registerManager(std::make_shared<features::package_manager::PipManager>());
         registry.registerManager(std::make_shared<features::package_manager::AptManager>());
         registry.registerManager(std::make_shared<features::package_manager::CargoManager>());
+        registry.registerManager(std::make_shared<features::package_manager::GoModManager>());
         registry.registerManager(std::make_shared<features::package_manager::NpmManager>());
         registry.registerManager(std::make_shared<features::package_manager::YarnManager>());
         registry.registerManager(std::make_shared<features::package_manager::CondaManager>());
@@ -277,29 +280,31 @@ Editor::Editor()
     // 这样可以避免启动时加载插件导致的延迟
     plugin_manager_initialized_ = false;
 #endif
-    // 启动光标闪烁刷新线程（轻量级，仅在启用闪烁时触发 UI 刷新）
-    std::thread([this]() {
-        using namespace std::chrono_literals;
-        while (!should_quit_) {
-            std::this_thread::sleep_for(50ms); // 50ms 刷新检查间隔
-
-            // 仅在启用了闪烁且设置了有效频率时触发重绘
+    // 启动后台动画/闪烁刷新调度：
+    // - 光标闪烁开启时持续触发重绘
+    // - 欢迎页显示时持续触发重绘（保证 logo 动画无需用户输入也能播放）
+    ui_refresh_scheduler_.start(
+        [this]() {
             bool blink_on = false;
             int rate = 0;
+            bool should_animate_welcome = false;
+            bool animation_enabled = true;
             try {
                 blink_on = cursor_config_dialog_.getBlinkEnabled();
                 rate = getCursorBlinkRate();
+                should_animate_welcome = (getDocumentForActiveRegion() == nullptr);
+                animation_enabled = config_manager_.getConfig().animation.enabled;
             } catch (...) {
-                // 避免异常中断线程
-                continue;
+                return false;
             }
 
-            if (blink_on && rate > 0 && !rendering_paused_) {
-                // 触发一次自定义事件，让增量渲染逻辑根据时间重新绘制光标
-                screen_.PostEvent(ftxui::Event::Custom);
-            }
-        }
-    }).detach();
+            return !rendering_paused_ &&
+                   ((blink_on && rate > 0) || (should_animate_welcome && animation_enabled));
+        },
+        [this]() {
+            screen_.PostEvent(ftxui::Event::Custom);
+        },
+        std::chrono::milliseconds(config_manager_.getConfig().animation.refresh_interval_ms));
 
     // Start todo reminder detection thread (periodically check for due todos and trigger UI updates
     // to ensure blinking effect is visible)
@@ -718,6 +723,46 @@ void Editor::applySelectedLogoStyle() {
     }
 }
 
+void Editor::toggleAnimationMenu() {
+    show_animation_menu_ = !show_animation_menu_;
+    if (show_animation_menu_) {
+        animation_menu_.setConfig(config_manager_.getConfig().animation);
+        setStatusMessage(
+            "Animation panel | Tab: switch panel, ↑↓: select, ←→: adjust, Enter: apply");
+    }
+}
+
+void Editor::applySelectedAnimationConfig() {
+    config_manager_.getConfig().animation = animation_menu_.getPendingConfig();
+    if (config_manager_.saveConfig()) {
+        setStatusMessage("✓ Animation config saved");
+    } else {
+        setStatusMessage("Animation config applied (save failed)");
+    }
+
+    ui_refresh_scheduler_.start(
+        [this]() {
+            bool blink_on = false;
+            int rate = 0;
+            bool should_animate_welcome = false;
+            bool animation_enabled = true;
+            try {
+                blink_on = cursor_config_dialog_.getBlinkEnabled();
+                rate = getCursorBlinkRate();
+                should_animate_welcome = (getDocumentForActiveRegion() == nullptr);
+                animation_enabled = config_manager_.getConfig().animation.enabled;
+            } catch (...) {
+                return false;
+            }
+            return !rendering_paused_ &&
+                   ((blink_on && rate > 0) || (should_animate_welcome && animation_enabled));
+        },
+        [this]() {
+            screen_.PostEvent(ftxui::Event::Custom);
+        },
+        std::chrono::milliseconds(config_manager_.getConfig().animation.refresh_interval_ms));
+}
+
 void Editor::applySelectedTheme() {
     // 使用 getSelectedThemeName() 获取当前选中的主题名称（支持过滤后的列表）
     std::string theme_name = theme_menu_.getSelectedThemeName();
@@ -865,8 +910,20 @@ void Editor::toggleGitPanel() {
 
 // 终端
 void Editor::toggleTerminal() {
+    bool will_be_visible = !terminal_.isVisible();
+    if (will_be_visible) {
+        // Check if SSH is connected but sessions are empty (SSH session was closed by exit)
+        // Must reconnect SSH BEFORE calling setVisible(true), because setVisible calls
+        // startShellSession which would create a local shell if sessions are empty
+        if (!terminal_.hasActiveSession() && !current_ssh_config_.host.empty()) {
+            terminal_.startSSHSession(current_ssh_config_.host, current_ssh_config_.user,
+                                      current_ssh_config_.port, current_ssh_config_.key_path,
+                                      current_ssh_config_.password);
+        }
+    }
+
     // 使用 setVisible 而非 toggle，以便正确调用 startShellSession/stopShellSession
-    terminal_.setVisible(!terminal_.isVisible());
+    terminal_.setVisible(will_be_visible);
     if (terminal_.isVisible()) {
         // 启用终端区域（必须先启用，才能切换）
         region_manager_.setTerminalEnabled(true);

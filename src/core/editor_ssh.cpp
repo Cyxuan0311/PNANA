@@ -344,7 +344,9 @@ void Editor::disconnectSSH() {
     git_panel_.clearRemoteContext(last_local_directory_.empty() ? "." : last_local_directory_);
     file_picker_.clearRemoteLoader();
     file_browser_.openDirectory(last_local_directory_.empty() ? "." : last_local_directory_);
-    terminal_.restoreLocalShell();
+    if (terminal_.isVisible()) {
+        terminal_.restoreLocalShell();
+    }
     setStatusMessage("SSH disconnected");
 }
 

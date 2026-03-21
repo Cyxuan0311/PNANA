@@ -15,6 +15,7 @@
 #include "features/ai_client/ai_client.h"
 #include "ui/ai_assistant_panel.h"
 #include "ui/ai_config_dialog.h"
+#include "ui/animation_menu.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
@@ -50,17 +51,16 @@
 #ifdef BUILD_LUA_SUPPORT
 #include "ui/plugin_manager_dialog.h"
 #endif
-#include "features/extract.h"
-#include "features/file_browser.h"
-#include "features/search.h"
-#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
-#include "features/image_preview.h"
-#endif
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/command_palette.h"
+#include "features/extract.h"
+#include "features/file_browser.h"
+#include "features/image_preview.h"
 #include "features/recent_files_manager.h"
+#include "features/search.h"
 #include "features/split_view/split_view.h"
 #include "features/tui_config_manager.h"
+#include "features/ui_refresh_scheduler.h"
 // #include "features/markdown_preview.h"  // removed during preview refactor; backup stored as .bak
 #include "features/terminal.h"
 #include "ui/git_panel.h"
@@ -412,6 +412,7 @@ class Editor {
     pnana::ui::NewFilePrompt new_file_prompt_;
     pnana::ui::ThemeMenu theme_menu_;
     pnana::ui::LogoMenu logo_menu_;
+    pnana::ui::AnimationMenu animation_menu_;
     pnana::ui::CreateFolderDialog create_folder_dialog_;
     pnana::ui::SaveAsDialog save_as_dialog_;
     pnana::ui::MoveFileDialog move_file_dialog_;
@@ -450,9 +451,7 @@ class Editor {
     std::vector<features::SearchMatch> word_matches_; // 单词匹配位置
     size_t word_highlight_row_;                       // 单词所在行
     size_t word_highlight_col_;                       // 单词起始列
-#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
     features::ImagePreview image_preview_;
-#endif
     features::SyntaxHighlighter syntax_highlighter_;
     features::CommandPalette command_palette_;
     features::RecentFilesManager recent_files_manager_;
@@ -600,6 +599,9 @@ class Editor {
     // Logo 样式选择
     bool show_logo_menu_;
 
+    // 动画配置菜单
+    bool show_animation_menu_;
+
     // 状态栏样式菜单
     bool show_statusbar_style_menu_;
 
@@ -691,6 +693,9 @@ class Editor {
     ftxui::ScreenInteractive screen_;
     ftxui::Component main_component_;
 
+    // 后台 UI 刷新调度（用于欢迎页动画/光标闪烁等）
+    features::UIRefreshScheduler ui_refresh_scheduler_;
+
     // 事件处理
     void handleInput(ftxui::Event event);
     void handleNormalMode(ftxui::Event event);
@@ -754,6 +759,8 @@ class Editor {
     // Logo 样式菜单
     void toggleLogoMenu();
     void applySelectedLogoStyle();
+    void toggleAnimationMenu();
+    void applySelectedAnimationConfig();
 
     // 状态栏样式菜单
     void toggleStatusbarStyleMenu();

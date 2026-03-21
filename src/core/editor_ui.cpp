@@ -3,6 +3,7 @@
 #include "core/ui/border_manager.h"
 #include "core/ui/ui_router.h"
 #include "features/cursor/cursor_renderer.h"
+#include "features/image_preview.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
@@ -17,11 +18,8 @@
 #include "ui/theme_menu.h"
 #include "ui/welcome_screen.h"
 #include "utils/file_type_detector.h"
-#include "utils/text_utils.h"
-#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
-#include "features/image_preview.h"
-#endif
 #include "utils/logger.h"
+#include "utils/text_utils.h"
 
 using namespace pnana::ui::icons;
 
@@ -340,6 +338,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderLogoMenuCallback([this]() {
         return logo_menu_.render();
     });
+    overlay_manager_->setRenderAnimationMenuCallback([this]() {
+        return animation_menu_.render();
+    });
     overlay_manager_->setRenderStatusbarStyleMenuCallback([this]() {
         return statusbar_style_menu_.render();
     });
@@ -479,6 +480,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsLogoMenuVisibleCallback([this]() {
         return show_logo_menu_;
+    });
+    overlay_manager_->setIsAnimationMenuVisibleCallback([this]() {
+        return show_animation_menu_;
     });
     overlay_manager_->setIsStatusbarStyleMenuVisibleCallback([this]() {
         return show_statusbar_style_menu_;
@@ -626,72 +630,59 @@ Element Editor::renderEditor() {
     // 单视图渲染（没有分屏）
     Document* doc = getCurrentDocument();
 
-#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
-    // 检查文件浏览器中是否选中了图片文件
-    if (file_browser_.isVisible()) {
-        std::string selected_path = file_browser_.getSelectedPath();
-        if (!selected_path.empty() && features::ImagePreview::isImageFile(selected_path)) {
-            // 检查是否支持图片预览（需要 FFmpeg）
-            if (!features::ImagePreview::isSupported()) {
-                // 如果没有 FFmpeg 支持，清空预览并跳过
-                if (image_preview_.isLoaded()) {
-                    image_preview_.clear();
-                }
-            } else {
-                // 计算代码区的实际可用尺寸
-                int code_area_width = screen_.dimx();
-                int code_area_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
+    // 图片预览逻辑：始终尝试加载图片预览（双后端模式）
+    if (doc && !doc->getFilePath().empty() &&
+        features::ImagePreview::isImageFile(doc->getFilePath())) {
+        std::string image_path = doc->getFilePath();
 
-                // 如果文件浏览器打开，减去文件浏览器的宽度
-                if (file_browser_.isVisible()) {
-                    code_area_width -= (file_browser_width_ + 1); // +1 是分隔符
-                }
+        // 计算代码区的实际可用尺寸
+        int code_area_width = screen_.dimx();
+        int code_area_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
 
-                // 预留一些边距和图片信息空间（标题、尺寸、分隔符 = 3行）
-                code_area_width -= 4;
-                int available_height = code_area_height - 3 - 4; // 减去图片信息行和边距
+        // 如果文件浏览器打开，减去文件浏览器的宽度
+        if (file_browser_.isVisible()) {
+            code_area_width -= (file_browser_width_ + 1); // +1 是分隔符
+        }
 
-                // 确保最小尺寸
-                if (code_area_width < 40)
-                    code_area_width = 40;
-                if (available_height < 10)
-                    available_height = 10;
+        // 预留一些边距和图片信息空间（标题、尺寸、分隔符 = 3 行）
+        code_area_width -= 4;
+        int available_height = code_area_height - 3 - 4; // 减去图片信息行和边距
 
-                // 根据代码区尺寸计算预览尺寸（确保不截断）
-                // 字符高度约为宽度的0.6倍，所以预览高度 = 可用高度
-                // 预览宽度 = 代码区宽度
-                int preview_width = code_area_width;
-                int preview_height = available_height;
+        // 确保最小尺寸
+        if (code_area_width < 40)
+            code_area_width = 40;
+        if (available_height < 10)
+            available_height = 10;
 
-                // 如果是图片文件，显示预览
-                if (!image_preview_.isLoaded() || image_preview_.getImagePath() != selected_path ||
-                    image_preview_.getRenderWidth() != preview_width ||
-                    image_preview_.getRenderHeight() != preview_height) {
-                    // 传入宽度和高度，让 loadImage 根据这两个值计算合适的预览尺寸
-                    image_preview_.loadImage(selected_path, preview_width, preview_height);
-                }
-            }
+        int preview_width = code_area_width;
+        int preview_height = available_height;
 
-            if (image_preview_.isLoaded()) {
-                // 使用 ImagePreview 的渲染方法
-                return image_preview_.render();
-            }
-        } else {
-            // 如果不是图片，清空预览
-            if (image_preview_.isLoaded()) {
-                image_preview_.clear();
-            }
+        if (!image_preview_.isLoaded() || image_preview_.getImagePath() != image_path ||
+            image_preview_.getRenderWidth() != preview_width ||
+            image_preview_.getRenderHeight() != preview_height) {
+            image_preview_.loadImage(image_path, preview_width, preview_height);
+        }
+
+        if (image_preview_.isLoaded()) {
+            return image_preview_.render();
         }
     }
-#endif
+
+    // 如果之前加载了图片但现在不需要，清空预览
+    if (image_preview_.isLoaded()) {
+        image_preview_.clear();
+    }
 
     // 如果没有文档，显示欢迎界面
     if (!doc) {
         return welcome_screen_.render();
     }
 
-    // 如果是二进制文件，显示二进制文件视图
-    if (doc->isBinary()) {
+    // 如果是图片文件，先尝试显示图片预览（双后端模式）
+    bool is_image_file = features::ImagePreview::isImageFile(doc->getFilePath());
+
+    // 如果是二进制文件（非图片），显示二进制文件视图
+    if (doc->isBinary() && !is_image_file) {
         binary_file_view_.setFilePath(doc->getFilePath());
         return binary_file_view_.render();
     }
@@ -858,8 +849,11 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
         }
     }
 
-    // 如果是二进制文件，显示二进制文件视图
-    if (doc->isBinary()) {
+    // 如果是图片文件，先尝试显示图片预览（双后端模式）
+    bool is_image_file = features::ImagePreview::isImageFile(doc->getFilePath());
+
+    // 如果是二进制文件（非图片），显示二进制文件视图
+    if (doc->isBinary() && !is_image_file) {
         binary_file_view_.setFilePath(doc->getFilePath());
         return binary_file_view_.render();
     }

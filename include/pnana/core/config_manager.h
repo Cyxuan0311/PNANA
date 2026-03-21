@@ -128,6 +128,17 @@ struct LspConfig {
     std::vector<LspServerConfigEntry> servers; // 为空时使用内置默认配置
 };
 
+// 欢迎页动画配置
+struct AnimationConfig {
+    bool enabled = false;
+    std::string effect =
+        "none"; // none, pulse, scanner, shimmer, wave, strobe, rainbow, flame, etc.
+    int refresh_interval_ms = 50;
+
+    // 通用参数
+    float pulse_speed = 4.8f;
+};
+
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
@@ -136,6 +147,7 @@ struct AppConfig {
     SearchConfig search;
     PluginConfig plugins;
     LspConfig lsp;
+    AnimationConfig animation;
 
     // 主题配置
     std::string current_theme = "monokai";

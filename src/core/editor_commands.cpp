@@ -129,6 +129,12 @@ void Editor::initializeCommandPalette() {
                                                  toggleLogoMenu();
                                              }));
 
+    command_palette_.registerCommand(
+        Command("view.animation", "Animation Panel", "Open animation effect and parameter panel",
+                {"animation", "animationd", "effect", "welcome", "motion"}, [this]() {
+                    toggleAnimationMenu();
+                }));
+
     command_palette_.registerCommand(Command("view.statusbar_style", "Statusbar Style",
                                              "Open statusbar style menu",
                                              {"statusbar", "style", "appearance"}, [this]() {
