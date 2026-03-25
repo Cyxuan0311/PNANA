@@ -123,6 +123,18 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox({main_ui | dim, render_fzf_popup_callback_() | center});
     }
 
+    // 如果 History Diff 弹窗打开，叠加显示（优先级高于 timeline）
+    if (is_history_diff_popup_visible_callback_ && is_history_diff_popup_visible_callback_() &&
+        render_history_diff_popup_callback_) {
+        return dbox({main_ui | dim, render_history_diff_popup_callback_() | center});
+    }
+
+    // 如果 History 时间线弹窗打开，叠加显示
+    if (is_history_timeline_popup_visible_callback_ &&
+        is_history_timeline_popup_visible_callback_() && render_history_timeline_popup_callback_) {
+        return dbox({main_ui | dim, render_history_timeline_popup_callback_() | center});
+    }
+
     // 如果 LSP 连接状态弹窗打开，叠加显示
     if (is_lsp_status_popup_visible_callback_ && is_lsp_status_popup_visible_callback_() &&
         render_lsp_status_popup_callback_) {

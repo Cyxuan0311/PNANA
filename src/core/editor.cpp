@@ -51,17 +51,18 @@ const std::chrono::minutes Editor::FOLDING_CACHE_DURATION = std::chrono::minutes
 Editor::Editor()
     : document_manager_(), key_binding_manager_(), action_executor_(this),
       overlay_manager_(std::make_unique<pnana::core::OverlayManager>()), theme_(),
-      statusbar_(theme_), helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_),
-      file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
-      ssh_transfer_dialog_(theme_), terminal_session_dialog_(theme_),
-      welcome_screen_(theme_, config_manager_), split_welcome_screen_(theme_),
-      new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_), animation_menu_(theme_),
-      create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
-      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
-      format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
-      tui_config_popup_(theme_), extract_dialog_(theme_), extract_path_dialog_(theme_),
-      extract_progress_dialog_(theme_), ai_assistant_panel_(theme_), ai_config_dialog_(theme_),
-      todo_panel_(theme_), package_manager_panel_(theme_),
+      popup_manager_(std::make_unique<pnana::core::ui::PopupManager>(&theme_)), statusbar_(theme_),
+      helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_), file_picker_(theme_),
+      split_dialog_(theme_), ssh_dialog_(theme_), ssh_transfer_dialog_(theme_),
+      terminal_session_dialog_(theme_), welcome_screen_(theme_, config_manager_),
+      split_welcome_screen_(theme_), new_file_prompt_(theme_), theme_menu_(theme_),
+      logo_menu_(theme_), animation_menu_(theme_), create_folder_dialog_(theme_),
+      save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
+      binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
+      recent_files_popup_(theme_), fzf_popup_(theme_), history_timeline_popup_(theme_),
+      history_diff_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
+      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
+      ai_config_dialog_(theme_), todo_panel_(theme_), package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -168,6 +169,68 @@ Editor::Editor()
     });
     fzf_popup_.setOnRemoteLoad([this](const std::string& ssh_uri) {
         onFzfRemoteLoad(ssh_uri);
+    });
+
+    history_timeline_popup_.setOnPreview([this](int version) {
+        Document* doc = getCurrentDocument();
+        if (!doc || doc->getFilePath().empty()) {
+            setStatusMessage("No current file to preview");
+            return;
+        }
+
+        auto versions = file_history_manager_.listVersions(doc->getFilePath());
+        if (versions.empty()) {
+            setStatusMessage("Preview failed: no history versions");
+            return;
+        }
+
+        int latest_version = 0;
+        for (const auto& v : versions) {
+            if (v.version > latest_version) {
+                latest_version = v.version;
+            }
+        }
+
+        std::vector<pnana::features::diff::DiffRecord> records;
+        if (!file_history_manager_.diffBetweenVersions(doc->getFilePath(), version, latest_version,
+                                                       records)) {
+            setStatusMessage("Preview failed: cannot generate diff");
+            return;
+        }
+
+        history_diff_popup_.open(doc->getFilePath(), version, latest_version, records);
+        setStatusMessage("History diff preview v" + std::to_string(version) + " -> v" +
+                         std::to_string(latest_version) + " | PgUp/PgDn page, Esc back");
+    });
+
+    history_timeline_popup_.setOnRollback([this](int version) {
+        Document* doc = getCurrentDocument();
+        if (!doc || doc->getFilePath().empty()) {
+            setStatusMessage("No current file to rollback");
+            return;
+        }
+
+        std::vector<std::string> lines;
+        if (!file_history_manager_.restoreVersion(doc->getFilePath(), version, lines)) {
+            setStatusMessage("Rollback failed: cannot restore selected version");
+            return;
+        }
+
+        doc->getLines() = lines;
+        doc->setModified(true);
+        cursor_row_ = 0;
+        cursor_col_ = 0;
+        view_offset_row_ = 0;
+        view_offset_col_ = 0;
+
+        bool saved = saveFile();
+        history_timeline_popup_.close();
+        if (saved) {
+            setStatusMessage("Rollback done: restored to version v" + std::to_string(version));
+        } else {
+            setStatusMessage("Rollback applied in buffer (save failed), version v" +
+                             std::to_string(version));
+        }
     });
 
     // 终端输出时触发 UI 刷新（PTY 后台线程写入输出后，FTXUI 需 PostEvent 才能重绘）
@@ -279,6 +342,24 @@ Editor::Editor()
     // 插件系统延迟初始化：不在启动时初始化，只在首次需要时才初始化
     // 这样可以避免启动时加载插件导致的延迟
     plugin_manager_initialized_ = false;
+
+    // 启动后台线程，在5秒后自动加载启用的插件
+    std::thread([this]() {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(5s);
+
+        try {
+            // 在主线程中执行插件初始化
+            screen_.Post([this]() {
+                if (!plugin_manager_initialized_) {
+                    initializePlugins();
+                    setStatusMessage("Plugins auto-loaded after 5 seconds");
+                }
+            });
+        } catch (...) {
+            // 避免异常中断线程
+        }
+    }).detach();
 #endif
     // 启动后台动画/闪烁刷新调度：
     // - 光标闪烁开启时持续触发重绘
@@ -527,6 +608,19 @@ void Editor::loadConfig(const std::string& config_path) {
     current_search_options_.whole_word = config.search.whole_word;
     current_search_options_.regex = config.search.regex;
     current_search_options_.wrap_around = config.search.wrap_around;
+
+    // 应用 history 保留配置
+    {
+        pnana::features::history::HistoryRetentionConfig hcfg;
+        hcfg.enable = config.history.enable;
+        hcfg.max_entries = config.history.max_entries;
+        hcfg.max_age_days = config.history.max_age_days;
+        hcfg.max_total_size = config.history.max_total_size;
+        hcfg.keep_critical_versions = config.history.keep_critical_versions;
+        hcfg.critical_change_threshold = config.history.critical_change_threshold;
+        hcfg.critical_time_interval = config.history.critical_time_interval;
+        file_history_manager_.setRetentionConfig(hcfg);
+    }
 
     // 加载光标配置
     const auto& display_config = config.display;
@@ -1185,6 +1279,15 @@ void Editor::openFzfPopup() {
 void Editor::handleFzfPopupInput(Event event) {
     if (fzf_popup_.handleInput(event)) {
         if (!fzf_popup_.isOpen()) {
+            setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
+                             "Ctrl+O Files | F1 Help");
+        }
+    }
+}
+
+void Editor::handleHistoryTimelineInput(Event event) {
+    if (history_timeline_popup_.handleInput(event)) {
+        if (!history_timeline_popup_.isOpen()) {
             setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
                              "Ctrl+O Files | F1 Help");
         }
@@ -2728,10 +2831,13 @@ bool Editor::isFileBrowserVisible() const {
 }
 
 bool Editor::isDialogVisible() const {
-    return dialog_.isVisible();
+    return dialog_.isVisible() || (popup_manager_ && popup_manager_->isVisible());
 }
 
 bool Editor::handleDialogInput(ftxui::Event event) {
+    if (popup_manager_ && popup_manager_->isVisible()) {
+        return popup_manager_->handleInput(event);
+    }
     return dialog_.handleInput(event);
 }
 

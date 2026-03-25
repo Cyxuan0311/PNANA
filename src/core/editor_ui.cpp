@@ -425,8 +425,20 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderFzfPopupCallback([this]() {
         return fzf_popup_.render();
     });
+    overlay_manager_->setRenderHistoryTimelinePopupCallback([this]() {
+        return history_timeline_popup_.render();
+    });
+    overlay_manager_->setRenderHistoryDiffPopupCallback([this]() {
+        return history_diff_popup_.render();
+    });
     overlay_manager_->setIsFzfPopupVisibleCallback([this]() {
         return fzf_popup_.isOpen();
+    });
+    overlay_manager_->setIsHistoryTimelinePopupVisibleCallback([this]() {
+        return history_timeline_popup_.isOpen();
+    });
+    overlay_manager_->setIsHistoryDiffPopupVisibleCallback([this]() {
+        return history_diff_popup_.isOpen();
     });
 #ifdef BUILD_LSP_SUPPORT
     overlay_manager_->setRenderLspStatusPopupCallback([this]() {
@@ -568,7 +580,14 @@ Element Editor::overlayDialogs(Element main_ui) {
 #endif
 
     // 使用 OverlayManager 渲染叠加窗口
-    return overlay_manager_->renderOverlays(main_ui);
+    auto overlayed = overlay_manager_->renderOverlays(main_ui);
+
+    // 叠加插件 PopupManager（内核弹窗）
+    if (popup_manager_) {
+        overlayed = popup_manager_->render(overlayed, screen_.dimx(), screen_.dimy());
+    }
+
+    return overlayed;
 }
 
 Element Editor::renderTabbar() {

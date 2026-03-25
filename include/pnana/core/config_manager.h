@@ -139,6 +139,17 @@ struct AnimationConfig {
     float pulse_speed = 4.8f;
 };
 
+// 历史版本清理配置
+struct HistoryConfig {
+    bool enable = true;
+    int max_entries = 50;
+    int max_age_days = 30;
+    std::string max_total_size = "1GB";
+    bool keep_critical_versions = true;
+    int critical_change_threshold = 50;
+    int critical_time_interval = 86400;
+};
+
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
@@ -148,6 +159,7 @@ struct AppConfig {
     PluginConfig plugins;
     LspConfig lsp;
     AnimationConfig animation;
+    HistoryConfig history;
 
     // 主题配置
     std::string current_theme = "monokai";

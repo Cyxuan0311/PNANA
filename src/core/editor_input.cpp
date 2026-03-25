@@ -24,6 +24,11 @@ namespace core {
 void Editor::handleInput(Event event) {
     // 特殊处理Event::Custom（我们的渲染触发事件）
     if (event == Event::Custom) {
+#ifdef BUILD_LUA_SUPPORT
+        if (plugin_manager_initialized_ && plugin_manager_ && plugin_manager_->getAPI()) {
+            plugin_manager_->getAPI()->processDeferred();
+        }
+#endif
         // Event::Custom是我们手动触发的渲染更新事件，不需要额外处理
         // 直接返回，让FTXUI重新渲染
         return;

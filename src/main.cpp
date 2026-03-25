@@ -1,4 +1,6 @@
+#include "core/config_manager.h"
 #include "core/editor.h"
+#include "features/logo_manager.h"
 #include "utils/logger.h"
 #include <csignal>
 #include <cstdlib>
@@ -37,7 +39,6 @@ void printHelp() {
 }
 
 void printVersion() {
-    // ANSI颜色代码
     const std::string RESET = "\033[0m";
     const std::string BOLD = "\033[1m";
     const std::string RED = "\033[31m";
@@ -46,30 +47,20 @@ void printVersion() {
     const std::string BLUE = "\033[34m";
     const std::string MAGENTA = "\033[35m";
     const std::string CYAN = "\033[36m";
-    const std::string WHITE = "\033[37m";
 
-    std::cout << CYAN << BOLD << "  ██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ " << RESET
-              << std::endl;
-    std::cout << CYAN << BOLD << "  ██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗" << RESET
-              << std::endl;
-    std::cout << CYAN << BOLD << "  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║███████║" << RESET
-              << std::endl;
-    std::cout << CYAN << BOLD << "  ██╔═══╝ ██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║" << RESET
-              << std::endl;
-    std::cout << CYAN << BOLD << "  ██║     ██║ ╚████║██║  ██║██║ ╚████║██║  ██║" << RESET
-              << std::endl;
-    std::cout << CYAN << BOLD << "  ╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝" << RESET
-              << std::endl;
+    pnana::core::ConfigManager configManager;
+    configManager.loadConfig();
+    std::string logoStyle = configManager.getConfig().display.logo_style;
 
+    auto logoLines = pnana::features::LogoManager::getLogoLines(logoStyle);
+    for (const auto& line : logoLines) {
+        std::cout << CYAN << BOLD << line << RESET << std::endl;
+    }
+
+    std::cout << std::endl;
     std::cout << std::endl;
     std::cout << GREEN << BOLD << "  Modern Terminal Text Editor" << RESET << std::endl;
     std::cout << RED << BOLD << "  Version: " << RESET << " 0.0.5 " << std::endl;
-    std::cout << YELLOW << "  Built with FTXUI and C++17" << RESET << std::endl;
-    std::cout << MAGENTA << "  Latest development build" << RESET << std::endl;
-
-    std::cout << std::endl;
-    std::cout << BLUE << "  Features: LSP Support, Syntax Highlighting, Plugin System" << RESET
-              << std::endl;
     std::cout << BLUE << "  Website: https://github.com/Cyxuan0311/PNANA.git" << RESET << std::endl;
 }
 

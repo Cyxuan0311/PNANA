@@ -11,6 +11,7 @@
 #include <atomic>
 // 前向声明（避免循环依赖，但需要完整类型用于 unique_ptr）
 #include "core/input/input_router.h"
+#include "core/ui/popup_manager.h"
 #include "core/ui/ui_router.h"
 #include "features/ai_client/ai_client.h"
 #include "ui/ai_assistant_panel.h"
@@ -29,6 +30,8 @@
 #include "ui/fzf_popup.h"
 #include "ui/help.h"
 #include "ui/helpbar.h"
+#include "ui/history_diff_popup.h"
+#include "ui/history_timeline_popup.h"
 #include "ui/logo_menu.h"
 #include "ui/move_file_dialog.h"
 #include "ui/new_file_prompt.h"
@@ -55,6 +58,7 @@
 #include "features/command_palette.h"
 #include "features/extract.h"
 #include "features/file_browser.h"
+#include "features/history/file_history_manager.h"
 #include "features/image_preview.h"
 #include "features/recent_files_manager.h"
 #include "features/search.h"
@@ -396,6 +400,9 @@ class Editor {
 
     // UI组件
     pnana::ui::Theme theme_;
+
+    // 插件弹窗管理器（PopupManager 内核）
+    std::unique_ptr<pnana::core::ui::PopupManager> popup_manager_;
     core::ConfigManager config_manager_;
     pnana::ui::Statusbar statusbar_;
     pnana::ui::Helpbar helpbar_;
@@ -422,6 +429,8 @@ class Editor {
     pnana::ui::FormatDialog format_dialog_;
     pnana::ui::RecentFilesPopup recent_files_popup_;
     pnana::ui::FzfPopup fzf_popup_;
+    pnana::ui::HistoryTimelinePopup history_timeline_popup_;
+    pnana::ui::HistoryDiffPopup history_diff_popup_;
     pnana::ui::TUIConfigPopup tui_config_popup_;
     pnana::ui::ExtractDialog extract_dialog_;
     pnana::ui::ExtractPathDialog extract_path_dialog_;
@@ -440,6 +449,7 @@ class Editor {
     features::SearchEngine search_engine_;
     features::FileBrowser file_browser_;
     features::ExtractManager extract_manager_;
+    features::history::FileHistoryManager file_history_manager_;
 
     // 当前搜索状态
     bool search_highlight_active_;
@@ -845,6 +855,8 @@ class Editor {
     void openFzfPopup();
     void handleFzfPopupInput(ftxui::Event event);
     void openTUIConfigDialog();
+    void showFileHistoryTimeline(); // 显示当前文件历史版本时间线
+    void handleHistoryTimelineInput(ftxui::Event event);
 
     // AI助手
     void toggleAIAssistant();
@@ -936,6 +948,18 @@ class Editor {
     }
     void setStatusMessageForLua(const std::string& message) {
         setStatusMessage(message);
+    }
+
+    void showConfirmDialogForLua(const std::string& title, const std::string& message,
+                                 std::function<void(bool)> on_result = nullptr);
+    void showInputDialogForLua(const std::string& title, const std::string& prompt,
+                               const std::string& default_value,
+                               std::function<void(bool, const std::string&)> on_result = nullptr);
+    void showSelectDialogForLua(const std::string& title, const std::string& prompt,
+                                const std::vector<std::string>& items,
+                                std::function<void(bool, size_t)> on_result = nullptr);
+    pnana::core::ui::PopupManager* getPopupManagerForLua() {
+        return popup_manager_.get();
     }
     size_t getCursorRowForLua() const {
         return cursor_row_;

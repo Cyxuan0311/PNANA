@@ -46,6 +46,12 @@ void Editor::initializeCommandPalette() {
                                                  openFzfPopup();
                                              }));
 
+    command_palette_.registerCommand(
+        Command("file.history", "File History Timeline", "Show current file history versions",
+                {"history", "timeline", "rollback", "version", "diff"}, [this]() {
+                    showFileHistoryTimeline();
+                }));
+
 #ifdef BUILD_LSP_SUPPORT
     command_palette_.registerCommand(
         Command("lsp.status", "LSP Status", "LSP connection status and server details",

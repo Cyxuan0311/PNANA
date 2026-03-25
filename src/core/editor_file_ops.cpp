@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
 
 // 前向声明辅助函数（在editor_ssh.cpp中定义）
 namespace pnana {
@@ -329,6 +330,15 @@ bool Editor::saveFile() {
     }
 
     if (doc->save()) {
+        // 异步记录历史版本（不阻塞主线程）
+        std::string saved_path = doc->getFilePath();
+        std::vector<std::string> saved_lines = doc->getLines();
+        std::thread([this, saved_path, saved_lines]() {
+            bool ok = file_history_manager_.recordVersion(saved_path, saved_lines);
+            LOG(std::string("[history] recordVersion (save) ") + (ok ? "ok" : "failed") +
+                " path=" + saved_path);
+        }).detach();
+
         // nano风格：显示写入的行数
         std::string msg = std::string(pnana::ui::icons::SAVED) + " Wrote " +
                           std::to_string(line_count) + " lines (" + std::to_string(byte_count) +
@@ -397,6 +407,15 @@ bool Editor::saveFileAs(const std::string& filepath) {
     }
 
     if (doc->saveAs(filepath)) {
+        // 异步记录历史版本（不阻塞主线程）
+        std::string saved_path = filepath;
+        std::vector<std::string> saved_lines = doc->getLines();
+        std::thread([this, saved_path, saved_lines]() {
+            bool ok = file_history_manager_.recordVersion(saved_path, saved_lines);
+            LOG(std::string("[history] recordVersion (saveAs) ") + (ok ? "ok" : "failed") +
+                " path=" + saved_path);
+        }).detach();
+
         // 更新语法高亮器（文件类型可能改变）
         syntax_highlighter_.setFileType(getFileType());
 
@@ -552,6 +571,25 @@ void Editor::startMoveFile() {
     move_file_dialog_.setTargetDirectory(current_dir);
     move_file_dialog_.setInput(""); // 初始为空，用户输入目标路径
     setStatusMessage("Enter target path to move: " + file_browser_.getSelectedName());
+}
+
+void Editor::showFileHistoryTimeline() {
+    Document* doc = getCurrentDocument();
+    if (!doc || doc->getFilePath().empty()) {
+        setStatusMessage("No file is currently opened");
+        return;
+    }
+
+    auto versions = file_history_manager_.listVersions(doc->getFilePath());
+    LOG("[history] show timeline path=" + doc->getFilePath() +
+        " versions=" + std::to_string(versions.size()));
+    if (versions.empty()) {
+        setStatusMessage("No history yet for current file (save file first) | see pnana.log");
+        return;
+    }
+
+    history_timeline_popup_.open(doc->getFilePath(), versions);
+    setStatusMessage("History timeline | ↑↓ select, P preview, Enter rollback, Esc close");
 }
 
 void Editor::quit() {
