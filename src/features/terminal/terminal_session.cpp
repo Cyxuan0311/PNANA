@@ -342,6 +342,15 @@ void TerminalSession::sendKey(const KeyEvent& ev) {
 }
 
 std::string TerminalSession::keyEventToBytes(const KeyEvent& ev) const {
+    // 辅助函数：检查是否处于应用光标模式
+    auto isAppCursorMode = [this]() -> bool {
+#ifdef BUILD_LIBVTERM_SUPPORT
+        return isApplicationCursorMode();
+#else
+        return false;
+#endif
+    };
+
     switch (ev.type) {
         case KeyEvent::Type::Char:
             return std::string(1, ev.ch);
@@ -354,17 +363,17 @@ std::string TerminalSession::keyEventToBytes(const KeyEvent& ev) const {
         case KeyEvent::Type::Backspace:
             return "\x08";
         case KeyEvent::Type::KeyUp:
-            return isApplicationCursorMode() ? "\x1bOA" : "\x1b[A";
+            return isAppCursorMode() ? "\x1bOA" : "\x1b[A";
         case KeyEvent::Type::KeyDown:
-            return isApplicationCursorMode() ? "\x1bOB" : "\x1b[B";
+            return isAppCursorMode() ? "\x1bOB" : "\x1b[B";
         case KeyEvent::Type::KeyLeft:
-            return isApplicationCursorMode() ? "\x1bOD" : "\x1b[D";
+            return isAppCursorMode() ? "\x1bOD" : "\x1b[D";
         case KeyEvent::Type::KeyRight:
-            return isApplicationCursorMode() ? "\x1bOC" : "\x1b[C";
+            return isAppCursorMode() ? "\x1bOC" : "\x1b[C";
         case KeyEvent::Type::Home:
-            return isApplicationCursorMode() ? "\x1bOH" : "\x1b[H";
+            return isAppCursorMode() ? "\x1bOH" : "\x1b[H";
         case KeyEvent::Type::End:
-            return isApplicationCursorMode() ? "\x1bOF" : "\x1b[F";
+            return isAppCursorMode() ? "\x1bOF" : "\x1b[F";
         case KeyEvent::Type::PageUp:
             return "\x1b[5~";
         case KeyEvent::Type::PageDown:
