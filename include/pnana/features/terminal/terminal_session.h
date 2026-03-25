@@ -1,6 +1,7 @@
 #ifndef PNANA_FEATURES_TERMINAL_TERMINAL_SESSION_H
 #define PNANA_FEATURES_TERMINAL_TERMINAL_SESSION_H
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <functional>
@@ -93,6 +94,9 @@ class TerminalSession {
     ScreenSnapshot getFullSnapshot(int max_scrollback) const;
     void setReadCoalesceWindow(std::chrono::milliseconds window);
     bool pendingFeedOverflowed() const;
+    bool isApplicationCursorMode() const {
+        return app_cursor_mode_.load(std::memory_order_relaxed);
+    }
 #endif
     void resize(int cols, int rows);
 
@@ -140,12 +144,14 @@ class TerminalSession {
     std::chrono::milliseconds read_coalesce_window_{std::chrono::milliseconds(4)};
     size_t pending_bytes_{0};
     bool pending_overflowed_{false};
+    std::atomic<bool> app_cursor_mode_{false};
 
     enum class FilterMode { None, OSC, DCS, APC, PM };
     FilterMode filter_mode_{FilterMode::None};
     bool esc_pending_{false};
     bool seq_esc_pending_{false};
     std::string utf8_pending_;
+    std::string csi_mode_probe_buf_;
 #endif
     std::string title_;
     std::unique_ptr<PTYBackend> backend_;

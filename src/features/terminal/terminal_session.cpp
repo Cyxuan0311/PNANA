@@ -354,17 +354,17 @@ std::string TerminalSession::keyEventToBytes(const KeyEvent& ev) const {
         case KeyEvent::Type::Backspace:
             return "\x08";
         case KeyEvent::Type::KeyUp:
-            return "\x1b[A";
+            return isApplicationCursorMode() ? "\x1bOA" : "\x1b[A";
         case KeyEvent::Type::KeyDown:
-            return "\x1b[B";
+            return isApplicationCursorMode() ? "\x1bOB" : "\x1b[B";
         case KeyEvent::Type::KeyLeft:
-            return "\x1b[D";
+            return isApplicationCursorMode() ? "\x1bOD" : "\x1b[D";
         case KeyEvent::Type::KeyRight:
-            return "\x1b[C";
+            return isApplicationCursorMode() ? "\x1bOC" : "\x1b[C";
         case KeyEvent::Type::Home:
-            return "\x1b[H";
+            return isApplicationCursorMode() ? "\x1bOH" : "\x1b[H";
         case KeyEvent::Type::End:
-            return "\x1b[F";
+            return isApplicationCursorMode() ? "\x1bOF" : "\x1b[F";
         case KeyEvent::Type::PageUp:
             return "\x1b[5~";
         case KeyEvent::Type::PageDown:
@@ -506,6 +506,55 @@ bool TerminalSession::isRunning() const {
 void TerminalSession::onPtyRead(const char* data, size_t len) {
 #ifdef BUILD_LIBVTERM_SUPPORT
     if (len > 0) {
+        // 追踪 DECCKM（应用光标键模式）：
+        // ESC [ ? 1 h -> 开启（方向键应发 ESC O A/B/C/D）
+        // ESC [ ? 1 l -> 关闭（方向键应发 ESC [ A/B/C/D）
+        csi_mode_probe_buf_.append(data, len);
+        while (true) {
+            size_t esc = csi_mode_probe_buf_.find("\x1b[");
+            if (esc == std::string::npos) {
+                if (csi_mode_probe_buf_.size() > 64) {
+                    csi_mode_probe_buf_.erase(0, csi_mode_probe_buf_.size() - 2);
+                }
+                break;
+            }
+            if (esc > 0) {
+                csi_mode_probe_buf_.erase(0, esc);
+            }
+            if (csi_mode_probe_buf_.size() < 5) {
+                break;
+            }
+
+            if (csi_mode_probe_buf_.rfind("\x1b[?1h", 0) == 0) {
+                app_cursor_mode_.store(true, std::memory_order_relaxed);
+                csi_mode_probe_buf_.erase(0, 5);
+                continue;
+            }
+            if (csi_mode_probe_buf_.rfind("\x1b[?1l", 0) == 0) {
+                app_cursor_mode_.store(false, std::memory_order_relaxed);
+                csi_mode_probe_buf_.erase(0, 5);
+                continue;
+            }
+
+            if (csi_mode_probe_buf_[0] == '\x1b' && csi_mode_probe_buf_[1] == '[') {
+                bool done = false;
+                for (size_t i = 2; i < csi_mode_probe_buf_.size(); ++i) {
+                    const unsigned char ch = static_cast<unsigned char>(csi_mode_probe_buf_[i]);
+                    if (ch >= 0x40 && ch <= 0x7e) {
+                        csi_mode_probe_buf_.erase(0, i + 1);
+                        done = true;
+                        break;
+                    }
+                }
+                if (!done) {
+                    if (csi_mode_probe_buf_.size() > 64) {
+                        csi_mode_probe_buf_.erase(0, csi_mode_probe_buf_.size() - 16);
+                    }
+                    break;
+                }
+            }
+        }
+
         std::lock_guard<std::mutex> lock(pending_feed_mutex_);
         auto now = std::chrono::steady_clock::now();
         const size_t max_chunk = 256;
