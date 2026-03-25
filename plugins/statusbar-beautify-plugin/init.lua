@@ -89,6 +89,24 @@ else
     vim.api.set_status_message("✗ Statusbar Beautify Plugin failed to load!")
 end
 
+-- 使用新API注册命令：切换状态栏美化
+vim.api.create_user_command("StatusbarBeautifyToggle", function(opts)
+    beautify_config.enabled = not beautify_config.enabled
+    vim.api.set_statusbar_beautify(beautify_config)
+    vim.api.set_status_message("Statusbar beautify: " .. (beautify_config.enabled and "enabled" or "disabled"))
+end, { desc = "Toggle statusbar beautification" })
+
+-- 使用新API注册命令：重置状态栏为默认
+vim.api.create_user_command("StatusbarBeautifyReset", function(opts)
+    local reset_config = {
+        enabled = false,
+        bg_color = {45, 45, 45},  -- 默认背景色
+        fg_color = {248, 248, 242} -- 默认前景色
+    }
+    vim.api.set_statusbar_beautify(reset_config)
+    vim.api.set_status_message("Statusbar reset to default appearance")
+end, { desc = "Reset statusbar to default" })
+
 -- 插件禁用时的清理函数
 function on_disable()
     local reset_config = {
@@ -100,5 +118,14 @@ function on_disable()
     vim.api.set_status_message("Statusbar Beautify Plugin disabled - reverted to default appearance")
 end
 
+-- 使用新API监听插件卸载事件
+vim.api.create_autocmd("PluginUnload", {
+    pattern = "*",
+}, function(args)
+    if args and args.file == "statusbar-beautify-plugin" then
+        on_disable()
+    end
+end)
+
 -- 插件初始化完成
--- 所有配置都在 Lua 中定义，包括颜色、图标和布局
+-- vim.log.info("Statusbar Beautify Plugin initialized!")

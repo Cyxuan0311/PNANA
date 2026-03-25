@@ -1,40 +1,11 @@
 -- 主题增强插件：为 pnana 添加专业主题
 plugin_name = "theme-pro-plugin"
-plugin_version = "0.0.1"
+plugin_version = "1.0.0"
 plugin_description = "Professional theme pack for pnana with 4 additional themes"
 plugin_author = "pnana"
 
 -- 插件加载时显示消息
 vim.api.set_status_message("Theme Pro Plugin loaded! Added 4 professional themes.")
-
--- 插件卸载清理函数
-local function cleanup_themes()
-    vim.api.set_status_message("Theme Pro Plugin unloaded - removing themes...")
-    local themes_to_remove = {"cyberpunk", "forest", "sunset", "ice"}
-    local current_theme = vim.api.get_current_theme()
-
-    for _, theme_name in ipairs(themes_to_remove) do
-        local success = vim.api.remove_theme(theme_name)
-        if success then
-            vim.api.set_status_message("Theme '" .. theme_name .. "' removed successfully")
-            -- 如果当前主题是这个插件提供的主题，重置为默认主题
-            if current_theme == theme_name then
-                vim.api.set_theme("monokai")
-                vim.api.set_status_message("Reset theme to default (monokai) since '" .. theme_name .. "' was removed")
-            end
-        else
-            vim.api.set_status_message("Failed to remove theme '" .. theme_name .. "'")
-        end
-    end
-    vim.api.set_status_message("Theme Pro Plugin cleanup completed.")
-end
-
--- 注册插件卸载事件监听器
-vim.autocmd("PluginUnload", function(args)
-    if args and args[1] == "theme-pro-plugin" then
-        cleanup_themes()
-    end
-end)
 
 -- 定义4个专业主题
 local themes = {
@@ -168,5 +139,80 @@ for _, theme in ipairs(themes) do
     vim.api.add_theme(theme.name, theme.config)
 end
 
+-- 插件卸载清理函数
+local function cleanup_themes()
+    vim.api.set_status_message("Theme Pro Plugin unloaded - removing themes...")
+    local themes_to_remove = {"cyberpunk", "forest", "sunset", "ice"}
+    local current_theme = vim.api.get_current_theme()
+
+    for _, theme_name in ipairs(themes_to_remove) do
+        local success = vim.api.remove_theme(theme_name)
+        if success then
+            vim.api.set_status_message("Theme '" .. theme_name .. "' removed successfully")
+            -- 如果当前主题是这个插件提供的主题，重置为默认主题
+            if current_theme == theme_name then
+                vim.api.set_theme("monokai")
+                vim.api.set_status_message("Reset theme to default (monokai) since '" .. theme_name .. "' was removed")
+            end
+        else
+            vim.api.set_status_message("Failed to remove theme '" .. theme_name .. "'")
+        end
+    end
+    vim.api.set_status_message("Theme Pro Plugin cleanup completed.")
+end
+
+-- 使用新API注册插件卸载事件监听器
+vim.api.create_autocmd("PluginUnload", {
+    pattern = "*",
+}, function(args)
+    if args and args.file == "theme-pro-plugin" then
+        cleanup_themes()
+    end
+end)
+
+-- 使用新API注册命令：快速切换主题
+vim.api.create_user_command("ThemeSetCyberpunk", function(opts)
+    vim.api.set_theme("cyberpunk")
+    vim.api.set_status_message("Theme set to Cyberpunk")
+end, { desc = "Set theme to Cyberpunk" })
+
+vim.api.create_user_command("ThemeSetForest", function(opts)
+    vim.api.set_theme("forest")
+    vim.api.set_status_message("Theme set to Forest")
+end, { desc = "Set theme to Forest" })
+
+vim.api.create_user_command("ThemeSetSunset", function(opts)
+    vim.api.set_theme("sunset")
+    vim.api.set_status_message("Theme set to Sunset")
+end, { desc = "Set theme to Sunset" })
+
+vim.api.create_user_command("ThemeSetIce", function(opts)
+    vim.api.set_theme("ice")
+    vim.api.set_status_message("Theme set to Ice")
+end, { desc = "Set theme to Ice" })
+
+-- 使用新API注册命令：显示当前主题
+vim.api.create_user_command("ThemeCurrent", function(opts)
+    local current = vim.api.get_current_theme()
+    vim.api.set_status_message("Current theme: " .. current)
+end, { desc = "Show current theme" })
+
+-- 使用新API注册键位映射：快速切换主题
+vim.keymap.set("n", "<F9>", function()
+    local theme_list = {"cyberpunk", "forest", "sunset", "ice"}
+    local current = vim.api.get_current_theme()
+    local next_index = 1
+
+    for i, name in ipairs(theme_list) do
+        if name == current then
+            next_index = (i % #theme_list) + 1
+            break
+        end
+    end
+
+    vim.api.set_theme(theme_list[next_index])
+    vim.api.set_status_message("Theme: " .. theme_list[next_index])
+end, { desc = "Cycle through Theme Pro themes" })
+
 -- 插件初始化完成
--- vim.api.set_status_message("Theme Pro Plugin: 4 professional themes loaded!")
+-- vim.log.info("Theme Pro Plugin: 4 professional themes loaded!")
