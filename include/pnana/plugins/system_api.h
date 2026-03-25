@@ -38,6 +38,7 @@ class SystemAPI {
 
     // 系统工具API函数
     static int lua_fn_system(lua_State* L);
+    static int lua_fn_systemlist(lua_State* L);
     static int lua_api_notify(lua_State* L);
 
     // 旧API（兼容层）
@@ -48,10 +49,17 @@ class SystemAPI {
     // 新API（Neovim风格）
     static int lua_api_create_user_command(lua_State* L);
     static int lua_api_del_user_command(lua_State* L);
+    static int lua_api_register_palette_command(lua_State* L);
     static int lua_keymap_set(lua_State* L);
     static int lua_keymap_del(lua_State* L);
     static int lua_api_create_autocmd(lua_State* L);
     static int lua_api_clear_autocmds(lua_State* L);
+    static int lua_vim_defer_fn(lua_State* L);
+    static int lua_vim_defer_cancel(lua_State* L);
+    static int lua_log_info(lua_State* L);
+    static int lua_log_warn(lua_State* L);
+    static int lua_log_error(lua_State* L);
+    static int lua_log_debug(lua_State* L);
 
     // 辅助函数
     static SystemAPI* getAPIFromLua(lua_State* L);

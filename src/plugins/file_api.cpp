@@ -5,11 +5,17 @@
 #include "core/editor.h"
 #include "plugins/path_validator.h"
 #include "utils/logger.h"
+#include <filesystem>
 #include <fstream>
 #include <lua.hpp>
+#include <sstream>
 
 namespace pnana {
 namespace plugins {
+
+namespace {
+constexpr std::size_t kMaxSecureIOBytes = 1024 * 1024; // 1MB
+}
 
 // 在 Lua 注册表中存储编辑器指针的键
 static const char* EDITOR_REGISTRY_KEY = "pnana_editor";
@@ -58,6 +64,20 @@ void FileAPI::registerFunctions(lua_State* L) {
     lua_setfield(L, -2, "writefile");
 
     lua_pop(L, 2); // 弹出vim和fn表
+
+    // 注册 vim.secure_io 表（安全 IO API）
+    lua_getglobal(L, "vim");
+    lua_newtable(L);
+    lua_pushcfunction(L, lua_secure_io_read_text);
+    lua_setfield(L, -2, "read_text");
+    lua_pushcfunction(L, lua_secure_io_write_text);
+    lua_setfield(L, -2, "write_text");
+    lua_pushcfunction(L, lua_secure_io_append_text);
+    lua_setfield(L, -2, "append_text");
+    lua_pushcfunction(L, lua_secure_io_exists);
+    lua_setfield(L, -2, "exists");
+    lua_setfield(L, -2, "secure_io");
+    lua_pop(L, 1); // 弹出vim
 }
 
 core::Editor* FileAPI::getEditorFromLua(lua_State* L) {
@@ -201,6 +221,175 @@ int FileAPI::lua_fn_writefile(lua_State* L) {
     }
 
     lua_pushboolean(L, 1);
+    return 1;
+}
+
+int FileAPI::lua_secure_io_read_text(lua_State* L) {
+    const char* filepath = lua_tostring(L, 1);
+    if (!filepath) {
+        lua_pushnil(L);
+        lua_pushstring(L, "invalid path");
+        return 2;
+    }
+
+    FileAPI* api = getAPIFromLua(L);
+    if (!api || !api->path_validator_ || !api->path_validator_->isPathAllowed(filepath)) {
+        LOG_WARNING("secure_io.read_text blocked path: " + std::string(filepath));
+        lua_pushnil(L);
+        lua_pushstring(L, "path is not allowed");
+        return 2;
+    }
+
+    try {
+        if (std::filesystem::exists(filepath)) {
+            auto size = std::filesystem::file_size(filepath);
+            if (size > kMaxSecureIOBytes) {
+                lua_pushnil(L);
+                lua_pushstring(L, "file is too large");
+                return 2;
+            }
+        }
+    } catch (const std::exception& e) {
+        lua_pushnil(L);
+        lua_pushstring(L, e.what());
+        return 2;
+    }
+
+    std::ifstream file(filepath, std::ios::in | std::ios::binary);
+    if (!file.is_open()) {
+        lua_pushnil(L);
+        lua_pushstring(L, "failed to open file");
+        return 2;
+    }
+
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    std::string content = ss.str();
+    if (content.size() > kMaxSecureIOBytes) {
+        lua_pushnil(L);
+        lua_pushstring(L, "file is too large");
+        return 2;
+    }
+
+    lua_pushstring(L, content.c_str());
+    return 1;
+}
+
+int FileAPI::lua_secure_io_write_text(lua_State* L) {
+    const char* filepath = lua_tostring(L, 1);
+    size_t content_len = 0;
+    const char* content = luaL_checklstring(L, 2, &content_len);
+    if (!filepath || !content) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "invalid arguments");
+        return 2;
+    }
+    if (content_len > kMaxSecureIOBytes) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "content too large");
+        return 2;
+    }
+
+    FileAPI* api = getAPIFromLua(L);
+    if (!api || !api->path_validator_ || !api->path_validator_->isPathAllowed(filepath)) {
+        LOG_WARNING("secure_io.write_text blocked path: " + std::string(filepath));
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "path is not allowed");
+        return 2;
+    }
+
+    std::ofstream file(filepath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!file.is_open()) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "failed to open file");
+        return 2;
+    }
+    file.write(content, static_cast<std::streamsize>(content_len));
+    if (!file.good()) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "write failed");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+int FileAPI::lua_secure_io_append_text(lua_State* L) {
+    const char* filepath = lua_tostring(L, 1);
+    size_t content_len = 0;
+    const char* content = luaL_checklstring(L, 2, &content_len);
+    if (!filepath || !content) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "invalid arguments");
+        return 2;
+    }
+    if (content_len > kMaxSecureIOBytes) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "content too large");
+        return 2;
+    }
+
+    FileAPI* api = getAPIFromLua(L);
+    if (!api || !api->path_validator_ || !api->path_validator_->isPathAllowed(filepath)) {
+        LOG_WARNING("secure_io.append_text blocked path: " + std::string(filepath));
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "path is not allowed");
+        return 2;
+    }
+
+    try {
+        if (std::filesystem::exists(filepath)) {
+            auto size = std::filesystem::file_size(filepath);
+            if (size + content_len > kMaxSecureIOBytes) {
+                lua_pushboolean(L, 0);
+                lua_pushstring(L, "result file is too large");
+                return 2;
+            }
+        }
+    } catch (const std::exception& e) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, e.what());
+        return 2;
+    }
+
+    std::ofstream file(filepath, std::ios::out | std::ios::binary | std::ios::app);
+    if (!file.is_open()) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "failed to open file");
+        return 2;
+    }
+    file.write(content, static_cast<std::streamsize>(content_len));
+    if (!file.good()) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "append failed");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+int FileAPI::lua_secure_io_exists(lua_State* L) {
+    const char* filepath = lua_tostring(L, 1);
+    if (!filepath) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    FileAPI* api = getAPIFromLua(L);
+    if (!api || !api->path_validator_ || !api->path_validator_->isPathAllowed(filepath)) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    bool exists = false;
+    try {
+        exists = std::filesystem::exists(filepath);
+    } catch (...) {
+        exists = false;
+    }
+    lua_pushboolean(L, exists ? 1 : 0);
     return 1;
 }
 

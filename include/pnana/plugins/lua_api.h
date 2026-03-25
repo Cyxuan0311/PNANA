@@ -8,6 +8,8 @@
 #include "plugins/lua_engine.h"
 #include "plugins/system_api.h"
 #include "plugins/theme_api.h"
+#include "plugins/ui_api.h"
+#include <chrono>
 #include <functional>
 #include <map>
 #include <string>
@@ -87,6 +89,19 @@ class LuaAPI {
     void clearAutocmds(const std::string& event, const std::string& pattern,
                        const std::string& group);
 
+    // 注册命令面板命令
+    void registerPaletteCommand(const std::string& id, const std::string& name,
+                                const std::string& desc, const std::vector<std::string>& keywords,
+                                int callback_ref, bool force);
+
+    // 执行命令面板命令
+    bool executePaletteCommand(const std::string& id);
+
+    // 定时器：延迟执行一次
+    int deferFunction(int callback_ref, int delay_ms);
+    void cancelDeferred(int timer_id);
+    void processDeferred();
+
     // 获取编辑器实例
     core::Editor* getEditor() {
         return editor_;
@@ -111,6 +126,7 @@ class LuaAPI {
     std::unique_ptr<FileAPI> file_api_;
     std::unique_ptr<ThemeAPI> theme_api_;
     std::unique_ptr<SystemAPI> system_api_;
+    std::unique_ptr<UIAPI> ui_api_;
 
     // 事件监听器映射: event -> [callbacks] (旧API兼容)
     std::map<std::string, std::vector<std::string>> event_listeners_;
@@ -139,6 +155,25 @@ class LuaAPI {
         bool force;
     };
     std::map<std::string, UserCommandInfo> user_commands_;
+
+    // 命令面板命令: id -> callback_ref
+    struct PaletteCommandInfo {
+        int callback_ref;
+        std::string name;
+        std::string desc;
+        std::vector<std::string> keywords;
+    };
+    std::map<std::string, PaletteCommandInfo> palette_commands_;
+
+    // defer 定时器
+    struct DeferredCall {
+        int timer_id;
+        int callback_ref;
+        std::chrono::steady_clock::time_point due;
+        bool cancelled;
+    };
+    int next_timer_id_ = 1;
+    std::vector<DeferredCall> deferred_calls_;
 
     // 键位映射: mode -> keys -> callback (旧API兼容)
     std::map<std::string, std::map<std::string, std::string>> keymaps_;

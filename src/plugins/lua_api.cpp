@@ -3,6 +3,7 @@
 #include "plugins/lua_api.h"
 #include "core/document.h"
 #include "core/editor.h"
+#include "features/command_palette.h"
 #include "utils/logger.h"
 #include <cstdio>
 #include <filesystem>
@@ -26,6 +27,7 @@ LuaAPI::LuaAPI(core::Editor* editor) : editor_(editor), engine_(nullptr) {
     file_api_ = std::make_unique<FileAPI>(editor);
     theme_api_ = std::make_unique<ThemeAPI>(editor);
     system_api_ = std::make_unique<SystemAPI>();
+    ui_api_ = std::make_unique<UIAPI>();
 }
 
 LuaAPI::~LuaAPI() {}
@@ -58,14 +60,16 @@ void LuaAPI::initialize(LuaEngine* engine) {
     engine_->createNestedTable("vim.api");
     engine_->createNestedTable("vim.fn");
 
-    // 设置SystemAPI的LuaAPI引用
+    // 设置SystemAPI/UIAPI的LuaAPI引用
     system_api_->setLuaAPI(this);
+    ui_api_->setLuaAPI(this);
 
     // 初始化各个API组件
     editor_api_->registerFunctions(L);
     file_api_->registerFunctions(L);
     theme_api_->registerFunctions(L);
     system_api_->registerFunctions(L);
+    ui_api_->registerFunctions(L);
 }
 
 core::Editor* LuaAPI::getEditorFromLua(lua_State* L) {
@@ -531,6 +535,153 @@ void LuaAPI::clearAutocmds(const std::string& event, const std::string& pattern,
             autocmds_.erase(it);
         }
     }
+}
+
+void LuaAPI::registerPaletteCommand(const std::string& id, const std::string& name,
+                                    const std::string& desc,
+                                    const std::vector<std::string>& keywords, int callback_ref,
+                                    bool force) {
+    if (!editor_ || id.empty()) {
+        return;
+    }
+
+    // 如果命令已存在且 force=true，释放旧的回调引用
+    auto existing_it = palette_commands_.find(id);
+    if (existing_it != palette_commands_.end()) {
+        if (!force) {
+            return;
+        }
+        // 释放旧的 Lua 回调引用
+        if (engine_ && engine_->getState()) {
+            luaL_unref(engine_->getState(), LUA_REGISTRYINDEX, existing_it->second.callback_ref);
+        }
+        // 从 map 中删除旧条目
+        palette_commands_.erase(existing_it);
+    }
+
+    // 创建新的命令信息
+    PaletteCommandInfo info;
+    info.callback_ref = callback_ref;
+    info.name = name;
+    info.desc = desc;
+    info.keywords = keywords;
+
+    // 使用 emplace 而不是 operator[] 来避免不必要的拷贝
+    auto result = palette_commands_.emplace(id, std::move(info));
+    if (!result.second) {
+        return;
+    }
+
+    // 创建 Command 对象
+    auto display_name = name.empty() ? id : name;
+    std::string captured_id = id; // 确保 id 被复制
+
+    // 使用 shared_ptr 管理 lambda 生命周期，避免悬空指针
+    auto callback_ptr = std::make_shared<std::function<void()>>([this, captured_id]() {
+        this->executePaletteCommand(captured_id);
+    });
+
+    editor_->getCommandPalette().registerCommand(
+        features::Command(captured_id, display_name, desc, keywords, callback_ptr));
+}
+
+bool LuaAPI::executePaletteCommand(const std::string& id) {
+    if (!engine_ || !engine_->getState()) {
+        return false;
+    }
+
+    auto it = palette_commands_.find(id);
+    if (it == palette_commands_.end()) {
+        return false;
+    }
+
+    // 检查回调引用是否有效
+    if (it->second.callback_ref == LUA_REFNIL || it->second.callback_ref == LUA_NOREF) {
+        return false;
+    }
+
+    lua_State* L = engine_->getState();
+
+    // 检查 Lua 栈空间
+    if (!lua_checkstack(L, 3)) {
+        return false;
+    }
+
+    // 使用 lua_rawgeti 获取回调函数
+    lua_rawgeti(L, LUA_REGISTRYINDEX, it->second.callback_ref);
+
+    // 检查栈顶元素的类型
+    int top_type = lua_type(L, -1);
+    if (top_type != LUA_TFUNCTION) {
+        lua_pop(L, 1);
+        return false;
+    }
+
+    if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+        const char* error = lua_tostring(L, -1);
+        LOG_ERROR("[LuaAPI] Palette command execution error: " +
+                  std::string(error ? error : "unknown"));
+        lua_pop(L, 1);
+        return false;
+    }
+
+    return true;
+}
+
+int LuaAPI::deferFunction(int callback_ref, int delay_ms) {
+    if (delay_ms < 1) {
+        delay_ms = 1;
+    }
+    DeferredCall call;
+    call.timer_id = next_timer_id_++;
+    call.callback_ref = callback_ref;
+    call.due = std::chrono::steady_clock::now() + std::chrono::milliseconds(delay_ms);
+    call.cancelled = false;
+    deferred_calls_.push_back(call);
+    return call.timer_id;
+}
+
+void LuaAPI::cancelDeferred(int timer_id) {
+    for (auto& call : deferred_calls_) {
+        if (call.timer_id == timer_id) {
+            call.cancelled = true;
+        }
+    }
+}
+
+void LuaAPI::processDeferred() {
+    if (!engine_ || !engine_->getState()) {
+        return;
+    }
+
+    lua_State* L = engine_->getState();
+    auto now = std::chrono::steady_clock::now();
+
+    for (auto& call : deferred_calls_) {
+        if (call.cancelled || call.due > now) {
+            continue;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, call.callback_ref);
+        if (lua_isfunction(L, -1)) {
+            if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+                const char* error = lua_tostring(L, -1);
+                LOG_ERROR("defer_fn callback error: " + std::string(error ? error : "unknown"));
+                lua_pop(L, 1);
+            }
+        } else {
+            lua_pop(L, 1);
+        }
+
+        luaL_unref(L, LUA_REGISTRYINDEX, call.callback_ref);
+        call.cancelled = true;
+    }
+
+    deferred_calls_.erase(std::remove_if(deferred_calls_.begin(), deferred_calls_.end(),
+                                         [](const DeferredCall& c) {
+                                             return c.cancelled;
+                                         }),
+                          deferred_calls_.end());
 }
 
 } // namespace plugins

@@ -39,6 +39,10 @@ class FileAPI {
     static int lua_api_save_file(lua_State* L);
     static int lua_fn_readfile(lua_State* L);
     static int lua_fn_writefile(lua_State* L);
+    static int lua_secure_io_read_text(lua_State* L);
+    static int lua_secure_io_write_text(lua_State* L);
+    static int lua_secure_io_append_text(lua_State* L);
+    static int lua_secure_io_exists(lua_State* L);
 
     // 辅助函数
     static core::Editor* getEditorFromLua(lua_State* L);

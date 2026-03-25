@@ -4,6 +4,7 @@
 #include "core/editor.h"
 #include "plugins/file_api.h"
 #include "plugins/path_validator.h"
+#include "plugins/ui_api.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <cstdlib>
@@ -287,9 +288,7 @@ bool PluginManager::executePluginInit(const std::string& plugin_path) {
             if (entry.is_regular_file() && entry.path().extension() == ".lua") {
                 std::string file_path = entry.path().string();
                 file_count++;
-                if (!lua_engine_->executeFile(file_path)) {
-                    // 静默处理单个文件失败
-                }
+                lua_engine_->executeFile(file_path);
             }
         }
         return file_count > 0;
@@ -306,6 +305,11 @@ bool PluginManager::unloadPlugin(const std::string& plugin_name) {
 
     // 触发卸载事件
     triggerEvent("PluginUnload", {plugin_name});
+
+    // 清理插件相关 UI 句柄（防止悬空窗口）
+    if (editor_) {
+        UIAPI::closeAllWindows(editor_);
+    }
 
     it->second.loaded = false;
     return true;
@@ -417,7 +421,7 @@ bool PluginManager::enablePlugin(const std::string& plugin_name, bool save_confi
             enabled_plugins.push_back(plugin_name);
         }
 
-        // 只在用户操作时保存配置，启动时加载不保存（避免启动时的文件I/O）
+        // 只在用户操作时保存配置，启动时加载不保存（避免启动时的文件 I/O）
         if (save_config && !was_in_list) {
             config_manager.saveConfig();
         }

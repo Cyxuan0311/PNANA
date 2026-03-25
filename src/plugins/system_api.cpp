@@ -1,12 +1,19 @@
 #ifdef BUILD_LUA_SUPPORT
 
 #include "plugins/system_api.h"
+#include "core/editor.h"
 #include "plugins/lua_api.h"
 #include "utils/logger.h"
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <future>
 #include <lua.hpp>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 namespace pnana {
 namespace plugins {
@@ -30,6 +37,8 @@ void SystemAPI::registerFunctions(lua_State* L) {
 
     lua_pushcfunction(L, lua_fn_system);
     lua_setfield(L, -2, "system");
+    lua_pushcfunction(L, lua_fn_systemlist);
+    lua_setfield(L, -2, "systemlist");
 
     lua_pop(L, 2); // 弹出vim和fn表
 
@@ -56,6 +65,9 @@ void SystemAPI::registerFunctions(lua_State* L) {
     lua_pushcfunction(L, lua_api_del_user_command);
     lua_setfield(L, -2, "del_user_command");
 
+    lua_pushcfunction(L, lua_api_register_palette_command);
+    lua_setfield(L, -2, "register_palette_command");
+
     lua_pushcfunction(L, lua_api_create_autocmd);
     lua_setfield(L, -2, "create_autocmd");
 
@@ -64,7 +76,27 @@ void SystemAPI::registerFunctions(lua_State* L) {
 
     lua_pop(L, 2); // 弹出vim和api表
 
-    // 注册vim.keymap表
+    // 注册 vim.log（插件日志 API）
+    lua_getglobal(L, "vim");
+    lua_newtable(L);
+    lua_pushcfunction(L, lua_log_info);
+    lua_setfield(L, -2, "info");
+    lua_pushcfunction(L, lua_log_warn);
+    lua_setfield(L, -2, "warn");
+    lua_pushcfunction(L, lua_log_error);
+    lua_setfield(L, -2, "error");
+    lua_pushcfunction(L, lua_log_debug);
+    lua_setfield(L, -2, "debug");
+    lua_setfield(L, -2, "log");
+
+    lua_pushcfunction(L, lua_vim_defer_fn);
+    lua_setfield(L, -2, "defer_fn");
+    lua_pushcfunction(L, lua_vim_defer_cancel);
+    lua_setfield(L, -2, "defer_cancel");
+
+    lua_pop(L, 1); // 弹出 vim 表
+
+    // 注册 vim.keymap 表
     lua_getglobal(L, "vim");
     lua_newtable(L);
     lua_pushcfunction(L, lua_keymap_set);
@@ -72,17 +104,16 @@ void SystemAPI::registerFunctions(lua_State* L) {
     lua_pushcfunction(L, lua_keymap_del);
     lua_setfield(L, -2, "del");
     lua_setfield(L, -2, "keymap");
-    lua_pop(L, 1); // 弹出vim表
+    lua_pop(L, 1); // 弹出 vim 表
 
-    // 创建便捷别名（类似 Neovim）- 旧API兼容层
+    // 创建便捷别名（类似 Neovim）- 旧 API 兼容层
     // 直接在 Lua 栈上设置，更可靠
     lua_getglobal(L, "vim");
     lua_getglobal(L, "pnana_notify");
     lua_setfield(L, -2, "notify");
     lua_getglobal(L, "pnana_command");
     lua_setfield(L, -2, "cmd");
-    lua_getglobal(L, "pnana_keymap");
-    lua_setfield(L, -2, "keymap");
+    // 注意：不覆盖 vim.keymap，保持上面的表结构
     lua_getglobal(L, "pnana_autocmd");
     lua_setfield(L, -2, "autocmd");
     lua_pop(L, 1);
@@ -103,23 +134,183 @@ LuaAPI* SystemAPI::getLuaAPIFromLua(lua_State* L) {
 }
 
 // vim.fn.system(command) -> string
-// 沙盒模式：禁用系统命令执行
+// 沙盒模式：禁用 system 字符串命令执行，建议使用 vim.fn.systemlist({"rg", ...}, opts)
 int SystemAPI::lua_fn_system(lua_State* L) {
     const char* command = lua_tostring(L, 1);
     if (!command) {
         lua_pushnil(L);
         lua_pushstring(L, "System command execution is disabled in sandbox mode");
-        return 2; // 返回 nil, error_message
+        return 2;
     }
 
-    // 记录尝试执行的命令（用于安全审计）
     LOG_WARNING("Plugin attempted to execute system command: " + std::string(command) +
-                " (blocked by sandbox)");
+                " (blocked by sandbox, use vim.fn.systemlist)");
 
-    // 返回 nil 和错误消息
     lua_pushnil(L);
-    lua_pushstring(L, "System command execution is disabled in sandbox mode");
-    return 2; // 返回 nil, error_message
+    lua_pushstring(L, "System command execution is disabled in sandbox mode. "
+                      "Use vim.fn.systemlist({\"rg\", ...}, opts)");
+    return 2;
+}
+
+// vim.fn.systemlist(argv, opts) -> {lines} | nil, error
+// 安全执行：仅允许 rg，并限制 cwd/超时/输出大小
+int SystemAPI::lua_fn_systemlist(lua_State* L) {
+    LOG_INFO("[vim.fn.systemlist] Called");
+
+    if (!lua_istable(L, 1)) {
+        LOG_ERROR("[vim.fn.systemlist] argv must be a table");
+        lua_pushnil(L);
+        lua_pushstring(L, "argv must be a table");
+        return 2;
+    }
+
+    std::vector<std::string> argv;
+    int argc = static_cast<int>(luaL_len(L, 1));
+    for (int i = 1; i <= argc; ++i) {
+        lua_rawgeti(L, 1, i);
+        if (lua_isstring(L, -1)) {
+            argv.emplace_back(lua_tostring(L, -1));
+        }
+        lua_pop(L, 1);
+    }
+
+    if (argv.empty()) {
+        LOG_ERROR("[vim.fn.systemlist] argv is empty");
+        lua_pushnil(L);
+        lua_pushstring(L, "argv is empty");
+        return 2;
+    }
+
+    // 白名单：只允许 rg/ripgrep
+    const std::string exe = argv.front();
+    LOG_INFO("[vim.fn.systemlist] Executable: " + exe +
+             ", cwd: " + (lua_istable(L, 2) ? "provided" : "default"));
+
+    if (!(exe == "rg" || exe == "ripgrep")) {
+        LOG_WARNING("[vim.fn.systemlist] Blocked executable: " + exe);
+        lua_pushnil(L);
+        lua_pushstring(L, "only rg/ripgrep is allowed");
+        return 2;
+    }
+
+    std::string cwd = ".";
+    int timeout_ms = 800;
+    size_t max_output_bytes = 1024 * 1024; // 1MB
+
+    if (lua_istable(L, 2)) {
+        lua_getfield(L, 2, "cwd");
+        if (lua_isstring(L, -1)) {
+            cwd = lua_tostring(L, -1);
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "timeout_ms");
+        if (lua_isnumber(L, -1)) {
+            timeout_ms = static_cast<int>(lua_tointeger(L, -1));
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "max_output_bytes");
+        if (lua_isnumber(L, -1)) {
+            long long v = static_cast<long long>(lua_tointeger(L, -1));
+            if (v > 0) {
+                max_output_bytes = static_cast<size_t>(v);
+            }
+        }
+        lua_pop(L, 1);
+    }
+
+    if (timeout_ms < 50)
+        timeout_ms = 50;
+    if (timeout_ms > 10000)
+        timeout_ms = 10000;
+    if (max_output_bytes < 1024)
+        max_output_bytes = 1024;
+    if (max_output_bytes > 4 * 1024 * 1024)
+        max_output_bytes = 4 * 1024 * 1024;
+
+    namespace fs = std::filesystem;
+    std::string effective_cwd = cwd;
+    try {
+        fs::path p(cwd);
+        if (!fs::exists(p) || !fs::is_directory(p)) {
+            lua_pushnil(L);
+            lua_pushstring(L, "cwd does not exist or is not a directory");
+            return 2;
+        }
+        effective_cwd = fs::weakly_canonical(p).string();
+    } catch (const std::exception& e) {
+        lua_pushnil(L);
+        lua_pushstring(L, e.what());
+        return 2;
+    }
+
+    // 将参数安全拼接为 shell 命令（单引号转义）
+    auto shell_escape = [](const std::string& s) {
+        std::string out;
+        out.reserve(s.size() + 8);
+        out.push_back('\'');
+        for (char c : s) {
+            if (c == '\'') {
+                out += "'\\''";
+            } else {
+                out.push_back(c);
+            }
+        }
+        out.push_back('\'');
+        return out;
+    };
+
+    std::string full_cmd = "cd " + shell_escape(effective_cwd) + " && ";
+    for (size_t i = 0; i < argv.size(); ++i) {
+        if (i > 0)
+            full_cmd += " ";
+        full_cmd += shell_escape(argv[i]);
+    }
+
+    // 限制输出大小：重定向到临时文件再读取限定字节
+    std::string tmp_file =
+        "/tmp/pnana_rg_" + std::to_string(std::rand()) + "_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".out";
+    std::string cmd_with_redirect = full_cmd + " > " + shell_escape(tmp_file) + " 2>&1";
+
+    auto runner = [cmd_with_redirect]() {
+        return std::system(cmd_with_redirect.c_str());
+    };
+
+    auto fut = std::async(std::launch::async, runner);
+    if (fut.wait_for(std::chrono::milliseconds(timeout_ms)) != std::future_status::ready) {
+        std::remove(tmp_file.c_str());
+        lua_pushnil(L);
+        lua_pushstring(L, "systemlist timeout");
+        return 2;
+    }
+
+    std::ifstream in(tmp_file, std::ios::binary);
+    if (!in.is_open()) {
+        lua_pushnil(L);
+        lua_pushstring(L, "failed to read command output");
+        return 2;
+    }
+
+    std::string output;
+    output.resize(max_output_bytes);
+    in.read(&output[0], static_cast<std::streamsize>(max_output_bytes));
+    std::streamsize got = in.gcount();
+    output.resize(static_cast<size_t>(got));
+    in.close();
+    std::remove(tmp_file.c_str());
+
+    lua_newtable(L);
+    std::stringstream ss(output);
+    std::string line;
+    int idx = 1;
+    while (std::getline(ss, line)) {
+        lua_pushstring(L, line.c_str());
+        lua_rawseti(L, -2, idx++);
+    }
+
+    return 1;
 }
 
 // pnana_notify(message, level)
@@ -274,6 +465,71 @@ int SystemAPI::lua_api_del_user_command(lua_State* L) {
 
     bool result = lua_api->delUserCommand(std::string(name));
     lua_pushboolean(L, result);
+    return 1;
+}
+
+// vim.api.register_palette_command(opts, callback)
+int SystemAPI::lua_api_register_palette_command(lua_State* L) {
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api || !lua_istable(L, 1) || !lua_isfunction(L, 2)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    std::string id;
+    std::string name;
+    std::string desc;
+    bool force = false;
+    std::vector<std::string> keywords;
+
+    lua_getfield(L, 1, "id");
+    if (lua_isstring(L, -1)) {
+        id = lua_tostring(L, -1);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "name");
+    if (lua_isstring(L, -1)) {
+        name = lua_tostring(L, -1);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "desc");
+    if (lua_isstring(L, -1)) {
+        desc = lua_tostring(L, -1);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "force");
+    if (lua_isboolean(L, -1)) {
+        force = lua_toboolean(L, -1) != 0;
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "keywords");
+    if (lua_istable(L, -1)) {
+        int len = static_cast<int>(luaL_len(L, -1));
+        for (int i = 1; i <= len; ++i) {
+            lua_rawgeti(L, -1, i);
+            if (lua_isstring(L, -1)) {
+                keywords.emplace_back(lua_tostring(L, -1));
+            }
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    if (id.empty()) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    lua_pushvalue(L, 2);
+    int callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    lua_api->registerPaletteCommand(id, name, desc, keywords, callback_ref, force);
+
+    lua_pushboolean(L, true);
     return 1;
 }
 
@@ -457,6 +713,88 @@ int SystemAPI::lua_api_clear_autocmds(lua_State* L) {
 
     lua_api->clearAutocmds(event, pattern, group);
     return 0;
+}
+
+int SystemAPI::lua_vim_defer_fn(lua_State* L) {
+    LOG_INFO("[vim.defer_fn] Called");
+
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api || !lua_isfunction(L, 1) || !lua_isnumber(L, 2)) {
+        LOG_ERROR("[vim.defer_fn] Invalid arguments");
+        lua_pushnil(L);
+        lua_pushstring(L, "invalid arguments");
+        return 2;
+    }
+
+    lua_pushvalue(L, 1);
+    int callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    int delay_ms = static_cast<int>(lua_tointeger(L, 2));
+
+    LOG_INFO("[vim.defer_fn] Timer created with delay: " + std::to_string(delay_ms) + "ms");
+
+    int timer_id = lua_api->deferFunction(callback_ref, delay_ms);
+    lua_pushinteger(L, static_cast<lua_Integer>(timer_id));
+    return 1;
+}
+
+int SystemAPI::lua_vim_defer_cancel(lua_State* L) {
+    LOG_INFO("[vim.defer_cancel] Called");
+
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api || !lua_isnumber(L, 1)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    int timer_id = static_cast<int>(lua_tointeger(L, 1));
+    lua_api->cancelDeferred(timer_id);
+    LOG_INFO("[vim.defer_cancel] Timer cancelled: " + std::to_string(timer_id));
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+int SystemAPI::lua_log_info(lua_State* L) {
+    const char* message = lua_tostring(L, 1);
+    if (!message) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    LOG("Plugin: " + std::string(message));
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+int SystemAPI::lua_log_warn(lua_State* L) {
+    const char* message = lua_tostring(L, 1);
+    if (!message) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    LOG_WARNING("Plugin: " + std::string(message));
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+int SystemAPI::lua_log_error(lua_State* L) {
+    const char* message = lua_tostring(L, 1);
+    if (!message) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    LOG_ERROR("Plugin: " + std::string(message));
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+int SystemAPI::lua_log_debug(lua_State* L) {
+    const char* message = lua_tostring(L, 1);
+    if (!message) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    LOG_DEBUG("Plugin: " + std::string(message));
+    lua_pushboolean(L, true);
+    return 1;
 }
 
 // 解析命令选项
