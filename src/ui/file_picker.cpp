@@ -187,6 +187,12 @@ bool FilePicker::handleInput(ftxui::Event event) {
     } else if (event == Event::ArrowDown) {
         navigateDown();
         return true;
+    } else if (event == Event::PageUp) {
+        navigatePageUp();
+        return true;
+    } else if (event == Event::PageDown) {
+        navigatePageDown();
+        return true;
     } else if (event == Event::Backspace) {
         // 返回上级目录
         if (remote_list_dir_) {
@@ -534,6 +540,34 @@ void FilePicker::navigateUp() {
 void FilePicker::navigateDown() {
     if (!items_.empty() && selected_index_ < items_.size() - 1) {
         selected_index_++;
+    }
+}
+
+void FilePicker::navigatePageUp() {
+    if (items_.empty()) {
+        selected_index_ = 0;
+        return;
+    }
+    // 每页显示的项目数（与 render() 中的 visible_count 保持一致）
+    const size_t page_size = 15;
+    if (selected_index_ >= page_size) {
+        selected_index_ -= page_size;
+    } else {
+        selected_index_ = 0;
+    }
+}
+
+void FilePicker::navigatePageDown() {
+    if (items_.empty()) {
+        selected_index_ = 0;
+        return;
+    }
+    // 每页显示的项目数（与 render() 中的 visible_count 保持一致）
+    const size_t page_size = 15;
+    if (selected_index_ + page_size < items_.size()) {
+        selected_index_ += page_size;
+    } else {
+        selected_index_ = items_.size() - 1;
     }
 }
 

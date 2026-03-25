@@ -126,6 +126,7 @@ void FzfPopup::open() {
     filtered_files_.clear();
     filtered_display_paths_.clear();
     root_path_.clear();
+    preview_h_offset_ = 0;
 
     if (root_directory_.size() >= 6 && root_directory_.compare(0, 6, "ssh://") == 0 &&
         on_remote_load_callback_) {
@@ -266,7 +267,8 @@ void FzfPopup::filterFiles() {
     }
     selected_index_ = 0;
     scroll_offset_ = 0;
-    preview_page_ = 0; // 过滤变化时重置预览页
+    preview_page_ = 0;     // 过滤变化时重置预览页
+    preview_h_offset_ = 0; // 过滤变化时重置水平偏移
     if (selected_index_ >= filtered_files_.size() && !filtered_files_.empty()) {
         selected_index_ = filtered_files_.size() - 1;
     }
@@ -499,7 +501,14 @@ Element FzfPopup::renderPreview() const {
     size_t line_no = skip_lines + 1; // 行号从当前页起始行开始
     const size_t LINE_NUM_WIDTH = 4; // 右对齐行号，与代码区一致
     for (const auto& line : content_lines) {
-        Element hl_line = syntax_highlighter_->highlightLine(line);
+        std::string visible = line;
+        if (preview_h_offset_ < visible.size()) {
+            visible = visible.substr(preview_h_offset_);
+        } else {
+            visible.clear();
+        }
+
+        Element hl_line = syntax_highlighter_->highlightLine(visible);
         std::string line_str = std::to_string(line_no);
         while (line_str.length() < LINE_NUM_WIDTH) {
             line_str = " " + line_str;
@@ -519,7 +528,7 @@ Element FzfPopup::renderHelpBar() const {
     return hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
                  text("PgUp/PgDn") | color(colors.helpbar_key) | bold, text(": Page scroll  "),
                  text("Enter") | color(colors.helpbar_key) | bold, text(": Open  "),
-                 text("Tab") | color(colors.helpbar_key) | bold, text(": Preview next page  "),
+                 text("Tab") | color(colors.helpbar_key) | bold, text(": Preview horizontal  "),
                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel  "),
                  text("Type") | color(colors.helpbar_key) | bold, text(": Filter")}) |
            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;
@@ -549,6 +558,7 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                 scroll_offset_ = selected_index_ - list_display_count_ + 1;
             }
             preview_page_ = 0; // 切换选中文件时重置预览页
+            preview_h_offset_ = 0;
         }
         return true;
     }
@@ -571,54 +581,91 @@ bool FzfPopup::handleInput(ftxui::Event event) {
         return true;
     }
 
-    // Page Down: 向下翻页快速滚动
+    // Page Down: 预览面板向下翻页
     if (event == ftxui::Event::PageDown) {
-        if (!filtered_files_.empty()) {
-            const size_t page_step = list_display_count_;
-            if (selected_index_ + page_step < filtered_files_.size()) {
-                selected_index_ += page_step;
+        if (!filtered_files_.empty() && selected_index_ < filtered_files_.size()) {
+            const std::string& filepath = filtered_files_[selected_index_];
+            if (!isNonPreviewableFile(filepath)) {
+                // 检查是否还有下一页
+                std::string content = readFilePreview(filepath, PREVIEW_LINES_PER_PAGE,
+                                                      (preview_page_ + 1) * PREVIEW_LINES_PER_PAGE);
+                if (content.empty()) {
+                    // 已经到底部，回到顶部
+                    preview_page_ = 0;
+                } else {
+                    // 还有下一页
+                    preview_page_++;
+                }
             } else {
-                selected_index_ = filtered_files_.size() - 1;
+                // 不可预览的文件，切换到下一个文件
+                if (selected_index_ + 1 < filtered_files_.size()) {
+                    selected_index_++;
+                    if (selected_index_ >= scroll_offset_ + list_display_count_) {
+                        scroll_offset_ = selected_index_ - list_display_count_ + 1;
+                    }
+                    preview_page_ = 0;
+                }
             }
-            if (selected_index_ >= scroll_offset_ + list_display_count_) {
-                scroll_offset_ = selected_index_ - list_display_count_ + 1;
-            }
-            preview_page_ = 0;
         }
         return true;
     }
 
-    // Page Up: 向上翻页快速滚动
+    // Page Up: 预览面板向上翻页
     if (event == ftxui::Event::PageUp) {
-        if (!filtered_files_.empty()) {
-            const size_t page_step = list_display_count_;
-            if (selected_index_ >= page_step) {
-                selected_index_ -= page_step;
+        if (!filtered_files_.empty() && selected_index_ < filtered_files_.size()) {
+            const std::string& filepath = filtered_files_[selected_index_];
+            if (!isNonPreviewableFile(filepath)) {
+                // 预览面板翻页
+                if (preview_page_ == 0) {
+                    // 已经在顶部，需要找到最后一页
+                    size_t total_lines = 0;
+                    std::ifstream file(filepath);
+                    if (file) {
+                        std::string line;
+                        while (std::getline(file, line)) {
+                            total_lines++;
+                        }
+                    }
+                    // 计算总页数
+                    if (total_lines > 0) {
+                        preview_page_ = (total_lines - 1) / PREVIEW_LINES_PER_PAGE;
+                    }
+                } else {
+                    preview_page_--;
+                }
             } else {
-                selected_index_ = 0;
+                // 不可预览的文件，切换到上一个文件
+                if (selected_index_ > 0) {
+                    selected_index_--;
+                    if (selected_index_ < scroll_offset_) {
+                        scroll_offset_ = selected_index_;
+                    }
+                    preview_page_ = 0;
+                }
             }
-            if (selected_index_ < scroll_offset_) {
-                scroll_offset_ = selected_index_;
-            }
-            preview_page_ = 0;
         }
         return true;
     }
 
-    // Tab: 预览下一页；若已在最后一页则循环回第一页
+    // Tab: 预览横向滚动（到达边界后回到起始位置）
     if (event == ftxui::Event::Tab) {
         if (!filtered_files_.empty() && selected_index_ < filtered_files_.size()) {
             const std::string& filepath = filtered_files_[selected_index_];
             if (!isNonPreviewableFile(filepath)) {
-                const size_t next_skip = (preview_page_ + 1) * PREVIEW_LINES_PER_PAGE;
-                std::string next_content = readFilePreview(filepath, 1, next_skip);
-                const bool has_next = !next_content.empty() &&
-                                      next_content.find("(Binary") == std::string::npos &&
-                                      next_content.find("(Unable") == std::string::npos;
-                if (has_next)
-                    preview_page_++;
-                else
-                    preview_page_ = 0; // 最后一页再按 Tab 回到第一页
+                std::string content = readFilePreview(filepath, PREVIEW_LINES_PER_PAGE, 0);
+                size_t max_len = 0;
+                std::istringstream iss(content);
+                std::string line;
+                while (std::getline(iss, line)) {
+                    max_len = std::max(max_len, line.size());
+                }
+                if (max_len <= preview_h_step_) {
+                    preview_h_offset_ = 0;
+                } else if (preview_h_offset_ + preview_h_step_ >= max_len) {
+                    preview_h_offset_ = 0; // 到边界后回到起始
+                } else {
+                    preview_h_offset_ += preview_h_step_;
+                }
             }
         }
         return true;

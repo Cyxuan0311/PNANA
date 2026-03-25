@@ -198,6 +198,12 @@ bool PackageManagerPanel::handleInput(Event event) {
             }
         }
         return true;
+    } else if (event == Event::PageUp) {
+        navigatePageUp();
+        return true;
+    } else if (event == Event::PageDown) {
+        navigatePageDown();
+        return true;
     } else if (event == Event::Tab || event == Event::ArrowRight) {
         // 切换到下一个管理器（使用缓存）
         auto available = getCachedAvailableManagers();
@@ -595,6 +601,50 @@ void PackageManagerPanel::updateScrollOffset() {
     } else if (selected_index_ >= scroll_offset_ + max_display) {
         scroll_offset_ = selected_index_ - max_display + 1;
     }
+}
+
+void PackageManagerPanel::navigatePageUp() {
+    auto manager = getCurrentManager();
+    if (!manager) {
+        return;
+    }
+
+    auto filtered = getFilteredPackages(manager);
+    if (filtered.empty()) {
+        selected_index_ = 0;
+        scroll_offset_ = 0;
+        return;
+    }
+
+    const size_t page_size = 20; // 每页显示的项目数
+    if (selected_index_ >= page_size) {
+        selected_index_ -= page_size;
+    } else {
+        selected_index_ = 0;
+    }
+    updateScrollOffset();
+}
+
+void PackageManagerPanel::navigatePageDown() {
+    auto manager = getCurrentManager();
+    if (!manager) {
+        return;
+    }
+
+    auto filtered = getFilteredPackages(manager);
+    if (filtered.empty()) {
+        selected_index_ = 0;
+        scroll_offset_ = 0;
+        return;
+    }
+
+    const size_t page_size = 20; // 每页显示的项目数
+    if (selected_index_ + page_size < filtered.size()) {
+        selected_index_ += page_size;
+    } else {
+        selected_index_ = filtered.size() - 1;
+    }
+    updateScrollOffset();
 }
 
 std::vector<features::package_manager::Package> PackageManagerPanel::getFilteredPackages(

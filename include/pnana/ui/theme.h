@@ -58,19 +58,27 @@ class Theme {
     Theme();
 
     // 预设主题
-    static ThemeColors Monokai();                // 经典Monokai主题
-    static ThemeColors Dracula();                // Dracula主题
-    static ThemeColors SolarizedDark();          // Solarized Dark
-    static ThemeColors SolarizedLight();         // Solarized Light
-    static ThemeColors OneDark();                // One Dark
-    static ThemeColors Nord();                   // Nord
-    static ThemeColors Gruvbox();                // Gruvbox
-    static ThemeColors TokyoNight();             // Tokyo Night
-    static ThemeColors Catppuccin();             // Catppuccin
-    static ThemeColors Material();               // Material
-    static ThemeColors Ayu();                    // Ayu
-    static ThemeColors GitHub();                 // GitHub Light
-    static ThemeColors GitHubDark();             // GitHub Dark
+    static ThemeColors Monokai();        // Monokai Pro - 经典Monokai主题
+    static ThemeColors MonokaiDark();    // Monokai Dark - 更深的暗色版本，增强对比度
+    static ThemeColors MonokaiLight();   // Monokai Light - 浅色版本，适合明亮环境
+    static ThemeColors MonokaiNeon();    // Monokai Neon - 霓虹版本，增强发光效果
+    static ThemeColors MonokaiPastel();  // Monokai Pastel - 粉彩版本，柔和的马卡龙色系
+    static ThemeColors SolarizedDark();  // Solarized Dark
+    static ThemeColors SolarizedLight(); // Solarized Light
+    static ThemeColors OneDark();        // One Dark
+    static ThemeColors Nord();           // Nord Arctic - 经典 Nord，冷冽冰蓝北极风格
+    static ThemeColors NordFrost();      // Nord Frost - 霜冻版本，更浅的冰蓝色调
+    static ThemeColors NordAurora();     // Nord Aurora - 极光版本，强调极光色彩
+    static ThemeColors NordDeep();       // Nord Deep - 深海版本，更深的蓝色调
+    static ThemeColors NordLight();      // Nord Light - 浅色版本，雪白色调
+    static ThemeColors PurpleDark();     // Purple Dark - 紫黑主题，深紫底色 + 亮紫点缀
+    static ThemeColors Gruvbox();        // Gruvbox
+    static ThemeColors TokyoNight();     // Tokyo Night
+    static ThemeColors Catppuccin();     // Catppuccin
+    static ThemeColors Material();       // Material
+    static ThemeColors Ayu();            // Ayu
+    static ThemeColors GitHub();         // GitHub Light
+    static ThemeColors GitHubDark();     // GitHub Dark
     static ThemeColors GitHubDarkDimmed();       // GitHub Dark Dimmed - 柔和暗色主题
     static ThemeColors GitHubDarkHighContrast(); // GitHub Dark High Contrast - 高对比度主题
     static ThemeColors MarkdownDark();           // Markdown Dark
@@ -106,6 +114,8 @@ class Theme {
     static ThemeColors Poimandres();             // Poimandres - 紫青深色主题
     static ThemeColors Terafox();                // Terafox - 暖棕深色主题
     static ThemeColors Galaxy();                 // Galaxy - 深紫蓝星空主题
+    static ThemeColors Lightning();              // Lightning - 闪电黄电光主题
+    static ThemeColors Storm();                  // Storm - 风暴深灰蓝主题
     static ThemeColors Mellow();                 // Mellow - 柔和 pastel 深色
     static ThemeColors Fleet();                  // Fleet - JetBrains Fleet 风格深色
     static ThemeColors Luna();                   // Luna - 柔和紫蓝深色
@@ -147,11 +157,15 @@ class Theme {
     static ThemeColors NeonTokyo(); // Neon Tokyo - 霓虹东京主题，深紫黑基底配合霓虹粉/青/绿
     static ThemeColors TraeDark(); // Trae Dark - Trae 暗色主题，深灰黑基底配合蓝/紫/绿
     static ThemeColors TraeDeepBlue(); // Trae Deep Blue - Trae 深蓝主题，深蓝灰基底配合蓝/青/紫
-    static ThemeColors Midnight();  // Midnight - 午夜蓝主题，深邃神秘的蓝紫色调
-    static ThemeColors Minecraft(); // Minecraft - 我的世界主题，经典像素游戏配色
-    static ThemeColors EVA(); // EVA - 新世纪福音战士主题，NERV 标志配色 + EVA 机体色
-    static ThemeColors IronMan();   // Iron Man - 钢铁侠主题，红金配色 + 反应堆蓝光
-    static ThemeColors SpiderMan(); // Spider-Man - 蜘蛛侠主题，红蓝配色 + 蛛网元素
+    static ThemeColors Midnight();    // Midnight - 午夜蓝主题，深邃神秘的蓝紫色调
+    static ThemeColors Minecraft();   // Minecraft - 我的世界主题，经典像素游戏配色
+    static ThemeColors EVAUnit01();   // EVA Unit-01 - 初号机主题，紫/绿配色
+    static ThemeColors EVAUnit02();   // EVA Unit-02 - 贰号机主题，红/橙配色
+    static ThemeColors EVAUnit00();   // EVA Unit-00 - 零号机主题，黄/蓝配色
+    static ThemeColors EVAMark06();   // EVA Mark.06 - 六号机主题，蓝/白配色
+    static ThemeColors EVATerminal(); // EVA Terminal - NERV 终端机风格，绿黑配色
+    static ThemeColors IronMan();     // Iron Man - 钢铁侠主题，红金配色 + 反应堆蓝光
+    static ThemeColors SpiderMan();   // Spider-Man - 蜘蛛侠主题，红蓝配色 + 蛛网元素
     static ThemeColors CaptainAmerica(); // Captain America - 美国队长主题，红白蓝配色 + 星条旗元素
     static ThemeColors Hulk(); // Hulk - 绿巨人主题，绿色皮肤 + 愤怒力量 + 紫色裤子
     static ThemeColors Superman(); // Superman - 超人主题，红蓝配色 + 黄金 S 标志
@@ -160,9 +174,19 @@ class Theme {
     static ThemeColors Icy(); // Icy - 冰蓝主题，灰色与浅蓝色配色，清新冷冽
     static ThemeColors Silver(); // Silver - 银色主题，高端金属质感，银白 + 深灰 + 亮银点缀
     static ThemeColors Egypt(); // Egypt - 古埃及主题，沙漠金 + 尼罗河蓝 + 金字塔金 + 纸莎草棕
-    static ThemeColors Greece(); // Greece - 希腊主题，爱琴海蓝 + 圣托里尼白 + 阳光黄 + 橄榄绿
     static ThemeColors Denmark(); // Denmark - 丹麦主题，丹麦国旗红 + 纯白 + 北欧简约风 + 金色点缀
     static ThemeColors Antarctica(); // Antarctica - 南极主题，冰雪白 + 冰川蓝 + 极光绿 + 企鹅黑
+    static ThemeColors Heaven(); // Heaven - 天堂主题，天蓝 + 白云 + 阳光金 + 天使白
+    static ThemeColors DraculaSoft(); // Dracula Soft - 德古拉柔和版，降低对比度更护眼
+    static ThemeColors DraculaLight(); // Dracula Light - 德古拉浅色版，明亮办公环境
+    static ThemeColors DraculaNeon();  // Dracula Neon - 德古拉霓虹版，增强霓虹灯效果
+    static ThemeColors DraculaPastel(); // Dracula Pastel - 德古拉粉彩版，柔和马卡龙色系
+    static ThemeColors DraculaDeep(); // Dracula Deep - 德古拉深邃版，更深沉的暗夜风格
+    static ThemeColors GreeceClassic(); // Greece Classic - 希腊经典版，经典蓝白配色
+    static ThemeColors GreeceSunset(); // Greece Sunset - 希腊日落版，爱琴海日落暖色调
+    static ThemeColors GreeceOlive();  // Greece Olive - 希腊橄榄版，橄榄绿 + 地中海蓝
+    static ThemeColors GreeceMyth();   // Greece Myth - 希腊神话版，紫金神话配色
+    static ThemeColors GreeceAegean(); // Greece Aegean - 希腊爱琴海版，深邃海洋蓝
 
     void setTheme(const std::string& name);
 

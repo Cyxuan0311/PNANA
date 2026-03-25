@@ -99,6 +99,8 @@ class FilePicker {
     void loadDirectory();
     void navigateUp();
     void navigateDown();
+    void navigatePageUp();   // Page Up 快速向上滚动
+    void navigatePageDown(); // Page Down 快速向下滚动
     void selectItem();
     void cancel();
     bool isDirectory(const std::string& path) const;

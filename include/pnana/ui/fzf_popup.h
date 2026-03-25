@@ -71,8 +71,10 @@ class FzfPopup {
         filtered_display_paths_; // 预计算的显示路径（与 filtered_files_ 一一对应）
     size_t selected_index_;
     size_t scroll_offset_;
-    size_t list_display_count_; // 文件列表显示数量
-    size_t preview_page_;       // 当前预览页（0 起），切换选中文件时重置为 0
+    size_t list_display_count_;   // 文件列表显示数量
+    size_t preview_page_;         // 当前预览页（0 起），切换选中文件时重置为 0
+    size_t preview_h_offset_ = 0; // 预览水平偏移（Tab 横向滚动）
+    size_t preview_h_step_ = 24;  // 每次 Tab 横向滚动步长
 
     static const size_t PREVIEW_LINES_PER_PAGE = 25; // 每页预览行数
 

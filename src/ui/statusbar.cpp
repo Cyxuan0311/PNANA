@@ -52,11 +52,42 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     const bool is_vscode = (style == "vscode");
     const bool is_highlight = (style == "highlight");
     const bool is_unicode = (style == "unicode");
+    const bool is_gradient = (style == "gradient");
+    const bool is_powerline = (style == "powerline");
+    const bool is_modern = (style == "modern");
+    const bool is_retro = (style == "retro");
+    const bool is_solarized = (style == "solarized");
+    const bool is_dracula = (style == "dracula");
+    const bool is_monokai = (style == "monokai");
+    const bool is_oceanic = (style == "oceanic");
+    const bool is_gruvbox = (style == "gruvbox");
+    const bool is_cyberpunk = (style == "cyberpunk");
+    const bool is_iceberg = (style == "iceberg");
+    const bool is_nord = (style == "nord");
+
+    // 消除未使用变量警告（为未来扩展预留）
+    (void)is_gradient;
+    (void)is_powerline;
+    (void)is_modern;
+    (void)is_solarized;
+    (void)is_dracula;
+    (void)is_monokai;
+    (void)is_oceanic;
+    (void)is_gruvbox;
+    (void)is_iceberg;
+    (void)is_nord;
+
     // Unicode 风格使用双线竖框 ║ (U+2551) 作为分隔符
     const std::string sep = is_unicode ? " ║ " : " │ ";
     // 全部项高亮时给每个片段加背景
     auto hl = [&](Element e) -> Element {
-        return is_highlight ? (e | bgcolor(colors.selection)) : e;
+        if (is_highlight)
+            return e | bgcolor(colors.selection);
+        if (is_retro)
+            return e | color(Color::Green);
+        if (is_cyberpunk)
+            return e | color(Color::Magenta);
+        return e;
     };
 
     // Neovim 风格状态栏：左侧、中间、右侧三部分

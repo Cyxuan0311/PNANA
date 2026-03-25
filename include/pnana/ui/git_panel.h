@@ -107,7 +107,11 @@ class GitPanel {
     bool diff_viewer_visible_ = false;
     std::vector<std::string> diff_content_;
     size_t diff_scroll_offset_ = 0;
+    size_t diff_h_offset_ = 0; // 水平滚动偏移
     std::string current_diff_file_;
+
+    static constexpr size_t DIFF_VISIBLE_LINES = 20; // 固定可见行数
+    static constexpr size_t DIFF_H_SCROLL_STEP = 40; // 水平滚动步长
 
     // UI components
     ftxui::Component main_component_;

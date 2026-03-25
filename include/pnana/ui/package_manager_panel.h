@@ -82,6 +82,8 @@ class PackageManagerPanel {
     void switchTab(const std::string& manager_name);
     void filterPackages();
     void updateScrollOffset();
+    void navigatePageUp();   // Page Up 快速向上滚动
+    void navigatePageDown(); // Page Down 快速向下滚动
     std::vector<features::package_manager::Package> getFilteredPackages(
         std::shared_ptr<features::package_manager::PackageManagerBase> manager) const;
     std::shared_ptr<features::package_manager::PackageManagerBase> getCurrentManager() const;
