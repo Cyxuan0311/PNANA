@@ -15,6 +15,7 @@ This document is based on the `src/plugins` implementation and describes how to 
 - [Theme API](#theme-api)
 - [Editor API](#editor-api)
 - [File API](#file-api)
+- [UI / Logging API](#ui--logging-api)
 - [Sandbox and Restrictions](#sandbox-and-restrictions)
 - [Example Plugins](#example-plugins)
 
@@ -71,6 +72,9 @@ Plugins access APIs through the `vim` global table, in a Neovim-like style.
 |-----------|-------------|
 | `vim.api` | Core APIs: editor, theme, file, etc. |
 | `vim.fn` | Utility functions (readfile, writefile) |
+| `vim.ui` | UI interaction APIs (notify/input/select/popup/open_window/update_window/close_window, driven by PopupManager) |
+| `vim.log` | Logging APIs (info/warn/error/debug) |
+| `vim.secure_io` | Sandboxed secure I/O APIs |
 | `vim.cmd` | Register commands (convenience alias) |
 | `vim.autocmd` | Register event callbacks |
 | `vim.keymap` | Register keymaps |
@@ -271,6 +275,284 @@ vim.fn.writefile("/path/to/file", {"line1", "line2", "line3"})
 
 **Note:** File access is sandboxed and limited to whitelisted paths (e.g., `~/.config/pnana/`, plugin dirs).
 
+### Secure I/O API: `vim.secure_io`
+
+```lua
+local content, err = vim.secure_io.read_text("./plugins/example-plugin/init.lua")
+if not content then
+  vim.log.error("read failed: " .. (err or "unknown"))
+  return
+end
+
+local ok, werr = vim.secure_io.write_text("./plugins/example-plugin/tmp.txt", "hello")
+if not ok then
+  vim.log.warn("write failed: " .. (werr or "unknown"))
+end
+
+vim.secure_io.append_text("./plugins/example-plugin/tmp.txt", "\nworld")
+local exists = vim.secure_io.exists("./plugins/example-plugin/tmp.txt")
+```
+
+---
+
+## UI / Logging API
+
+### Basic UI API
+
+```lua
+vim.ui.notify("Build finished", "info")
+vim.ui.popup("Plugin Panel", {"line 1", "line 2"})
+
+vim.ui.input({ prompt = "Project name:", default = "pnana" }, function(value)
+  vim.log.info("input value = " .. tostring(value))
+end)
+
+-- New window handle API (managed by PopupManager)
+local win = vim.ui.open_window({
+  title = "Build Output",
+  lines = {"Compiling...", "Done"}
+})
+vim.ui.update_window(win, { title = "Build Output ✅", lines = {"Done in 1.2s"} })
+vim.ui.close_window(win)
+
+vim.ui.select({"A", "B", "C"}, { prompt = "Pick one" }, function(item, idx)
+  vim.log.debug("selected: " .. tostring(item) .. " #" .. tostring(idx))
+end)
+
+vim.log.info("hello")
+vim.log.warn("warn msg")
+vim.log.error("error msg")
+vim.log.debug("debug msg")
+```
+
+### Progress Bar API
+
+```lua
+-- Show progress bar
+local progress_id = vim.ui.progress({
+  title = "File Download",
+  message = "Downloading...",
+  percent = 0,           -- 0-100
+  indeterminate = false  -- Indeterminate progress
+})
+
+-- Update progress
+vim.ui.update_progress(progress_id, {
+  message = "Downloading...",
+  percent = 50
+})
+
+-- Close progress bar
+vim.ui.close_progress(progress_id)
+```
+
+### Multi-select List API
+
+```lua
+vim.ui.multiselect({
+  { text = "Option 1", selected = false },
+  { text = "Option 2", selected = true },
+  { text = "Option 3", selected = false },
+}, {
+  title = "Multi-select",
+  prompt = "Please select:"
+}, function(selected_items)
+  if selected_items then
+    for _, item in ipairs(selected_items) do
+      print("Selected: " .. item)
+    end
+  end
+end)
+```
+
+### Hover Tooltip API
+
+```lua
+-- Show hover tooltip
+local hover_id = vim.ui.hover({
+  content = {"Function: print", "Args: ...", "Returns: nil"},
+  row = 10,        -- Row position
+  col = 20,        -- Column position
+  anchor = "NW"    -- Anchor: NW, NE, SW, SE
+})
+
+-- Close hover tooltip
+vim.ui.close_hover(hover_id)
+```
+
+### Window Management Enhanced API
+
+```lua
+-- List all windows
+local windows = vim.ui.list_windows()
+-- Returns: { {id=1, title="..."}, {id=2, title="..."} }
+
+-- Check if window is valid
+local valid = vim.ui.window_is_valid(win_id)
+
+-- Get window info
+local info = vim.ui.get_window_info(win_id)
+-- Returns: { id=..., type="window", valid=true }
+
+-- Focus window (bring to front)
+vim.ui.focus_window(win_id)
+```
+
+### Advanced Layout API (v2.2)
+
+**Note**: Full layout rendering requires kernel Widget system support. Current implementation is basic.
+
+#### Supported Widget Types
+
+**Basic Display Widgets**:
+- `text` - Plain text
+- `paragraph` - Auto-wrapping paragraph
+- `separator` - Separator line
+- `canvas` - 2D drawing canvas
+- `spinner` - Loading animation
+- `image` - Terminal image
+- `animation` - Custom animation
+- `bullet` - List bullet point
+- `link` - Hyperlink styled text
+
+**Basic Interactive Widgets**:
+- `input` - Text input field
+- `textarea` - Multi-line text area
+- `button` - Regular button
+- `checkbox` - Checkbox
+- `radiobox` - Radio button
+- `toggle` - Toggle switch
+- `slider` - Slider
+- `dropdown` - Dropdown select
+- `menu` - List menu
+- `color_picker` - Color picker
+- `file_picker` - File picker
+- `gauge` - Progress bar/gauge
+- `list` - List selection
+
+**Container Widgets**:
+- `window` - Window with title border
+- `container` - Generic container
+- `group` - Group box (simple border)
+- `hbox` - Horizontal layout box
+- `vbox` - Vertical layout box
+- `dbox` - Depth stacking container
+- `split` - Split layout
+- `resizable_split` - Resizable split panel
+- `tabs` - Tab container
+- `grid` - Grid layout
+- `frame` - Auto-fit/fill parent
+- `yframe` - Vertical fill container
+- `xframe` - Horizontal fill container
+- `vscroll` - Container with vertical scrollbar
+- `hscroll` - Container with horizontal scrollbar
+
+**Popup/Modal Widgets**:
+- `modal` - Modal dialog
+- `popup` - Floating popup layer
+- `notification` - Notification toast
+
+```lua
+-- Create layout specification
+local layout = vim.ui.create_layout({
+  type = "hbox",           -- Layout type: hbox (horizontal), vbox (vertical), container
+  direction = "horizontal", -- Layout direction: horizontal, vertical
+  align = "start",          -- Alignment: start, center, end, stretch
+  spacing = 2,              -- Spacing between children
+  padding = 1,              -- Padding
+  flex = 1,                 -- Flex grow (0=fixed size)
+  min_width = 20,           -- Minimum width
+  min_height = 10,          -- Minimum height
+  border = "single",        -- Border: none, single, double, rounded
+  children = {
+    { type = "text", text = "Label" },
+    { type = "input", id = "field1", value = "" },
+    { type = "button", label = "OK", id = "btn_ok" },
+    { type = "list", items = {"Option1", "Option2"} },
+  }
+})
+
+-- Open window with layout
+local win_id = vim.ui.open_layout_window({
+  title = "Custom Layout Window",
+  width = 80,
+  height = 24,
+  layout = layout,
+})
+
+-- Update window layout
+vim.ui.update_layout(win_id, new_layout)
+```
+
+#### Layout Example: Horizontal Split
+
+```lua
+local sidebar = {
+  type = "vbox",
+  flex = 1,
+  border = "single",
+  children = {
+    { type = "text", text = "File Browser" },
+    { type = "list", items = vim.fn.readdir(".") },
+  }
+}
+
+local editor = {
+  type = "vbox",
+  flex = 3,
+  border = "single",
+  children = {
+    { type = "text", text = "Editor" },
+    { type = "input", id = "content", value = "..." },
+  }
+}
+
+local win_id = vim.ui.open_layout_window({
+  title = "IDE Layout",
+  width = 100,
+  height = 30,
+  layout = {
+    type = "hbox",
+    spacing = 1,
+    children = { sidebar, editor }
+  },
+})
+```
+
+#### Layout Example: Form
+
+```lua
+local form_layout = {
+  type = "vbox",
+  spacing = 1,
+  padding = 2,
+  children = {
+    {
+      type = "hbox",
+      children = {
+        { type = "text", text = "Username:", min_width = 10 },
+        { type = "input", id = "username", flex = 1 },
+      }
+    },
+    {
+      type = "hbox",
+      children = {
+        { type = "text", text = "Password:", min_width = 10 },
+        { type = "input", id = "password", flex = 1 },
+      }
+    },
+    {
+      type = "hbox",
+      align = "end",
+      children = {
+        { type = "button", label = "Cancel", id = "cancel" },
+        { type = "button", label = "OK", id = "ok" },
+      }
+    },
+  }
+}
+```
+
 ---
 
 ## Sandbox and Restrictions
@@ -302,6 +584,34 @@ end)
 ```
 
 ---
+
+## UI API Version Notes
+
+- Current UI API version: `v2.2` (driven by PopupManager)
+- New APIs (v2.2):
+  - `vim.ui.create_layout/open_layout_window/update_layout` - Advanced layout system
+  - Support for hbox/vbox/container layout containers
+  - Support for flex layout, alignment, spacing, etc.
+- New APIs (v2.1):
+  - `vim.ui.progress/update_progress/close_progress` - Progress bar
+  - `vim.ui.multiselect` - Multi-select list
+  - `vim.ui.hover/close_hover` - Hover tooltip
+  - `vim.ui.list_windows/window_is_valid/get_window_info/focus_window` - Window management
+- Compatibility policy:
+  - `vim.ui.input/select/dialog/popup` remain compatible
+  - `vim.ui.open_window/update_window/close_window` now return and operate on real popup handles
+- Future versions will maintain v2 compatibility and use backward-compatible extensions for new features
+
+## Layout Demo Plugin
+
+See `plugins/layout-demo-plugin/init.lua` for complete layout demonstrations, including:
+- Horizontal split layout
+- Vertical split layout
+- Form layout
+- Three-column layout
+- Composite layout
+
+Run `:LayoutDemo` command or press `F11` to see the demo menu.
 
 ## Enabling and Configuration
 

@@ -11,6 +11,7 @@ This document describes pnana's configuration system and usage.
 - [Configuration File Location](#configuration-file-location)
 - [Configuration Options](#configuration-options)
 - [LSP Configuration](#lsp-configuration)
+- [History Configuration](#history-configuration)
 - [Configuration Examples](#configuration-examples)
 - [Configuration File Format](#configuration-file-format)
 
@@ -30,7 +31,7 @@ On first run, if the configuration file does not exist, pnana will create it wit
 
 ## Configuration Options
 
-The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, and `lsp`.
+The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, `lsp`, and `history`.
 
 ### editor
 
@@ -177,6 +178,36 @@ Each element in the `servers` array is an object with these fields:
 | YAML | `yaml-language-server` | `.yaml`, `.yml` |
 | Markdown | `marksman` | `.md`, `.markdown` |
 | Shell | `bash-language-server` | `.sh`, `.bash`, `.zsh` |
+
+## History Configuration
+
+The `history` section controls automatic cleanup for file history versions under:
+
+`~/.config/pnana/history/`
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable` | boolean | `true` | Enable/disable automatic history cleanup |
+| `max_entries` | number | `50` | Maximum non-critical versions per file |
+| `max_age_days` | number | `30` | Remove versions older than N days (unless critical or newest) |
+| `max_total_size` | string | `"1GB"` | Per-file history directory size cap (`KB`/`MB`/`GB`) |
+| `keep_critical_versions` | boolean | `true` | Keep critical snapshots during cleanup |
+| `critical_change_threshold` | number | `50` | Mark version as critical when changed lines ratio >= this percentage |
+| `critical_time_interval` | number | `86400` | Mark version as critical when last version interval >= this seconds |
+
+Example:
+
+```json
+"history": {
+  "enable": true,
+  "max_entries": 50,
+  "max_age_days": 30,
+  "max_total_size": "1GB",
+  "keep_critical_versions": true,
+  "critical_change_threshold": 50,
+  "critical_time_interval": 86400
+}
+```
 
 ### LSP Configuration Examples
 

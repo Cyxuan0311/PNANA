@@ -2,7 +2,7 @@
 
 <img src="resources/logo.png" alt="pnana logo" width="200">
 
-#  pnana - 现代化终端文本编辑器
+# pnana - Modern Terminal Text Editor
 
 ![pnana](https://img.shields.io/badge/pnana-v0.0.5-brightgreen)
 ![C++](https://img.shields.io/badge/C++-17-blue)
@@ -11,13 +11,13 @@
 ![Platform](https://img.shields.io/badge/Platform-Linux-blue)
 ![Platform](https://img.shields.io/badge/Platform-macOS-purple)
 
-**中文** | [English](README_EN.md)
+**English** | [中文](README_CN.md)
 
-**pnana**是一个基于FTXUI构建的现代化终端文本编辑器，灵感来自Nano、Micro和Sublime Text。提供友好的用户界面、直观的快捷键和强大的编辑功能。
+**pnana** is a modern terminal text editor built with FTXUI, inspired by Nano, Micro, and Sublime Text. It provides a friendly user interface, intuitive keyboard shortcuts, and powerful editing features.
 
 </div>
 
-## 📸 演示
+## 📸 Demo
 
 <div align="center">
 
@@ -25,154 +25,157 @@
 
 </div>
 
-## ✨ 核心特性
+## ✨ Core Features
 
-### 🎨 美观友好的界面
-- **多种主题**: Monokai（默认）、Dracula、Solarized Dark/Light、OneDark、Nord...
-- **三栏布局**: 顶部菜单栏、中间编辑区、底部帮助栏
-- **智能状态栏**: 显示文件信息、光标位置、编码、修改状态
-- **行号显示**: 绝对行号和相对行号切换
-- **当前行高亮**: 清晰标识编辑位置
+### 🎨 Beautiful and Friendly Interface
+- **Multiple Themes**: Monokai (default), Dracula, Solarized Dark/Light, OneDark, Nord...
+- **Three-Column Layout**: Top menu bar, middle editing area, bottom help bar
+- **Smart Status Bar**: Displays file information, cursor position, encoding, and modification status
+- **Line Numbers**: Switch between absolute and relative line numbers
+- **Current Line Highlighting**: Clearly identifies the editing position
 
-### ⌨️ 现代化快捷键
-摒弃传统Vim的学习曲线，采用现代编辑器的直观快捷键。使用熟悉的 `Ctrl+S` 保存、`Ctrl+Z` 撤销等标准快捷键，零学习成本。
+### ⌨️ Modern Keyboard Shortcuts
+Abandoning the learning curve of traditional Vim, pnana adopts intuitive shortcuts from modern editors. Use familiar standard shortcuts like `Ctrl+S` to save, `Ctrl+Z` to undo, with zero learning curve.
 
-**详细快捷键列表**：请查看 [快捷键文档](docs/KEYBINDINGS.md)
+**Complete Shortcut List**: See [Keyboard Shortcuts Documentation](docs/KEYBINDINGS.md)
 
-### 📝 强大的编辑功能
+### 📝 Powerful Editing Features
 
-#### 多文件支持
-- **标签页系统**: 同时打开多个文件
-- **分屏编辑**: 水平/垂直分屏 (计划中)
-- **快速切换**: 键盘快速切换文件
+#### Multi-File Support
+- **Tab System**: Open multiple files simultaneously
+- **Split Editing**: Horizontal/vertical split screens （planned）
+- **Quick Switching**: Fast file switching with keyboard 
 
-#### 智能编辑
-- **自动缩进**: 根据文件类型智能缩进 （计划中）
-- **括号匹配**: 自动补全括号、引号 (计划中)
-- **多光标编辑**: 同时编辑多个位置（计划中）
-- **列选择**: 按住Alt进行列选择
-- **智能撤销/重做**: 无限次撤销重做
+#### Smart Editing
+- **Auto Indent**: Intelligent indentation based on file type (planned)
+- **Bracket Matching**: Auto-complete brackets and quotes (planned)
+- **Multi-Cursor Editing**: Edit multiple positions simultaneously (planned)
+- **Column Selection**: Hold Alt for column selection
+- **Smart Undo/Redo**: Unlimited undo/redo
 
-#### 搜索和替换
-- **正则表达式**: 支持正则搜索
-- **大小写敏感**: 可选大小写匹配
-- **批量替换**: 一次替换所有匹配
-- **即时预览**: 搜索结果实时高亮
+#### Search and Replace
+- **Regular Expressions**: Support for regex search
+- **Case Sensitive**: Optional case matching
+- **Batch Replace**: Replace all matches at once
+- **Live Preview**: Real-time search result highlighting
 
-#### 语法高亮
-支持多种编程语言：C/C++, Python, JavaScript/TypeScript, Java, Go, Rust, Ruby, PHP, HTML/CSS, JSON, XML, Markdown, Shell, SQL, YAML, TOML
+#### Syntax Highlighting
+Supports multiple programming languages: C/C++, Python, JavaScript/TypeScript, Java, Go, Rust, Ruby, PHP, HTML/CSS, JSON, XML, Markdown, Shell, SQL, YAML, TOML
 
-#### LSP 支持（Language Server Protocol）
-- **代码补全**：智能代码补全，支持多种编程语言
-- **实时诊断**：语法错误和警告实时显示
-- **代码导航**：跳转到定义、查找引用
-- **符号搜索**：快速查找函数、类、变量等符号
-- **自动配置**：自动检测并配置 LSP 服务器
+#### LSP Support (Language Server Protocol)
+- **Code Completion**: Intelligent code completion for multiple programming languages
+- **Real-time Diagnostics**: Syntax errors and warnings displayed in real-time
+- **Code Navigation**: Jump to definition, find references
+- **Symbol Search**: Quickly find functions, classes, variables, and more
+- **Auto Configuration**: Automatically detects and configures LSP servers
 
-**LSP**：编辑器内置 LSP 客户端，支持代码补全、诊断、跳转等
+**LSP**: Built-in LSP client for completion, diagnostics, navigation
 
-#### Lua 插件系统 （计划中）
-- **强大的扩展能力**：使用 Lua 编写插件，轻松扩展编辑器功能
-- **丰富的 API**：提供完整的编辑器 API，支持文件操作、光标控制、事件监听等
-- **简单易用**：参考 Neovim 的设计，插件开发简单直观
-- **自动加载**：插件自动发现和加载，无需手动配置
+#### Lua Plugin System （Planed）
+- **Powerful Extensibility**: Write plugins in Lua to easily extend editor functionality
+- **Rich API**: Complete editor API supporting file operations, cursor control, event listening, and more
+- **Easy to Use**: Inspired by Neovim's design, plugin development is simple and intuitive
+- **Auto Loading**: Plugins are automatically discovered and loaded, no manual configuration needed
 
-**详细插件开发指南**：请查看 [插件文档](docs/PLUGIN_DEVELOPMENT.md)
+**Detailed Plugin Development Guide**: See [Plugin Documentation](docs/PLUGIN_DEVELOPMENT.md)
 
-### 🔧 配置系统
-使用简单的 JSON 配置文件，支持主题、字体、缩进等各项设置。
+### 🔧 Configuration System
+Simple JSON configuration file supporting themes, fonts, indentation, and other settings.
 
-**详细配置说明**：请查看 [配置文档](docs/CONFIGURATION.md)
+**Detailed Configuration Guide**: See [Configuration Documentation](docs/CONFIGURATION.md)
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 编译要求
-**[依赖文档](docs/DEPENDENCIES.md)** - 项目依赖说明和安装指南
+### Build Requirements
+**[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation
 
-### 编译安装
+### Build and Install
 
 ```bash
-# 克隆仓库
+# Clone repository
 cd /path/to/pnana
 chmod +x ./build.sh
 
-# 编译项目
+# Build project
 ./build.sh
 
-# 运行pnana
+# Run pnana
 ./build/pnana
 
-# 或安装到系统
+# Or install to system
 cd build
 sudo make install
 pnana filename.txt
 ```
 
-### 使用示例
+### Usage Examples
 
 ```bash
-# 启动空白编辑器
+# Start blank editor
 pnana
 
-# 打开单个文件
+# Open single file
 pnana file.txt
 
-# 指定配置文件
+# Specify config file
 pnana --config ~/.config/pnana/config.json
 
-# 使用特定主题
+# Use specific theme
 pnana --theme dracula file.txt
 
 ```
 
-## 📖 文档
+## 📖 Documentation
 
-详细的文档和指南请查看 [docs](docs/) 文件夹：
+Detailed documentation and guides are available in the [docs](docs/) folder:
 
-- **[快捷键参考](docs/KEYBINDINGS.md)** - 完整的快捷键列表和使用说明
-- **[配置文档](docs/CONFIGURATION.md)** - 详细的配置选项和示例
-- **[插件开发指南](docs/PLUGIN_DEVELOPMENT.md)** - Lua 插件系统 API 与示例
-- **[依赖文档](docs/DEPENDENCIES.md)** - 项目依赖说明和安装指南
-- **[开发路线图](docs/ROADMAP.md)** - 版本计划和功能路线图
-- **[快速入门](QUICKSTART.md)** - 5分钟快速上手指南
+- **[Keyboard Shortcuts Reference](docs/KEYBINDINGS.md)** - Complete shortcut list and usage instructions
+- **[Configuration Documentation](docs/CONFIGURATION.md)** - Detailed configuration options and examples
+- **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Lua plugin API & examples
+- **[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation guide
+- **[Development Roadmap](docs/ROADMAP.md)** - Version plans and feature roadmap
+- **[Quick Start Guide](QUICKSTART.md)** - 5-minute quick start guide
 
 
-## 💡 为什么选择pnana？
+## 💡 Why Choose pnana?
 
-1. **零学习成本**: 使用熟悉的Ctrl快捷键，无需记忆复杂命令
-2. **开箱即用**: 无需配置即可获得出色的编辑体验
-3. **现代化设计**: 精美的UI和舒适的配色方案
-4. **轻量高效**: 基于终端，资源占用少，启动迅速
-5. **功能完整**: 不输于GUI编辑器的功能集合
+1. **Zero Learning Curve**: Use familiar Ctrl shortcuts, no need to memorize complex commands
+2. **Ready to Use**: Get an excellent editing experience without configuration
+3. **Modern Design**: Beautiful UI and comfortable color schemes
+4. **Lightweight and Efficient**: Terminal-based, low resource usage, fast startup
+5. **Feature Complete**: Feature set comparable to GUI editors
 
-## 🤝 对比同类产品
+## 🤝 Comparison with Similar Products
 
-| 功能 | pnana | Nano | Micro | Vim/Neovim |
-|-----|-------|------|-------|------------|
-| 学习曲线 | 低 | 低 | 低 | 高 |
-| 现代UI | ✅ | ❌ | ✅ | 需配置 |
-| 鼠标支持 | ❌ | ⚠️ | ✅ | 需配置 |
-| 语法高亮 | ✅ | ⚠️ | ✅ | ✅ |
-| 多文件 | ✅ | ❌ | ✅ | ✅ |
-| 插件系统 | ✅ | ❌ | ✅ | ✅ |
-| LSP支持 | ✅ | ❌ | ✅ | ✅ |
-| 配置简单 | ✅ | ✅ | ✅ | ❌ |
+| Feature | pnana | Nano | Micro | Vim/Neovim |
+|---------|-------|------|-------|------------|
+| Learning Curve | Low | Low | Low | High |
+| Modern UI | ✅ | ❌ | ✅ | Requires config |
+| Mouse Support | ❌ | ⚠️ | ✅ | Requires config |
+| Syntax Highlighting | ✅ | ⚠️ | ✅ | ✅ |
+| Multi-File | ✅ | ❌ | ✅ | ✅ |
+| Plugin System | ✅ | ❌ | ✅ | ✅ |
+| LSP Support | ✅ | ❌ | ✅ | ✅ |
+| Simple Configuration | ✅ | ✅ | ✅ | ❌ |
 
-## 📚 参考和灵感
+## 📚 References and Inspiration
 
-本项目受以下优秀项目启发：
-- [Nano](https://www.nano-editor.org/) - 简单易用的终端编辑器
-- [Micro](https://micro-editor.github.io/) - 现代化的终端编辑器
-- [Sublime Text](https://www.sublimetext.com/) - 经典的文本编辑器
-- [VS Code](https://code.visualstudio.com/) - 现代IDE
-- [FTXUI](https://github.com/ArthurSonzogni/FTXUI) - 强大的终端UI库
+This project is inspired by the following excellent projects:
+- [Nano](https://www.nano-editor.org/) - Simple and easy-to-use terminal editor
+- [Micro](https://micro-editor.github.io/) - Modern terminal editor
+- [Sublime Text](https://www.sublimetext.com/) - Classic text editor
+- [VS Code](https://code.visualstudio.com/) - Modern IDE
+- [FTXUI](https://github.com/ArthurSonzogni/FTXUI) - Powerful terminal UI library
 
-## 📝 许可证
+## 📝 License
 
-本项目采用MIT许可证 - 详见LICENSE文件。
+This project is licensed under the MIT License - see the LICENSE file for details.
+
 
 ## 🌟 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Cyxuan0311/PNANA&type=Date)](https://star-history.com/#Cyxuan0311/PNANA&Date)
+
+---
 
 

@@ -71,6 +71,9 @@ end
 |----------|------|
 | `vim.api` | 编辑器、主题、文件等核心 API |
 | `vim.fn` | 工具函数（如 readfile、writefile） |
+| `vim.ui` | UI 交互 API（notify/input/select/popup/open_window/update_window/close_window，内核 PopupManager 驱动） |
+| `vim.log` | 日志 API（info/warn/error/debug） |
+| `vim.secure_io` | 安全 IO API（受沙盒约束） |
 | `vim.cmd` | 注册命令（便捷别名） |
 | `vim.autocmd` | 注册事件回调 |
 | `vim.keymap` | 注册键位映射 |
@@ -271,6 +274,284 @@ vim.fn.writefile("/path/to/file", {"line1", "line2", "line3"})
 
 **注意**：文件读写受沙盒限制，仅允许访问配置和插件相关路径。
 
+### 安全 IO API：`vim.secure_io`
+
+```lua
+local content, err = vim.secure_io.read_text("./plugins/example-plugin/init.lua")
+if not content then
+  vim.log.error("read failed: " .. (err or "unknown"))
+  return
+end
+
+local ok, werr = vim.secure_io.write_text("./plugins/example-plugin/tmp.txt", "hello")
+if not ok then
+  vim.log.warn("write failed: " .. (werr or "unknown"))
+end
+
+vim.secure_io.append_text("./plugins/example-plugin/tmp.txt", "\nworld")
+local exists = vim.secure_io.exists("./plugins/example-plugin/tmp.txt")
+```
+
+---
+
+## UI / 日志 API
+
+### 基础 UI API
+
+```lua
+vim.ui.notify("Build finished", "info")
+vim.ui.popup("Plugin Panel", {"line 1", "line 2"})
+
+vim.ui.input({ prompt = "Project name:", default = "pnana" }, function(value)
+  vim.log.info("input value = " .. tostring(value))
+end)
+
+-- 新的窗口句柄 API（由 PopupManager 统一管理）
+local win = vim.ui.open_window({
+  title = "Build Output",
+  lines = {"Compiling...", "Done"}
+})
+vim.ui.update_window(win, { title = "Build Output ✅", lines = {"Done in 1.2s"} })
+vim.ui.close_window(win)
+
+vim.ui.select({"A", "B", "C"}, { prompt = "Pick one" }, function(item, idx)
+  vim.log.debug("selected: " .. tostring(item) .. " #" .. tostring(idx))
+end)
+
+vim.log.info("hello")
+vim.log.warn("warn msg")
+vim.log.error("error msg")
+vim.log.debug("debug msg")
+```
+
+### 进度条 API
+
+```lua
+-- 显示进度条
+local progress_id = vim.ui.progress({
+  title = "文件下载",
+  message = "正在下载...",
+  percent = 0,           -- 0-100
+  indeterminate = false  -- 是否不确定进度
+})
+
+-- 更新进度
+vim.ui.update_progress(progress_id, {
+  message = "下载中...",
+  percent = 50
+})
+
+-- 关闭进度条
+vim.ui.close_progress(progress_id)
+```
+
+### 多选列表 API
+
+```lua
+vim.ui.multiselect({
+  { text = "选项 1", selected = false },
+  { text = "选项 2", selected = true },
+  { text = "选项 3", selected = false },
+}, {
+  title = "多选",
+  prompt = "请选择："
+}, function(selected_items)
+  if selected_items then
+    for _, item in ipairs(selected_items) do
+      print("选中: " .. item)
+    end
+  end
+end)
+```
+
+### 悬浮提示 API
+
+```lua
+-- 显示悬浮提示
+local hover_id = vim.ui.hover({
+  content = {"函数: print", "参数: ...", "返回: nil"},
+  row = 10,        -- 行位置
+  col = 20,        -- 列位置
+  anchor = "NW"    -- 锚点: NW, NE, SW, SE
+})
+
+-- 关闭悬浮提示
+vim.ui.close_hover(hover_id)
+```
+
+### 窗口管理增强 API
+
+```lua
+-- 列出所有窗口
+local windows = vim.ui.list_windows()
+-- 返回: { {id=1, title="..."}, {id=2, title="..."} }
+
+-- 检查窗口是否有效
+local valid = vim.ui.window_is_valid(win_id)
+
+-- 获取窗口信息
+local info = vim.ui.get_window_info(win_id)
+-- 返回: { id=..., type="window", valid=true }
+
+-- 聚焦窗口（置顶）
+vim.ui.focus_window(win_id)
+```
+
+### 高级布局 API (v2.2)
+
+**注意**：完整布局渲染需要内核 Widget 系统支持，当前为基础实现。
+
+#### 支持的组件类型
+
+**基础显示组件**：
+- `text` - 普通文本
+- `paragraph` - 自动换行段落
+- `separator` - 分隔线
+- `canvas` - 2D 绘图画布
+- `spinner` - 加载动画
+- `image` - 终端图片
+- `animation` - 自定义动画
+- `bullet` - 列表小圆点
+- `link` - 超链接样式文本
+
+**基础交互组件**：
+- `input` - 文本输入框
+- `textarea` - 多行文本输入域
+- `button` - 普通按钮
+- `checkbox` - 复选框
+- `radiobox` - 单选框
+- `toggle` - 开关按钮
+- `slider` - 滑动条
+- `dropdown` - 下拉选择框
+- `menu` - 列表菜单
+- `color_picker` - 颜色选择器
+- `file_picker` - 文件选择器
+- `gauge` - 进度条/仪表盘
+- `list` - 列表选择
+
+**容器组件**：
+- `window` - 带标题边框的窗口
+- `container` - 通用容器
+- `group` - 分组框（简洁边框）
+- `hbox` - 水平布局盒子
+- `vbox` - 垂直布局盒子
+- `dbox` - 深度层叠容器
+- `split` - 分割布局
+- `resizable_split` - 可拖动分割面板
+- `tabs` - 标签页容器
+- `grid` - 网格布局
+- `frame` - 自动适配/填充父容器
+- `yframe` - 纵向填充容器
+- `xframe` - 横向填充容器
+- `vscroll` - 带垂直滚动条的容器
+- `hscroll` - 带水平滚动条的容器
+
+**弹窗/模态组件**：
+- `modal` - 模态弹窗
+- `popup` - 悬浮弹出层
+- `notification` - 通知提示
+
+```lua
+-- 创建布局规范
+local layout = vim.ui.create_layout({
+  type = "hbox",           -- 布局类型: hbox(水平), vbox(垂直), container(容器)
+  direction = "horizontal", -- 布局方向: horizontal, vertical
+  align = "start",          -- 对齐: start, center, end, stretch
+  spacing = 2,              -- 子元素间距
+  padding = 1,              -- 内边距
+  flex = 1,                 -- 弹性系数 (0=固定大小)
+  min_width = 20,           -- 最小宽度
+  min_height = 10,          -- 最小高度
+  border = "single",        -- 边框: none, single, double, rounded
+  children = {
+    { type = "text", text = "标签" },
+    { type = "input", id = "field1", value = "" },
+    { type = "button", label = "确定", id = "btn_ok" },
+    { type = "list", items = {"选项1", "选项2"} },
+  }
+})
+
+-- 使用布局打开窗口
+local win_id = vim.ui.open_layout_window({
+  title = "自定义布局窗口",
+  width = 80,
+  height = 24,
+  layout = layout,
+})
+
+-- 更新窗口布局
+vim.ui.update_layout(win_id, new_layout)
+```
+
+#### 布局示例：左右分栏
+
+```lua
+local sidebar = {
+  type = "vbox",
+  flex = 1,
+  border = "single",
+  children = {
+    { type = "text", text = "文件浏览器" },
+    { type = "list", items = vim.fn.readdir(".") },
+  }
+}
+
+local editor = {
+  type = "vbox",
+  flex = 3,
+  border = "single",
+  children = {
+    { type = "text", text = "编辑器" },
+    { type = "input", id = "content", value = "..." },
+  }
+}
+
+local win_id = vim.ui.open_layout_window({
+  title = "IDE 布局",
+  width = 100,
+  height = 30,
+  layout = {
+    type = "hbox",
+    spacing = 1,
+    children = { sidebar, editor }
+  },
+})
+```
+
+#### 布局示例：表单
+
+```lua
+local form_layout = {
+  type = "vbox",
+  spacing = 1,
+  padding = 2,
+  children = {
+    {
+      type = "hbox",
+      children = {
+        { type = "text", text = "用户名:", min_width = 10 },
+        { type = "input", id = "username", flex = 1 },
+      }
+    },
+    {
+      type = "hbox",
+      children = {
+        { type = "text", text = "密码:", min_width = 10 },
+        { type = "input", id = "password", flex = 1 },
+      }
+    },
+    {
+      type = "hbox",
+      align = "end",
+      children = {
+        { type = "button", label = "取消", id = "cancel" },
+        { type = "button", label = "确定", id = "ok" },
+      }
+    },
+  }
+}
+```
+
 ---
 
 ## 沙盒与限制
@@ -302,6 +583,34 @@ end)
 ```
 
 ---
+
+## UI API 版本说明
+
+- 当前 UI API 版本：`v2.2`（内核 `PopupManager` 驱动）
+- 新增 API（v2.2）：
+  - `vim.ui.create_layout/open_layout_window/update_layout` - 高级布局系统
+  - 支持 hbox/vbox/container 布局容器
+  - 支持 flex 弹性布局、对齐、间距等属性
+- 新增 API（v2.1）：
+  - `vim.ui.progress/update_progress/close_progress` - 进度条
+  - `vim.ui.multiselect` - 多选列表
+  - `vim.ui.hover/close_hover` - 悬浮提示
+  - `vim.ui.list_windows/window_is_valid/get_window_info/focus_window` - 窗口管理
+- 兼容策略：
+  - `vim.ui.input/select/dialog/popup` 保持兼容
+  - `vim.ui.open_window/update_window/close_window` 现在返回并操作真实弹窗句柄
+- 后续版本将继续保证 `v2` 兼容，并在新增能力时采用向后兼容扩展
+
+## 布局演示插件
+
+参考 `plugins/layout-demo-plugin/init.lua` 查看完整的布局演示，包括：
+- 左右分栏布局
+- 上下分栏布局
+- 表单布局
+- 三栏布局
+- 组合布局
+
+运行 `:LayoutDemo` 命令或按 `F11` 查看演示菜单。
 
 ## 启用与配置
 
