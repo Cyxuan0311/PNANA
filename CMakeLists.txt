@@ -324,6 +324,7 @@ set(SOURCES
     src/core/editor_comment.cpp
     src/core/editor_ui.cpp
     src/core/editor_word_highlight.cpp
+    src/core/editor_lua_ui_api.cpp
     src/core/overlay_manager.cpp
     src/core/editor_input.cpp
     src/core/region_manager.cpp
@@ -397,6 +398,8 @@ set(SOURCES
     src/features/tui_config_manager.cpp
     src/ui/recent_files_popup.cpp
     src/ui/fzf_popup.cpp
+    src/ui/history_timeline_popup.cpp
+    src/ui/history_diff_popup.cpp
     src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
     src/utils/clangd_flags.cpp
@@ -406,6 +409,8 @@ set(SOURCES
     src/features/search.cpp
     src/features/file_browser.cpp
     src/features/extract.cpp
+    src/features/diff/myers_diff.cpp
+    src/features/history/file_history_manager.cpp
     src/features/SyntaxHighlighter/syntax_highlighter.cpp
     src/features/command_palette.cpp
     src/features/logo_manager.cpp
@@ -451,6 +456,8 @@ set(SOURCES
     src/core/ui/base_region_renderer.cpp
     src/core/ui/border_manager.cpp
     src/core/ui/ui_router.cpp
+    src/core/ui/layout_engine.cpp
+    src/core/ui/popup_manager.cpp
     # 插件系统
     src/plugins/lua_engine.cpp
     src/plugins/plugin_manager.cpp
@@ -566,9 +573,13 @@ set(HEADERS
     include/pnana/ui/format_dialog.h
     include/pnana/ui/todo_panel.h
     include/pnana/ui/move_file_dialog.h
+    include/pnana/ui/history_timeline_popup.h
+    include/pnana/ui/history_diff_popup.h
     # 功能模块头文件
     include/pnana/features/search.h
     include/pnana/features/file_browser.h
+    include/pnana/features/diff/myers_diff.h
+    include/pnana/features/history/file_history_manager.h
     include/pnana/features/SyntaxHighlighter/syntax_highlighter.h
     include/pnana/features/SyntaxHighlighter/makefile_syntax_constants.h
     include/pnana/features/command_palette.h
@@ -762,6 +773,7 @@ if(BUILD_LUA_SUPPORT)
         src/plugins/file_api.cpp
         src/plugins/theme_api.cpp
         src/plugins/system_api.cpp
+        src/plugins/ui_api.cpp
     )
 
     message(STATUS "Plugin system configured with Lua")
