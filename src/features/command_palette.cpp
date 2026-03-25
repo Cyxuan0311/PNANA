@@ -12,7 +12,17 @@ CommandPalette::CommandPalette(pnana::ui::Theme& theme)
       ui_(std::make_unique<pnana::ui::CommandPaletteUI>(theme)) {}
 
 void CommandPalette::registerCommand(const Command& command) {
-    commands_.push_back(command);
+    // 检查是否已存在相同 id 的命令
+    auto it = std::find_if(commands_.begin(), commands_.end(), [&command](const Command& cmd) {
+        return cmd.id == command.id;
+    });
+    if (it != commands_.end()) {
+        // 更新现有命令
+        *it = command;
+    } else {
+        // 添加新命令
+        commands_.push_back(command);
+    }
     // 如果面板已打开，重新过滤
     if (is_open_) {
         filterCommands();
@@ -73,8 +83,8 @@ void CommandPalette::executeSelected() {
     if (selected_index_ < filtered_commands_.size()) {
         const auto& cmd = filtered_commands_[selected_index_];
         close();
-        if (cmd.execute) {
-            cmd.execute();
+        if (cmd.execute && *cmd.execute) {
+            (*cmd.execute)();
         }
     }
 }

@@ -13,15 +13,22 @@ namespace features {
 
 // 命令信息结构
 struct Command {
-    std::string id;                    // 命令ID（唯一标识）
-    std::string name;                  // 命令名称（用于显示）
-    std::string description;           // 命令描述
-    std::vector<std::string> keywords; // 搜索关键词
-    std::function<void()> execute;     // 执行函数
+    std::string id;                                 // 命令ID（唯一标识）
+    std::string name;                               // 命令名称（用于显示）
+    std::string description;                        // 命令描述
+    std::vector<std::string> keywords;              // 搜索关键词
+    std::shared_ptr<std::function<void()>> execute; // 执行函数（使用 shared_ptr 管理生命周期）
 
+    // 构造函数：接受 shared_ptr
+    Command(const std::string& i, const std::string& n, const std::string& d,
+            const std::vector<std::string>& keys, std::shared_ptr<std::function<void()>> exec)
+        : id(i), name(n), description(d), keywords(keys), execute(exec) {}
+
+    // 辅助构造函数：自动包装 function 为 shared_ptr
     Command(const std::string& i, const std::string& n, const std::string& d,
             const std::vector<std::string>& keys, std::function<void()> exec)
-        : id(i), name(n), description(d), keywords(keys), execute(exec) {}
+        : id(i), name(n), description(d), keywords(keys),
+          execute(std::make_shared<std::function<void()>>(std::move(exec))) {}
 };
 
 // 命令面板类
