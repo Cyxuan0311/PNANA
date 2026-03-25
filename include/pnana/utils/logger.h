@@ -52,6 +52,7 @@ class Logger {
 
 // 便捷宏
 #define LOG(msg) pnana::utils::Logger::getInstance().log(msg)
+#define LOG_INFO(msg) pnana::utils::Logger::getInstance().log(msg)
 #define LOG_ERROR(msg) pnana::utils::Logger::getInstance().logError(msg)
 #define LOG_WARNING(msg) pnana::utils::Logger::getInstance().logWarning(msg)
 #define LOG_DEBUG(msg) pnana::utils::Logger::getInstance().logDebug(msg)

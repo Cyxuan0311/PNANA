@@ -62,7 +62,7 @@ bool Logger::isEnabled() const {
 void Logger::writeLog(const std::string& level, const std::string& message) {
     std::lock_guard<std::mutex> lock(log_mutex_);
 
-    // 如果未初始化或文件未打开，静默忽略（不写入日志文件）
+    // 仅在显式启用日志（例如 -l 参数）后才写入
     if (!initialized_ || !log_file_.is_open()) {
         return;
     }
