@@ -123,6 +123,20 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
         return true;
     }
 
+    // 2a. History Diff 预览弹窗（优先于 timeline，Esc 后回到 timeline）
+    if (editor->history_diff_popup_.isOpen()) {
+        if (editor->history_diff_popup_.handleInput(event)) {
+            return true;
+        }
+        return true;
+    }
+
+    // 2b. History 时间线弹窗
+    if (editor->history_timeline_popup_.isOpen()) {
+        editor->handleHistoryTimelineInput(event);
+        return true;
+    }
+
 #ifdef BUILD_LSP_SUPPORT
     // 2b. LSP 连接状态弹窗
     if (editor->lsp_status_popup_.isOpen()) {

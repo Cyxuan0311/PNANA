@@ -29,7 +29,7 @@ bool GitPanelHandler::handleInput(ftxui::Event event, Editor* editor) {
 
     bool handled = false;
 
-    // 如果diff viewer打开，优先处理diff viewer的事件
+    // 如果 diff viewer 打开，优先处理 diff viewer 的事件
     if (editor->getGitPanel().isDiffViewerVisible()) {
         if (event == Event::Escape) {
             editor->getGitPanel().handleDiffViewerEscape();
@@ -59,8 +59,11 @@ bool GitPanelHandler::handleInput(ftxui::Event event, Editor* editor) {
                 git_panel.setDiffScrollOffset(current_offset);
             }
             handled = true;
+        } else if (event == Event::Tab) {
+            // Tab 键需要传递给 GitPanel 处理水平滚动
+            handled = editor->getGitPanel().onKeyPress(event);
         } else {
-            // 对于diff viewer打开时的其他事件，直接消费掉，不传递给GitPanel
+            // 对于 diff viewer 打开时的其他事件，直接消费掉，不传递给 GitPanel
             handled = true;
         }
     } else {
