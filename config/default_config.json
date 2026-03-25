@@ -72,5 +72,15 @@
     "enabled": true,
     "completion_popup_enabled": true,
     "servers": []
+  },
+  "history": {
+    "_comment": "History retention policy",
+    "enable": true,
+    "max_entries": 50,
+    "max_age_days": 30,
+    "max_total_size": "1GB",
+    "keep_critical_versions": true,
+    "critical_change_threshold": 50,
+    "critical_time_interval": 86400
   }
 }

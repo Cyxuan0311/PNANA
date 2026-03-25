@@ -180,6 +180,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t plugins_pos = cleaned.find("\"plugins\":{");
     size_t lsp_pos = cleaned.find("\"lsp\":{");
     size_t animation_pos = cleaned.find("\"animation\":{");
+    size_t history_pos = cleaned.find("\"history\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
@@ -636,6 +637,25 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 history 配置
+    if (history_pos != std::string::npos) {
+        size_t history_end = cleaned.find("}", history_pos + 1);
+        if (history_end != std::string::npos) {
+            config_.history.enable = extractBool("enable", history_pos, history_end, true);
+            config_.history.max_entries = extractInt("max_entries", history_pos, history_end, 50);
+            config_.history.max_age_days = extractInt("max_age_days", history_pos, history_end, 30);
+            std::string mts = extractStr("max_total_size", history_pos, history_end);
+            if (!mts.empty())
+                config_.history.max_total_size = mts;
+            config_.history.keep_critical_versions =
+                extractBool("keep_critical_versions", history_pos, history_end, true);
+            config_.history.critical_change_threshold =
+                extractInt("critical_change_threshold", history_pos, history_end, 50);
+            config_.history.critical_time_interval =
+                extractInt("critical_time_interval", history_pos, history_end, 86400);
+        }
+    }
+
     return true;
 }
 
@@ -768,6 +788,18 @@ std::string ConfigManager::generateJSON() const {
         oss << "\n";
     }
     oss << "    ]\n";
+    oss << "  },\n";
+    oss << "  \"history\": {\n";
+    oss << "    \"_comment\": \"History retention policy\",\n";
+    oss << "    \"enable\": " << (config_.history.enable ? "true" : "false") << ",\n";
+    oss << "    \"max_entries\": " << config_.history.max_entries << ",\n";
+    oss << "    \"max_age_days\": " << config_.history.max_age_days << ",\n";
+    oss << "    \"max_total_size\": \"" << config_.history.max_total_size << "\",\n";
+    oss << "    \"keep_critical_versions\": "
+        << (config_.history.keep_critical_versions ? "true" : "false") << ",\n";
+    oss << "    \"critical_change_threshold\": " << config_.history.critical_change_threshold
+        << ",\n";
+    oss << "    \"critical_time_interval\": " << config_.history.critical_time_interval << "\n";
     oss << "  }\n";
     oss << "}\n";
     return oss.str();
