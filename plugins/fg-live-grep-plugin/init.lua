@@ -1,8 +1,115 @@
+-- FG Live Grep Plugin - 优化版本
+-- 使用新的 UI DSL 和 API，架构优化
+
 plugin_name = "fg-live-grep-plugin"
-plugin_version = "1.0.1"
-plugin_description = "fg live grep with 3-column window + debounce refresh"
+plugin_version = "2.0.0"
+plugin_description = "FG live grep with optimized DSL architecture"
 plugin_author = "pnana"
 
+-- ============================================================================
+-- 配置管理
+-- ============================================================================
+local CONFIG = {
+    debounce_ms = 0,  -- 禁用防抖，实现零延迟响应（依赖 C++ 侧节流）
+    max_results = 120,
+    timeout_ms = 1800,
+    max_output_bytes = 1024 * 1024,
+    results_width = 66,  -- 结果列表内容宽度
+    preview_width = 74,  -- 预览面板内容宽度
+    list_height = 16,    -- 列表显示高度
+    window_width = 150,  -- 优化：减小弹窗总宽度，从 178 降至 150
+    window_height = 26,  -- 弹窗高度
+    preview_context = 9,
+    debug = true, -- 启用调试日志
+    min_search_interval_ms = 100,  -- 两次搜索之间的最小间隔，防止阻塞 UI
+}
+
+-- ============================================================================
+-- 工具函数
+-- ============================================================================
+
+--- 获取当前时间戳 (ms)
+local function now_ms()
+    if vim.fn and vim.fn.hrtime then
+        return math.floor(vim.fn.hrtime() / 1000000)
+    end
+    if not _G._pnana_timer_counter then
+        _G._pnana_timer_counter = 0
+    end
+    _G._pnana_timer_counter = _G._pnana_timer_counter + 1
+    return _G._pnana_timer_counter * 1000
+end
+
+-- ============================================================================
+-- 文件缓存系统
+-- ============================================================================
+local file_cache = {
+    data = {},      -- 缓存数据：{ [file_path] = { lines = {...}, mtime = timestamp } }
+    lru = {},       -- LRU 顺序：{ file_path1, file_path2, ... }
+    max_files = 50, -- 最多缓存 50 个文件
+    max_lines = 10000, -- 单个文件最多缓存 10000 行
+}
+
+--- 从缓存获取文件行
+local function get_cached_lines(file_path)
+    local cached = file_cache.data[file_path]
+    if cached then
+        -- 更新 LRU 顺序
+        for i, path in ipairs(file_cache.lru) do
+            if path == file_path then
+                table.remove(file_cache.lru, i)
+                table.insert(file_cache.lru, file_path)
+                break
+            end
+        end
+        return cached.lines
+    end
+    return nil
+end
+
+--- 缓存文件行
+local function cache_file_lines(file_path, lines)
+    -- 检查是否超过最大文件数
+    while #file_cache.lru >= file_cache.max_files do
+        -- 移除最旧的文件
+        local oldest = table.remove(file_cache.lru, 1)
+        if oldest then
+            file_cache.data[oldest] = nil
+        end
+    end
+    
+    -- 限制缓存的行数
+    local cached_lines = lines
+    if #lines > file_cache.max_lines then
+        cached_lines = {}
+        for i = 1, file_cache.max_lines do
+            table.insert(cached_lines, lines[i])
+        end
+    end
+    
+    -- 更新 LRU 和缓存数据
+    for i, path in ipairs(file_cache.lru) do
+        if path == file_path then
+            table.remove(file_cache.lru, i)
+            break
+        end
+    end
+    table.insert(file_cache.lru, file_path)
+    file_cache.data[file_path] = {
+        lines = cached_lines,
+        mtime = now_ms(),
+    }
+end
+
+--- 清除缓存
+local function clear_cache()
+    file_cache.data = {}
+    file_cache.lru = {}
+end
+
+-- ============================================================================
+-- 状态管理
+-- ============================================================================
 local state = {
     win_id = nil,
     query = "",
@@ -11,261 +118,428 @@ local state = {
     selected = 1,
     total_matches = 0,
     visible_results = {},
-    max_results = 60,
-    debounce_timer = nil,
     request_seq = 0,
     last_applied_request = 0,
+    debounce_timer = nil,
 }
 
-local function split(s, sep)
-    local out = {}
-    if not s or s == "" then
-        return out
-    end
-    for part in string.gmatch(s, "([^" .. sep .. "]+)") do
-        table.insert(out, part)
-    end
-    return out
-end
+-- ============================================================================
+-- 工具函数
+-- ============================================================================
 
+--- 获取目录路径
 local function dirname(path)
-    if not path or path == "" then
-        return "."
-    end
-    local normalized = string.gsub(path, "\\", "/")
+    if not path or path == "" then return "." end
+    local normalized = path:gsub("\\", "/")
     local i = normalized:match("^.*()/")
-    if not i then
-        return "."
-    end
-    if i == 1 then
-        return "/"
-    end
-    return normalized:sub(1, i - 1)
+    if not i then return "." end
+    return i == 1 and "/" or normalized:sub(1, i - 1)
 end
 
+--- 右填充字符串
 local function pad_right(s, width)
     s = tostring(s or "")
-    local n = #s
-    if n >= width then
-        return s:sub(1, width)
-    end
-    return s .. string.rep(" ", width - n)
+    if #s >= width then return s:sub(1, width) end
+    return s .. string.rep(" ", width - #s)
 end
 
-local function read_preview(file_path, line_1_based, context)
-    local lines = vim.fn.readfile(file_path)
-    if not lines or #lines == 0 then
-        return {"(preview unavailable)"}
+--- 读取文件预览内容（带缓存）
+local function read_preview(file_path, line_1based, context)
+    local t1 = now_ms()
+    
+    -- 尝试从缓存获取
+    local lines = get_cached_lines(file_path)
+    local cache_hit = lines ~= nil
+    
+    if not lines then
+        -- 缓存未命中，读取文件
+        local ok, result = pcall(vim.fn.readfile, file_path)
+        if not ok or not result or #result == 0 then
+            return { "(preview unavailable)" }
+        end
+        lines = result
+        -- 缓存文件内容
+        cache_file_lines(file_path, lines)
     end
-
-    local center = tonumber(line_1_based) or 1
+    
+    local t2 = now_ms()
+    
+    local center = tonumber(line_1based) or 1
     local start_line = math.max(1, center - context)
     local end_line = math.min(#lines, center + context)
 
     local preview = {}
     for i = start_line, end_line do
-        local marker = (i == center) and ">" or " "
-        local num = tostring(i)
-        local gutter = string.rep(" ", math.max(0, 5 - #num)) .. num
-        local text = lines[i] or ""
-        table.insert(preview, marker .. " " .. gutter .. " | " .. text)
+        -- 使用 Unicode 字符作为标记
+        local marker
+        if i == center then
+            marker = "►"  -- U+25B6: 黑色右指三角形，突出显示当前行
+        else
+            marker = " "   -- 空白占位
+        end
+        
+        -- 使用 Unicode 制表符作为分隔线
+        local separator = "│"  -- U+2502: 盒制图表垂直线
+        local gutter = string.format("%5d", i)  -- 右对齐行号
+        
+        -- 构建预览行：标记 + 空格 + 行号 + 分隔符 + 内容
+        table.insert(preview, string.format("%s %s %s %s", marker, gutter, separator, lines[i] or ""))
     end
-
+    
+    local t3 = now_ms()
+    
     return preview
 end
 
+-- ============================================================================
+-- 数据解析
+-- ============================================================================
+
+--- 解析 rg vimgrep 输出
 local function parse_rg_vimgrep(lines)
-    local items = {}
-    if not lines then
-        return items
+    if not lines then 
+        return {} 
     end
 
-    for _, line in ipairs(lines) do
-        local f, l, c, text = string.match(line, "^(.-):(%d+):(%d+):(.*)$")
-        if f and l and c then
+    local items = {}
+    local parsed_count = 0
+    local failed_count = 0
+    
+    for i, line in ipairs(lines) do
+        local fpath, l, c, text = line:match("^(.-):(%d+):(%d+):(.*)$")
+        if fpath and l then
             table.insert(items, {
-                file = f,
+                file = fpath,
                 line = tonumber(l),
                 col = tonumber(c),
                 text = text or "",
             })
+            parsed_count = parsed_count + 1
+        else
+            failed_count = failed_count + 1
         end
     end
-
+    
     return items
 end
 
-local function render_window_lines()
-    local results_w = 58
-    local preview_w = 70
-    local right_w = 42
+-- ============================================================================
+-- UI 构建 (使用新 DSL)
+-- ============================================================================
 
-    local left_header = "Results"
-    local mid_header = "Preview"
-    local right_header = "Input + Count"
+-- ============================================================================
+-- 字符串池优化
+-- ============================================================================
+local string_pool = {
+    cache = {},  -- 字符串缓存
+    hits = 0,    -- 命中次数
+    misses = 0,  -- 未命中次数
+}
 
-    local out = {}
-    table.insert(out, pad_right(left_header, results_w) .. " | " .. pad_right(mid_header, preview_w) .. " | " .. pad_right(right_header, right_w))
-    table.insert(out, string.rep("-", results_w) .. "-+" .. string.rep("-", preview_w) .. "-+" .. string.rep("-", right_w))
-
-    local selected_item = state.visible_results[state.selected]
-    local preview_lines = {}
-    if selected_item then
-        preview_lines = read_preview(selected_item.file, selected_item.line, 5)
-    else
-        preview_lines = {"(no selection)"}
+--- 从字符串池获取或创建字符串
+local function pool_string(s)
+    if string_pool.cache[s] then
+        string_pool.hits = string_pool.hits + 1
+        return string_pool.cache[s]
     end
+    string_pool.misses = string_pool.misses + 1
+    string_pool.cache[s] = s
+    return s
+end
 
-    local right_lines = {
-        "query: " .. state.query,
-        "cwd: " .. state.cwd,
-        "status: " .. (state.loading and "searching..." or "idle"),
-        "matches: " .. tostring(state.total_matches),
-        "shown: " .. tostring(#state.visible_results),
-        "selected: " .. tostring(state.selected) .. "/" .. tostring(math.max(1, #state.visible_results)),
-        "",
-        "Commands:",
-        ":FgLiveGrep <q>",
-        ":FgLiveGrepSet <q>",
-        ":FgLiveGrepNext",
-        ":FgLiveGrepPrev",
-        ":FgLiveGrepOpen",
-        ":FgLiveGrepClose",
-    }
+--- 获取字符串池统计
+local function get_pool_stats()
+    return string_pool.hits .. "/" .. (string_pool.hits + string_pool.misses)
+end
 
-    local row_count = math.max(#state.visible_results, #preview_lines, #right_lines)
-    if row_count < 16 then
-        row_count = 16
-    end
-
-    for i = 1, row_count do
-        local left = ""
-        local item = state.visible_results[i]
-        if item then
-            local marker = (i == state.selected) and ">" or " "
-            local left_text = string.format("%s %s:%d:%d %s", marker, item.file, item.line, item.col, item.text)
-            left = pad_right(left_text, results_w)
-        else
-            left = string.rep(" ", results_w)
+--- 构建组件视图数据（优化版）
+local function build_view_data()
+    local t_start = now_ms()
+    
+    local function get_icon(name)
+        if vim.icon and vim.icon.get then
+            local icon = vim.icon.get(name)
+            return icon or ""
         end
-
-        local mid = pad_right(preview_lines[i] or "", preview_w)
-        local right = pad_right(right_lines[i] or "", right_w)
-
-        table.insert(out, left .. " | " .. mid .. " | " .. right)
+        return ""
     end
+    
+    -- 获取各种图标
+    local search_icon = get_icon("SEARCH")
+    local file_icon = get_icon("FILE_TEXT")
+    local preview_icon = get_icon("CODE")
+    
+    local t_preview_start = now_ms()
+    local selected_item = state.visible_results[state.selected]
+    local preview_lines = selected_item and read_preview(selected_item.file, selected_item.line, CONFIG.preview_context) or {"(no selection)"}
+    local t_preview_end = now_ms()
 
-    return out
-end
-
-local function ensure_window()
-    if state.win_id then
-        return
+    local t_calc_start = now_ms()
+    local start = 1
+    if #state.visible_results > CONFIG.list_height and state.selected > CONFIG.list_height then
+        start = state.selected - CONFIG.list_height + 1
     end
+    local t_calc_end = now_ms()
 
-    -- 新 API: open_window 返回窗口 ID
-    state.win_id = vim.ui.open_window({
-        title = "FG Live Grep",
-        lines = render_window_lines(),
-    })
+    -- 预分配 table 大小
+    local t_left_start = now_ms()
+    local left_lines = {}
+    local left_line_colors = {}
+    local cached_spaces = string.rep(" ", CONFIG.results_width)
+    
+    for i = 1, CONFIG.list_height do
+        local item = state.visible_results[start + i - 1]
+        if item then
+            local marker = (start + i - 1 == state.selected) and ">>" or "  "
+            local line_str = string.format("%s %s:%d:%d %s", marker, item.file, item.line, item.col, item.text)
+            table.insert(left_lines, pad_right(line_str, CONFIG.results_width))
+            
+            -- 为每行添加颜色配置
+            if start + i - 1 == state.selected then
+                -- 选中行：白色前景 + 深色背景 + 粗体
+                table.insert(left_line_colors, {
+                    fg = "#F8F8F2",      -- 白色前景
+                    bg = "#44475A",      -- 选中背景（深色）
+                    bold = true,
+                })
+            else
+                -- 普通行：蓝色前景
+                table.insert(left_line_colors, {
+                    fg = "#6272A4",      -- 蓝色前景
+                    dim = true,
+                })
+            end
+        else
+            table.insert(left_lines, cached_spaces)
+            table.insert(left_line_colors, {})
+        end
+    end
+    local t_left_end = now_ms()
+
+    -- 预分配 table 大小
+    local t_right_start = now_ms()
+    local right_lines = {}
+    local right_line_colors = {}
+    local max_lines = math.max(CONFIG.list_height, #preview_lines)
+    
+    for i = 1, max_lines do
+        local line = preview_lines[i] or ""
+        table.insert(right_lines, pad_right(line, CONFIG.preview_width))
+        
+        -- 为预览行添加颜色配置
+        if line:find("►") then
+            -- 当前行标记：绿色前景 + 粗体
+            table.insert(right_line_colors, {
+                fg = "#50FA7B",      -- 绿色
+                bold = true,
+            })
+        else
+            -- 普通预览行：默认前景 + 淡化
+            table.insert(right_line_colors, {
+                fg = "#F8F8F2",      -- 默认前景
+                dim = true,
+            })
+        end
+    end
+    local t_right_end = now_ms()
+    
+    local t_total = now_ms() - t_start
+    
+    -- 使用获取到的图标构建标题
+    local results_title = file_icon .. " Results"
+    local preview_title = preview_icon .. " Preview"
+    
+    return {
+        input_line = "❯ " .. state.query .. "█",  -- 使用 U+276F: 装饰性右指括号
+        left_title = results_title,
+        right_title = preview_title,
+        left_lines = left_lines,
+        right_lines = right_lines,
+        left_line_colors = left_line_colors,      -- 新增：左侧列表颜色配置
+        right_line_colors = right_line_colors,    -- 新增：右侧预览颜色配置
+        help_lines = {
+            "↑/↓: move  Enter: open  Type: query  Backspace: delete  Esc: close",
+            string.format("cwd: %s  status: %s  matches: %d  cache: %d  pool: %s", 
+                state.cwd, state.loading and "searching..." or "idle", 
+                state.total_matches, #file_cache.lru, get_pool_stats()),
+        },
+    }
 end
 
-local function refresh_window()
-    ensure_window()
-    -- 新 API: update_window 需要窗口 ID 作为第一个参数
-    vim.ui.update_window(state.win_id, {
-        title = "FG Live Grep",
-        lines = render_window_lines(),
-    })
+--- 使用 DSL 构建窗口组件
+local function build_window_spec()
+    local view = build_view_data()
+    
+    local function get_icon(name)
+        if vim.icon and vim.icon.get then
+            local icon = vim.icon.get(name)
+            return icon or ""
+        end
+        return ""
+    end
+    local search_icon = get_icon("SEARCH")
+
+    local spec = {
+        type = "window",
+        window_title = search_icon .. " FG Live Grep",
+        min_width = CONFIG.window_width,
+        min_height = CONFIG.window_height,
+        component_input_line = view.input_line,
+        component_left_title = view.left_title,
+        component_right_title = view.right_title,
+        component_left_lines = view.left_lines,
+        component_right_lines = view.right_lines,
+        component_left_line_colors = view.left_line_colors,      -- 新增：传递左侧颜色配置
+        component_right_line_colors = view.right_line_colors,    -- 新增：传递右侧颜色配置
+        component_help_lines = view.help_lines,
+        decorators = {
+            {name = "border", value = "double"},
+            {name = "border_color", value = "blue"},
+        },
+    }
+    
+    return spec
 end
 
+-- ============================================================================
+-- 搜索逻辑
+-- ============================================================================
+
+--- 更新窗口显示
+local function update_window(reason)
+    local t_start = now_ms()
+    
+    if not state.win_id then 
+        return 
+    end
+    
+    local t_build_start = now_ms()
+    local spec = build_window_spec()
+    local t_build_end = now_ms()
+    
+    local t_update_start = now_ms()
+    local ok = vim.ui.update_component_window(state.win_id, spec)
+    local t_update_end = now_ms()
+    
+    local t_total = now_ms() - t_start
+end
+
+--- 执行搜索（异步版本）
 local function run_search(request_id, query)
+    local t_start = now_ms()
+    
     if not query or query == "" then
         state.visible_results = {}
         state.total_matches = 0
         state.selected = 1
         state.loading = false
-        refresh_window()
+        update_window("empty_query")
         return
     end
 
     state.loading = true
-    refresh_window()
+    local t_update1 = now_ms()
+    update_window("search_loading")
+    local t_update2 = now_ms()
 
     local argv = {
-        "rg",
-        "--vimgrep",
-        "--smart-case",
-        "--no-heading",
-        "--line-number",
-        "--column",
-        "--color",
-        "never",
-        query,
-        ".",
+        "rg", "--vimgrep", "--smart-case", "--no-heading",
+        "--line-number", "--column", "--color", "never",
+        query, ".",
     }
 
-    local lines, err = vim.fn.systemlist(argv, {
+    local t_exec_start = now_ms()
+    
+    -- 使用异步 API
+    local request_id_async = vim.fn.systemlist_async(argv, {
         cwd = state.cwd,
-        timeout_ms = 1800,
-        max_output_bytes = 1024 * 1024,
-    })
-
-    if request_id < state.last_applied_request then
-        return
-    end
-
-    state.last_applied_request = request_id
-    state.loading = false
-
-    if not lines then
-        state.visible_results = {}
-        state.total_matches = 0
-        vim.api.set_status_message("fg-live-grep error: " .. tostring(err or "unknown"))
-        refresh_window()
-        return
-    end
-
-    local parsed = parse_rg_vimgrep(lines)
-    state.total_matches = #parsed
-
-    if #parsed > state.max_results then
-        local trimmed = {}
-        for i = 1, state.max_results do
-            trimmed[i] = parsed[i]
+        timeout_ms = CONFIG.timeout_ms,
+        max_output_bytes = CONFIG.max_output_bytes,
+    }, function(lines, err)
+        -- 异步回调
+        local t_callback_start = now_ms()
+        
+        -- 检查是否是过期的请求
+        if request_id < state.last_applied_request then
+            return
         end
-        state.visible_results = trimmed
-    else
-        state.visible_results = parsed
-    end
 
-    if state.selected < 1 then
-        state.selected = 1
-    end
-    if state.selected > #state.visible_results then
-        state.selected = math.max(1, #state.visible_results)
-    end
+        state.last_applied_request = request_id
+        state.loading = false
 
-    refresh_window()
+        if not lines then
+            state.visible_results = {}
+            state.total_matches = 0
+            vim.api.set_status_message("fg-live-grep error: " .. tostring(err or "unknown"))
+            update_window("search_error")
+            return
+        end
+
+        local t_parse_start = now_ms()
+        local parsed = parse_rg_vimgrep(lines)
+        local t_parse_end = now_ms()
+        
+        state.total_matches = #parsed
+
+        if #parsed > CONFIG.max_results then
+            state.visible_results = {}
+            for i = 1, CONFIG.max_results do
+                state.visible_results[i] = parsed[i]
+            end
+        else
+            state.visible_results = parsed
+        end
+
+        state.selected = math.max(1, math.min(state.selected, math.max(1, #state.visible_results)))
+        
+        local t_update_start = now_ms()
+        update_window("search_done")
+        local t_update_end = now_ms()
+        
+        local t_total = now_ms() - t_callback_start
+    end)
+    
+    
+    -- 立即返回，不阻塞主线程
+    local t_total = now_ms() - t_start
 end
 
+--- 延迟搜索 (防抖) - 当 debounce_ms=0 时立即执行
 local function schedule_search_debounced(query)
+    local t_start = now_ms()
+    
     state.query = query or ""
     state.request_seq = state.request_seq + 1
     local request_id = state.request_seq
+    local t_seq_end = now_ms()
 
     if state.debounce_timer then
+        local t_cancel_start = now_ms()
         vim.defer_cancel(state.debounce_timer)
         state.debounce_timer = nil
+        local t_cancel_end = now_ms()
     end
 
-    state.debounce_timer = vim.defer_fn(function()
+    -- 当 debounce_ms=0 时，立即执行搜索
+    if CONFIG.debounce_ms == 0 then
         run_search(request_id, state.query)
-    end, 180)
-
-    refresh_window()
+    else
+        local t_defer_start = now_ms()
+        state.debounce_timer = vim.defer_fn(function()
+            local t2 = now_ms()
+            run_search(request_id, state.query)
+        end, CONFIG.debounce_ms)
+        local t_defer_end = now_ms()
+    end
+    
+    local t_total = now_ms() - t_start
 end
 
+-- ============================================================================
+-- 事件处理
+-- ============================================================================
+
+--- 打开选中的结果
 local function open_selected_result()
     local item = state.visible_results[state.selected]
     if not item then
@@ -273,8 +547,7 @@ local function open_selected_result()
         return
     end
 
-    local ok = vim.api.open_file(item.file)
-    if not ok then
+    if not vim.api.open_file(item.file) then
         vim.api.set_status_message("fg-live-grep: open_file failed")
         return
     end
@@ -283,26 +556,114 @@ local function open_selected_result()
     vim.api.set_status_message(string.format("fg-live-grep: %s:%d:%d", item.file, item.line, item.col))
 end
 
-local function update_cwd_from_current_file()
-    local fp = vim.api.get_filepath()
-    if fp then
-        state.cwd = dirname(fp)
-    else
-        state.cwd = "."
+--- 窗口事件处理
+local function on_window_event(event_name, payload)
+    local t1 = now_ms()
+    
+    if event_name == "arrow_down" then
+        if #state.visible_results > 0 then
+            local old_selected = state.selected
+            state.selected = math.min(#state.visible_results, state.selected + 1)
+            update_window("arrow_down")
+            local t2 = now_ms()
+        else
+        end
+        return true
     end
+
+    if event_name == "arrow_up" then
+        if #state.visible_results > 0 then
+            local old_selected = state.selected
+            state.selected = math.max(1, state.selected - 1)
+            update_window("arrow_up")
+            local t2 = now_ms()
+        else
+        end
+        return true
+    end
+
+    if event_name == "enter" then
+        local item = state.visible_results[state.selected]
+        open_selected_result()
+        local t2 = now_ms()
+        return true
+    end
+
+    if event_name == "backspace" then
+        if #state.query > 0 then
+            local old_query = state.query
+            state.query = state.query:sub(1, -2)
+            schedule_search_debounced(state.query)
+            local t2 = now_ms()
+        end
+        return true
+    end
+
+    if event_name == "char" then
+        if payload and payload ~= "" then
+            local t_char_start = now_ms()
+            local old_query = state.query
+            state.query = state.query .. payload
+            local t_query_update = now_ms()
+            
+            local t_schedule_start = now_ms()
+            schedule_search_debounced(state.query)
+            local t_schedule_end = now_ms()
+            
+            local t_total = now_ms() - t1
+        end
+        return true
+    end
+
+    if event_name == "escape" then
+        if state.win_id then
+            vim.ui.close_window(state.win_id)
+            state.win_id = nil
+            local t2 = now_ms()
+        end
+        return true
+    end
+
+    return false
 end
 
+-- ============================================================================
+-- 窗口管理
+-- ============================================================================
+
+--- 更新 CWD
+local function update_cwd_from_current_file()
+    local fp = vim.api.get_filepath()
+    state.cwd = fp and dirname(fp) or "."
+end
+
+--- 确保窗口存在
+local function ensure_window()
+    if state.win_id then 
+        return 
+    end
+
+    local t1 = now_ms()
+    local spec = build_window_spec()
+    local t2 = now_ms()
+    
+    spec.on_event = on_window_event
+    
+    state.win_id = vim.ui.open_component_window(spec)
+    local t3 = now_ms()
+    
+end
+
+-- ============================================================================
+-- 命令注册
+-- ============================================================================
+
+--- FgLiveGrep 命令
 vim.api.create_user_command("FgLiveGrep", function(opts)
     update_cwd_from_current_file()
     ensure_window()
 
-    local q = ""
-    if opts and opts.args and opts.args ~= "" then
-        q = opts.args
-    else
-        q = state.query
-    end
-
+    local q = (opts and opts.args and opts.args ~= "") and opts.args or state.query
     schedule_search_debounced(q)
 end, {
     nargs = "*",
@@ -310,48 +671,22 @@ end, {
     force = true,
 })
 
-vim.api.create_user_command("FgLiveGrepSet", function(opts)
-    local q = (opts and opts.args) or ""
-    schedule_search_debounced(q)
-end, {
-    nargs = "*",
-    desc = "Set query and debounce refresh",
-    force = true,
-})
-
-vim.api.create_user_command("FgLiveGrepNext", function()
-    if #state.visible_results == 0 then
-        return
-    end
-    state.selected = math.min(#state.visible_results, state.selected + 1)
-    refresh_window()
-end, { desc = "Move selection down", force = true })
-
-vim.api.create_user_command("FgLiveGrepPrev", function()
-    if #state.visible_results == 0 then
-        return
-    end
-    state.selected = math.max(1, state.selected - 1)
-    refresh_window()
-end, { desc = "Move selection up", force = true })
-
-vim.api.create_user_command("FgLiveGrepOpen", function()
-    open_selected_result()
-end, { desc = "Open selected grep result", force = true })
-
+--- FgLiveGrepClose 命令
 vim.api.create_user_command("FgLiveGrepClose", function()
     if state.win_id then
-        -- 新 API: close_window 需要窗口 ID 作为参数
         vim.ui.close_window(state.win_id)
         state.win_id = nil
     end
 end, { desc = "Close fg live grep window", force = true })
 
-vim.keymap.set("n", "<A-g>", ":FgLiveGrep<CR>", { desc = "Open FG live grep" })
-vim.keymap.set("n", "<A-j>", ":FgLiveGrepNext<CR>", { desc = "FG grep next" })
-vim.keymap.set("n", "<A-k>", ":FgLiveGrepPrev<CR>", { desc = "FG grep prev" })
-vim.keymap.set("n", "<A-o>", ":FgLiveGrepOpen<CR>", { desc = "FG grep open" })
+-- ============================================================================
+-- 快捷键和调色板
+-- ============================================================================
 
+--- 快捷键
+vim.keymap.set("n", "<A-g>", ":FgLiveGrep<CR>", { desc = "Open FG live grep" })
+
+--- 调色板命令
 vim.api.register_palette_command({
     id = "fg.live_grep",
     name = "FG: Live Grep",
@@ -361,15 +696,5 @@ vim.api.register_palette_command({
 }, function()
     update_cwd_from_current_file()
     ensure_window()
-
-    vim.ui.input({
-        title = "FG Live Grep",
-        prompt = "Query:",
-        default = state.query,
-    }, function(value)
-        if value == nil then
-            return
-        end
-        schedule_search_debounced(value)
-    end)
+    schedule_search_debounced(state.query)
 end)
