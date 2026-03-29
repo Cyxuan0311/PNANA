@@ -37,7 +37,7 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `theme` | string | `"monokai"` | Theme; options include `monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `material`, `ayu`, `github`, `github-dark`, `github-dark-dimmed`, `github-dark-high-contrast`, `markdown-dark`, `vscode-dark`, `night-owl`, `palenight`, `oceanic-next`, `kanagawa`, `tomorrow-night`, `tomorrow-night-blue`, `cobalt`, `zenburn`, `base16-dark`, `papercolor`, `rose-pine`, `everforest`, `jellybeans`, `desert`, `slate`, `atom-one-light`, `tokyo-night-day`, `blue-light`, `cyberpunk`, `hacker`, `hatsune-miku`, `minions`, `batman`, `spongebob`, `modus-vivendi`, `modus-operandi`, `horizon`, `oxocarbon`, `poimandres`, `midnight`, etc. |
+| `theme` | string | `"monokai"` | Theme; options include `monokai`, `dracula`, `solarized-dark`, `solarized-light`, `onedark`, `nord`, `gruvbox`, `tokyo-night`, `catppuccin`, `material`, `ayu`, `github`, `github-dark`, `github-dark-dimmed`, `github-dark-high-contrast`, `github-light-high-contrast`, `github-colorblind`, `github-tritanopia`, `github-soft`, `github-midnight`, `markdown-dark`, `vscode-dark`, `vscode-light`, `vscode-light-modern`, `vscode-dark-modern`, `vscode-monokai`, `vscode-dark-plus`, `night-owl`, `palenight`, `oceanic-next`, `kanagawa`, `tomorrow-night`, `tomorrow-night-blue`, `cobalt`, `zenburn`, `base16-dark`, `papercolor`, `rose-pine`, `everforest`, `jellybeans`, `desert`, `slate`, `atom-one-light`, `tokyo-night-day`, `blue-light`, `cyberpunk`, `hacker`, `hatsune-miku`, `minions`, `batman`, `spongebob`, `modus-vivendi`, `modus-operandi`, `horizon`, `oxocarbon`, `poimandres`, `midnight`, etc. |
 | `font_size` | number | `12` | Font size (pixels) |
 | `tab_size` | number | `4` | Number of spaces for Tab indent |
 | `insert_spaces` | boolean | `true` | Use spaces instead of Tab character |
@@ -58,6 +58,7 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `cursor_smooth` | boolean | `false` | Smooth cursor effect |
 | `show_helpbar` | boolean | `true` | showing buttom help bar (true or false) |
 | `logo_gradient` | boolean | `true` | Use gradient colors for welcome screen Logo |
+| `show_tab_close_indicator` | boolean | `true` | Show close indicator (×) on tabs; shows × when unmodified, ● when modified |
 | `file_browser_side` | string | `"left"` | Position of file list panel relative to code area: `"left"` or `"right"` |
 | `ai_panel_side` | string | `"right"` | Position of AI assistant side panel relative to code area: `"left"` or `"right"` |
 | `terminal_side` | string | `"bottom"` | Position of integrated terminal relative to code area: `"bottom"` (default) or `"top"` |
@@ -321,6 +322,7 @@ Example:
     "show_helpbar": true,
     "logo_gradient": true,
     "logo_style": "default",
+    "show_tab_close_indicator": true,
     "file_browser_side": "left",
     "ai_panel_side": "right",
     "terminal_side": "bottom",

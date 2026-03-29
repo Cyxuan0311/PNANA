@@ -70,7 +70,7 @@ end
 | 命名空间 | 说明 |
 |----------|------|
 | `vim.api` | 编辑器、主题、文件等核心 API |
-| `vim.fn` | 工具函数（如 readfile、writefile） |
+| `vim.fn` | 工具函数（如 readfile、writefile、systemlist_async、hrtime） |
 | `vim.ui` | UI 交互 API（notify/input/select/popup/open_window/update_window/close_window，内核 PopupManager 驱动） |
 | `vim.log` | 日志 API（info/warn/error/debug） |
 | `vim.secure_io` | 安全 IO API（受沙盒约束） |
@@ -291,6 +291,68 @@ end
 vim.secure_io.append_text("./plugins/example-plugin/tmp.txt", "\nworld")
 local exists = vim.secure_io.exists("./plugins/example-plugin/tmp.txt")
 ```
+
+### 异步命令执行：`vim.fn.systemlist_async`
+
+**注意**：`vim.fn.system` 被禁用，`vim.fn.systemlist` 是同步阻塞的，推荐使用异步版本。
+
+```lua
+-- 异步执行命令（非阻塞）
+local request_id = vim.fn.systemlist_async(argv, opts, callback)
+
+-- 参数：
+--   argv: 命令行参数数组，如 {"rg", "--vimgrep", "pattern"}
+--   opts: 选项表（可选）
+--     - cwd: 工作目录（默认："."）
+--     - timeout_ms: 超时时间（默认：800）
+--     - max_output_bytes: 最大输出字节数（默认：1048576）
+--   callback: 回调函数 function(lines, err)
+--     - lines: 输出行数组
+--     - err: 错误信息（如果有）
+
+-- 示例：异步执行 ripgrep 搜索
+local request_id = vim.fn.systemlist_async(
+  {"rg", "--vimgrep", "--max-count=100", "pattern"},
+  {
+    cwd = "/path/to/search",
+    timeout_ms = 1800,
+    max_output_bytes = 1024 * 1024,
+  },
+  function(lines, err)
+    if err then
+      vim.log.error("搜索失败：" .. err)
+      return
+    end
+    
+    if lines then
+      vim.log.info("找到 " .. #lines .. " 条结果")
+      -- 处理结果...
+    end
+  end
+)
+
+-- 返回值：
+--   request_id: 请求 ID（整数），用于跟踪请求
+```
+
+**安全限制**：
+- 仅允许执行 `rg` 或 `ripgrep` 命令
+- 其他可执行文件会被阻止并返回错误
+
+### 高精度时间：`vim.fn.hrtime`
+
+```lua
+-- 获取高精度时间（纳秒）
+local nanoseconds = vim.fn.hrtime()
+
+-- 示例：计算代码执行时间
+local start = vim.fn.hrtime()
+-- ... 执行某些操作 ...
+local elapsed_ms = (vim.fn.hrtime() - start) / 1000000
+print("执行耗时：" .. elapsed_ms .. "ms")
+```
+
+**注意**：返回值为纳秒（ns），除以 1,000,000 可转换为毫秒（ms）。
 
 ---
 
@@ -557,7 +619,12 @@ local form_layout = {
 ## 沙盒与限制
 
 - **`vim.fn.system(command)`**：被禁用，返回 `nil, "System command execution is disabled in sandbox mode"`
+- **`vim.fn.systemlist(argv)`**：同步阻塞版本，会阻塞事件循环，推荐使用异步版本
+- **`vim.fn.systemlist_async(argv, opts, callback)`**：异步非阻塞版本（推荐）
+  - 仅允许执行 `rg` 或 `ripgrep` 命令
+  - 其他可执行文件会被阻止
 - **文件访问**：`vim.fn.readfile` / `vim.fn.writefile` 仅允许访问白名单路径（如 `~/.config/pnana/`、插件目录等）
+- **高精度时间**：`vim.fn.hrtime()` 无限制，返回纳秒级时间戳
 
 ---
 

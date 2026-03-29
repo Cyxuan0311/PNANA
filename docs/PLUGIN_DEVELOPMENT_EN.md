@@ -71,7 +71,7 @@ Plugins access APIs through the `vim` global table, in a Neovim-like style.
 | Namespace | Description |
 |-----------|-------------|
 | `vim.api` | Core APIs: editor, theme, file, etc. |
-| `vim.fn` | Utility functions (readfile, writefile) |
+| `vim.fn` | Utility functions (readfile, writefile, systemlist_async, hrtime) |
 | `vim.ui` | UI interaction APIs (notify/input/select/popup/open_window/update_window/close_window, driven by PopupManager) |
 | `vim.log` | Logging APIs (info/warn/error/debug) |
 | `vim.secure_io` | Sandboxed secure I/O APIs |
@@ -292,6 +292,68 @@ end
 vim.secure_io.append_text("./plugins/example-plugin/tmp.txt", "\nworld")
 local exists = vim.secure_io.exists("./plugins/example-plugin/tmp.txt")
 ```
+
+### Async Command Execution: `vim.fn.systemlist_async`
+
+**Note**: `vim.fn.system` is disabled, `vim.fn.systemlist` is synchronous and blocking, async version is recommended.
+
+```lua
+-- Execute command asynchronously (non-blocking)
+local request_id = vim.fn.systemlist_async(argv, opts, callback)
+
+-- Parameters:
+--   argv: Command line arguments array, e.g., {"rg", "--vimgrep", "pattern"}
+--   opts: Options table (optional)
+--     - cwd: Working directory (default: ".")
+--     - timeout_ms: Timeout in milliseconds (default: 800)
+--     - max_output_bytes: Max output bytes (default: 1048576)
+--   callback: Callback function function(lines, err)
+--     - lines: Output lines array
+--     - err: Error message (if any)
+
+-- Example: Async ripgrep search
+local request_id = vim.fn.systemlist_async(
+  {"rg", "--vimgrep", "--max-count=100", "pattern"},
+  {
+    cwd = "/path/to/search",
+    timeout_ms = 1800,
+    max_output_bytes = 1024 * 1024,
+  },
+  function(lines, err)
+    if err then
+      vim.log.error("Search failed: " .. err)
+      return
+    end
+    
+    if lines then
+      vim.log.info("Found " .. #lines .. " results")
+      -- Process results...
+    end
+  end
+)
+
+-- Return value:
+--   request_id: Request ID (integer) for tracking
+```
+
+**Security Restrictions**:
+- Only `rg` or `ripgrep` executables are allowed
+- Other executables will be blocked and return an error
+
+### High-Resolution Time: `vim.fn.hrtime`
+
+```lua
+-- Get high-resolution time in nanoseconds
+local nanoseconds = vim.fn.hrtime()
+
+-- Example: Measure execution time
+local start = vim.fn.hrtime()
+-- ... execute some code ...
+local elapsed_ms = (vim.fn.hrtime() - start) / 1000000
+print("Elapsed: " .. elapsed_ms .. "ms")
+```
+
+**Note**: Returns time in nanoseconds (ns), divide by 1,000,000 to convert to milliseconds (ms).
 
 ---
 
@@ -558,7 +620,12 @@ local form_layout = {
 ## Sandbox and Restrictions
 
 - **`vim.fn.system(command)`**: Disabled; returns `nil, "System command execution is disabled in sandbox mode"`
+- **`vim.fn.systemlist(argv)`**: Synchronous blocking version, blocks event loop, async version recommended
+- **`vim.fn.systemlist_async(argv, opts, callback)`**: Async non-blocking version (recommended)
+  - Only `rg` or `ripgrep` executables are allowed
+  - Other executables will be blocked
 - **File access**: `vim.fn.readfile` / `vim.fn.writefile` only allow whitelisted paths (`~/.config/pnana/`, plugin dirs, etc.)
+- **High-resolution time**: `vim.fn.hrtime()` is unrestricted, returns nanosecond timestamps
 
 ---
 
