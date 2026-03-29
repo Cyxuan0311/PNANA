@@ -4,6 +4,7 @@
 #include "core/input/base_region_handler.h"
 #include "core/region_manager.h"
 #include "input/key_action.h"
+#include <cstdint>
 #include <ftxui/component/event.hpp>
 #include <vector>
 
@@ -34,6 +35,13 @@ class TerminalHandler : public BaseRegionHandler {
     EditorRegion getRegionType() const override {
         return EditorRegion::TERMINAL;
     }
+
+  private:
+    // 加速滚动状态
+    int64_t last_page_up_time_;
+    int64_t last_page_down_time_;
+    int page_up_count_;
+    int page_down_count_;
 };
 
 } // namespace input

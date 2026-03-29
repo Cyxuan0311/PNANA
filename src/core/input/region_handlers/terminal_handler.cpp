@@ -3,6 +3,7 @@
 #include "features/terminal.h"
 #include "input/key_binding_manager.h"
 #include "utils/logger.h"
+#include <chrono>
 #include <ftxui/component/event.hpp>
 
 using namespace ftxui;
@@ -11,7 +12,12 @@ namespace pnana {
 namespace core {
 namespace input {
 
-TerminalHandler::TerminalHandler() = default;
+// 加速滚动参数
+static constexpr int kFastScrollThreshold = 300; // 毫秒内连续按键触发加速
+static constexpr int kFastScrollLines = 5;       // 加速时每次滚动行数
+
+TerminalHandler::TerminalHandler()
+    : last_page_up_time_(0), last_page_down_time_(0), page_up_count_(0), page_down_count_(0) {}
 
 bool TerminalHandler::handleInput(Event event, Editor* editor) {
     if (!editor->isTerminalVisible()) {
@@ -150,15 +156,61 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
         return true;
     }
     if (event == Event::PageUp) {
-        editor->getTerminal().scrollUp();
-        editor->setStatusMessage(
-            "Terminal: Scrolled up (PageUp: scroll up, PageDown: scroll down)");
+        // 加速滚动逻辑
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now().time_since_epoch())
+                       .count();
+
+        if (now - last_page_up_time_ < kFastScrollThreshold) {
+            page_up_count_++;
+        } else {
+            page_up_count_ = 1;
+        }
+        last_page_up_time_ = now;
+
+        // 根据连续按键次数决定滚动行数
+        int scroll_lines = (page_up_count_ >= 3) ? kFastScrollLines : 1;
+
+        for (int i = 0; i < scroll_lines; i++) {
+            editor->getTerminal().scrollUp();
+        }
+
+        if (scroll_lines > 1) {
+            editor->setStatusMessage("Terminal: Fast scroll up (" + std::to_string(scroll_lines) +
+                                     " lines)");
+        } else {
+            editor->setStatusMessage(
+                "Terminal: Scrolled up (PageUp: scroll up, PageDown: scroll down)");
+        }
         return true;
     }
     if (event == Event::PageDown) {
-        editor->getTerminal().scrollDown();
-        editor->setStatusMessage(
-            "Terminal: Scrolled down (PageUp: scroll up, PageDown: scroll down)");
+        // 加速滚动逻辑
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now().time_since_epoch())
+                       .count();
+
+        if (now - last_page_down_time_ < kFastScrollThreshold) {
+            page_down_count_++;
+        } else {
+            page_down_count_ = 1;
+        }
+        last_page_down_time_ = now;
+
+        // 根据连续按键次数决定滚动行数
+        int scroll_lines = (page_down_count_ >= 3) ? kFastScrollLines : 1;
+
+        for (int i = 0; i < scroll_lines; i++) {
+            editor->getTerminal().scrollDown();
+        }
+
+        if (scroll_lines > 1) {
+            editor->setStatusMessage("Terminal: Fast scroll down (" + std::to_string(scroll_lines) +
+                                     " lines)");
+        } else {
+            editor->setStatusMessage(
+                "Terminal: Scrolled down (PageUp: scroll up, PageDown: scroll down)");
+        }
         return true;
     }
 
