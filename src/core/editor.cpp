@@ -52,17 +52,18 @@ Editor::Editor()
     : document_manager_(), key_binding_manager_(), action_executor_(this),
       overlay_manager_(std::make_unique<pnana::core::OverlayManager>()), theme_(),
       popup_manager_(std::make_unique<pnana::core::ui::PopupManager>(&theme_)), statusbar_(theme_),
-      helpbar_(theme_), tabbar_(theme_), help_(theme_), dialog_(theme_), file_picker_(theme_),
-      split_dialog_(theme_), ssh_dialog_(theme_), ssh_transfer_dialog_(theme_),
-      terminal_session_dialog_(theme_), welcome_screen_(theme_, config_manager_),
-      split_welcome_screen_(theme_), new_file_prompt_(theme_), theme_menu_(theme_),
-      logo_menu_(theme_), animation_menu_(theme_), create_folder_dialog_(theme_),
-      save_as_dialog_(theme_), move_file_dialog_(theme_), cursor_config_dialog_(theme_),
-      binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
-      recent_files_popup_(theme_), fzf_popup_(theme_), history_timeline_popup_(theme_),
-      history_diff_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
-      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
-      ai_config_dialog_(theme_), todo_panel_(theme_), package_manager_panel_(theme_),
+      helpbar_(theme_), tabbar_(theme_, config_manager_), help_(theme_), dialog_(theme_),
+      file_picker_(theme_), split_dialog_(theme_), ssh_dialog_(theme_),
+      ssh_transfer_dialog_(theme_), terminal_session_dialog_(theme_),
+      welcome_screen_(theme_, config_manager_), split_welcome_screen_(theme_),
+      new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_), animation_menu_(theme_),
+      create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
+      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
+      format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
+      history_timeline_popup_(theme_), history_diff_popup_(theme_), tui_config_popup_(theme_),
+      extract_dialog_(theme_), extract_path_dialog_(theme_), extract_progress_dialog_(theme_),
+      ai_assistant_panel_(theme_), ai_config_dialog_(theme_), todo_panel_(theme_),
+      package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -339,27 +340,9 @@ Editor::Editor()
 #endif
 
 #ifdef BUILD_LUA_SUPPORT
-    // 插件系统延迟初始化：不在启动时初始化，只在首次需要时才初始化
-    // 这样可以避免启动时加载插件导致的延迟
-    plugin_manager_initialized_ = false;
-
-    // 启动后台线程，在5秒后自动加载启用的插件
-    std::thread([this]() {
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(5s);
-
-        try {
-            // 在主线程中执行插件初始化
-            screen_.Post([this]() {
-                if (!plugin_manager_initialized_) {
-                    initializePlugins();
-                    setStatusMessage("Plugins auto-loaded after 5 seconds");
-                }
-            });
-        } catch (...) {
-            // 避免异常中断线程
-        }
-    }).detach();
+    // 启动即初始化插件系统：进入主界面时可立即使用插件能力
+    // （包括命令面板中的插件命令）
+    initializePlugins();
 #endif
     // 启动后台动画/闪烁刷新调度：
     // - 光标闪烁开启时持续触发重绘

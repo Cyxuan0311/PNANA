@@ -987,6 +987,11 @@ class Editor {
         adjustViewOffset();
     }
 
+    // 在主线程调度任务（用于异步 API 回调）
+    void postToMainThread(std::function<void()> task) {
+        screen_.Post(task);
+    }
+
     // 渲染批处理控制（方案1）
     void pauseRendering();
     void resumeRendering();

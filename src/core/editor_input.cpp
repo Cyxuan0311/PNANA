@@ -22,13 +22,15 @@ namespace core {
 
 // 事件处理
 void Editor::handleInput(Event event) {
+#ifdef BUILD_LUA_SUPPORT
+    // 每次事件循环都推进一次 defer 队列，避免仅依赖 Custom 事件导致定时器不触发
+    if (plugin_manager_initialized_ && plugin_manager_) {
+        plugin_manager_->processDeferred();
+    }
+#endif
+
     // 特殊处理Event::Custom（我们的渲染触发事件）
     if (event == Event::Custom) {
-#ifdef BUILD_LUA_SUPPORT
-        if (plugin_manager_initialized_ && plugin_manager_ && plugin_manager_->getAPI()) {
-            plugin_manager_->getAPI()->processDeferred();
-        }
-#endif
         // Event::Custom是我们手动触发的渲染更新事件，不需要额外处理
         // 直接返回，让FTXUI重新渲染
         return;

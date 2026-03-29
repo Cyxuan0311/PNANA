@@ -35,7 +35,10 @@ struct DisplayConfig {
 
     // Logo 配置
     bool logo_gradient = true;        // Logo 是否使用渐变颜色
-    std::string logo_style = "block"; // Logo 样式: block, roman, box, unicode, script, big, diagram
+    std::string logo_style = "block"; // Logo 样式：block, roman, box, unicode, script, big, diagram
+
+    // Tab 栏配置
+    bool show_tab_close_indicator = true; // 是否在 tab 上显示关闭符号（×）
 
     // 面板布局配置
     // file_browser_side: "left" 或 "right"，控制文件列表相对于代码区的位置
