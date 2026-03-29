@@ -1,4 +1,5 @@
 #include "utils/logger.h"
+#include <chrono>
 #include <ctime>
 #include <iomanip>
 #include <iostream>
@@ -40,11 +41,15 @@ void Logger::close() {
 }
 
 std::string Logger::getTimestamp() {
-    auto now = std::time(nullptr);
-    auto tm = *std::localtime(&now);
+    using namespace std::chrono;
+    const auto now = system_clock::now();
+    const auto tt = system_clock::to_time_t(now);
+    const auto tm = *std::localtime(&tt);
+    const auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
 
     std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
+    oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "." << std::setw(3) << std::setfill('0')
+        << ms.count();
     return oss.str();
 }
 
