@@ -88,6 +88,15 @@ class TUIConfigManager {
     void initializePIMTools();
     void initializeBuildSystems();
     void initializeLanguageTools();
+    void initializeCloudTools();
+    void initializeLogTools();
+    void initializeBackupTools();
+    void initializeEncryptionTools();
+    void initializeCompressionTools();
+    void initializeMediaTools();
+    void initializeDocumentTools();
+    void initializeAIMLTools();
+    void initializeDataScienceTools();
 
     // 添加单个TUI配置
     void addTUIConfig(const std::string& name, const std::string& display_name,

@@ -182,6 +182,15 @@ void TUIConfigManager::initializeTUIConfigs() {
     initializePIMTools();
     initializeBuildSystems();
     initializeLanguageTools();
+    initializeCloudTools();
+    initializeLogTools();
+    initializeBackupTools();
+    initializeEncryptionTools();
+    initializeCompressionTools();
+    initializeMediaTools();
+    initializeDocumentTools();
+    initializeAIMLTools();
+    initializeDataScienceTools();
 }
 
 void TUIConfigManager::initializeTerminalEmulators() {
@@ -961,6 +970,315 @@ void TUIConfigManager::initializeLanguageTools() {
 
     addTUIConfig("eslint", "ESLint", "JavaScript linter",
                  {"~/.eslintrc", "~/.config/eslint/config.js"}, "utility");
+
+    // Python 代码质量工具
+    addTUIConfig("black", "Black", "The uncompromising Python code formatter",
+                 {"~/.config/black", "~/.black"}, "utility");
+
+    addTUIConfig("flake8", "Flake8", "Python linting tool", {"~/.flake8", "~/.config/flake8"},
+                 "utility");
+
+    addTUIConfig("pylint", "PyLint", "Python linting tool", {"~/.pylintrc", "~/.config/pylintrc"},
+                 "utility");
+
+    addTUIConfig("isort", "ISort", "Python import sorting tool",
+                 {"~/.isort.cfg", "~/.config/isort.cfg"}, "utility");
+
+    addTUIConfig("mypy", "MyPy", "Static type checker for Python",
+                 {"~/.config/mypy/config", "~/.mypy.ini"}, "utility");
+
+    addTUIConfig("pytest", "Pytest", "Python testing framework",
+                 {"~/.pytest.ini", "~/.config/pytest.ini"}, "utility");
+
+    // C/C++ 工具
+    addTUIConfig("clang-format", "ClangFormat", "C/C++ code formatter",
+                 {"~/.clang-format", "~/.config/clang-format"}, "utility");
+
+    addTUIConfig("clang-tidy", "ClangTidy", "C++ linter tool",
+                 {"~/.clang-tidy", "~/.config/clang-tidy"}, "utility");
+
+    addTUIConfig("cmake-format", "CMakeFormat", "CMake file formatter",
+                 {"~/.cmake-format.yaml", "~/.config/cmake-format.yaml"}, "utility");
+
+    // Ruby 工具
+    addTUIConfig("rubocop", "RuboCop", "Ruby static code analyzer",
+                 {"~/.rubocop.yml", "~/.config/rubocop/config.yml"}, "utility");
+
+    addTUIConfig("rufo", "Rufo", "Ruby formatter", {"~/.rufo"}, "utility");
+
+    // Java 工具
+    addTUIConfig("checkstyle", "Checkstyle", "Java code style checker",
+                 {"~/.checkstyle", "~/.config/checkstyle"}, "utility");
+
+    addTUIConfig("spotbugs", "SpotBugs", "Java bug detector", {"~/.spotbugs", "~/.config/spotbugs"},
+                 "utility");
+
+    // Shell 脚本工具
+    addTUIConfig("shellcheck", "ShellCheck", "Shell script analysis tool",
+                 {"~/.shellcheckrc", "~/.config/shellcheckrc"}, "utility");
+
+    addTUIConfig("shfmt", "Shfmt", "Shell script formatter", {"~/.editorconfig", "~/.config/shfmt"},
+                 "utility");
+
+    // 文档工具
+    addTUIConfig("markdownlint", "Markdownlint", "Markdown linting tool",
+                 {"~/.markdownlintrc", "~/.markdownlint.json"}, "utility");
+
+    addTUIConfig("yamllint", "YAMLLint", "YAML linting tool",
+                 {"~/.yamllint", "~/.config/yamllint/config"}, "utility");
+
+    addTUIConfig("hadolint", "Hadolint", "Dockerfile linter",
+                 {"~/.config/hadolint.yaml", "~/.hadolint.yaml"}, "utility");
+
+    // 安全扫描工具
+    addTUIConfig("trivy", "Trivy", "Container and code vulnerability scanner",
+                 {"~/.config/trivy", "~/.trivy"}, "utility");
+
+    addTUIConfig("gitleaks", "Gitleaks", "Git repository secret scanner",
+                 {"~/.config/gitleaks", "~/.gitleaks.toml"}, "utility");
+
+    addTUIConfig("bandit", "Bandit", "Python security linter", {"~/.config/bandit", "~/.bandit"},
+                 "utility");
+}
+
+// 云计算工具
+void TUIConfigManager::initializeCloudTools() {
+    // AWS 工具
+    addTUIConfig("aws", "AWS CLI", "Amazon Web Services command-line interface",
+                 {"~/.aws/config", "~/.aws/credentials", "~/.config/aws"}, "utility");
+
+    addTUIConfig("awless", "Awless", "Powerful CLI for AWS",
+                 {"~/.awless/config", "~/.config/awless"}, "utility");
+
+    addTUIConfig("s5cmd", "S5CMD", "Fast S3 command-line tool", {"~/.config/s5cmd/config"},
+                 "utility");
+
+    // Azure 工具
+    addTUIConfig("az", "Azure CLI", "Microsoft Azure command-line interface",
+                 {"~/.azure/config", "~/.azure/credentials"}, "utility");
+
+    // GCP 工具
+    addTUIConfig("gcloud", "GCloud", "Google Cloud Platform CLI", {"~/.config/gcloud", "~/.gcloud"},
+                 "utility");
+
+    addTUIConfig("gsutil", "GSUtil", "Google Cloud Storage tool", {"~/.boto", "~/.config/boto"},
+                 "utility");
+
+    // 多云工具
+    addTUIConfig("terraform", "Terraform", "Infrastructure as code",
+                 {"~/.terraformrc", "~/.config/terraform"}, "utility");
+
+    addTUIConfig("pulumi", "Pulumi", "Infrastructure as code for any cloud",
+                 {"~/.pulumi/config", "~/.config/pulumi"}, "utility");
+
+    addTUIConfig("rclone", "Rclone", "Command-line program to manage files on cloud storage",
+                 {"~/.config/rclone/rclone.conf", "~/.rclone.conf"}, "utility");
+
+    // Cloud Shell 工具
+    addTUIConfig("cloud-shell", "Cloud Shell", "Cloud-based shell environment",
+                 {"~/.cloudshell/config"}, "utility");
+}
+
+// 日志工具
+void TUIConfigManager::initializeLogTools() {
+    addTUIConfig("lnav", "Lnav", "Log file navigator", {"~/.lnav", "~/.config/lnav"}, "utility");
+
+    addTUIConfig("multitail", "Multitail", "Monitor multiple log files",
+                 {"~/.multitailrc", "~/.config/multitail"}, "utility");
+
+    addTUIConfig("tail", "Tail", "Output the last part of files", {"~/.tailrc", "~/.config/tail"},
+                 "utility");
+
+    addTUIConfig("grep", "Grep", "Search text patterns", {"~/.greprc", "~/.config/grep"},
+                 "utility");
+
+    addTUIConfig("ack", "Ack", "Code search tool", {"~/.ackrc", "~/.config/ack"}, "utility");
+
+    addTUIConfig("ag", "The Silver Searcher", "Code-searching tool",
+                 {"~/.agignore", "~/.config/ag"}, "utility");
+
+    addTUIConfig("pt", "Platinum Searcher", "Fast code search", {"~/.ptignore", "~/.config/pt"},
+                 "utility");
+
+    addTUIConfig("rg", "Ripgrep", "Fast line-oriented search tool",
+                 {"~/.ripgreprc", "~/.config/ripgrep"}, "utility");
+}
+
+// 备份工具
+void TUIConfigManager::initializeBackupTools() {
+    addTUIConfig("rsync", "Rsync", "File synchronization and backup",
+                 {"~/.rsyncrc", "~/.config/rsync"}, "utility");
+
+    addTUIConfig("restic", "Restic", "Fast, secure backup program",
+                 {"~/.config/restic", "~/.restic"}, "utility");
+
+    addTUIConfig("borg", "BorgBackup", "Deduplicating backup program",
+                 {"~/.config/borg", "~/.borg"}, "utility");
+
+    addTUIConfig("duplicity", "Duplicity", "Encrypted backup tool",
+                 {"~/.duplicity", "~/.config/duplicity"}, "utility");
+
+    addTUIConfig("rclone", "Rclone", "Cloud storage sync and backup",
+                 {"~/.config/rclone", "~/.rclone.conf"}, "utility");
+
+    addTUIConfig("tar", "Tar", "Tape archive utility", {"~/.tarrc", "~/.config/tar"}, "utility");
+
+    addTUIConfig("snapraid", "SnapRAID", "Disk array backup tool",
+                 {"~/.snapraid.conf", "~/.config/snapraid"}, "utility");
+}
+
+// 加密工具
+void TUIConfigManager::initializeEncryptionTools() {
+    addTUIConfig("gpg", "GPG", "GNU Privacy Guard",
+                 {"~/.gnupg/gpg.conf", "~/.gnupg/gpg-agent.conf"}, "utility");
+
+    addTUIConfig("age", "Age", "Simple, modern and secure encryption tool",
+                 {"~/.config/age/keys.txt", "~/.age"}, "utility");
+
+    addTUIConfig("pass", "Pass", "Standard Unix password manager",
+                 {"~/.password-store", "~/.config/pass"}, "utility");
+
+    addTUIConfig("bitwarden-cli", "Bitwarden CLI", "Bitwarden command-line interface",
+                 {"~/.config/bitwarden"}, "utility");
+
+    addTUIConfig("keepassxc-cli", "KeePassXC CLI", "KeePassXC command-line interface",
+                 {"~/.config/keepassxc"}, "utility");
+
+    addTUIConfig("sops", "SOPS", "Secrets management tool", {"~/.config/sops", "~/.sops.yaml"},
+                 "utility");
+
+    addTUIConfig("vault", "HashiCorp Vault", "Secrets management",
+                 {"~/.vault-token", "~/.config/vault"}, "utility");
+}
+
+// 压缩工具
+void TUIConfigManager::initializeCompressionTools() {
+    addTUIConfig("gzip", "Gzip", "GNU compression utility", {"~/.gziprc", "~/.config/gzip"},
+                 "utility");
+
+    addTUIConfig("bzip2", "Bzip2", "Block-sorting file compressor",
+                 {"~/.bzip2rc", "~/.config/bzip2"}, "utility");
+
+    addTUIConfig("xz", "XZ", "LZMA compression utility", {"~/.xzrc", "~/.config/xz"}, "utility");
+
+    addTUIConfig("zstd", "Zstandard", "Fast real-time compression algorithm",
+                 {"~/.zstdrc", "~/.config/zstd"}, "utility");
+
+    addTUIConfig("7z", "7-Zip", "File archiver with high compression ratio", {"~/.config/7z"},
+                 "utility");
+
+    addTUIConfig("unrar", "Unrar", "RAR archive extractor", {"~/.config/unrar"}, "utility");
+
+    addTUIConfig("zip", "Zip", "Archive utility", {"~/.ziprc", "~/.config/zip"}, "utility");
+}
+
+// 媒体处理工具
+void TUIConfigManager::initializeMediaTools() {
+    addTUIConfig("ffmpeg", "FFmpeg", "Video/audio conversion tool",
+                 {"~/.ffmpegrc", "~/.config/ffmpeg"}, "utility");
+
+    addTUIConfig("ffprobe", "FFprobe", "Multimedia stream analyzer",
+                 {"~/.ffproberc", "~/.config/ffprobe"}, "utility");
+
+    addTUIConfig("imagemagick", "ImageMagick", "Image manipulation suite",
+                 {"~/.magickrc", "~/.config/imagemagick"}, "utility");
+
+    addTUIConfig("graphicsmagick", "GraphicsMagick", "Image processing system",
+                 {"~/.gmrc", "~/.config/graphicsmagick"}, "utility");
+
+    addTUIConfig("exiftool", "ExifTool", "Metadata editor",
+                 {"~/.exiftool_config", "~/.config/exiftool"}, "utility");
+
+    addTUIConfig("imgp", "ImgP", "Fast image resizer/renamer", {"~/.config/imgp"}, "utility");
+
+    addTUIConfig("sxiv", "Sxiv", "Simple X image viewer", {"~/.config/sxiv"}, "utility");
+
+    addTUIConfig("feh", "Feh", "Lightweight image viewer", {"~/.config/feh"}, "utility");
+
+    addTUIConfig("mpv", "MPV", "Media player", {"~/.config/mpv/mpv.conf", "~/.mpv"}, "utility");
+
+    addTUIConfig("vlc-cli", "VLC CLI", "VLC media player CLI", {"~/.config/vlc/vlcrc"}, "utility");
+}
+
+// 文档处理工具
+void TUIConfigManager::initializeDocumentTools() {
+    addTUIConfig("pandoc", "Pandoc", "Universal document converter",
+                 {"~/.pandoc", "~/.config/pandoc"}, "utility");
+
+    addTUIConfig("wkhtmltopdf", "Wkhtmltopdf", "HTML to PDF converter", {"~/.config/wkhtmltopdf"},
+                 "utility");
+
+    addTUIConfig("weasyprint", "WeasyPrint", "HTML to PDF converter", {"~/.config/weasyprint"},
+                 "utility");
+
+    addTUIConfig("calibre", "Calibre", "E-book management tool", {"~/.config/calibre"}, "utility");
+
+    addTUIConfig("ebook-convert", "Ebook-Convert", "E-book format converter", {"~/.config/calibre"},
+                 "utility");
+
+    addTUIConfig("pdfinfo", "PDFInfo", "PDF information tool", {"~/.config/pdfinfo"}, "utility");
+
+    addTUIConfig("pdftotext", "PdfToText", "PDF to text converter", {"~/.config/pdftotext"},
+                 "utility");
+
+    addTUIConfig("pdfjam", "PDFJam", "PDF page manipulation", {"~/.config/pdfjam"}, "utility");
+
+    addTUIConfig("tex", "TeX", "Typesetting system", {"~/.texmf.cnf", "~/.config/tex"}, "utility");
+
+    addTUIConfig("latex", "LaTeX", "Document preparation system", {"~/.latexrc", "~/.config/latex"},
+                 "utility");
+}
+
+// AI/ML 工具
+void TUIConfigManager::initializeAIMLTools() {
+    addTUIConfig("ollama", "Ollama", "Run large language models locally",
+                 {"~/.ollama", "~/.config/ollama"}, "utility");
+
+    addTUIConfig("llama.cpp", "Llama.cpp", "Run LLM inference locally",
+                 {"~/.llama.cpp", "~/.config/llama.cpp"}, "utility");
+
+    addTUIConfig("huggingface-cli", "Hugging Face CLI", "Hugging Face command-line tool",
+                 {"~/.cache/huggingface", "~/.config/huggingface"}, "utility");
+
+    addTUIConfig("torch", "PyTorch", "Machine learning library", {"~/.config/pytorch"}, "utility");
+
+    addTUIConfig("tensorflow", "TensorFlow", "Machine learning framework", {"~/.config/tensorflow"},
+                 "utility");
+
+    addTUIConfig("onnx", "ONNX", "Open Neural Network Exchange", {"~/.config/onnx"}, "utility");
+
+    addTUIConfig("mlflow", "MLflow", "Machine learning lifecycle management",
+                 {"~/.mlflow", "~/.config/mlflow"}, "utility");
+
+    addTUIConfig("wandb", "Weights & Biases", "ML experiment tracking", {"~/.config/wandb"},
+                 "utility");
+}
+
+// 数据科学工具
+void TUIConfigManager::initializeDataScienceTools() {
+    addTUIConfig("jupyter", "Jupyter", "Interactive computing", {"~/.jupyter", "~/.config/jupyter"},
+                 "utility");
+
+    addTUIConfig("ipython", "IPython", "Interactive Python shell",
+                 {"~/.ipython", "~/.config/ipython"}, "utility");
+
+    addTUIConfig("notebook", "Jupyter Notebook", "Web-based interactive development",
+                 {"~/.jupyter/jupyter_notebook_config.py"}, "utility");
+
+    addTUIConfig("jupyterlab", "JupyterLab", "Next-gen Jupyter interface",
+                 {"~/.jupyter/jupyter_lab_config.py"}, "utility");
+
+    addTUIConfig("datalad", "Datalad", "Data management and distribution",
+                 {"~/.config/datalad", "~/.datalad"}, "utility");
+
+    addTUIConfig("parquet", "Parquet", "Columnar storage format", {"~/.config/parquet"}, "utility");
+
+    addTUIConfig("duckdb", "DuckDB", "In-process SQL OLAP database",
+                 {"~/.duckdb", "~/.config/duckdb"}, "utility");
+
+    addTUIConfig("polars", "Polars", "Fast DataFrame library", {"~/.config/polars"}, "utility");
+
+    addTUIConfig("vaex", "Vaex", "Lazy out-of-core DataFrame", {"~/.config/vaex"}, "utility");
 }
 
 void TUIConfigManager::addTUIConfig(const std::string& name, const std::string& display_name,
