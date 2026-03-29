@@ -267,6 +267,8 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         if (!logo_style.empty()) {
             config_.display.logo_style = logo_style;
         }
+        config_.display.show_tab_close_indicator =
+            extractBool("show_tab_close_indicator", display_pos, display_end, true);
 
         // 面板布局：文件列表和 AI 面板左右位置，可选 "left"/"right"
         std::string fb_side = extractStr("file_browser_side", display_pos, display_end);
@@ -689,6 +691,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"show_helpbar\": " << (config_.display.show_helpbar ? "true" : "false") << ",\n";
     oss << "    \"logo_gradient\": " << (config_.display.logo_gradient ? "true" : "false") << ",\n";
     oss << "    \"logo_style\": \"" << config_.display.logo_style << "\",\n";
+    oss << "    \"show_tab_close_indicator\": "
+        << (config_.display.show_tab_close_indicator ? "true" : "false") << ",\n";
     oss << "    \"file_browser_side\": \"" << config_.display.file_browser_side << "\",\n";
     oss << "    \"ai_panel_side\": \"" << config_.display.ai_panel_side << "\",\n";
     oss << "    \"terminal_side\": \"" << config_.display.terminal_side << "\",\n";

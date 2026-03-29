@@ -9,7 +9,7 @@
     "auto_indent": true
   },
   "display": {
-    "_comment": "Display: line numbers, highlight, cursor style, helpbar, logo gradient, side panels, terminal position",
+    "_comment": "Display: line numbers, highlight, cursor style, helpbar, logo gradient, tab indicators, side panels, terminal position",
     "show_line_numbers": true,
     "relative_line_numbers": false,
     "highlight_current_line": true,
@@ -21,6 +21,7 @@
     "cursor_smooth": false,
     "logo_gradient": true,
     "logo_style": "block",
+    "show_tab_close_indicator": true,
     "file_browser_side": "left",
     "ai_panel_side": "right",
     "terminal_side": "bottom",
