@@ -6,6 +6,91 @@ namespace pnana {
 namespace features {
 namespace terminal {
 
+// AnsiColorPalette 实现
+AnsiColorPalette AnsiColorPalette::defaultPalette() {
+    AnsiColorPalette palette;
+    // 使用 Solarized 风格的颜色
+    palette.colors[0] = {0x07, 0x36, 0x42};  // base02
+    palette.colors[1] = {0xdc, 0x32, 0x2f};  // red
+    palette.colors[2] = {0x85, 0x99, 0x00};  // green
+    palette.colors[3] = {0xb5, 0x89, 0x00};  // yellow
+    palette.colors[4] = {0x26, 0x8b, 0xd2};  // blue
+    palette.colors[5] = {0xd3, 0x36, 0x82};  // magenta
+    palette.colors[6] = {0x2a, 0xa1, 0x98};  // cyan
+    palette.colors[7] = {0xee, 0xe8, 0xd5};  // base2
+    palette.colors[8] = {0x00, 0x2b, 0x36};  // base03
+    palette.colors[9] = {0xcb, 0x4b, 0x16};  // orange
+    palette.colors[10] = {0x58, 0x6e, 0x75}; // base01
+    palette.colors[11] = {0x65, 0x7b, 0x83}; // base00
+    palette.colors[12] = {0x83, 0x94, 0x96}; // base0
+    palette.colors[13] = {0x6c, 0x71, 0xc4}; // violet
+    palette.colors[14] = {0x93, 0xa1, 0xa1}; // base1
+    palette.colors[15] = {0xfd, 0xf6, 0xe3}; // base3
+    return palette;
+}
+
+AnsiColorPalette AnsiColorPalette::fromConfig(const std::string& theme_name) {
+    // TODO: 从配置文件加载主题
+    // 目前返回默认主题
+    (void)theme_name;
+    return defaultPalette();
+}
+
+// 256 色表缓存（用于高性能访问）
+static const std::array<ftxui::Color, 256>& build256ColorTable() {
+    static std::array<ftxui::Color, 256> table = []() {
+        std::array<ftxui::Color, 256> tbl{};
+
+        // 0-15: ANSI 标准色和亮色
+        // 标准色 (0-7)
+        tbl[0] = ftxui::Color::RGB(0x00, 0x00, 0x00); // Black
+        tbl[1] = ftxui::Color::RGB(0xcd, 0x31, 0x31); // Red
+        tbl[2] = ftxui::Color::RGB(0x0e, 0xb8, 0x34); // Green
+        tbl[3] = ftxui::Color::RGB(0xb5, 0x89, 0x00); // Yellow
+        tbl[4] = ftxui::Color::RGB(0x26, 0x8a, 0xd2); // Blue
+        tbl[5] = ftxui::Color::RGB(0xd3, 0x36, 0x82); // Magenta
+        tbl[6] = ftxui::Color::RGB(0x2a, 0xa1, 0xa3); // Cyan
+        tbl[7] = ftxui::Color::RGB(0xee, 0xee, 0xee); // White
+
+        // 亮色 (8-15)
+        tbl[8] = ftxui::Color::RGB(0x55, 0x55, 0x55);  // Bright Black (Gray)
+        tbl[9] = ftxui::Color::RGB(0xff, 0x6a, 0x00);  // Bright Red
+        tbl[10] = ftxui::Color::RGB(0x5a, 0xfd, 0x57); // Bright Green
+        tbl[11] = ftxui::Color::RGB(0xff, 0xff, 0x5f); // Bright Yellow
+        tbl[12] = ftxui::Color::RGB(0x5f, 0x87, 0xff); // Bright Blue
+        tbl[13] = ftxui::Color::RGB(0xff, 0x55, 0xff); // Bright Magenta
+        tbl[14] = ftxui::Color::RGB(0x5a, 0xff, 0xff); // Bright Cyan
+        tbl[15] = ftxui::Color::RGB(0xff, 0xff, 0xff); // Bright White
+
+        // 16-231: 6x6x6 颜色立方体
+        // 使用精确的色值：00, 95, 135, 175, 215, 255
+        static const uint8_t color_values[6] = {0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff};
+        int idx = 16;
+        for (int r = 0; r < 6; r++) {
+            for (int g = 0; g < 6; g++) {
+                for (int b = 0; b < 6; b++) {
+                    tbl[idx++] =
+                        ftxui::Color::RGB(color_values[r], color_values[g], color_values[b]);
+                }
+            }
+        }
+
+        // 232-255: 灰度渐变 (从 8 到 238，步长为 10)
+        for (int i = 0; i < 24; i++) {
+            uint8_t gray = static_cast<uint8_t>(8 + i * 10);
+            tbl[232 + i] = ftxui::Color::RGB(gray, gray, gray);
+        }
+
+        return tbl;
+    }();
+
+    return table;
+}
+
+const std::array<ftxui::Color, 256>& AnsiColorParser::get256ColorTable() {
+    return build256ColorTable();
+}
+
 ftxui::Element AnsiColorParser::parse(const std::string& text) {
     if (!hasAnsiCodes(text)) {
         return ftxui::text(text);
@@ -251,23 +336,30 @@ std::string AnsiColorParser::stripAnsiCodes(const std::string& text) {
 }
 
 ftxui::Color AnsiColorParser::ansiColorToFtxui(int ansi_code) {
+    // 精确的 ANSI 颜色映射表
+    // 参考：https://en.wikipedia.org/wiki/ANSI_escape_code#3/4_bit
+    // 这些颜色值与主流终端模拟器（xterm, gnome-terminal, iTerm2）保持一致
+
     static const std::vector<ftxui::Color> ansi_colors = {
-        ftxui::Color::Black,        // 0
-        ftxui::Color::Red,          // 1
-        ftxui::Color::Green,        // 2
-        ftxui::Color::Yellow,       // 3
-        ftxui::Color::Blue,         // 4
-        ftxui::Color::Magenta,      // 5
-        ftxui::Color::Cyan,         // 6
-        ftxui::Color::White,        // 7
-        ftxui::Color::GrayDark,     // 8 (亮黑)
-        ftxui::Color::RedLight,     // 9 (亮红)
-        ftxui::Color::GreenLight,   // 10 (亮绿)
-        ftxui::Color::YellowLight,  // 11 (亮黄)
-        ftxui::Color::BlueLight,    // 12 (亮蓝)
-        ftxui::Color::MagentaLight, // 13 (亮品红)
-        ftxui::Color::CyanLight,    // 14 (亮青)
-        ftxui::Color::White         // 15 (亮白)
+        // 标准色 (0-7)
+        ftxui::Color::RGB(0x00, 0x00, 0x00), // 0: Black
+        ftxui::Color::RGB(0xcd, 0x31, 0x31), // 1: Red
+        ftxui::Color::RGB(0x0e, 0xb8, 0x34), // 2: Green
+        ftxui::Color::RGB(0xb5, 0x89, 0x00), // 3: Yellow
+        ftxui::Color::RGB(0x26, 0x8a, 0xd2), // 4: Blue
+        ftxui::Color::RGB(0xd3, 0x36, 0x82), // 5: Magenta
+        ftxui::Color::RGB(0x2a, 0xa1, 0xa3), // 6: Cyan
+        ftxui::Color::RGB(0xee, 0xee, 0xee), // 7: White
+
+        // 亮色 (8-15)
+        ftxui::Color::RGB(0x55, 0x55, 0x55), // 8: Bright Black (Gray)
+        ftxui::Color::RGB(0xff, 0x6a, 0x00), // 9: Bright Red
+        ftxui::Color::RGB(0x5a, 0xfd, 0x57), // 10: Bright Green
+        ftxui::Color::RGB(0xff, 0xff, 0x5f), // 11: Bright Yellow
+        ftxui::Color::RGB(0x5f, 0x87, 0xff), // 12: Bright Blue
+        ftxui::Color::RGB(0xff, 0x55, 0xff), // 13: Bright Magenta
+        ftxui::Color::RGB(0x5a, 0xff, 0xff), // 14: Bright Cyan
+        ftxui::Color::RGB(0xff, 0xff, 0xff)  // 15: Bright White
     };
 
     if (ansi_code >= 0 && ansi_code < static_cast<int>(ansi_colors.size())) {
@@ -277,21 +369,15 @@ ftxui::Color AnsiColorParser::ansiColorToFtxui(int ansi_code) {
 }
 
 ftxui::Color AnsiColorParser::ansi256ColorToFtxui(int color_code) {
-    // 简化的256色到RGB的映射
-    if (color_code < 16) {
-        return ansiColorToFtxui(color_code);
-    } else if (color_code < 232) {
-        // 6x6x6 颜色立方体 (16-231)
-        int cube_code = color_code - 16;
-        int r = (cube_code / 36) * 51;
-        int g = ((cube_code / 6) % 6) * 51;
-        int b = (cube_code % 6) * 51;
-        return rgbColorToFtxui(r, g, b);
-    } else {
-        // 灰度 (232-255)
-        int gray = (color_code - 232) * 10 + 8;
-        return rgbColorToFtxui(gray, gray, gray);
+    // 使用预构建的 256 色表（高性能缓存）
+    const auto& table = get256ColorTable();
+
+    if (color_code >= 0 && color_code < 256) {
+        return table[color_code];
     }
+
+    // 超出范围返回默认色
+    return ftxui::Color::Default;
 }
 
 ftxui::Color AnsiColorParser::rgbColorToFtxui(int r, int g, int b) {
