@@ -233,6 +233,107 @@ void SyntaxHighlighter::initializeLanguages() {
                             "JSON",   "Math",    "Number", "Object", "Promise",
                             "RegExp", "String",  "Symbol", "Map",    "Set"};
 
+    // React/JSX/TSX 关键字（在 JavaScript 基础上添加）
+    keywords_["react"] = keywords_["javascript"]; // 继承 JavaScript 关键字
+    keywords_["jsx"] = keywords_["javascript"];
+    keywords_["tsx"] = keywords_["typescript"];
+
+    // React 特定类型和组件
+    types_["react"] = types_["javascript"];
+    types_["react"].insert(
+        types_["react"].end(),
+        {"React",         "Component",     "PureComponent",       "useState",
+         "useEffect",     "useContext",    "useReducer",          "useCallback",
+         "useMemo",       "useRef",        "useImperativeHandle", "useLayoutEffect",
+         "useDebugValue", "useTransition", "useDeferredValue",    "Suspense",
+         "lazy",          "memo",          "forwardRef",          "createContext",
+         "createElement", "Fragment",      "StrictMode",          "Profiler",
+         "Portal",        "ErrorBoundary"});
+
+    types_["jsx"] = types_["react"];
+    types_["tsx"] = types_["typescript"];
+    if (types_["tsx"].empty()) {
+        types_["tsx"] = types_["react"];
+    }
+
+    // Vue 关键字（在 JavaScript 基础上添加）
+    keywords_["vue"] = keywords_["javascript"];
+
+    // Vue 特定类型和 API
+    types_["vue"] = types_["javascript"];
+    types_["vue"].insert(types_["vue"].end(), {"Vue",
+                                               "Component",
+                                               "Directive",
+                                               "Mixin",
+                                               "Plugin",
+                                               "ref",
+                                               "reactive",
+                                               "computed",
+                                               "watch",
+                                               "watchEffect",
+                                               "watchPostEffect",
+                                               "watchSyncEffect",
+                                               "onMounted",
+                                               "onUpdated",
+                                               "onUnmounted",
+                                               "onBeforeMount",
+                                               "onBeforeUpdate",
+                                               "onBeforeUnmount",
+                                               "onActivated",
+                                               "onDeactivated",
+                                               "onErrorCaptured",
+                                               "onRenderTracked",
+                                               "onRenderTriggered",
+                                               "provide",
+                                               "inject",
+                                               "defineProps",
+                                               "defineEmits",
+                                               "defineExpose",
+                                               "withDefaults",
+                                               "useSlots",
+                                               "useAttrs",
+                                               "useModel",
+                                               "nextTick",
+                                               "defineComponent",
+                                               "h",
+                                               "mergeProps",
+                                               "cloneVNode",
+                                               "Transition",
+                                               "TransitionGroup",
+                                               "KeepAlive",
+                                               "Teleport",
+                                               "Suspense",
+                                               "v-model",
+                                               "v-if",
+                                               "v-else",
+                                               "v-else-if",
+                                               "v-for",
+                                               "v-on",
+                                               "v-bind",
+                                               "v-slot",
+                                               "v-pre",
+                                               "v-once",
+                                               "v-memo",
+                                               "v-cloak"});
+
+    // TypeScript 关键字
+    keywords_["typescript"] = keywords_["javascript"];
+    keywords_["typescript"].insert(
+        keywords_["typescript"].end(),
+        {"interface", "type", "namespace", "module", "declare", "abstract", "implements", "enum",
+         "public", "private", "protected", "readonly", "as", "satisfies"});
+
+    types_["typescript"] = types_["javascript"];
+    types_["typescript"].insert(
+        types_["typescript"].end(),
+        {"Promise",           "Map",          "Set",          "WeakMap",
+         "WeakSet",           "Symbol",       "Proxy",        "Reflect",
+         "Iterable",          "Iterator",     "Generator",    "AsyncIterator",
+         "ArrayBuffer",       "DataView",     "Int8Array",    "Uint8Array",
+         "Uint8ClampedArray", "Int16Array",   "Uint16Array",  "Int32Array",
+         "Uint32Array",       "Float32Array", "Float64Array", "BigInt64Array",
+         "BigUint64Array"});
+
     // C# 关键字
     keywords_["csharp"] = {
         "abstract", "as",         "base",    "bool",     "break",     "byte",       "case",
@@ -1488,6 +1589,9 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizeGraphQL(line);
     } else if (current_file_type_ == "vue") {
         return tokenizeVue(line);
+    } else if (current_file_type_ == "react" || current_file_type_ == "jsx" ||
+               current_file_type_ == "tsx") {
+        return tokenizeReact(line);
     } else if (current_file_type_ == "svelte") {
         return tokenizeSvelte(line);
     } else if (current_file_type_ == "fsharp") {
@@ -5291,9 +5395,239 @@ std::vector<Token> SyntaxHighlighter::tokenizePostCSS(const std::string& line) {
 std::vector<Token> SyntaxHighlighter::tokenizeGraphQL(const std::string& line) {
     return tokenizeGeneric(line);
 }
+
+// Vue 文件语法高亮（支持 template、script、style 区块）
 std::vector<Token> SyntaxHighlighter::tokenizeVue(const std::string& line) {
-    return tokenizeGeneric(line);
+    std::vector<Token> tokens;
+    size_t i = 0;
+
+    // 检查是否在多行注释或字符串中
+    if (in_multiline_comment_) {
+        size_t end_pos = line.find("*/");
+        if (end_pos != std::string::npos) {
+            tokens.push_back({line.substr(0, end_pos + 2), TokenType::COMMENT, 0, end_pos + 2});
+            in_multiline_comment_ = false;
+            i = end_pos + 2;
+        } else {
+            tokens.push_back({line, TokenType::COMMENT, 0, line.length()});
+            return tokens;
+        }
+    }
+
+    while (i < line.length()) {
+        // 跳过空白
+        if (std::isspace(line[i])) {
+            size_t start = i;
+            while (i < line.length() && std::isspace(line[i]))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::NORMAL, start, i});
+            continue;
+        }
+
+        // Vue 指令（v-if, v-for, v-bind 等）
+        if (line[i] == 'v' && i + 1 < line.length() && line[i + 1] == '-') {
+            size_t start = i;
+            i += 2;
+            while (i < line.length() && (std::isalnum(line[i]) || line[i] == '-' || line[i] == '_'))
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::KEYWORD, start, i});
+            continue;
+        }
+
+        // Vue 插值表达式 {{ }}
+        if (i + 1 < line.length() && line[i] == '{' && line[i + 1] == '{') {
+            size_t start = i;
+            i += 2;
+            while (i < line.length() &&
+                   !(line[i] == '}' && i + 1 < line.length() && line[i + 1] == '}')) {
+                i++;
+            }
+            if (i + 1 < line.length()) {
+                i += 2;
+            }
+            tokens.push_back({line.substr(start, i - start), TokenType::OPERATOR, start, i});
+            continue;
+        }
+
+        // HTML 注释
+        if (line.substr(i, 4) == "<!--") {
+            size_t start = i;
+            i += 4;
+            while (i < line.length() && line.substr(i, 3) != "-->") {
+                i++;
+            }
+            if (i < line.length())
+                i += 3;
+            tokens.push_back({line.substr(start, i - start), TokenType::COMMENT, start, i});
+            continue;
+        }
+
+        // HTML/Vue 标签
+        if (line[i] == '<') {
+            if (i + 1 < line.length() && line[i + 1] == '/') {
+                // 结束标签 </tag>
+                size_t start = i;
+                i += 2;
+                while (i < line.length() && line[i] != '>' && !std::isspace(line[i]))
+                    i++;
+                if (i < line.length() && line[i] == '>') {
+                    i++;
+                    tokens.push_back({line.substr(start, i - start), TokenType::KEYWORD, start, i});
+                }
+                continue;
+            } else if (i + 1 < line.length() && std::isalpha(line[i + 1])) {
+                // 开始标签 <tag> 或 <tag ...>
+                size_t start = i;
+                i++; // 跳过 <
+
+                // 读取标签名
+                while (i < line.length() && line[i] != '>' && !std::isspace(line[i]))
+                    i++;
+
+                std::string tag_name = line.substr(start + 1, i - start - 1);
+
+                // 检查是否是 Vue 组件或特殊标签
+                bool is_vue_tag =
+                    (tag_name == "template" || tag_name == "script" || tag_name == "style" ||
+                     tag_name == "component" || tag_name.find("vue:") == 0);
+
+                if (is_vue_tag) {
+                    tokens.push_back(
+                        {line.substr(start, i - start + 1), TokenType::KEYWORD, start, i + 1});
+                } else {
+                    tokens.push_back(
+                        {line.substr(start, i - start + 1), TokenType::TYPE, start, i + 1});
+                }
+
+                if (i < line.length() && line[i] == '>')
+                    i++;
+                continue;
+            }
+        }
+
+        // 字符串
+        if (line[i] == '"' || line[i] == '\'' || line[i] == '`') {
+            char quote = line[i];
+            size_t start = i;
+            i++;
+            while (i < line.length() && line[i] != quote) {
+                if (line[i] == '\\' && i + 1 < line.length())
+                    i += 2;
+                else
+                    i++;
+            }
+            if (i < line.length())
+                i++;
+            tokens.push_back({line.substr(start, i - start), TokenType::STRING, start, i});
+            continue;
+        }
+
+        // 属性名
+        if (std::isalpha(line[i]) || line[i] == '@' || line[i] == ':' || line[i] == '#') {
+            size_t start = i;
+            while (i < line.length() && line[i] != '=' && !std::isspace(line[i]) && line[i] != '>')
+                i++;
+
+            std::string attr_name = line.substr(start, i - start);
+
+            // Vue 指令属性
+            if (attr_name.find("v-") == 0 || attr_name.find("@") == 0 || attr_name.find(":") == 0 ||
+                attr_name.find("#") == 0) {
+                tokens.push_back({attr_name, TokenType::KEYWORD, start, i});
+            } else {
+                tokens.push_back({attr_name, TokenType::NORMAL, start, i});
+            }
+            continue;
+        }
+
+        // 操作符
+        if (line[i] == '=' || line[i] == ':' || line[i] == '@' || line[i] == '#') {
+            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
+            i++;
+            continue;
+        }
+
+        // 其他字符
+        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
+        i++;
+    }
+
+    return tokens;
 }
+
+// React/JSX/TSX 语法高亮
+std::vector<Token> SyntaxHighlighter::tokenizeReact(const std::string& line) {
+    // React/JSX/TSX 使用 JavaScript/TypeScript 分词器，但增加 JSX 支持
+    std::vector<Token> tokens = tokenizeJavaScript(line);
+
+    // 后处理：识别 JSX 元素
+    std::vector<Token> result;
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+
+        // 检查 JSX 标签 <Component> 或 <component>
+        if (token.text == "<" && i + 1 < tokens.size()) {
+            // 检查下一个 token 是否是标识符
+            const auto& next_token = tokens[i + 1];
+            if (next_token.type == TokenType::NORMAL || next_token.type == TokenType::TYPE ||
+                next_token.type == TokenType::KEYWORD) {
+                // 合并 < 和标签名
+                result.push_back({token.text + next_token.text, TokenType::KEYWORD, token.start,
+                                  next_token.end});
+                i++; // 跳过下一个 token
+
+                // 检查自闭合标签 />
+                if (i + 1 < tokens.size() && tokens[i + 1].text == "/>") {
+                    result.back().text += tokens[i + 1].text;
+                    result.back().end = tokens[i + 1].end;
+                    i++;
+                }
+                continue;
+            }
+        }
+
+        // 检查 JSX 结束标签 </Component>
+        if (token.text == "</" && i + 1 < tokens.size()) {
+            const auto& next_token = tokens[i + 1];
+            if (next_token.type == TokenType::NORMAL || next_token.type == TokenType::TYPE) {
+                result.push_back({token.text + next_token.text, TokenType::KEYWORD, token.start,
+                                  next_token.end});
+                i++;
+                continue;
+            }
+        }
+
+        // JSX 表达式 {expression}
+        if (token.text == "{" && i + 1 < tokens.size()) {
+            // 找到匹配的 }
+            int brace_count = 1;
+            size_t end_idx = i + 1;
+            while (end_idx < tokens.size() && brace_count > 0) {
+                if (tokens[end_idx].text == "{")
+                    brace_count++;
+                else if (tokens[end_idx].text == "}")
+                    brace_count--;
+                end_idx++;
+            }
+
+            // 合并整个表达式
+            std::string expr_text = token.text;
+            for (size_t j = i + 1; j < end_idx; ++j) {
+                expr_text += tokens[j].text;
+            }
+
+            result.push_back({expr_text, TokenType::OPERATOR, token.start,
+                              end_idx < tokens.size() ? tokens[end_idx - 1].end : token.end});
+            i = end_idx - 1;
+            continue;
+        }
+
+        result.push_back(token);
+    }
+
+    return result;
+}
+
 std::vector<Token> SyntaxHighlighter::tokenizeSvelte(const std::string& line) {
     return tokenizeGeneric(line);
 }

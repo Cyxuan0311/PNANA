@@ -169,6 +169,7 @@ class SyntaxHighlighter {
     std::vector<Token> tokenizePostCSS(const std::string& line);
     std::vector<Token> tokenizeGraphQL(const std::string& line);
     std::vector<Token> tokenizeVue(const std::string& line);
+    std::vector<Token> tokenizeReact(const std::string& line);
     std::vector<Token> tokenizeSvelte(const std::string& line);
     std::vector<Token> tokenizeFSharp(const std::string& line);
     std::vector<Token> tokenizeCSharp(const std::string& line);
