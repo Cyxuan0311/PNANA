@@ -61,17 +61,30 @@ bool PluginManager::initialize() {
     // 加载插件
     std::string plugin_dir = findPluginDirectory();
     if (!plugin_dir.empty()) {
+        LOG_DEBUG("[initialize] Plugin directory: " + plugin_dir);
         loadPlugins(plugin_dir);
+
+        LOG_DEBUG("[initialize] Plugins registered: " + std::to_string(plugins_.size()));
+        for (const auto& [name, info] : plugins_) {
+            LOG_DEBUG("  - " + name + " (loaded=" + std::string(info.loaded ? "true" : "false") +
+                      ")");
+        }
 
         // 从配置中加载已启用的插件
         if (editor_) {
             auto& config = editor_->getConfigManager().getConfig();
             std::string saved_theme = config.current_theme; // 保存当前主题
 
-            // 启动时加载已启用的插件，但不保存配置（避免启动时的文件I/O）
+            LOG_DEBUG("[initialize] Enabled plugins from config: " +
+                      std::to_string(config.plugins.enabled_plugins.size()));
+
+            // 启动时加载已启用的插件，但不保存配置（避免启动时的文件 I/O）
             for (const auto& plugin_name : config.plugins.enabled_plugins) {
+                LOG_DEBUG("[initialize] Enabling plugin: " + plugin_name);
                 if (plugin_paths_.find(plugin_name) != plugin_paths_.end()) {
                     enablePlugin(plugin_name, false); // false = 不保存配置
+                } else {
+                    LOG_ERROR("[initialize] Plugin not found in paths: " + plugin_name);
                 }
             }
 
@@ -190,6 +203,7 @@ void PluginManager::loadPlugins(const std::string& plugin_dir) {
 
 bool PluginManager::loadPlugin(const std::string& plugin_path) {
     if (!lua_engine_ || !lua_api_) {
+        LOG_ERROR("[loadPlugin] lua_engine_ or lua_api_ is null");
         return false;
     }
 
@@ -222,6 +236,7 @@ bool PluginManager::loadPlugin(const std::string& plugin_path) {
 
     // 执行插件初始化
     if (!executePluginInit(plugin_path)) {
+        LOG_ERROR("[loadPlugin] executePluginInit failed");
         return false;
     }
 
@@ -270,13 +285,15 @@ bool PluginManager::executePluginInit(const std::string& plugin_path) {
     // 查找 init.lua
     std::string init_file = plugin_path + "/init.lua";
     if (fs::exists(init_file)) {
-        return lua_engine_->executeFile(init_file);
+        bool result = lua_engine_->executeFile(init_file);
+        return result;
     }
 
     // 如果没有 init.lua，查找 plugin.lua
     std::string plugin_file = plugin_path + "/plugin.lua";
     if (fs::exists(plugin_file)) {
-        return lua_engine_->executeFile(plugin_file);
+        bool result = lua_engine_->executeFile(plugin_file);
+        return result;
     }
 
     // 查找 lua/ 子目录
@@ -294,6 +311,7 @@ bool PluginManager::executePluginInit(const std::string& plugin_path) {
         return file_count > 0;
     }
 
+    LOG_ERROR("[executePluginInit] No init.lua or plugin.lua found");
     return false;
 }
 
@@ -397,6 +415,7 @@ PluginInfo PluginManager::getPluginInfo(const std::string& plugin_name) const {
 bool PluginManager::enablePlugin(const std::string& plugin_name, bool save_config) {
     auto it = plugin_paths_.find(plugin_name);
     if (it == plugin_paths_.end()) {
+        LOG_ERROR("[enablePlugin] Plugin not found: " + plugin_name);
         return false;
     }
 
@@ -408,6 +427,7 @@ bool PluginManager::enablePlugin(const std::string& plugin_name, bool save_confi
 
     // 加载插件
     bool success = loadPlugin(it->second);
+
     if (success && editor_) {
         // 更新配置中的启用列表（但不一定保存到文件）
         auto& config_manager = editor_->getConfigManager();
@@ -484,6 +504,12 @@ bool PluginManager::handleKeymap(const std::string& mode, const std::string& key
 
     // 使用新的键映射执行系统
     return lua_api_->executeKeymap(mode, keys);
+}
+
+void PluginManager::processDeferred() {
+    if (lua_api_) {
+        lua_api_->processDeferred();
+    }
 }
 
 void PluginManager::initializeSandbox() {

@@ -2,10 +2,14 @@
 
 #include "plugins/ui_api.h"
 #include "core/editor.h"
+#include "core/ui/lua_ui_parser.h"
 #include "plugins/lua_api.h"
 #include "utils/logger.h"
+#include <chrono>
+#include <cstdint>
 #include <lua.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace pnana {
@@ -17,65 +21,72 @@ UIAPI::UIAPI() : lua_api_(nullptr) {}
 
 UIAPI::~UIAPI() {}
 
-std::map<int, int> UIAPI::window_handles_;
+// 使用 unordered_map 优化查找性能 O(1) vs O(log n)
+std::unordered_map<int, int> UIAPI::window_handles_;
+std::unordered_map<int, lua_State*> UIAPI::window_lua_states_;
+std::unordered_map<int, std::unordered_map<std::string, int>> UIAPI::window_event_refs_;
 int UIAPI::next_window_id_ = 1;
 
-std::map<int, int> UIAPI::progress_handles_;
+std::unordered_map<int, int> UIAPI::progress_handles_;
 int UIAPI::next_progress_id_ = 1;
 
-std::map<int, int> UIAPI::hover_handles_;
+std::unordered_map<int, int> UIAPI::hover_handles_;
 int UIAPI::next_hover_id_ = 1;
 
 void UIAPI::registerFunctions(lua_State* L) {
     lua_getglobal(L, "vim");
     lua_newtable(L);
-    lua_pushcfunction(L, lua_ui_notify);
+    lua_pushcfunction(L, lua_fn_notify);
     lua_setfield(L, -2, "notify");
-    lua_pushcfunction(L, lua_ui_input);
+    lua_pushcfunction(L, lua_fn_input);
     lua_setfield(L, -2, "input");
-    lua_pushcfunction(L, lua_ui_select);
+    lua_pushcfunction(L, lua_fn_select);
     lua_setfield(L, -2, "select");
-    lua_pushcfunction(L, lua_ui_popup);
+    lua_pushcfunction(L, lua_fn_popup);
     lua_setfield(L, -2, "popup");
-    lua_pushcfunction(L, lua_ui_dialog);
+    lua_pushcfunction(L, lua_fn_dialog);
     lua_setfield(L, -2, "dialog");
-    lua_pushcfunction(L, lua_ui_list);
+    lua_pushcfunction(L, lua_fn_list);
     lua_setfield(L, -2, "list");
-    lua_pushcfunction(L, lua_ui_open_window);
+    lua_pushcfunction(L, lua_fn_open_window);
     lua_setfield(L, -2, "open_window");
-    lua_pushcfunction(L, lua_ui_update_window);
+    lua_pushcfunction(L, lua_fn_update_window);
     lua_setfield(L, -2, "update_window");
-    lua_pushcfunction(L, lua_ui_close_window);
+    lua_pushcfunction(L, lua_fn_close_window);
     lua_setfield(L, -2, "close_window");
+    lua_pushcfunction(L, lua_fn_open_component_window);
+    lua_setfield(L, -2, "open_component_window");
+    lua_pushcfunction(L, lua_fn_update_component_window);
+    lua_setfield(L, -2, "update_component_window");
 
-    // 新增 UI API 注册
-    lua_pushcfunction(L, lua_ui_progress);
+    // 高级 UI API
+    lua_pushcfunction(L, lua_fn_progress);
     lua_setfield(L, -2, "progress");
-    lua_pushcfunction(L, lua_ui_update_progress);
+    lua_pushcfunction(L, lua_fn_update_progress);
     lua_setfield(L, -2, "update_progress");
-    lua_pushcfunction(L, lua_ui_close_progress);
+    lua_pushcfunction(L, lua_fn_close_progress);
     lua_setfield(L, -2, "close_progress");
-    lua_pushcfunction(L, lua_ui_multiselect);
+    lua_pushcfunction(L, lua_fn_multiselect);
     lua_setfield(L, -2, "multiselect");
-    lua_pushcfunction(L, lua_ui_hover);
+    lua_pushcfunction(L, lua_fn_hover);
     lua_setfield(L, -2, "hover");
-    lua_pushcfunction(L, lua_ui_close_hover);
+    lua_pushcfunction(L, lua_fn_close_hover);
     lua_setfield(L, -2, "close_hover");
-    lua_pushcfunction(L, lua_ui_list_windows);
+    lua_pushcfunction(L, lua_fn_list_windows);
     lua_setfield(L, -2, "list_windows");
-    lua_pushcfunction(L, lua_ui_window_is_valid);
+    lua_pushcfunction(L, lua_fn_window_is_valid);
     lua_setfield(L, -2, "window_is_valid");
-    lua_pushcfunction(L, lua_ui_get_window_info);
+    lua_pushcfunction(L, lua_fn_get_window_info);
     lua_setfield(L, -2, "get_window_info");
-    lua_pushcfunction(L, lua_ui_focus_window);
+    lua_pushcfunction(L, lua_fn_focus_window);
     lua_setfield(L, -2, "focus_window");
 
-    // 新增高级布局 API
-    lua_pushcfunction(L, lua_ui_create_layout);
+    // 布局 API
+    lua_pushcfunction(L, lua_fn_create_layout);
     lua_setfield(L, -2, "create_layout");
-    lua_pushcfunction(L, lua_ui_open_layout_window);
+    lua_pushcfunction(L, lua_fn_open_layout_window);
     lua_setfield(L, -2, "open_layout_window");
-    lua_pushcfunction(L, lua_ui_update_layout);
+    lua_pushcfunction(L, lua_fn_update_layout);
     lua_setfield(L, -2, "update_layout");
 
     lua_setfield(L, -2, "ui");
@@ -89,7 +100,7 @@ LuaAPI* UIAPI::getLuaAPIFromLua(lua_State* L) {
     return api;
 }
 
-int UIAPI::lua_ui_notify(lua_State* L) {
+int UIAPI::lua_fn_notify(lua_State* L) {
     const char* msg = lua_tostring(L, 1);
     const char* level = lua_tostring(L, 2);
 
@@ -111,7 +122,7 @@ int UIAPI::lua_ui_notify(lua_State* L) {
     return 0;
 }
 
-int UIAPI::lua_ui_input(lua_State* L) {
+int UIAPI::lua_fn_input(lua_State* L) {
     LOG_INFO("[vim.ui.input] Called");
 
     LuaAPI* lua_api = getLuaAPIFromLua(L);
@@ -202,7 +213,7 @@ int UIAPI::lua_ui_input(lua_State* L) {
     return 1;
 }
 
-int UIAPI::lua_ui_select(lua_State* L) {
+int UIAPI::lua_fn_select(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_istable(L, 1) || !lua_isfunction(L, 3)) {
         lua_pushboolean(L, false);
@@ -213,29 +224,36 @@ int UIAPI::lua_ui_select(lua_State* L) {
     std::string prompt = "Select:";
     std::vector<std::string> item_labels;
 
+    // 优化：预分配空间
     int item_count = static_cast<int>(luaL_len(L, 1));
-    for (int i = 1; i <= item_count; ++i) {
-        lua_rawgeti(L, 1, i);
+    item_labels.reserve(item_count);
+
+    // 优化：批量获取 items，减少栈操作
+    lua_pushnil(L); // 第一次调用 lua_next 的 key
+    while (lua_next(L, 1) != 0) {
         if (lua_isstring(L, -1)) {
-            item_labels.push_back(lua_tostring(L, -1));
+            item_labels.emplace_back(lua_tostring(L, -1));
         } else {
-            item_labels.push_back("<item " + std::to_string(i) + ">");
+            item_labels.emplace_back("<item " + std::to_string(static_cast<int>(luaL_len(L, 1))) +
+                                     ">");
         }
-        lua_pop(L, 1);
+        lua_pop(L, 1); // 移除 value，保留 key 用于下一次迭代
     }
 
     if (lua_istable(L, 2)) {
-        lua_getfield(L, 2, "prompt");
-        if (lua_isstring(L, -1)) {
-            prompt = lua_tostring(L, -1);
+        // 优化：使用单个循环解析 opts 表
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0) {
+            if (lua_isstring(L, -2)) {
+                const char* key = lua_tostring(L, -2);
+                if (strcmp(key, "prompt") == 0 && lua_isstring(L, -1)) {
+                    prompt = lua_tostring(L, -1);
+                } else if (strcmp(key, "title") == 0 && lua_isstring(L, -1)) {
+                    title = lua_tostring(L, -1);
+                }
+            }
+            lua_pop(L, 1);
         }
-        lua_pop(L, 1);
-
-        lua_getfield(L, 2, "title");
-        if (lua_isstring(L, -1)) {
-            title = lua_tostring(L, -1);
-        }
-        lua_pop(L, 1);
     }
 
     lua_pushvalue(L, 3);
@@ -272,7 +290,7 @@ int UIAPI::lua_ui_select(lua_State* L) {
     return 1;
 }
 
-int UIAPI::lua_ui_popup(lua_State* L) {
+int UIAPI::lua_fn_popup(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -303,7 +321,7 @@ int UIAPI::lua_ui_popup(lua_State* L) {
     return 1;
 }
 
-int UIAPI::lua_ui_dialog(lua_State* L) {
+int UIAPI::lua_fn_dialog(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor()) {
         lua_pushboolean(L, false);
@@ -378,49 +396,41 @@ int UIAPI::lua_ui_dialog(lua_State* L) {
     return 1;
 }
 
-int UIAPI::lua_ui_list(lua_State* L) {
-    // 通用可交互列表：当前基于 showSelectDialogForLua 实现
-    return lua_ui_select(L);
+int UIAPI::lua_fn_list(lua_State* L) {
+    // 通用可交互列表：当前基于 lua_fn_select 实现
+    return lua_fn_select(L);
 }
 
-int UIAPI::lua_ui_open_window(lua_State* L) {
+int UIAPI::lua_fn_open_window(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushnil(L);
         return 1;
     }
 
-    std::string title = "Window";
-    std::vector<std::string> lines;
+    // 使用 DSL 解析器统一解析
+    pnana::core::ui::WidgetSpec widget_spec =
+        pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, 1);
 
-    if (lua_istable(L, 1)) {
-        lua_getfield(L, 1, "title");
-        if (lua_isstring(L, -1)) {
-            title = lua_tostring(L, -1);
-        }
-        lua_pop(L, 1);
-
-        lua_getfield(L, 1, "lines");
-        if (lua_istable(L, -1)) {
-            int len = static_cast<int>(luaL_len(L, -1));
-            for (int i = 1; i <= len; ++i) {
-                lua_rawgeti(L, -1, i);
-                if (lua_isstring(L, -1)) {
-                    lines.emplace_back(lua_tostring(L, -1));
-                }
-                lua_pop(L, 1);
-            }
-        }
-        lua_pop(L, 1);
-    }
-
+    // 构建 PopupSpec
     pnana::core::ui::PopupSpec spec;
-    spec.title = title;
-    for (size_t i = 0; i < lines.size(); ++i) {
-        if (i > 0) {
-            spec.message += "\n";
+    spec.title = widget_spec.window_title.empty() ? "Window" : widget_spec.window_title;
+
+    // 从 lines 或 children 构建消息内容
+    if (!widget_spec.items.empty()) {
+        // 从 items 构建
+        for (size_t i = 0; i < widget_spec.items.size(); ++i) {
+            if (i > 0)
+                spec.message += "\n";
+            spec.message += widget_spec.items[i];
         }
-        spec.message += lines[i];
+    } else if (!widget_spec.children.empty()) {
+        // 从 children 提取文本
+        for (size_t i = 0; i < widget_spec.children.size(); ++i) {
+            if (i > 0)
+                spec.message += "\n";
+            spec.message += widget_spec.children[i].label;
+        }
     }
 
     int lua_win_id = next_window_id_++;
@@ -431,7 +441,7 @@ int UIAPI::lua_ui_open_window(lua_State* L) {
     return 1;
 }
 
-int UIAPI::lua_ui_update_window(lua_State* L) {
+int UIAPI::lua_fn_update_window(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -445,29 +455,32 @@ int UIAPI::lua_ui_update_window(lua_State* L) {
         return 1;
     }
 
-    pnana::core::ui::PopupSpec patch;
-    if (lua_istable(L, 2)) {
-        lua_getfield(L, 2, "title");
-        if (lua_isstring(L, -1)) {
-            patch.title = lua_tostring(L, -1);
-        }
-        lua_pop(L, 1);
+    // 使用 DSL 解析器统一解析 patch
+    pnana::core::ui::WidgetSpec widget_spec =
+        pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, 2);
 
-        lua_getfield(L, 2, "lines");
-        if (lua_istable(L, -1)) {
-            int len = static_cast<int>(luaL_len(L, -1));
-            for (int i = 1; i <= len; ++i) {
-                lua_rawgeti(L, -1, i);
-                if (lua_isstring(L, -1)) {
-                    if (!patch.message.empty()) {
-                        patch.message += "\n";
-                    }
-                    patch.message += lua_tostring(L, -1);
-                }
-                lua_pop(L, 1);
-            }
+    // 构建 PopupSpec patch
+    pnana::core::ui::PopupSpec patch;
+    patch.width = 0; // 默认不覆盖尺寸
+    patch.height = 0;
+
+    if (!widget_spec.window_title.empty()) {
+        patch.title = widget_spec.window_title;
+    }
+
+    // 从 lines 或 children 构建消息内容
+    if (!widget_spec.items.empty()) {
+        for (size_t i = 0; i < widget_spec.items.size(); ++i) {
+            if (i > 0)
+                patch.message += "\n";
+            patch.message += widget_spec.items[i];
         }
-        lua_pop(L, 1);
+    } else if (!widget_spec.children.empty()) {
+        for (size_t i = 0; i < widget_spec.children.size(); ++i) {
+            if (i > 0)
+                patch.message += "\n";
+            patch.message += widget_spec.children[i].label;
+        }
     }
 
     bool ok = lua_api->getEditor()->getPopupManagerForLua()->updatePopup(it->second, patch);
@@ -475,7 +488,7 @@ int UIAPI::lua_ui_update_window(lua_State* L) {
     return 1;
 }
 
-int UIAPI::lua_ui_close_window(lua_State* L) {
+int UIAPI::lua_fn_close_window(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -490,7 +503,206 @@ int UIAPI::lua_ui_close_window(lua_State* L) {
     }
 
     bool ok = lua_api->getEditor()->getPopupManagerForLua()->closePopup(it->second, false);
+
+    auto refs_it = window_event_refs_.find(lua_win_id);
+    auto state_it = window_lua_states_.find(lua_win_id);
+    if (refs_it != window_event_refs_.end() && state_it != window_lua_states_.end() &&
+        state_it->second) {
+        for (const auto& [_, ref] : refs_it->second) {
+            luaL_unref(state_it->second, LUA_REGISTRYINDEX, ref);
+        }
+    }
+
+    window_event_refs_.erase(lua_win_id);
+    window_lua_states_.erase(lua_win_id);
     window_handles_.erase(it);
+    lua_pushboolean(L, ok ? 1 : 0);
+    return 1;
+}
+
+int UIAPI::lua_fn_open_component_window(lua_State* L) {
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api) {
+        LOG_ERROR("[vim.ui.open_component_window] lua_api is null");
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (!lua_api->getEditor()) {
+        LOG_ERROR("[vim.ui.open_component_window] editor is null");
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (!lua_api->getEditor()->getPopupManagerForLua()) {
+        LOG_ERROR("[vim.ui.open_component_window] popup manager is null");
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (!lua_istable(L, 1)) {
+        LOG_ERROR("[vim.ui.open_component_window] Argument 1 is not a table, type=" +
+                  std::to_string(lua_type(L, 1)));
+        lua_pushnil(L);
+        return 1;
+    }
+
+    pnana::core::ui::WidgetSpec widget_spec =
+        pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, 1);
+
+    // 构建 PopupSpec
+    pnana::core::ui::PopupSpec spec;
+    spec.title = widget_spec.window_title.empty() ? "Component Window" : widget_spec.window_title;
+    spec.width = widget_spec.min_width > 0 ? widget_spec.min_width : 90;
+    spec.height = widget_spec.min_height > 0 ? widget_spec.min_height : 24;
+    spec.modal = true;
+    spec.component_mode = true;
+
+    // 从 lines 或 children 构建 component_lines
+    if (!widget_spec.items.empty()) {
+        spec.component_lines = widget_spec.items;
+    } else if (!widget_spec.children.empty()) {
+        for (const auto& child : widget_spec.children) {
+            if (!child.label.empty()) {
+                spec.component_lines.push_back(child.label);
+            }
+        }
+    }
+
+    spec.component_input_line = widget_spec.component_input_line;
+    spec.component_left_title =
+        widget_spec.component_left_title.empty() ? "Results" : widget_spec.component_left_title;
+    spec.component_right_title =
+        widget_spec.component_right_title.empty() ? "Preview" : widget_spec.component_right_title;
+    spec.component_left_lines = widget_spec.component_left_lines;
+    spec.component_right_lines = widget_spec.component_right_lines;
+    spec.component_help_lines = widget_spec.component_help_lines;
+    spec.component_left_line_colors = widget_spec.component_left_line_colors;
+    spec.component_right_line_colors = widget_spec.component_right_line_colors;
+
+    int lua_win_id = next_window_id_++;
+
+    pnana::core::ui::PopupCallbacks callbacks;
+
+    // 注册事件处理
+    lua_getfield(L, 1, "on_event");
+    if (lua_isfunction(L, -1)) {
+        lua_pushvalue(L, -1);
+        int event_cb_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        window_event_refs_[lua_win_id]["component:on_event"] = event_cb_ref;
+        window_lua_states_[lua_win_id] = L;
+
+        callbacks.on_component_event = [lua_win_id](const std::string& event_name,
+                                                    const std::string& payload) {
+            auto refs_it = window_event_refs_.find(lua_win_id);
+            auto state_it = window_lua_states_.find(lua_win_id);
+            if (refs_it == window_event_refs_.end() || state_it == window_lua_states_.end() ||
+                !state_it->second) {
+                return false;
+            }
+
+            auto cb_it = refs_it->second.find("component:on_event");
+            if (cb_it == refs_it->second.end()) {
+                return false;
+            }
+
+            lua_State* lua_state = state_it->second;
+            lua_rawgeti(lua_state, LUA_REGISTRYINDEX, cb_it->second);
+            if (!lua_isfunction(lua_state, -1)) {
+                lua_pop(lua_state, 1);
+                return false;
+            }
+
+            lua_pushstring(lua_state, event_name.c_str());
+            lua_pushstring(lua_state, payload.c_str());
+            if (lua_pcall(lua_state, 2, 1, 0) != LUA_OK) {
+                const char* error = lua_tostring(lua_state, -1);
+                LOG_ERROR("Component event callback error: " +
+                          std::string(error ? error : "unknown"));
+                lua_pop(lua_state, 1);
+                return false;
+            }
+
+            bool handled = lua_toboolean(lua_state, -1) != 0;
+            lua_pop(lua_state, 1);
+            return handled;
+        };
+    }
+    lua_pop(L, 1);
+
+    int handle = lua_api->getEditor()->getPopupManagerForLua()->openPopup(spec, callbacks);
+    window_handles_[lua_win_id] = handle;
+
+    lua_pushinteger(L, static_cast<lua_Integer>(lua_win_id));
+    return 1;
+}
+
+int UIAPI::lua_fn_update_component_window(lua_State* L) {
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
+        LOG_ERROR("[vim.ui.update_component_window] Invalid editor or popup manager");
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    int lua_win_id = static_cast<int>(lua_tointeger(L, 1));
+    auto it = window_handles_.find(lua_win_id);
+    if (it == window_handles_.end() || !lua_istable(L, 2)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    pnana::core::ui::PopupSpec patch;
+    patch.width = 0;
+    patch.height = 0;
+    patch.component_mode = true;
+
+    pnana::core::ui::WidgetSpec widget_spec =
+        pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, 2);
+
+    // 从 widget_spec 填充 patch
+    if (!widget_spec.window_title.empty()) {
+        patch.title = widget_spec.window_title;
+    }
+
+    // 从 lines 或 children 构建 component_lines
+    if (!widget_spec.items.empty()) {
+        patch.component_lines = widget_spec.items;
+    } else if (!widget_spec.children.empty()) {
+        for (const auto& child : widget_spec.children) {
+            if (!child.label.empty()) {
+                patch.component_lines.push_back(child.label);
+            }
+        }
+    }
+
+    if (!widget_spec.component_input_line.empty()) {
+        patch.component_input_line = widget_spec.component_input_line;
+    }
+    if (!widget_spec.component_left_title.empty()) {
+        patch.component_left_title = widget_spec.component_left_title;
+    }
+    if (!widget_spec.component_right_title.empty()) {
+        patch.component_right_title = widget_spec.component_right_title;
+    }
+    if (!widget_spec.component_left_lines.empty()) {
+        patch.component_left_lines = widget_spec.component_left_lines;
+    }
+    if (!widget_spec.component_right_lines.empty()) {
+        patch.component_right_lines = widget_spec.component_right_lines;
+    }
+    if (!widget_spec.component_help_lines.empty()) {
+        patch.component_help_lines = widget_spec.component_help_lines;
+    }
+    if (!widget_spec.component_left_line_colors.empty()) {
+        patch.component_left_line_colors = widget_spec.component_left_line_colors;
+    }
+    if (!widget_spec.component_right_line_colors.empty()) {
+        patch.component_right_line_colors = widget_spec.component_right_line_colors;
+    }
+
+    bool ok = lua_api->getEditor()->getPopupManagerForLua()->updatePopup(it->second, patch);
+
     lua_pushboolean(L, ok ? 1 : 0);
     return 1;
 }
@@ -498,18 +710,31 @@ int UIAPI::lua_ui_close_window(lua_State* L) {
 void UIAPI::closeAllWindows(pnana::core::Editor* editor) {
     if (!editor || !editor->getPopupManagerForLua()) {
         window_handles_.clear();
+        window_event_refs_.clear();
+        window_lua_states_.clear();
         return;
     }
 
     for (const auto& entry : window_handles_) {
         editor->getPopupManagerForLua()->closePopup(entry.second, false);
+
+        auto refs_it = window_event_refs_.find(entry.first);
+        auto state_it = window_lua_states_.find(entry.first);
+        if (refs_it != window_event_refs_.end() && state_it != window_lua_states_.end() &&
+            state_it->second) {
+            for (const auto& [_, ref] : refs_it->second) {
+                luaL_unref(state_it->second, LUA_REGISTRYINDEX, ref);
+            }
+        }
     }
     window_handles_.clear();
+    window_event_refs_.clear();
+    window_lua_states_.clear();
 }
 
 // vim.ui.progress(opts) -> progress_id
 // 显示进度条窗口
-int UIAPI::lua_ui_progress(lua_State* L) {
+int UIAPI::lua_fn_progress(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushnil(L);
@@ -554,7 +779,7 @@ int UIAPI::lua_ui_progress(lua_State* L) {
     // 构建进度条显示内容
     std::string progress_bar;
     if (indeterminate) {
-        progress_bar = "[    处理中...    ]";
+        progress_bar = "[    processing...    ]";
     } else {
         int filled = percent / 5;
         int empty = 20 - filled;
@@ -578,7 +803,7 @@ int UIAPI::lua_ui_progress(lua_State* L) {
 
 // vim.ui.update_progress(progress_id, opts) -> boolean
 // 更新进度条
-int UIAPI::lua_ui_update_progress(lua_State* L) {
+int UIAPI::lua_fn_update_progress(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -654,7 +879,7 @@ int UIAPI::lua_ui_update_progress(lua_State* L) {
 
 // vim.ui.close_progress(progress_id) -> boolean
 // 关闭进度条窗口
-int UIAPI::lua_ui_close_progress(lua_State* L) {
+int UIAPI::lua_fn_close_progress(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -676,7 +901,7 @@ int UIAPI::lua_ui_close_progress(lua_State* L) {
 
 // vim.ui.multiselect(items, opts, callback) -> boolean
 // 多选列表对话框
-int UIAPI::lua_ui_multiselect(lua_State* L) {
+int UIAPI::lua_fn_multiselect(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_istable(L, 1) || !lua_isfunction(L, 3)) {
         lua_pushboolean(L, false);
@@ -772,7 +997,7 @@ int UIAPI::lua_ui_multiselect(lua_State* L) {
 
 // vim.ui.hover(opts) -> hover_id
 // 显示悬浮提示
-int UIAPI::lua_ui_hover(lua_State* L) {
+int UIAPI::lua_fn_hover(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushnil(L);
@@ -836,7 +1061,7 @@ int UIAPI::lua_ui_hover(lua_State* L) {
 
 // vim.ui.close_hover(hover_id) -> boolean
 // 关闭悬浮提示
-int UIAPI::lua_ui_close_hover(lua_State* L) {
+int UIAPI::lua_fn_close_hover(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -858,7 +1083,7 @@ int UIAPI::lua_ui_close_hover(lua_State* L) {
 
 // vim.ui.list_windows() -> { {id=..., title=...}, ... }
 // 列出所有打开的窗口
-int UIAPI::lua_ui_list_windows(lua_State* L) {
+int UIAPI::lua_fn_list_windows(lua_State* L) {
     lua_newtable(L);
 
     int index = 1;
@@ -877,7 +1102,7 @@ int UIAPI::lua_ui_list_windows(lua_State* L) {
 
 // vim.ui.window_is_valid(win_id) -> boolean
 // 检查窗口是否有效
-int UIAPI::lua_ui_window_is_valid(lua_State* L) {
+int UIAPI::lua_fn_window_is_valid(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -898,7 +1123,7 @@ int UIAPI::lua_ui_window_is_valid(lua_State* L) {
 
 // vim.ui.get_window_info(win_id) -> { title=..., width=..., height=... } | nil
 // 获取窗口信息
-int UIAPI::lua_ui_get_window_info(lua_State* L) {
+int UIAPI::lua_fn_get_window_info(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushnil(L);
@@ -932,7 +1157,7 @@ int UIAPI::lua_ui_get_window_info(lua_State* L) {
 
 // vim.ui.focus_window(win_id) -> boolean
 // 聚焦窗口
-int UIAPI::lua_ui_focus_window(lua_State* L) {
+int UIAPI::lua_fn_focus_window(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -951,255 +1176,13 @@ int UIAPI::lua_ui_focus_window(lua_State* L) {
     return 1;
 }
 
-// 辅助函数：解析布局选项
-void UIAPI::parseLayoutOptions(lua_State* L, int index, pnana::core::ui::WidgetSpec& spec) {
-    if (!lua_istable(L, index))
-        return;
-
-    lua_getfield(L, index, "direction");
-    if (lua_isstring(L, -1)) {
-        const char* dir = lua_tostring(L, -1);
-        if (strcmp(dir, "horizontal") == 0 || strcmp(dir, "h") == 0) {
-            spec.layout_direction = pnana::core::ui::LayoutDirection::HORIZONTAL;
-        } else {
-            spec.layout_direction = pnana::core::ui::LayoutDirection::VERTICAL;
-        }
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "align");
-    if (lua_isstring(L, -1)) {
-        const char* align = lua_tostring(L, -1);
-        if (strcmp(align, "start") == 0) {
-            spec.alignment = pnana::core::ui::Alignment::START;
-        } else if (strcmp(align, "center") == 0) {
-            spec.alignment = pnana::core::ui::Alignment::CENTER;
-        } else if (strcmp(align, "end") == 0) {
-            spec.alignment = pnana::core::ui::Alignment::END;
-        } else if (strcmp(align, "stretch") == 0) {
-            spec.alignment = pnana::core::ui::Alignment::STRETCH;
-        }
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "flex");
-    if (lua_isnumber(L, -1)) {
-        spec.flex = static_cast<int>(lua_tonumber(L, -1));
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "min_width");
-    if (lua_isnumber(L, -1)) {
-        spec.min_width = static_cast<int>(lua_tonumber(L, -1));
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "min_height");
-    if (lua_isnumber(L, -1)) {
-        spec.min_height = static_cast<int>(lua_tonumber(L, -1));
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "padding");
-    if (lua_isnumber(L, -1)) {
-        spec.padding = static_cast<int>(lua_tonumber(L, -1));
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "spacing");
-    if (lua_isnumber(L, -1)) {
-        spec.spacing = static_cast<int>(lua_tonumber(L, -1));
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "border");
-    if (lua_isstring(L, -1)) {
-        spec.border_style = lua_tostring(L, -1);
-    }
-    lua_pop(L, 1);
-}
-
-// 辅助函数：从 Lua 表解析 WidgetSpec
-pnana::core::ui::WidgetSpec UIAPI::parseWidgetSpecFromLua(lua_State* L, int index) {
-    pnana::core::ui::WidgetSpec spec;
-
-    if (!lua_istable(L, index)) {
-        spec.type = pnana::core::ui::WidgetType::TEXT;
-        spec.label = "(invalid widget)";
-        return spec;
-    }
-
-    // 解析类型
-    lua_getfield(L, index, "type");
-    if (lua_isstring(L, -1)) {
-        const char* type_str = lua_tostring(L, -1);
-        // 基础显示组件
-        if (strcmp(type_str, "text") == 0) {
-            spec.type = pnana::core::ui::WidgetType::TEXT;
-        } else if (strcmp(type_str, "paragraph") == 0) {
-            spec.type = pnana::core::ui::WidgetType::PARAGRAPH;
-        } else if (strcmp(type_str, "separator") == 0) {
-            spec.type = pnana::core::ui::WidgetType::SEPARATOR;
-        } else if (strcmp(type_str, "canvas") == 0) {
-            spec.type = pnana::core::ui::WidgetType::CANVAS;
-        } else if (strcmp(type_str, "spinner") == 0) {
-            spec.type = pnana::core::ui::WidgetType::SPINNER;
-        } else if (strcmp(type_str, "image") == 0) {
-            spec.type = pnana::core::ui::WidgetType::IMAGE;
-        } else if (strcmp(type_str, "animation") == 0) {
-            spec.type = pnana::core::ui::WidgetType::ANIMATION;
-        } else if (strcmp(type_str, "bullet") == 0) {
-            spec.type = pnana::core::ui::WidgetType::BULLET;
-        } else if (strcmp(type_str, "link") == 0) {
-            spec.type = pnana::core::ui::WidgetType::LINK;
-        }
-        // 基础交互组件
-        else if (strcmp(type_str, "input") == 0) {
-            spec.type = pnana::core::ui::WidgetType::INPUT;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "textarea") == 0) {
-            spec.type = pnana::core::ui::WidgetType::TEXTAREA;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "button") == 0) {
-            spec.type = pnana::core::ui::WidgetType::BUTTON;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "checkbox") == 0) {
-            spec.type = pnana::core::ui::WidgetType::CHECKBOX;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "radiobox") == 0) {
-            spec.type = pnana::core::ui::WidgetType::RADIOBOX;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "toggle") == 0) {
-            spec.type = pnana::core::ui::WidgetType::TOGGLE;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "slider") == 0) {
-            spec.type = pnana::core::ui::WidgetType::SLIDER;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "dropdown") == 0) {
-            spec.type = pnana::core::ui::WidgetType::DROPDOWN;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "menu") == 0) {
-            spec.type = pnana::core::ui::WidgetType::MENU;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "color_picker") == 0) {
-            spec.type = pnana::core::ui::WidgetType::COLOR_PICKER;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "file_picker") == 0) {
-            spec.type = pnana::core::ui::WidgetType::FILE_PICKER;
-            spec.focusable = true;
-        } else if (strcmp(type_str, "gauge") == 0) {
-            spec.type = pnana::core::ui::WidgetType::GAUGE;
-        } else if (strcmp(type_str, "list") == 0) {
-            spec.type = pnana::core::ui::WidgetType::LIST;
-            spec.focusable = true;
-        }
-        // 容器组件
-        else if (strcmp(type_str, "window") == 0) {
-            spec.type = pnana::core::ui::WidgetType::WINDOW;
-        } else if (strcmp(type_str, "container") == 0) {
-            spec.type = pnana::core::ui::WidgetType::CONTAINER;
-        } else if (strcmp(type_str, "group") == 0) {
-            spec.type = pnana::core::ui::WidgetType::GROUP;
-        } else if (strcmp(type_str, "hbox") == 0) {
-            spec.type = pnana::core::ui::WidgetType::HBOX;
-        } else if (strcmp(type_str, "vbox") == 0) {
-            spec.type = pnana::core::ui::WidgetType::VBOX;
-        } else if (strcmp(type_str, "dbox") == 0) {
-            spec.type = pnana::core::ui::WidgetType::DBOX;
-        } else if (strcmp(type_str, "split") == 0) {
-            spec.type = pnana::core::ui::WidgetType::SPLIT;
-        } else if (strcmp(type_str, "resizable_split") == 0) {
-            spec.type = pnana::core::ui::WidgetType::RESIZABLE_SPLIT;
-        } else if (strcmp(type_str, "tabs") == 0) {
-            spec.type = pnana::core::ui::WidgetType::TABS;
-        } else if (strcmp(type_str, "grid") == 0) {
-            spec.type = pnana::core::ui::WidgetType::GRID;
-        } else if (strcmp(type_str, "frame") == 0) {
-            spec.type = pnana::core::ui::WidgetType::FRAME;
-        } else if (strcmp(type_str, "yframe") == 0) {
-            spec.type = pnana::core::ui::WidgetType::YFRAME;
-        } else if (strcmp(type_str, "xframe") == 0) {
-            spec.type = pnana::core::ui::WidgetType::XFRAME;
-        } else if (strcmp(type_str, "vscroll") == 0) {
-            spec.type = pnana::core::ui::WidgetType::VSCROLL;
-        } else if (strcmp(type_str, "hscroll") == 0) {
-            spec.type = pnana::core::ui::WidgetType::HSCROLL;
-        }
-        // 弹窗/模态组件
-        else if (strcmp(type_str, "modal") == 0) {
-            spec.type = pnana::core::ui::WidgetType::MODAL;
-        } else if (strcmp(type_str, "popup") == 0) {
-            spec.type = pnana::core::ui::WidgetType::POPUP;
-        } else if (strcmp(type_str, "notification") == 0) {
-            spec.type = pnana::core::ui::WidgetType::NOTIFICATION;
-        }
-    }
-    lua_pop(L, 1);
-
-    // 解析 ID
-    lua_getfield(L, index, "id");
-    if (lua_isstring(L, -1)) {
-        spec.id = lua_tostring(L, -1);
-    }
-    lua_pop(L, 1);
-
-    // 解析标签/文本
-    lua_getfield(L, index, "text");
-    if (lua_isstring(L, -1)) {
-        spec.label = lua_tostring(L, -1);
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, index, "label");
-    if (lua_isstring(L, -1)) {
-        spec.label = lua_tostring(L, -1);
-    }
-    lua_pop(L, 1);
-
-    // 解析值
-    lua_getfield(L, index, "value");
-    if (lua_isstring(L, -1)) {
-        spec.value = lua_tostring(L, -1);
-    }
-    lua_pop(L, 1);
-
-    // 解析列表项
-    lua_getfield(L, index, "items");
-    if (lua_istable(L, -1)) {
-        int len = static_cast<int>(luaL_len(L, -1));
-        for (int i = 1; i <= len; ++i) {
-            lua_rawgeti(L, -1, i);
-            if (lua_isstring(L, -1)) {
-                spec.items.emplace_back(lua_tostring(L, -1));
-            }
-            lua_pop(L, 1);
-        }
-    }
-    lua_pop(L, 1);
-
-    // 解析布局选项
-    parseLayoutOptions(L, index, spec);
-
-    // 递归解析子元素
-    lua_getfield(L, index, "children");
-    if (lua_istable(L, -1)) {
-        int len = static_cast<int>(luaL_len(L, -1));
-        for (int i = 1; i <= len; ++i) {
-            lua_rawgeti(L, -1, i);
-            spec.children.push_back(parseWidgetSpecFromLua(L, -1));
-            lua_pop(L, 1);
-        }
-    }
-    lua_pop(L, 1);
-
-    return spec;
-}
+// 解析逻辑已统一迁移到 core/ui/LuaUIParser
 
 // vim.ui.create_layout(opts) -> layout_spec
 // 创建布局规范（用于复杂的自定义布局）
-int UIAPI::lua_ui_create_layout(lua_State* L) {
+int UIAPI::lua_fn_create_layout(lua_State* L) {
     // 解析传入的布局定义
-    pnana::core::ui::WidgetSpec spec = parseWidgetSpecFromLua(L, 1);
+    pnana::core::ui::WidgetSpec spec = pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, 1);
 
     // 将 spec 存储在 Lua 注册表中，返回引用
     // 这里简化处理，直接返回一个表表示布局
@@ -1234,7 +1217,7 @@ int UIAPI::lua_ui_create_layout(lua_State* L) {
 
 // vim.ui.open_layout_window(opts) -> win_id
 // 使用复杂布局打开窗口
-int UIAPI::lua_ui_open_layout_window(lua_State* L) {
+int UIAPI::lua_fn_open_layout_window(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushnil(L);
@@ -1245,6 +1228,43 @@ int UIAPI::lua_ui_open_layout_window(lua_State* L) {
     int width = 80;
     int height = 24;
     pnana::core::ui::WidgetSpec root_spec;
+
+    // 收集 lua 回调并绑定到 widget_id:event
+    std::unordered_map<std::string, int> event_refs;
+    std::function<void(int, const pnana::core::ui::WidgetSpec&)> collect_event_refs;
+    collect_event_refs = [&](int table_idx, const pnana::core::ui::WidgetSpec& spec_node) {
+        if (!lua_istable(L, table_idx)) {
+            return;
+        }
+
+        lua_getfield(L, table_idx, "on");
+        if (lua_istable(L, -1) && !spec_node.id.empty()) {
+            lua_pushnil(L);
+            while (lua_next(L, -2) != 0) {
+                if (lua_isstring(L, -2) && lua_isfunction(L, -1)) {
+                    const char* event_name = lua_tostring(L, -2);
+                    if (event_name) {
+                        lua_pushvalue(L, -1);
+                        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                        event_refs[spec_node.id + ":" + event_name] = ref;
+                    }
+                }
+                lua_pop(L, 1);
+            }
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, table_idx, "children");
+        if (lua_istable(L, -1)) {
+            int len = static_cast<int>(luaL_len(L, -1));
+            for (int i = 1; i <= len && i <= static_cast<int>(spec_node.children.size()); ++i) {
+                lua_rawgeti(L, -1, i);
+                collect_event_refs(lua_gettop(L), spec_node.children[static_cast<size_t>(i - 1)]);
+                lua_pop(L, 1);
+            }
+        }
+        lua_pop(L, 1);
+    };
 
     if (lua_istable(L, 1)) {
         lua_getfield(L, 1, "title");
@@ -1268,7 +1288,8 @@ int UIAPI::lua_ui_open_layout_window(lua_State* L) {
         // 解析布局
         lua_getfield(L, 1, "layout");
         if (lua_istable(L, -1)) {
-            root_spec = parseWidgetSpecFromLua(L, -1);
+            root_spec = pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, -1);
+            collect_event_refs(lua_gettop(L), root_spec);
         }
         lua_pop(L, 1);
     }
@@ -1290,8 +1311,37 @@ int UIAPI::lua_ui_open_layout_window(lua_State* L) {
     }
 
     int lua_win_id = next_window_id_++;
-    int handle = lua_api->getEditor()->getPopupManagerForLua()->openPopup(spec, {});
+    pnana::core::ui::PopupCallbacks callbacks;
+    callbacks.on_widget_action = [lua_win_id](const std::string& widget_event) {
+        auto state_it = window_lua_states_.find(lua_win_id);
+        auto ref_it = window_event_refs_.find(lua_win_id);
+        if (state_it == window_lua_states_.end() || ref_it == window_event_refs_.end()) {
+            return;
+        }
+
+        lua_State* lua_state = state_it->second;
+        auto cb_it = ref_it->second.find(widget_event);
+        if (!lua_state || cb_it == ref_it->second.end()) {
+            return;
+        }
+
+        lua_rawgeti(lua_state, LUA_REGISTRYINDEX, cb_it->second);
+        if (!lua_isfunction(lua_state, -1)) {
+            lua_pop(lua_state, 1);
+            return;
+        }
+
+        if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
+            const char* error = lua_tostring(lua_state, -1);
+            LOG_ERROR("Lua UI callback error: " + std::string(error ? error : "unknown"));
+            lua_pop(lua_state, 1);
+        }
+    };
+
+    int handle = lua_api->getEditor()->getPopupManagerForLua()->openPopup(spec, callbacks);
     window_handles_[lua_win_id] = handle;
+    window_lua_states_[lua_win_id] = L;
+    window_event_refs_[lua_win_id] = std::move(event_refs);
 
     lua_pushinteger(L, static_cast<lua_Integer>(lua_win_id));
     return 1;
@@ -1299,7 +1349,7 @@ int UIAPI::lua_ui_open_layout_window(lua_State* L) {
 
 // vim.ui.update_layout(win_id, layout) -> boolean
 // 更新窗口布局
-int UIAPI::lua_ui_update_layout(lua_State* L) {
+int UIAPI::lua_fn_update_layout(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
     if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
         lua_pushboolean(L, false);
@@ -1314,7 +1364,8 @@ int UIAPI::lua_ui_update_layout(lua_State* L) {
     }
 
     // 解析新布局
-    pnana::core::ui::WidgetSpec new_root = parseWidgetSpecFromLua(L, 2);
+    pnana::core::ui::WidgetSpec new_root =
+        pnana::core::ui::LuaUIParser::parseWidgetSpecFromLua(L, 2);
 
     // 构建更新
     pnana::core::ui::PopupSpec patch;

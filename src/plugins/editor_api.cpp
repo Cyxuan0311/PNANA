@@ -9,7 +9,7 @@ namespace pnana {
 namespace plugins {
 
 // 在 Lua 注册表中存储编辑器指针的键
-static const char* EDITOR_REGISTRY_KEY = "pnana_editor";
+static const char* kEditorRegistryKey = "pnana_editor";
 
 EditorAPI::EditorAPI(core::Editor* editor) : editor_(editor) {}
 
@@ -18,48 +18,48 @@ EditorAPI::~EditorAPI() {}
 void EditorAPI::registerFunctions(lua_State* L) {
     // 在注册表中存储编辑器指针
     lua_pushlightuserdata(L, editor_);
-    lua_setfield(L, LUA_REGISTRYINDEX, EDITOR_REGISTRY_KEY);
+    lua_setfield(L, LUA_REGISTRYINDEX, kEditorRegistryKey);
 
-    // 注册API函数到vim.api表
+    // 注册 API 函数到 vim.api 表
     lua_getglobal(L, "vim");
     lua_getfield(L, -1, "api");
 
-    lua_pushcfunction(L, lua_api_get_current_line);
+    lua_pushcfunction(L, lua_fn_get_current_line);
     lua_setfield(L, -2, "get_current_line");
 
-    lua_pushcfunction(L, lua_api_get_line_count);
+    lua_pushcfunction(L, lua_fn_get_line_count);
     lua_setfield(L, -2, "get_line_count");
 
-    lua_pushcfunction(L, lua_api_get_cursor_pos);
+    lua_pushcfunction(L, lua_fn_get_cursor_pos);
     lua_setfield(L, -2, "get_cursor_pos");
 
-    lua_pushcfunction(L, lua_api_set_cursor_pos);
+    lua_pushcfunction(L, lua_fn_set_cursor_pos);
     lua_setfield(L, -2, "set_cursor_pos");
 
-    lua_pushcfunction(L, lua_api_get_line);
+    lua_pushcfunction(L, lua_fn_get_line);
     lua_setfield(L, -2, "get_line");
 
-    lua_pushcfunction(L, lua_api_set_line);
+    lua_pushcfunction(L, lua_fn_set_line);
     lua_setfield(L, -2, "set_line");
 
-    lua_pushcfunction(L, lua_api_insert_text);
+    lua_pushcfunction(L, lua_fn_insert_text);
     lua_setfield(L, -2, "insert_text");
 
-    lua_pushcfunction(L, lua_api_delete_line);
+    lua_pushcfunction(L, lua_fn_delete_line);
     lua_setfield(L, -2, "delete_line");
 
-    lua_pop(L, 2); // 弹出vim和api表
+    lua_pop(L, 2); // 弹出 vim 和 api 表
 }
 
 core::Editor* EditorAPI::getEditorFromLua(lua_State* L) {
-    lua_getfield(L, LUA_REGISTRYINDEX, EDITOR_REGISTRY_KEY);
+    lua_getfield(L, LUA_REGISTRYINDEX, kEditorRegistryKey);
     core::Editor* editor = static_cast<core::Editor*>(lua_touserdata(L, -1));
     lua_pop(L, 1);
     return editor;
 }
 
 // vim.api.get_current_line() -> string
-int EditorAPI::lua_api_get_current_line(lua_State* L) {
+int EditorAPI::lua_fn_get_current_line(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor) {
         lua_pushnil(L);
@@ -75,7 +75,8 @@ int EditorAPI::lua_api_get_current_line(lua_State* L) {
     // 获取光标所在行
     size_t row = editor->getCursorRowForLua();
     if (row < doc->lineCount()) {
-        lua_pushstring(L, doc->getLine(row).c_str());
+        const std::string& line = doc->getLine(row);
+        lua_pushlstring(L, line.c_str(), line.size());
     } else {
         lua_pushstring(L, "");
     }
@@ -83,7 +84,7 @@ int EditorAPI::lua_api_get_current_line(lua_State* L) {
 }
 
 // vim.api.get_line_count() -> number
-int EditorAPI::lua_api_get_line_count(lua_State* L) {
+int EditorAPI::lua_fn_get_line_count(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor) {
         lua_pushinteger(L, 0);
@@ -101,7 +102,7 @@ int EditorAPI::lua_api_get_line_count(lua_State* L) {
 }
 
 // vim.api.get_cursor_pos() -> {row, col}
-int EditorAPI::lua_api_get_cursor_pos(lua_State* L) {
+int EditorAPI::lua_fn_get_cursor_pos(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     lua_newtable(L);
 
@@ -122,7 +123,7 @@ int EditorAPI::lua_api_get_cursor_pos(lua_State* L) {
 }
 
 // vim.api.set_cursor_pos({row, col})
-int EditorAPI::lua_api_set_cursor_pos(lua_State* L) {
+int EditorAPI::lua_fn_set_cursor_pos(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor || !lua_istable(L, 1)) {
         return 0;
@@ -148,7 +149,7 @@ int EditorAPI::lua_api_set_cursor_pos(lua_State* L) {
 }
 
 // vim.api.get_line(row) -> string
-int EditorAPI::lua_api_get_line(lua_State* L) {
+int EditorAPI::lua_fn_get_line(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor) {
         lua_pushnil(L);
@@ -162,12 +163,13 @@ int EditorAPI::lua_api_get_line(lua_State* L) {
         return 1;
     }
 
-    lua_pushstring(L, doc->getLine(static_cast<size_t>(row)).c_str());
+    const std::string& line = doc->getLine(static_cast<size_t>(row));
+    lua_pushlstring(L, line.c_str(), line.size());
     return 1;
 }
 
 // vim.api.set_line(row, text)
-int EditorAPI::lua_api_set_line(lua_State* L) {
+int EditorAPI::lua_fn_set_line(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor) {
         return 0;
@@ -181,12 +183,12 @@ int EditorAPI::lua_api_set_line(lua_State* L) {
         return 0;
     }
 
-    doc->replaceLine(static_cast<size_t>(row), std::string(text));
+    doc->replaceLine(static_cast<size_t>(row), text);
     return 0;
 }
 
 // vim.api.insert_text(row, col, text)
-int EditorAPI::lua_api_insert_text(lua_State* L) {
+int EditorAPI::lua_fn_insert_text(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor) {
         return 0;
@@ -205,12 +207,12 @@ int EditorAPI::lua_api_insert_text(lua_State* L) {
         return 0;
     }
 
-    doc->insertText(static_cast<size_t>(row), static_cast<size_t>(col), std::string(text));
+    doc->insertText(static_cast<size_t>(row), static_cast<size_t>(col), text);
     return 0;
 }
 
 // vim.api.delete_line(row)
-int EditorAPI::lua_api_delete_line(lua_State* L) {
+int EditorAPI::lua_fn_delete_line(lua_State* L) {
     core::Editor* editor = getEditorFromLua(L);
     if (!editor) {
         return 0;

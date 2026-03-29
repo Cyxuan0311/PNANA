@@ -15,15 +15,17 @@ namespace plugins {
 class PathValidator;
 
 /**
- * @brief 文件操作相关的Lua API
+ * @brief 文件操作相关的 Lua API
  * 处理文件打开、保存、路径获取等文件操作
+ *
+ * 注册到 vim.api 和 vim.fn 命名空间
  */
 class FileAPI {
   public:
     FileAPI(core::Editor* editor);
     ~FileAPI();
 
-    // 注册所有文件相关的API函数
+    // 注册所有文件相关的 API 函数
     void registerFunctions(lua_State* L);
 
     // 设置路径验证器（用于沙盒环境）
@@ -33,16 +35,16 @@ class FileAPI {
     core::Editor* editor_;
     PathValidator* path_validator_; // 路径验证器（不拥有所有权）
 
-    // 文件操作API函数
-    static int lua_api_get_filepath(lua_State* L);
-    static int lua_api_open_file(lua_State* L);
-    static int lua_api_save_file(lua_State* L);
+    // 文件操作 API 函数（统一使用 lua_fn_* 前缀）
+    static int lua_fn_get_filepath(lua_State* L);
+    static int lua_fn_open_file(lua_State* L);
+    static int lua_fn_save_file(lua_State* L);
     static int lua_fn_readfile(lua_State* L);
     static int lua_fn_writefile(lua_State* L);
-    static int lua_secure_io_read_text(lua_State* L);
-    static int lua_secure_io_write_text(lua_State* L);
-    static int lua_secure_io_append_text(lua_State* L);
-    static int lua_secure_io_exists(lua_State* L);
+    static int lua_fn_secure_io_read_text(lua_State* L);
+    static int lua_fn_secure_io_write_text(lua_State* L);
+    static int lua_fn_secure_io_append_text(lua_State* L);
+    static int lua_fn_secure_io_exists(lua_State* L);
 
     // 辅助函数
     static core::Editor* getEditorFromLua(lua_State* L);

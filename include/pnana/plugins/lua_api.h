@@ -5,7 +5,9 @@
 
 #include "plugins/editor_api.h"
 #include "plugins/file_api.h"
+#include "plugins/icon_api.h"
 #include "plugins/lua_engine.h"
+#include "plugins/lua_ui_runtime.h"
 #include "plugins/system_api.h"
 #include "plugins/theme_api.h"
 #include "plugins/ui_api.h"
@@ -121,12 +123,14 @@ class LuaAPI {
     core::Editor* editor_;
     LuaEngine* engine_;
 
-    // 组合的API组件
+    // 组合的 API 组件
     std::unique_ptr<EditorAPI> editor_api_;
     std::unique_ptr<FileAPI> file_api_;
+    std::unique_ptr<IconAPI> icon_api_;
     std::unique_ptr<ThemeAPI> theme_api_;
     std::unique_ptr<SystemAPI> system_api_;
     std::unique_ptr<UIAPI> ui_api_;
+    std::unique_ptr<LuaUIRuntime> lua_ui_runtime_;
 
     // 事件监听器映射: event -> [callbacks] (旧API兼容)
     std::map<std::string, std::vector<std::string>> event_listeners_;

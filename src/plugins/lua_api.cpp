@@ -4,6 +4,7 @@
 #include "core/document.h"
 #include "core/editor.h"
 #include "features/command_palette.h"
+#include "plugins/icon_api.h"
 #include "utils/logger.h"
 #include <cstdio>
 #include <filesystem>
@@ -22,12 +23,13 @@ static const char* API_REGISTRY_KEY = "pnana_api";
 static const char* LUA_API_REGISTRY_KEY = "pnana_lua_api";
 
 LuaAPI::LuaAPI(core::Editor* editor) : editor_(editor), engine_(nullptr) {
-    // 初始化各个API组件
+    // 初始化各个 API 组件
     editor_api_ = std::make_unique<EditorAPI>(editor);
     file_api_ = std::make_unique<FileAPI>(editor);
     theme_api_ = std::make_unique<ThemeAPI>(editor);
     system_api_ = std::make_unique<SystemAPI>();
     ui_api_ = std::make_unique<UIAPI>();
+    icon_api_ = std::make_unique<IconAPI>();
 }
 
 LuaAPI::~LuaAPI() {}
@@ -59,17 +61,20 @@ void LuaAPI::initialize(LuaEngine* engine) {
     // 创建嵌套表（自动处理）
     engine_->createNestedTable("vim.api");
     engine_->createNestedTable("vim.fn");
+    engine_->createNestedTable("vim.icon");
 
-    // 设置SystemAPI/UIAPI的LuaAPI引用
+    // 设置 SystemAPI/UIAPI 的 LuaAPI 引用
     system_api_->setLuaAPI(this);
     ui_api_->setLuaAPI(this);
+    icon_api_->setLuaAPI(this);
 
-    // 初始化各个API组件
+    // 初始化各个 API 组件
     editor_api_->registerFunctions(L);
     file_api_->registerFunctions(L);
     theme_api_->registerFunctions(L);
     system_api_->registerFunctions(L);
     ui_api_->registerFunctions(L);
+    icon_api_->registerFunctions(L);
 }
 
 core::Editor* LuaAPI::getEditorFromLua(lua_State* L) {
@@ -541,14 +546,26 @@ void LuaAPI::registerPaletteCommand(const std::string& id, const std::string& na
                                     const std::string& desc,
                                     const std::vector<std::string>& keywords, int callback_ref,
                                     bool force) {
-    if (!editor_ || id.empty()) {
+    LOG_DEBUG("[LuaAPI::registerPaletteCommand] Called with id=" + id + ", name=" + name);
+
+    if (!editor_) {
+        LOG_ERROR("[LuaAPI::registerPaletteCommand] editor_ is null");
+        return;
+    }
+
+    if (id.empty()) {
+        LOG_ERROR("[LuaAPI::registerPaletteCommand] id is empty");
         return;
     }
 
     // 如果命令已存在且 force=true，释放旧的回调引用
     auto existing_it = palette_commands_.find(id);
     if (existing_it != palette_commands_.end()) {
+        LOG_DEBUG("[LuaAPI::registerPaletteCommand] Command already exists, force=" +
+                  std::to_string(force));
         if (!force) {
+            LOG_WARNING(
+                "[LuaAPI::registerPaletteCommand] Command exists and force=false, skipping");
             return;
         }
         // 释放旧的 Lua 回调引用
@@ -569,8 +586,10 @@ void LuaAPI::registerPaletteCommand(const std::string& id, const std::string& na
     // 使用 emplace 而不是 operator[] 来避免不必要的拷贝
     auto result = palette_commands_.emplace(id, std::move(info));
     if (!result.second) {
+        LOG_ERROR("[LuaAPI::registerPaletteCommand] Failed to emplace command");
         return;
     }
+    LOG_DEBUG("[LuaAPI::registerPaletteCommand] Command registered successfully");
 
     // 创建 Command 对象
     auto display_name = name.empty() ? id : name;
@@ -578,25 +597,35 @@ void LuaAPI::registerPaletteCommand(const std::string& id, const std::string& na
 
     // 使用 shared_ptr 管理 lambda 生命周期，避免悬空指针
     auto callback_ptr = std::make_shared<std::function<void()>>([this, captured_id]() {
+        LOG_DEBUG("[LuaAPI::registerPaletteCommand] Callback triggered for id=" + captured_id);
         this->executePaletteCommand(captured_id);
     });
 
+    LOG_DEBUG("[LuaAPI::registerPaletteCommand] Registering with command palette");
     editor_->getCommandPalette().registerCommand(
         features::Command(captured_id, display_name, desc, keywords, callback_ptr));
+    LOG_DEBUG("[LuaAPI::registerPaletteCommand] Done");
 }
 
 bool LuaAPI::executePaletteCommand(const std::string& id) {
+    LOG_DEBUG("[LuaAPI::executePaletteCommand] Called with id=" + id);
+
     if (!engine_ || !engine_->getState()) {
+        LOG_ERROR("[LuaAPI::executePaletteCommand] engine_ or state is null");
         return false;
     }
 
     auto it = palette_commands_.find(id);
     if (it == palette_commands_.end()) {
+        LOG_ERROR("[LuaAPI::executePaletteCommand] Command not found: " + id);
         return false;
     }
+    LOG_DEBUG("[LuaAPI::executePaletteCommand] Command found, callback_ref=" +
+              std::to_string(it->second.callback_ref));
 
     // 检查回调引用是否有效
     if (it->second.callback_ref == LUA_REFNIL || it->second.callback_ref == LUA_NOREF) {
+        LOG_ERROR("[LuaAPI::executePaletteCommand] Invalid callback_ref");
         return false;
     }
 
@@ -604,6 +633,7 @@ bool LuaAPI::executePaletteCommand(const std::string& id) {
 
     // 检查 Lua 栈空间
     if (!lua_checkstack(L, 3)) {
+        LOG_ERROR("[LuaAPI::executePaletteCommand] Failed to check stack");
         return false;
     }
 
@@ -613,10 +643,13 @@ bool LuaAPI::executePaletteCommand(const std::string& id) {
     // 检查栈顶元素的类型
     int top_type = lua_type(L, -1);
     if (top_type != LUA_TFUNCTION) {
+        LOG_ERROR("[LuaAPI::executePaletteCommand] Callback is not a function, type=" +
+                  std::to_string(top_type));
         lua_pop(L, 1);
         return false;
     }
 
+    LOG_DEBUG("[LuaAPI::executePaletteCommand] Executing callback");
     if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
         const char* error = lua_tostring(L, -1);
         LOG_ERROR("[LuaAPI] Palette command execution error: " +
@@ -624,6 +657,7 @@ bool LuaAPI::executePaletteCommand(const std::string& id) {
         lua_pop(L, 1);
         return false;
     }
+    LOG_DEBUG("[LuaAPI::executePaletteCommand] Success");
 
     return true;
 }

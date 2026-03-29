@@ -95,6 +95,9 @@ class PluginManager {
         return lua_api_.get();
     }
 
+    // 处理 defer_fn 延迟任务
+    void processDeferred();
+
   private:
     core::Editor* editor_;
     std::unique_ptr<LuaEngine> lua_engine_;

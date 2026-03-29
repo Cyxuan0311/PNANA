@@ -164,11 +164,20 @@ void LuaEngine::loadStandardLibs() {
     lua_setfield(L_, LUA_REGISTRYINDEX, "_LOADED");
     lua_pop(L_, 1);
 
-    // 重写 print 函数，禁用输出（避免插件输出干扰用户）
+    // 重写 print 函数，输出到日志文件（方便插件调试）
     lua_pushcfunction(L_, [](lua_State* L) -> int {
-        // 不输出任何内容，直接返回
-        // 移除所有参数（print 可能有多个参数）
         int n = lua_gettop(L);
+        std::string message;
+        for (int i = 1; i <= n; ++i) {
+            if (i > 1)
+                message += " ";
+            if (lua_isstring(L, i)) {
+                message += lua_tostring(L, i);
+            } else {
+                message += lua_typename(L, lua_type(L, i));
+            }
+        }
+        LOG("[Lua] " + message);
         lua_pop(L, n);
         return 0;
     });
@@ -193,18 +202,26 @@ bool LuaEngine::executeString(const std::string& code) {
 
 bool LuaEngine::executeFile(const std::string& filepath) {
     if (!L_) {
-        LOG_ERROR("Lua state not initialized");
+        LOG_ERROR("[LuaEngine::executeFile] Lua state not initialized");
         return false;
     }
 
     int result = luaL_loadfile(L_, filepath.c_str());
     if (result != LUA_OK) {
+        LOG_ERROR("[LuaEngine::executeFile] Failed to load file: " + filepath);
         handleError("loadfile: " + filepath);
         return false;
     }
 
     result = lua_pcall(L_, 0, LUA_MULTRET, 0);
-    return checkError(result);
+    bool success = checkError(result);
+
+    if (success) {
+    } else {
+        LOG_ERROR("[LuaEngine::executeFile] Failed to execute file: " + filepath);
+    }
+
+    return success;
 }
 
 void LuaEngine::registerFunction(const std::string& name, lua_CFunction func) {
@@ -447,6 +464,16 @@ void LuaEngine::handleError(const std::string& context) {
         std::string error_msg = "Lua error in " + context + ": " + std::string(error);
         LOG_ERROR(error_msg);
         lua_pop(L_, 1);
+
+        // 提供结构化错误信息给 Lua 层
+        lua_newtable(L_);
+        lua_pushstring(L_, "context");
+        lua_pushstring(L_, context.c_str());
+        lua_settable(L_, -3);
+        lua_pushstring(L_, "message");
+        lua_pushstring(L_, error);
+        lua_settable(L_, -3);
+        lua_setglobal(L_, "__pnana_last_lua_error");
     }
 }
 
