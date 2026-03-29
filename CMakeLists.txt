@@ -457,11 +457,13 @@ set(SOURCES
     src/core/ui/border_manager.cpp
     src/core/ui/ui_router.cpp
     src/core/ui/layout_engine.cpp
+    src/core/ui/lua_ui_parser.cpp
     src/core/ui/popup_manager.cpp
     # 插件系统
     src/plugins/lua_engine.cpp
     src/plugins/plugin_manager.cpp
     src/plugins/lua_api.cpp
+    src/plugins/lua_ui_runtime.cpp
 )
 
 # Tree-sitter 模块（如果启用）
@@ -538,6 +540,7 @@ set(HEADERS
     include/pnana/core/ui/base_region_renderer.h
     include/pnana/core/ui/border_manager.h
     include/pnana/core/ui/ui_router.h
+    include/pnana/core/ui/lua_ui_parser.h
     # UI模块头文件
     include/pnana/ui/theme.h
     include/pnana/ui/statusbar.h
@@ -602,6 +605,7 @@ set(HEADERS
     include/pnana/plugins/lua_engine.h
     include/pnana/plugins/plugin_manager.h
     include/pnana/plugins/lua_api.h
+    include/pnana/plugins/lua_ui_runtime.h
     # 工具模块头文件
     include/pnana/utils/logger.h
     include/pnana/utils/text_analyzer.h
@@ -767,10 +771,11 @@ if(BUILD_LUA_SUPPORT)
     target_link_libraries(pnana PRIVATE ${LUA_LIBRARIES})
     target_compile_definitions(pnana PRIVATE BUILD_LUA_SUPPORT)
 
-    # 添加Lua API组件源文件
+    # 添加 Lua API 组件源文件
     target_sources(pnana PRIVATE
         src/plugins/editor_api.cpp
         src/plugins/file_api.cpp
+        src/plugins/icon_api.cpp
         src/plugins/theme_api.cpp
         src/plugins/system_api.cpp
         src/plugins/ui_api.cpp
