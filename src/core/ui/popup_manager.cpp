@@ -1,6 +1,9 @@
 #include "core/ui/popup_manager.h"
+#include "utils/logger.h"
 #include <algorithm>
+#include <cctype>
 #include <ftxui/dom/elements.hpp>
+#include <sstream>
 
 using namespace ftxui;
 
@@ -9,6 +12,289 @@ namespace core {
 namespace ui {
 
 namespace {
+
+// 颜色名称映射表
+std::map<std::string, Color> createColorMap() {
+    std::map<std::string, Color> color_map;
+    color_map["black"] = Color::Black;
+    color_map["red"] = Color::Red;
+    color_map["green"] = Color::Green;
+    color_map["yellow"] = Color::Yellow;
+    color_map["blue"] = Color::Blue;
+    color_map["magenta"] = Color::Magenta;
+    color_map["cyan"] = Color::Cyan;
+    color_map["white"] = Color::White;
+    return color_map;
+}
+
+const std::map<std::string, Color>& getColorMap() {
+    static std::map<std::string, Color> color_map = createColorMap();
+    return color_map;
+}
+
+} // namespace
+
+// 解析颜色字符串为 FTXUI Color
+Color PopupManager::parseColor(const std::string& color_str) const {
+    if (color_str.empty()) {
+        return theme_ ? theme_->getColors().foreground : Color::Default;
+    }
+
+    std::string color = color_str;
+    // 移除空格
+    color.erase(std::remove(color.begin(), color.end(), ' '), color.end());
+
+    // 转换为小写
+    std::transform(color.begin(), color.end(), color.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+
+    // 检查是否是颜色名称
+    const auto& color_map = getColorMap();
+    auto it = color_map.find(color);
+    if (it != color_map.end()) {
+        return it->second;
+    }
+
+    // 检查是否是十六进制颜色 #RRGGBB
+    if (color.size() == 7 && color[0] == '#') {
+        try {
+            int r = std::stoi(color.substr(1, 2), nullptr, 16);
+            int g = std::stoi(color.substr(3, 2), nullptr, 16);
+            int b = std::stoi(color.substr(5, 2), nullptr, 16);
+            return Color::RGB(r, g, b);
+        } catch (...) {
+            // 解析失败，继续尝试其他格式
+        }
+    }
+
+    // 检查是否是 RGB 格式 "R,G,B"
+    if (color.find(',') != std::string::npos) {
+        std::istringstream iss(color);
+        std::string token;
+        std::vector<int> values;
+
+        while (std::getline(iss, token, ',')) {
+            try {
+                int value = std::stoi(token);
+                if (value < 0)
+                    value = 0;
+                if (value > 255)
+                    value = 255;
+                values.push_back(value);
+            } catch (...) {
+                return theme_ ? theme_->getColors().foreground : Color::Default;
+            }
+        }
+
+        if (values.size() >= 3) {
+            return Color::RGB(values[0], values[1], values[2]);
+        }
+    }
+
+    // 默认返回主题前景色
+    return theme_ ? theme_->getColors().foreground : Color::Default;
+}
+
+// 应用颜色装饰器到元素
+Element PopupManager::applyColorDecorators(
+    Element elem, const std::map<std::string, std::string>& color_config) const {
+    if (color_config.empty()) {
+        return elem;
+    }
+
+    auto it = color_config.find("fg");
+    if (it != color_config.end()) {
+        elem = elem | color(parseColor(it->second));
+    }
+
+    it = color_config.find("bg");
+    if (it != color_config.end()) {
+        elem = elem | bgcolor(parseColor(it->second));
+    }
+
+    it = color_config.find("bold");
+    if (it != color_config.end() && it->second == "true") {
+        elem = elem | bold;
+    }
+
+    it = color_config.find("underlined");
+    if (it != color_config.end() && it->second == "true") {
+        elem = elem | underlined;
+    }
+
+    it = color_config.find("dim");
+    if (it != color_config.end() && it->second == "true") {
+        elem = elem | dim;
+    }
+
+    it = color_config.find("inverted");
+    if (it != color_config.end() && it->second == "true") {
+        elem = elem | inverted;
+    }
+
+    return elem;
+}
+
+namespace {
+
+// 从查询字符串中提取搜索文本（去除前导的提示符和尾部的光标）
+std::string extractSearchText(const std::string& input_line) {
+    std::string text = input_line;
+
+    // 移除前导的提示符："> " 或 "❯ " (注意：❯ 是 UTF-8 多字节字符)
+    if (!text.empty()) {
+        // 检查是否以 "> " 开头
+        if (text.size() >= 2 && text.substr(0, 2) == "> ") {
+            text = text.substr(2);
+        }
+        // 检查是否以 "❯ " 开头（❯ 是 3 字节 UTF-8 字符，加上空格共 4 字节）
+        else if (text.size() >= 4 && text.substr(0, 4) == "❯ ") {
+            text = text.substr(4);
+        }
+    }
+
+    // 去除首尾空格
+    size_t start = text.find_first_not_of(" \t");
+    if (start == std::string::npos) {
+        return "";
+    }
+    size_t end = text.find_last_not_of(" \t");
+    text = text.substr(start, end - start + 1);
+
+    // 移除尾部的非字母数字字符（如光标符号 █ 等）
+    while (!text.empty() && !std::isalnum(static_cast<unsigned char>(text.back()))) {
+        text.pop_back();
+    }
+
+    return text;
+}
+
+// 在文本中查找并高亮搜索词
+Element highlightSearchInText(const std::string& text, const std::string& search_text,
+                              const Color& normal_color, const Color& highlight_color) {
+    if (search_text.empty()) {
+        return ::ftxui::text(text) | color(normal_color);
+    }
+
+    // 查找搜索词在文本中的位置
+    size_t pos = text.find(search_text);
+    if (pos == std::string::npos) {
+        return ::ftxui::text(text) | color(normal_color);
+    }
+
+    Elements result;
+
+    // 添加搜索词前的文本
+    if (pos > 0) {
+        result.push_back(::ftxui::text(text.substr(0, pos)) | color(normal_color));
+    }
+
+    // 添加高亮的搜索词
+    result.push_back(::ftxui::text(search_text) | color(highlight_color) | bold);
+
+    // 添加搜索词后的文本
+    size_t end_pos = pos + search_text.length();
+    if (end_pos < text.size()) {
+        result.push_back(::ftxui::text(text.substr(end_pos)) | color(normal_color));
+    }
+
+    // 组合所有元素
+    if (result.empty()) {
+        return ::ftxui::text("");
+    } else if (result.size() == 1) {
+        return result[0];
+    } else {
+        return hbox(std::move(result));
+    }
+}
+
+// 在文本中查找并高亮搜索词，同时为当前行标记（▶）设置特殊颜色
+Element highlightSearchInTextWithMarker(const std::string& text, const std::string& search_text,
+                                        const Color& normal_color, const Color& highlight_color,
+                                        const Color& marker_color) {
+    if (search_text.empty()) {
+        // 没有搜索词时，检查是否有当前行标记
+        size_t marker_pos = text.find("▶");
+        if (marker_pos != std::string::npos) {
+            Elements result;
+            // 标记前的文本
+            if (marker_pos > 0) {
+                result.push_back(::ftxui::text(text.substr(0, marker_pos)) | color(normal_color));
+            }
+            // 当前行标记使用特殊颜色
+            result.push_back(::ftxui::text("▶") | color(marker_color) | bold);
+            // 标记后的文本
+            if (marker_pos + 1 < text.size()) {
+                result.push_back(::ftxui::text(text.substr(marker_pos + 1)) | color(normal_color));
+            }
+            if (result.size() == 1) {
+                return result[0];
+            } else {
+                return hbox(std::move(result));
+            }
+        }
+        return ::ftxui::text(text) | color(normal_color);
+    }
+
+    // 有搜索词时，需要同时处理搜索词高亮和标记颜色
+    Elements result;
+    size_t search_pos = text.find(search_text);
+    size_t marker_pos = text.find("▶");
+
+    // 按位置顺序处理所有需要特殊样式的部分
+    std::vector<std::pair<size_t, std::string>> special_ranges;
+
+    // 添加搜索词范围
+    if (search_pos != std::string::npos) {
+        special_ranges.push_back({search_pos, "search"});
+    }
+
+    // 添加标记范围
+    if (marker_pos != std::string::npos) {
+        special_ranges.push_back({marker_pos, "marker"});
+    }
+
+    // 按位置排序
+    std::sort(special_ranges.begin(), special_ranges.end());
+
+    size_t current_pos = 0;
+    for (const auto& range : special_ranges) {
+        size_t start = range.first;
+        const std::string& type = range.second;
+
+        // 添加特殊部分前的普通文本
+        if (start > current_pos) {
+            result.push_back(::ftxui::text(text.substr(current_pos, start - current_pos)) |
+                             color(normal_color));
+        }
+
+        // 添加特殊部分
+        if (type == "marker") {
+            result.push_back(::ftxui::text("▶") | color(marker_color) | bold);
+            current_pos = start + 1;
+        } else if (type == "search") {
+            size_t search_len = search_text.length();
+            result.push_back(::ftxui::text(search_text) | color(highlight_color) | bold);
+            current_pos = start + search_len;
+        }
+    }
+
+    // 添加剩余的普通文本
+    if (current_pos < text.size()) {
+        result.push_back(::ftxui::text(text.substr(current_pos)) | color(normal_color));
+    }
+
+    // 组合所有元素
+    if (result.empty()) {
+        return ::ftxui::text("");
+    } else if (result.size() == 1) {
+        return result[0];
+    } else {
+        return hbox(std::move(result));
+    }
+}
+
 void collectFocusableIds(const WidgetSpec& node, std::vector<std::string>& ids) {
     if (node.focusable && !node.id.empty()) {
         ids.push_back(node.id);
@@ -62,6 +348,36 @@ bool PopupManager::updatePopup(PopupHandle handle, const PopupSpec& patch) {
 
     if (!patch.root.children.empty() || patch.root.type != WidgetType::TEXT) {
         it->second.spec.root = patch.root;
+    }
+
+    if (patch.component_mode) {
+        it->second.spec.component_mode = true;
+        it->second.spec.component_lines = patch.component_lines;
+        if (!patch.component_input_line.empty()) {
+            it->second.spec.component_input_line = patch.component_input_line;
+        }
+        if (!patch.component_left_title.empty()) {
+            it->second.spec.component_left_title = patch.component_left_title;
+        }
+        if (!patch.component_right_title.empty()) {
+            it->second.spec.component_right_title = patch.component_right_title;
+        }
+        if (!patch.component_left_lines.empty()) {
+            it->second.spec.component_left_lines = patch.component_left_lines;
+        }
+        if (!patch.component_right_lines.empty()) {
+            it->second.spec.component_right_lines = patch.component_right_lines;
+        }
+        if (!patch.component_help_lines.empty()) {
+            it->second.spec.component_help_lines = patch.component_help_lines;
+        }
+        // 更新颜色配置
+        if (!patch.component_left_line_colors.empty()) {
+            it->second.spec.component_left_line_colors = patch.component_left_line_colors;
+        }
+        if (!patch.component_right_line_colors.empty()) {
+            it->second.spec.component_right_line_colors = patch.component_right_line_colors;
+        }
     }
 
     rebuildFocusChain(it->second);
@@ -180,7 +496,10 @@ void PopupManager::focusNext(PopupState& state, bool backwards) {
 }
 
 bool PopupManager::dispatchAction(PopupState& state, const WidgetSpec* focused_widget) {
-    (void)focused_widget; // 暂时未使用
+    if (focused_widget && state.callbacks.on_widget_action && !focused_widget->id.empty()) {
+        state.callbacks.on_widget_action(focused_widget->id + ":press");
+    }
+
     if (!state.spec.items.empty()) {
         return closePopup(state.handle, true, state.live_input_value,
                           static_cast<std::size_t>(state.selected_index + 1));
@@ -237,6 +556,19 @@ WidgetSpec PopupManager::buildDefaultWidgetTree(const PopupState& state) const {
     root.children.push_back(cancel_button);
 
     return root;
+}
+
+const WidgetSpec* PopupManager::findWidgetById(const WidgetSpec& root,
+                                               const std::string& id) const {
+    if (root.id == id) {
+        return &root;
+    }
+    for (const auto& child : root.children) {
+        if (const WidgetSpec* found = findWidgetById(child, id)) {
+            return found;
+        }
+    }
+    return nullptr;
 }
 
 Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode& node) const {
@@ -596,6 +928,150 @@ Element PopupManager::renderPopupLayer(const PopupState& state, int screen_w, in
     auto rect =
         layout_engine_.computeCenteredRect(screen_w, screen_h, state.spec.width, state.spec.height);
 
+    if (state.spec.component_mode) {
+        Color fg = Color::White;
+        Color bg = Color::Black;
+        Color border_color = Color::GrayDark;
+        Color selection_bg = Color::GrayDark;
+        Color help_fg = Color::GrayLight;
+
+        if (theme_) {
+            const auto& c = theme_->getColors();
+            fg = c.foreground;
+            bg = c.dialog_bg;
+            border_color = c.dialog_border;
+            selection_bg = c.selection;
+            help_fg = c.helpbar_fg;
+        }
+
+        Elements left_rows;
+        for (size_t i = 0; i < state.spec.component_left_lines.size(); i++) {
+            const auto& line = state.spec.component_left_lines[i];
+            Element line_elem = text(line);
+
+            // 检查是否有颜色配置
+            if (i < state.spec.component_left_line_colors.size()) {
+                const auto& colors = state.spec.component_left_line_colors[i];
+                line_elem = applyColorDecorators(line_elem, colors);
+            } else {
+                // 没有颜色配置时使用默认逻辑
+                if (line.rfind(">>", 0) == 0) {
+                    line_elem = text(line.substr(2)) | bgcolor(selection_bg) | color(fg) | bold;
+                } else {
+                    line_elem = text(line) | color(fg);
+                }
+            }
+
+            left_rows.push_back(line_elem);
+        }
+        if (left_rows.empty()) {
+            left_rows.push_back(text(" ") | color(fg));
+        }
+
+        Elements right_rows;
+        // 使用主题中的 warning 颜色高亮匹配文本（如果没有主题，使用默认黄色）
+        Color highlight_color = theme_ ? theme_->getColors().warning : Color::RGB(255, 200, 0);
+        // 使用主题中的 success 颜色高亮当前行标记（如果没有主题，使用默认绿色）
+        Color current_line_marker_color =
+            theme_ ? theme_->getColors().success : Color::RGB(100, 200, 100);
+
+        // 从输入行中提取搜索文本
+        std::string search_text = extractSearchText(state.spec.component_input_line);
+
+        for (size_t i = 0; i < state.spec.component_right_lines.size(); i++) {
+            const auto& line = state.spec.component_right_lines[i];
+
+            // 检查是否有颜色配置
+            if (i < state.spec.component_right_line_colors.size()) {
+                const auto& colors = state.spec.component_right_line_colors[i];
+
+                // 从颜色配置中提取前景色用于搜索高亮
+                Color line_color = fg; // 默认使用前景色
+                auto fg_it = colors.find("fg");
+                if (fg_it != colors.end()) {
+                    line_color = parseColor(fg_it->second);
+                }
+
+                // 检查是否包含当前行标记 ▶ (U+25B6)
+                bool is_current_line = line.find("▶") != std::string::npos;
+
+                Element line_elem;
+                if (is_current_line) {
+                    // 当前行：使用颜色配置中的前景色，同时高亮搜索词和标记
+                    line_elem = highlightSearchInTextWithMarker(
+                        line, search_text, line_color, highlight_color, current_line_marker_color);
+                    // 应用其他颜色配置（如 bg、bold、dim 等）
+                    line_elem = applyColorDecorators(line_elem, colors);
+                } else {
+                    // 非当前行：使用颜色配置中的前景色高亮搜索词
+                    line_elem =
+                        highlightSearchInText(line, search_text, line_color, highlight_color);
+                    // 应用其他颜色配置（如 bg、bold、dim 等，但不包括 fg）
+                    std::map<std::string, std::string> other_colors = colors;
+                    other_colors.erase("fg"); // 移除 fg，因为已经在 highlightSearchInText 中应用了
+                    line_elem = applyColorDecorators(line_elem, other_colors);
+                }
+                right_rows.push_back(line_elem);
+            } else {
+                // 没有颜色配置时使用默认逻辑
+                // 检查是否包含当前行标记 ▶ (U+25B6)
+                bool is_current_line = line.find("▶") != std::string::npos;
+
+                if (is_current_line) {
+                    // 对当前行：使用新函数同时处理搜索词高亮和标记颜色
+                    right_rows.push_back(highlightSearchInTextWithMarker(
+                        line, search_text, fg, highlight_color, current_line_marker_color));
+                } else {
+                    // 非当前行使用普通颜色
+                    right_rows.push_back(
+                        highlightSearchInText(line, search_text, fg, highlight_color) | dim);
+                }
+            }
+        }
+        if (right_rows.empty()) {
+            right_rows.push_back(text(" ") | color(fg));
+        }
+
+        Elements help_rows;
+        for (const auto& line : state.spec.component_help_lines) {
+            help_rows.push_back(text(line) | color(help_fg) | dim);
+        }
+
+        Element input_line =
+            text(state.spec.component_input_line.empty() ? std::string(" >")
+                                                         : state.spec.component_input_line) |
+            color(fg) | bold;
+
+        const int input_h = 3;
+        const int help_h = help_rows.empty() ? 0 : 4;
+        const int body_h = std::max(3, rect.height - input_h - help_h - 2);
+
+        Element left_panel = window(text(" " + state.spec.component_left_title + " ") | bold,
+                                    vbox(std::move(left_rows)) | yframe | yflex) |
+                             size(WIDTH, EQUAL, std::max(10, rect.width / 2 - 1)) |
+                             size(HEIGHT, EQUAL, body_h) | color(border_color);
+
+        Element right_panel = window(text(" " + state.spec.component_right_title + " ") | bold,
+                                     vbox(std::move(right_rows)) | yframe | yflex) |
+                              size(HEIGHT, EQUAL, body_h) | xflex | color(border_color);
+
+        Elements layout_rows;
+        layout_rows.push_back(
+            (window(text(" Query ") | bold, input_line | xframe) | color(border_color)) |
+            size(HEIGHT, EQUAL, input_h));
+        layout_rows.push_back(hbox({left_panel, right_panel}) | size(HEIGHT, EQUAL, body_h));
+        if (!help_rows.empty()) {
+            layout_rows.push_back(
+                (window(text(" Help ") | bold, vbox(std::move(help_rows))) | color(border_color)) |
+                size(HEIGHT, EQUAL, help_h));
+        }
+
+        return window(text(" " + state.spec.title + " ") | bold,
+                      vbox(std::move(layout_rows)) | bgcolor(bg) | yframe) |
+               size(WIDTH, EQUAL, rect.width) | size(HEIGHT, EQUAL, rect.height) |
+               color(border_color) | center;
+    }
+
     WidgetSpec root = state.spec.root;
     if (root.children.empty()) {
         root = buildDefaultWidgetTree(state);
@@ -617,6 +1093,34 @@ bool PopupManager::handleInput(Event event) {
 
     PopupState& popup = top_opt->get();
 
+    if (popup.spec.component_mode && popup.callbacks.on_component_event) {
+        std::string event_name;
+        std::string payload;
+        if (event == Event::ArrowUp) {
+            event_name = "arrow_up";
+        } else if (event == Event::ArrowDown) {
+            event_name = "arrow_down";
+        } else if (event == Event::Return) {
+            event_name = "enter";
+        } else if (event == Event::Escape) {
+            event_name = "escape";
+        } else if (event == Event::Backspace) {
+            event_name = "backspace";
+        } else if (event.is_character()) {
+            event_name = "char";
+            payload = event.character();
+        }
+
+        if (!event_name.empty()) {
+            bool handled = popup.callbacks.on_component_event(event_name, payload);
+            if (event_name == "escape") {
+                closePopup(popup.handle, false, "", 0);
+                return true;
+            }
+            return handled;
+        }
+    }
+
     if (event == Event::Tab) {
         focusNext(popup, false);
         return true;
@@ -632,6 +1136,7 @@ bool PopupManager::handleInput(Event event) {
     }
 
     if (event == Event::Return) {
+        const WidgetSpec* focused_widget = nullptr;
         if (!popup.focus_chain.empty()) {
             const std::string& focused = popup.focus_chain[popup.focus_index];
             if (focused == "cancel") {
@@ -640,8 +1145,9 @@ bool PopupManager::handleInput(Event event) {
             if (focused == "ok") {
                 return dispatchAction(popup, nullptr);
             }
+            focused_widget = findWidgetById(popup.spec.root, focused);
         }
-        return dispatchAction(popup, nullptr);
+        return dispatchAction(popup, focused_widget);
     }
 
     if (!popup.spec.items.empty()) {

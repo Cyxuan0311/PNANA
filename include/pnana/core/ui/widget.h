@@ -105,7 +105,7 @@ struct WidgetSpec {
     // 可扩展属性（声明式扩展）
     std::map<std::string, std::string> props;
 
-    // 新增布局属性
+    // 布局属性
     LayoutDirection layout_direction = LayoutDirection::VERTICAL; // 布局方向
     Alignment alignment = Alignment::START;                       // 对齐方式
     int flex = 0;                        // 弹性系数（0=固定大小）
@@ -113,7 +113,21 @@ struct WidgetSpec {
     int min_height = 0;                  // 最小高度
     int padding = 0;                     // 内边距
     int spacing = 0;                     // 子元素间距
-    std::string border_style = "single"; // 边框样式: none, single, double, rounded
+    std::string border_style = "single"; // 边框样式：none, single, double, rounded
+
+    // 窗口特定属性（用于 vim.ui.* API）
+    std::string window_title;                       // 窗口标题
+    std::string window_prompt;                      // 提示文本
+    std::string component_input_line;               // 输入行
+    std::string component_left_title;               // 左面板标题
+    std::string component_right_title;              // 右面板标题
+    std::vector<std::string> component_left_lines;  // 左面板行（结果列表）
+    std::vector<std::string> component_right_lines; // 右面板行（预览）
+    std::vector<std::string> component_help_lines;  // 帮助文本行
+
+    // 每行文本的颜色配置（新增）
+    std::vector<std::map<std::string, std::string>> component_left_line_colors;
+    std::vector<std::map<std::string, std::string>> component_right_line_colors;
 
     std::vector<WidgetSpec> children;
 };

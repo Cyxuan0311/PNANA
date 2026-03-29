@@ -22,6 +22,9 @@ struct PopupCallbacks {
     std::function<void(bool)> on_bool_result;
     std::function<void(bool, const std::string&)> on_input_result;
     std::function<void(bool, std::size_t)> on_select_result;
+    std::function<void(const std::string& widget_id)> on_widget_action;
+    std::function<bool(const std::string& event_name, const std::string& payload)>
+        on_component_event;
 };
 
 struct PopupSpec {
@@ -35,6 +38,22 @@ struct PopupSpec {
     int width = 56;
     int height = 12;
     WidgetSpec root;
+
+    // Component 模式：由外部（Lua）提供 lines 渲染与事件处理
+    bool component_mode = false;
+    std::vector<std::string> component_lines;
+
+    // 结构化 component 数据（使用 FTXUI 原生 window/border 渲染）
+    std::string component_input_line;
+    std::string component_left_title = "Results";
+    std::string component_right_title = "Preview";
+    std::vector<std::string> component_left_lines;
+    std::vector<std::string> component_right_lines;
+    std::vector<std::string> component_help_lines;
+
+    // 每行文本的颜色配置（新增）
+    std::vector<std::map<std::string, std::string>> component_left_line_colors;
+    std::vector<std::map<std::string, std::string>> component_right_line_colors;
 };
 
 class PopupManager {
@@ -106,6 +125,11 @@ class PopupManager {
 
     ftxui::Element renderWidgetTree(const PopupState& state, const LayoutNode& node) const;
     ftxui::Element renderPopupLayer(const PopupState& state, int screen_w, int screen_h) const;
+
+    // 颜色解析辅助函数
+    ftxui::Color parseColor(const std::string& color_str) const;
+    ftxui::Element applyColorDecorators(
+        ftxui::Element elem, const std::map<std::string, std::string>& color_config) const;
 
     ::pnana::ui::Theme* theme_;
     LayoutEngine layout_engine_;
