@@ -7,7 +7,8 @@ using namespace ftxui;
 namespace pnana {
 namespace ui {
 
-Tabbar::Tabbar(Theme& theme) : theme_(theme) {}
+Tabbar::Tabbar(Theme& theme, const core::ConfigManager& config_manager)
+    : theme_(theme), config_manager_(config_manager) {}
 
 Element Tabbar::render(const std::vector<core::DocumentManager::TabInfo>& tabs) {
     if (tabs.empty()) {
@@ -35,6 +36,9 @@ Element Tabbar::render(const std::vector<core::DocumentManager::TabInfo>& tabs) 
 Element Tabbar::renderTab(const core::DocumentManager::TabInfo& tab, size_t /*index*/) {
     auto& colors = theme_.getColors();
 
+    // 获取配置
+    const auto& display_config = config_manager_.getConfig().display;
+
     // 获取文件图标
     std::string icon = getFileIcon(tab.filename);
 
@@ -44,8 +48,23 @@ Element Tabbar::renderTab(const core::DocumentManager::TabInfo& tab, size_t /*in
         display_name = "[Untitled]";
     }
 
-    // 修改标记
-    std::string modified_mark = tab.is_modified ? std::string(ui::icons::MODIFIED) + " " : "";
+    // 状态标记：根据编辑状态显示不同符号
+    // - 未修改（没有编辑）：显示 × 号（如果配置启用）
+    // - 已修改（编辑未保存）：显示圆形符号 ●
+    std::string status_symbol = "";
+    Color status_color = colors.comment;
+
+    if (tab.is_modified) {
+        // 编辑未保存：使用圆形符号 ●
+        status_symbol = "●";
+        status_color = colors.warning; // 使用警告色（橙色/黄色）突出显示
+    } else {
+        // 没有编辑：根据配置决定是否显示 × 号
+        if (display_config.show_tab_close_indicator) {
+            status_symbol = "×";
+            status_color = colors.comment; // 使用注释色（灰色）
+        }
+    }
 
     // 构建标签内容
     Elements content;
@@ -54,9 +73,9 @@ Element Tabbar::renderTab(const core::DocumentManager::TabInfo& tab, size_t /*in
     content.push_back(text(" "));
     content.push_back(text(display_name));
 
-    if (tab.is_modified) {
-        content.push_back(text(" ") | color(colors.warning));
-        content.push_back(text(modified_mark) | color(colors.warning));
+    if (!status_symbol.empty()) {
+        content.push_back(text(" "));
+        content.push_back(text(status_symbol) | color(status_color));
     }
 
     content.push_back(text(" "));
