@@ -7,21 +7,32 @@ plugin_description = "FG live grep with optimized DSL architecture"
 plugin_author = "pnana"
 
 -- ============================================================================
+-- 事件解析 API 使用示例
+-- ============================================================================
+-- 新的 Lua 侧事件解析 API 允许用户自定义事件解析逻辑
+-- 使用方式：
+--   local event_data = event_parser.parse(event_type, character)
+--   local is_arrow = event_parser.is_arrow_key(event_type)
+--   local is_nav = event_parser.is_navigation_key(event_type)
+--   local is_func = event_parser.is_function_key(event_type)
+
+-- ============================================================================
 -- 配置管理
 -- ============================================================================
 local CONFIG = {
     debounce_ms = 0,  -- 禁用防抖，实现零延迟响应（依赖 C++ 侧节流）
-    max_results = 120,
+    max_results = 10000,  -- 优化：支持最多 10000 条结果（之前是 120）
     timeout_ms = 1800,
     max_output_bytes = 1024 * 1024,
     results_width = 66,  -- 结果列表内容宽度
     preview_width = 74,  -- 预览面板内容宽度
-    list_height = 16,    -- 列表显示高度
+    list_height = 15,    -- 列表显示高度（可见区域）
     window_width = 150,  -- 优化：减小弹窗总宽度，从 178 降至 150
     window_height = 26,  -- 弹窗高度
     preview_context = 9,
     debug = true, -- 启用调试日志
     min_search_interval_ms = 100,  -- 两次搜索之间的最小间隔，防止阻塞 UI
+    virtual_scroll_enabled = true,  -- 启用虚拟滚动优化
 }
 
 -- ============================================================================
@@ -117,7 +128,9 @@ local state = {
     loading = false,
     selected = 1,
     total_matches = 0,
-    visible_results = {},
+    visible_results = {},  -- 实际显示的子集（虚拟滚动）
+    all_results = {},      -- 存储所有结果（支持大量数据）
+    scroll_offset = 0,     -- 虚拟滚动偏移量
     request_seq = 0,
     last_applied_request = 0,
     debounce_timer = nil,
@@ -147,19 +160,32 @@ end
 local function read_preview(file_path, line_1based, context)
     local t1 = now_ms()
     
+    -- 将相对路径转换为绝对路径
+    local abs_path = file_path
+    if not file_path:match("^/") and not file_path:match("^%./") then
+        -- 如果不是以 / 或 ./ 开头，添加 cwd
+        abs_path = state.cwd .. "/" .. file_path
+    elseif file_path:match("^%./") then
+        -- 如果是 ./ 开头，替换为 cwd
+        abs_path = state.cwd .. file_path:sub(2)
+    end
+    
+    -- 规范化路径（移除多余的 /）
+    abs_path = abs_path:gsub("/+", "/")
+    
     -- 尝试从缓存获取
-    local lines = get_cached_lines(file_path)
+    local lines = get_cached_lines(abs_path)
     local cache_hit = lines ~= nil
     
     if not lines then
         -- 缓存未命中，读取文件
-        local ok, result = pcall(vim.fn.readfile, file_path)
+        local ok, result = pcall(vim.fn.readfile, abs_path)
         if not ok or not result or #result == 0 then
             return { "(preview unavailable)" }
         end
         lines = result
         -- 缓存文件内容
-        cache_file_lines(file_path, lines)
+        cache_file_lines(abs_path, lines)
     end
     
     local t2 = now_ms()
@@ -189,6 +215,68 @@ local function read_preview(file_path, line_1based, context)
     local t3 = now_ms()
     
     return preview
+end
+
+-- ============================================================================
+-- 虚拟滚动优化
+-- ============================================================================
+
+--- 更新可见结果子集（虚拟滚动核心）
+local function update_visible_results()
+    local total = #state.all_results
+    local visible_count = CONFIG.list_height
+    
+    -- 计算滚动偏移量
+    local start_offset = 0
+    if state.selected > visible_count then
+        start_offset = state.selected - visible_count
+    end
+    
+    -- 确保不超过总数
+    if start_offset + visible_count > total then
+        start_offset = math.max(0, total - visible_count)
+    end
+    
+    state.scroll_offset = start_offset
+    
+    -- 提取可见子集
+    state.visible_results = {}
+    local end_offset = math.min(start_offset + visible_count, total)
+    for i = start_offset + 1, end_offset do
+        table.insert(state.visible_results, state.all_results[i])
+    end
+    
+    -- 调整选中索引在可见范围内的相对位置
+    state.selected_in_view = state.selected - start_offset
+end
+
+--- 处理大量结果的智能截断
+local function process_results(parsed_results)
+    local total = #parsed_results
+    
+    -- 如果启用虚拟滚动，存储所有结果
+    if CONFIG.virtual_scroll_enabled and total <= CONFIG.max_results then
+        state.all_results = parsed_results
+        update_visible_results()
+        return
+    end
+    
+    -- 超过最大限制时截断
+    if total > CONFIG.max_results then
+        state.all_results = {}
+        for i = 1, CONFIG.max_results do
+            state.all_results[i] = parsed_results[i]
+        end
+        state.total_matches = CONFIG.max_results
+        update_visible_results()
+        vim.api.set_status_message(string.format("fg-live-grep: Showing first %d of %d results", 
+                                                  CONFIG.max_results, total))
+        return
+    end
+    
+    -- 正常情况
+    state.all_results = parsed_results
+    update_visible_results()
 end
 
 -- ============================================================================
@@ -270,15 +358,13 @@ local function build_view_data()
     local preview_icon = get_icon("CODE")
     
     local t_preview_start = now_ms()
-    local selected_item = state.visible_results[state.selected]
+    -- 使用可见结果中的选中项
+    local selected_item = state.visible_results[state.selected_in_view]
     local preview_lines = selected_item and read_preview(selected_item.file, selected_item.line, CONFIG.preview_context) or {"(no selection)"}
     local t_preview_end = now_ms()
 
+    -- 虚拟滚动已经处理好 visible_results，直接使用
     local t_calc_start = now_ms()
-    local start = 1
-    if #state.visible_results > CONFIG.list_height and state.selected > CONFIG.list_height then
-        start = state.selected - CONFIG.list_height + 1
-    end
     local t_calc_end = now_ms()
 
     -- 预分配 table 大小
@@ -288,14 +374,15 @@ local function build_view_data()
     local cached_spaces = string.rep(" ", CONFIG.results_width)
     
     for i = 1, CONFIG.list_height do
-        local item = state.visible_results[start + i - 1]
+        local item = state.visible_results[i]
         if item then
-            local marker = (start + i - 1 == state.selected) and ">>" or "  "
+            -- 使用相对索引
+            local marker = (i == state.selected_in_view) and ">>" or "  "
             local line_str = string.format("%s %s:%d:%d %s", marker, item.file, item.line, item.col, item.text)
             table.insert(left_lines, pad_right(line_str, CONFIG.results_width))
             
             -- 为每行添加颜色配置
-            if start + i - 1 == state.selected then
+            if i == state.selected_in_view then
                 -- 选中行：白色前景 + 深色背景 + 粗体
                 table.insert(left_line_colors, {
                     fg = "#F8F8F2",      -- 白色前景
@@ -347,6 +434,9 @@ local function build_view_data()
     
     -- 使用获取到的图标构建标题
     local results_title = file_icon .. " Results"
+    if state.total_matches > 0 then
+        results_title = string.format("%s %d/%d", results_title, state.selected, state.total_matches)
+    end
     local preview_title = preview_icon .. " Preview"
     
     return {
@@ -358,10 +448,10 @@ local function build_view_data()
         left_line_colors = left_line_colors,      -- 新增：左侧列表颜色配置
         right_line_colors = right_line_colors,    -- 新增：右侧预览颜色配置
         help_lines = {
-            "↑/↓: move  Enter: open  Type: query  Backspace: delete  Esc: close",
-            string.format("cwd: %s  status: %s  matches: %d  cache: %d  pool: %s", 
+            "↑/↓: move  PgUp/PgDn: scroll  Enter: open  Type: query  Esc: close",
+            string.format("cwd: %s  status: %s  total: %d  showing: %d  cache: %d", 
                 state.cwd, state.loading and "searching..." or "idle", 
-                state.total_matches, #file_cache.lru, get_pool_stats()),
+                state.total_matches, #state.visible_results, #file_cache.lru),
         },
     }
 end
@@ -382,6 +472,11 @@ local function build_window_spec()
     local spec = {
         type = "window",
         window_title = search_icon .. " FG Live Grep",
+        window_title_decorators = {
+            bold = true,
+            inverted = true,  -- 反白效果
+            color = "cyan",   -- 青色文字
+        },
         min_width = CONFIG.window_width,
         min_height = CONFIG.window_height,
         component_input_line = view.input_line,
@@ -468,8 +563,10 @@ local function run_search(request_id, query)
         state.loading = false
 
         if not lines then
+            state.all_results = {}
             state.visible_results = {}
             state.total_matches = 0
+            state.scroll_offset = 0
             vim.api.set_status_message("fg-live-grep error: " .. tostring(err or "unknown"))
             update_window("search_error")
             return
@@ -479,24 +576,23 @@ local function run_search(request_id, query)
         local parsed = parse_rg_vimgrep(lines)
         local t_parse_end = now_ms()
         
-        state.total_matches = #parsed
-
-        if #parsed > CONFIG.max_results then
-            state.visible_results = {}
-            for i = 1, CONFIG.max_results do
-                state.visible_results[i] = parsed[i]
-            end
-        else
-            state.visible_results = parsed
-        end
-
-        state.selected = math.max(1, math.min(state.selected, math.max(1, #state.visible_results)))
+        -- 使用新的虚拟滚动处理函数
+        process_results(parsed)
+        
+        state.total_matches = #state.all_results
+        state.selected = math.max(1, math.min(state.selected, math.max(1, #state.all_results)))
         
         local t_update_start = now_ms()
         update_window("search_done")
         local t_update_end = now_ms()
         
         local t_total = now_ms() - t_callback_start
+        
+        -- Display result statistics
+        if CONFIG.debug then
+            vim.api.set_status_message(string.format("fg-live-grep: %d results (showing %d)", 
+                                                      state.total_matches, #state.visible_results))
+        end
     end)
     
     
@@ -561,31 +657,60 @@ local function on_window_event(event_name, payload)
     local t1 = now_ms()
     
     if event_name == "arrow_down" then
-        if #state.visible_results > 0 then
-            local old_selected = state.selected
-            state.selected = math.min(#state.visible_results, state.selected + 1)
+        if #state.all_results > 0 then
+            state.selected = math.min(#state.all_results, state.selected + 1)
+            -- 重新计算可见子集
+            update_visible_results()
             update_window("arrow_down")
-            local t2 = now_ms()
-        else
         end
         return true
     end
 
     if event_name == "arrow_up" then
-        if #state.visible_results > 0 then
-            local old_selected = state.selected
+        if #state.all_results > 0 then
             state.selected = math.max(1, state.selected - 1)
+            -- 重新计算可见子集
+            update_visible_results()
             update_window("arrow_up")
-            local t2 = now_ms()
-        else
+        end
+        return true
+    end
+
+    if event_name == "pagedown" then
+        if #state.all_results > 0 then
+            local old_selected = state.selected
+            -- 向下翻页：一次翻 list_height 行（约一屏）
+            state.selected = math.min(#state.all_results, state.selected + CONFIG.list_height)
+            if state.selected ~= old_selected then
+                update_visible_results()
+                update_window("pagedown")
+                vim.api.set_status_message(string.format("fg-live-grep: %d/%d", state.selected, state.total_matches))
+            end
+        end
+        return true
+    end
+
+    if event_name == "pageup" then
+        if #state.all_results > 0 then
+            local old_selected = state.selected
+            -- 向上翻页：一次翻 list_height 行（约一屏）
+            state.selected = math.max(1, state.selected - CONFIG.list_height)
+            if state.selected ~= old_selected then
+                update_visible_results()
+                update_window("pageup")
+                vim.api.set_status_message(string.format("fg-live-grep: %d/%d", state.selected, state.total_matches))
+            end
         end
         return true
     end
 
     if event_name == "enter" then
-        local item = state.visible_results[state.selected]
-        open_selected_result()
-        local t2 = now_ms()
+        local item = state.all_results[state.selected]
+        if item then
+            open_selected_result()
+        else
+            vim.api.set_status_message("fg-live-grep: no selection")
+        end
         return true
     end
 
