@@ -423,6 +423,41 @@ void LuaUIParser::parseLayoutOptionsFromLua(lua_State* L, int index, WidgetSpec&
     }
     lua_pop(L, 1);
 
+    // 解析标题装饰器
+    lua_getfield(L, index, "window_title_decorators");
+    if (lua_istable(L, -1)) {
+        lua_getfield(L, -1, "bold");
+        if (lua_isboolean(L, -1) && lua_toboolean(L, -1)) {
+            spec.window_title_decorators.bold = true;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "inverted");
+        if (lua_isboolean(L, -1) && lua_toboolean(L, -1)) {
+            spec.window_title_decorators.inverted = true;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "dim");
+        if (lua_isboolean(L, -1) && lua_toboolean(L, -1)) {
+            spec.window_title_decorators.dim = true;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "underlined");
+        if (lua_isboolean(L, -1) && lua_toboolean(L, -1)) {
+            spec.window_title_decorators.underlined = true;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "color");
+        if (lua_isstring(L, -1)) {
+            spec.window_title_decorators.color = lua_tostring(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+
     lua_getfield(L, index, "window_prompt");
     if (lua_isstring(L, -1)) {
         spec.window_prompt = lua_tostring(L, -1);

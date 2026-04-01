@@ -1066,8 +1066,40 @@ Element PopupManager::renderPopupLayer(const PopupState& state, int screen_w, in
                 size(HEIGHT, EQUAL, help_h));
         }
 
-        return window(text(" " + state.spec.title + " ") | bold,
-                      vbox(std::move(layout_rows)) | bgcolor(bg) | yframe) |
+        // 渲染标题（支持装饰器配置）
+        Element title_elem = text(" " + state.spec.title + " ");
+        if (state.spec.window_title_decorators.bold) {
+            title_elem = title_elem | bold;
+        }
+        if (state.spec.window_title_decorators.inverted) {
+            title_elem = title_elem | inverted;
+        }
+        if (state.spec.window_title_decorators.dim) {
+            title_elem = title_elem | dim;
+        }
+        if (state.spec.window_title_decorators.underlined) {
+            title_elem = title_elem | underlined;
+        }
+        if (!state.spec.window_title_decorators.color.empty()) {
+            const std::string& color_name = state.spec.window_title_decorators.color;
+            if (color_name == "black")
+                title_elem = title_elem | color(Color::Black);
+            else if (color_name == "red")
+                title_elem = title_elem | color(Color::Red);
+            else if (color_name == "green")
+                title_elem = title_elem | color(Color::Green);
+            else if (color_name == "yellow")
+                title_elem = title_elem | color(Color::Yellow);
+            else if (color_name == "blue")
+                title_elem = title_elem | color(Color::Blue);
+            else if (color_name == "magenta")
+                title_elem = title_elem | color(Color::Magenta);
+            else if (color_name == "cyan")
+                title_elem = title_elem | color(Color::Cyan);
+            else if (color_name == "white")
+                title_elem = title_elem | color(Color::White);
+        }
+        return window(title_elem, vbox(std::move(layout_rows)) | bgcolor(bg) | yframe) |
                size(WIDTH, EQUAL, rect.width) | size(HEIGHT, EQUAL, rect.height) |
                color(border_color) | center;
     }
@@ -1096,19 +1128,37 @@ bool PopupManager::handleInput(Event event) {
     if (popup.spec.component_mode && popup.callbacks.on_component_event) {
         std::string event_name;
         std::string payload;
+
+        // 基础事件映射（保持兼容性）
         if (event == Event::ArrowUp) {
             event_name = "arrow_up";
         } else if (event == Event::ArrowDown) {
             event_name = "arrow_down";
+        } else if (event == Event::PageUp) {
+            event_name = "pageup";
+        } else if (event == Event::PageDown) {
+            event_name = "pagedown";
+        } else if (event == Event::Home) {
+            event_name = "home";
+        } else if (event == Event::End) {
+            event_name = "end";
         } else if (event == Event::Return) {
             event_name = "enter";
         } else if (event == Event::Escape) {
             event_name = "escape";
         } else if (event == Event::Backspace) {
             event_name = "backspace";
+        } else if (event == Event::Delete) {
+            event_name = "delete";
+        } else if (event == Event::Insert) {
+            event_name = "insert";
         } else if (event.is_character()) {
             event_name = "char";
             payload = event.character();
+        } else {
+            // 其他事件传递原始字符串，让 Lua 侧自行解析
+            event_name = "raw";
+            payload = event.input();
         }
 
         if (!event_name.empty()) {

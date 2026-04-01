@@ -115,6 +115,16 @@ struct WidgetSpec {
     int spacing = 0;                     // 子元素间距
     std::string border_style = "single"; // 边框样式：none, single, double, rounded
 
+    // 标题装饰器配置
+    struct TitleDecorators {
+        bool bold = false;
+        bool inverted = false;
+        bool dim = false;
+        bool underlined = false;
+        std::string color; // 颜色：black, red, green, yellow, blue, magenta, cyan, white
+    };
+    TitleDecorators window_title_decorators;
+
     // 窗口特定属性（用于 vim.ui.* API）
     std::string window_title;                       // 窗口标题
     std::string window_prompt;                      // 提示文本

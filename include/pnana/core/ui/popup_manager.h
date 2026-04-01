@@ -54,6 +54,9 @@ struct PopupSpec {
     // 每行文本的颜色配置（新增）
     std::vector<std::map<std::string, std::string>> component_left_line_colors;
     std::vector<std::map<std::string, std::string>> component_right_line_colors;
+
+    // 标题装饰器配置
+    WidgetSpec::TitleDecorators window_title_decorators;
 };
 
 class PopupManager {
