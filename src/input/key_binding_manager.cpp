@@ -42,6 +42,16 @@ void KeyBindingManager::initializeEditOperationBindings() {
     bindKey("alt_shift_arrow_down", KeyAction::SELECT_EXTEND_DOWN);
     bindKey("alt_shift_arrow_left", KeyAction::SELECT_EXTEND_LEFT);
     bindKey("alt_shift_arrow_right", KeyAction::SELECT_EXTEND_RIGHT);
+    // Shift+ 方向键也用于扩展选择（FTXUI 中 ArrowUpCtrl 实际表示 Shift+ArrowUp）
+    bindKey("shift_arrow_up", KeyAction::SELECT_EXTEND_UP);
+    bindKey("shift_arrow_down", KeyAction::SELECT_EXTEND_DOWN);
+    bindKey("shift_arrow_left", KeyAction::SELECT_EXTEND_LEFT);
+    bindKey("shift_arrow_right", KeyAction::SELECT_EXTEND_RIGHT);
+    // Ctrl+ 方向键也用于扩展选择（类似 VSCode 的行为）
+    bindKey("ctrl_arrow_up", KeyAction::SELECT_EXTEND_UP);
+    bindKey("ctrl_arrow_down", KeyAction::SELECT_EXTEND_DOWN);
+    bindKey("ctrl_arrow_left", KeyAction::SELECT_EXTEND_LEFT);
+    bindKey("ctrl_arrow_right", KeyAction::SELECT_EXTEND_RIGHT);
     bindKey("ctrl_d", KeyAction::DUPLICATE_LINE);
     bindKey("ctrl_shift_k", KeyAction::DELETE_LINE);
     bindKey("ctrl_backspace", KeyAction::DELETE_WORD);
