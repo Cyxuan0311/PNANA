@@ -972,9 +972,8 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         *out_type = change.type;
     }
 
-    if (undo_stack_.empty()) {
-        modified_ = false;
-    }
+    // 改进的修改状态标记逻辑：使用 original_lines_ 进行精确比较
+    modified_ = !isContentSameAsOriginal();
 
     return success;
 }
@@ -1004,7 +1003,7 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             if (change.row < lines_.size()) {
                 lines_[change.row].erase(change.col, change.old_content.length());
             }
-            // 光标应该回到删除开始的位置
+            // 光标应该保持在删除开始的位置（与 undo 保持一致）
             if (out_row)
                 *out_row = change.row;
             if (out_col)
@@ -1015,11 +1014,12 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             if (change.row < lines_.size()) {
                 lines_[change.row] = change.new_content;
             }
-            // 光标应该移动到替换结束的位置
+            // 光标应该移动到替换结束的位置，但保持在合理的列位置
             if (out_row)
                 *out_row = change.row;
             if (out_col)
-                *out_col = change.new_content.length();
+                *out_col =
+                    std::min(change.col + change.new_content.length(), change.new_content.length());
             break;
 
         case DocumentChange::Type::NEWLINE:
@@ -1045,29 +1045,20 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
                 std::string& current_line = lines_[change.row];
                 size_t replace_start = change.col;
 
-                // 优先匹配原始被替换文本，确保我们准确重做补全（不会重复添加）
+                // 优先精确匹配：如果指定位置正好是原始文本，直接替换
                 if (replace_start <= current_line.length()) {
                     const std::string& expected_old = change.old_content;
-                    // 如果当前位置正好是原始文本，直接替换为补全文本
                     if (replace_start + expected_old.length() <= current_line.length() &&
                         current_line.substr(replace_start, expected_old.length()) == expected_old) {
                         current_line.replace(replace_start, expected_old.length(),
                                              change.new_content);
                     } else {
-                        // 否则尝试在行中查找第一次出现的位置并替换（从 replace_start 开始查找）
+                        // 查找第一次出现的位置并替换
                         size_t found = current_line.find(expected_old, replace_start);
                         if (found != std::string::npos) {
                             current_line.replace(found, expected_old.length(), change.new_content);
-                        } else {
-                            // 回退策略：按长度替换（尽量避免，但作为最后手段）
-                            size_t max_replace = current_line.length() - replace_start;
-                            size_t actual_replace_len =
-                                std::min(expected_old.length(), max_replace);
-                            if (actual_replace_len > 0) {
-                                current_line.replace(replace_start, actual_replace_len,
-                                                     change.new_content);
-                            }
                         }
+                        // 如果找不到，说明文档已被修改，重做失败但不报错
                     }
                 }
             }
@@ -1081,19 +1072,15 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
 
     undo_stack_.push_back(change);
 
-    // 如果重做后撤销栈为空，说明回到了原始状态，清除修改状态
-    // 否则说明文件被修改了，设置修改状态为 true
-    if (undo_stack_.empty()) {
-        modified_ = false;
-    } else {
-        modified_ = true;
-    }
+    // 改进的修改状态标记逻辑：使用 original_lines_ 进行精确比较
+    modified_ = !isContentSameAsOriginal();
 
     return true;
 }
 
 void Document::pushChange(const DocumentChange& change) {
-    constexpr auto MERGE_THRESHOLD = std::chrono::milliseconds(500);
+    // 降低合并阈值到 300ms，避免慢速打字时意外合并
+    constexpr auto MERGE_THRESHOLD = std::chrono::milliseconds(300);
 
     if (change.type == DocumentChange::Type::COMPLETION ||
         change.type == DocumentChange::Type::REPLACE ||
@@ -1103,45 +1090,45 @@ void Document::pushChange(const DocumentChange& change) {
             undo_stack_.pop_front();
         }
         redo_stack_.clear(); // 新的修改清除重做栈
-        modified_ = true;
+        modified_ = !isContentSameAsOriginal();
         return;
     }
 
-    // 尝试合并连续的INSERT或DELETE操作
+    // 尝试合并连续的 INSERT 或 DELETE 操作
     if (!undo_stack_.empty()) {
         DocumentChange& last_change = undo_stack_.back();
         auto time_diff = change.timestamp - last_change.timestamp;
 
-        // 只在时间阈值内尝试合并
+        // 更严格的合并条件：时间阈值内 + 同行 + 同类型 + 位置连续
         if (time_diff < MERGE_THRESHOLD && change.row == last_change.row) {
-            // 合并INSERT操作：连续输入字符
+            // 合并 INSERT 操作：连续输入字符
             if (change.type == DocumentChange::Type::INSERT &&
                 last_change.type == DocumentChange::Type::INSERT) {
-                // 检查是否是连续插入（新插入位置正好在上次插入结束位置）
+                // 严格检查：新插入位置必须正好在上次插入结束位置
                 size_t last_insert_end = last_change.col + last_change.new_content.length();
                 if (change.col == last_insert_end) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     return; // 合并完成，不创建新撤销点
                 }
-                // 或者是在同一位置的插入（覆盖输入）
-                else if (change.col == last_change.col) {
+                // 同一位置的连续插入（快速输入场景）
+                else if (change.col == last_change.col && change.new_content.length() == 1) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     return;
                 }
             }
 
-            // 合并DELETE操作：连续删除字符
+            // 合并 DELETE 操作：连续删除字符
             else if (change.type == DocumentChange::Type::DELETE &&
                      last_change.type == DocumentChange::Type::DELETE) {
-                // 向后删除（Delete键）：在同一位置连续删除
+                // 向后删除（Delete 键）：严格检查在同一位置连续删除
                 if (change.col == last_change.col) {
                     last_change.old_content += change.old_content;
                     last_change.timestamp = change.timestamp;
                     return;
                 }
-                // 向前删除（Backspace键）：位置连续
+                // 向前删除（Backspace 键）：严格检查位置连续
                 else if (change.col + change.old_content.length() == last_change.col) {
                     last_change.old_content = change.old_content + last_change.old_content;
                     last_change.col = change.col; // 更新删除起始位置
@@ -1157,7 +1144,7 @@ void Document::pushChange(const DocumentChange& change) {
         undo_stack_.pop_front();
     }
     redo_stack_.clear(); // 新的修改清除重做栈
-    modified_ = true;
+    modified_ = !isContentSameAsOriginal();
 }
 
 void Document::clearHistory() {

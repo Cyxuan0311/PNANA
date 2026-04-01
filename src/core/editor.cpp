@@ -146,8 +146,18 @@ Editor::Editor()
     });
 
     // 初始化最近文件弹窗
-    recent_files_popup_.setFileOpenCallback([this](size_t index) {
-        this->recent_files_manager_.openFile(index);
+    recent_files_popup_.setFileOpenCallback([this](const std::string& filepath) {
+        this->openFile(filepath);
+    });
+    recent_files_popup_.setFolderOpenCallback([this](const std::string& folderpath) {
+        // 打开文件夹：更新文件浏览器的当前目录
+        if (file_browser_.openDirectory(folderpath)) {
+            // 添加到最近文件夹列表
+            recent_files_manager_.addFolder(folderpath);
+            setStatusMessage("Changed to directory: " + folderpath);
+        } else {
+            setStatusMessage("Failed to open directory: " + folderpath);
+        }
     });
 
     // 初始化 FZF 模糊文件查找弹窗
@@ -412,6 +422,10 @@ Editor::Editor(const std::vector<std::string>& filepaths) : Editor() {
 }
 
 Editor::~Editor() {
+    // 先取消解压操作，避免析构时线程仍在运行并访问已销毁的成员
+    if (extract_manager_.isExtracting()) {
+        extract_manager_.cancelExtraction();
+    }
 #ifdef BUILD_LSP_SUPPORT
     // 先关闭所有 LSP 连接，使 LspRequestManager worker 中可能阻塞的 documentSymbol() 等立即返回，
     // 避免析构时 join(worker) 一直等待导致进程无法退出
