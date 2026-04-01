@@ -54,6 +54,8 @@ FTXUI (Functional Terminal User Interface) 为必需库，用于终端 UI。
 
 **验证**：`pkg-config --modversion ftxui`
 
+**注意**：如果系统未安装 FTXUI，项目会使用 `third-party/ftxui/` 中的内置版本。
+
 ---
 
 ## 可选功能与依赖
@@ -72,11 +74,11 @@ git submodule update --init --recursive  # 初始化子模块
 
 ### 图片预览（-DBUILD_IMAGE_PREVIEW=ON）
 
-**依赖**：FFmpeg 开发库（libavformat、libavcodec、libswscale、libavutil）
+**依赖**：Chafa 开发库
 
-**Ubuntu/Debian** `sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev`  
-**Fedora/RHEL** `sudo dnf install ffmpeg-devel`  
-**macOS** `brew install ffmpeg`
+**Ubuntu/Debian** `sudo apt install libchafa-dev`  
+**Fedora/RHEL** `sudo dnf install chafa-devel`  
+**macOS** `brew install chafa`
 
 ### Tree-sitter 语法高亮（-DBUILD_TREE_SITTER=ON）
 
@@ -105,6 +107,16 @@ git submodule update --init --recursive  # 初始化子模块
 
 未启用时 SSH 使用系统命令作为后备。
 
+### libvterm 终端模拟（-DBUILD_LIBVTERM=ON）
+
+**依赖**：libvterm 开发库
+
+**Ubuntu/Debian** `sudo apt install libvterm-dev`  
+**Fedora/RHEL** `sudo dnf install libvterm-devel`  
+**macOS** `brew install libvterm`
+
+用于完整的终端模拟功能。
+
 ### AI 客户端（-DBUILD_AI_CLIENT=ON）
 
 **依赖**：libcurl
@@ -129,6 +141,7 @@ git submodule update --init --recursive  # 初始化子模块
 | jsonrpccxx | `third-party/JSON-RPC-CXX` | JSON-RPC，LSP |
 | md4c | `third-party/md4c/` | Markdown 解析 |
 | stb | `third-party/dsa/stb_image.h` | 图像处理 |
+| ftxui | `third-party/ftxui/` | 终端 UI 框架（备用） |
 
 ---
 
@@ -138,10 +151,11 @@ git submodule update --init --recursive  # 初始化子模块
 
 ```bash
 ./build.sh                                    # 基础编译（LSP 自动检测）
-./build.sh BUILD_IMAGE_PREVIEW=ON             # 图片预览
+./build.sh BUILD_IMAGE_PREVIEW=ON             # 图片预览（Chafa）
 ./build.sh BUILD_TREE_SITTER=ON               # Tree-sitter
 ./build.sh BUILD_LUA=ON                       # Lua 插件
 ./build.sh BUILD_GO=ON                        # Go SSH
+./build.sh BUILD_LIBVTERM=ON                  # libvterm 终端模拟
 ./build.sh BUILD_AI_CLIENT=ON                 # AI 客户端
 ./build.sh --clean BUILD_LUA=ON               # 清理后编译
 ./build.sh --clean --install BUILD_AI_CLIENT=ON  # 编译并安装
@@ -158,6 +172,7 @@ cmake .. -DBUILD_IMAGE_PREVIEW=ON \
         -DBUILD_TREE_SITTER=ON \
         -DBUILD_LUA=ON \
         -DBUILD_GO=ON \
+        -DBUILD_LIBVTERM=ON \
         -DBUILD_AI_CLIENT=ON
 
 make -j$(nproc)
@@ -167,10 +182,11 @@ make -j$(nproc)
 
 | 选项 | 默认 | 依赖 | 功能 |
 |------|------|------|------|
-| `BUILD_IMAGE_PREVIEW` | OFF | FFmpeg | 图片预览 |
+| `BUILD_IMAGE_PREVIEW` | OFF | Chafa | 图片预览 |
 | `BUILD_TREE_SITTER` | OFF | Tree-sitter | 语法高亮 |
 | `BUILD_LUA` | OFF | Lua 5.3/5.4 | Lua 插件 |
 | `BUILD_GO` | OFF | Go | SSH 模块 |
+| `BUILD_LIBVTERM` | OFF | libvterm | 终端模拟 |
 | `BUILD_AI_CLIENT` | OFF | libcurl | AI 客户端 |
 
 LSP 由内置 nlohmann/json 与 jsonrpccxx 决定，无单独选项。
@@ -186,10 +202,11 @@ LSP 由内置 nlohmann/json 与 jsonrpccxx 决定，无单独选项。
 | GCC | 7.0 | 必需 |
 | Clang | 5.0 | 必需 |
 | FTXUI | 最新 | 必需 |
+| Chafa | 1.12+ | 可选（-DBUILD_IMAGE_PREVIEW=ON） |
 | Tree-sitter | 0.20+ | 可选（-DBUILD_TREE_SITTER=ON） |
-| FFmpeg | 4.0 | 可选（-DBUILD_IMAGE_PREVIEW=ON） |
 | Lua | 5.3 / 5.4 | 可选（-DBUILD_LUA=ON） |
 | Go | 1.21+ | 可选（-DBUILD_GO=ON） |
+| libvterm | 0.3+ | 可选（-DBUILD_LIBVTERM=ON） |
 | libcurl | 最新 | 可选（-DBUILD_AI_CLIENT=ON） |
 | iconv | - | 可选（自动检测） |
 | nlohmann/json | 3.x | 内置（third-party） |

@@ -12,6 +12,7 @@ This document is based on the `src/plugins` implementation and describes how to 
 - [Command Registration](#command-registration)
 - [Events (autocmd)](#events-autocmd)
 - [Keymaps](#keymaps)
+- [Event Parser API](#event-parser-api)
 - [Theme API](#theme-api)
 - [Editor API](#editor-api)
 - [File API](#file-api)
@@ -194,6 +195,186 @@ vim.keymap.del("n", "<F2>")
 
 - `n`: Normal mode (default in code editor area)
 - Other modes depend on editor support
+
+---
+
+## Event Parser API
+
+The Event Parser API (`event_parser`) allows Lua scripts to customize event parsing logic on the Lua side, without hardcoding event conversions in C++. This provides greater flexibility, especially when handling complex events or adding new event types.
+
+### API Overview
+
+| API | Description | Returns |
+|-----|-------------|---------|
+| `event_parser.parse(event_type, character?)` | Parse event into structured data | `{event_type, modifiers, character}` |
+| `event_parser.to_string(event_type, character?)` | Convert event to string | `"event_type"` or `"event_type:char"` |
+| `event_parser.get_modifiers()` | Get modifier key info | `{ctrl, alt, shift, meta}` |
+| `event_parser.is_arrow_key(event_type)` | Check if arrow key | `true/false` |
+| `event_parser.is_function_key(event_type)` | Check if function key | `true/false` |
+| `event_parser.is_navigation_key(event_type)` | Check if navigation key | `true/false` |
+
+### Usage Examples
+
+#### 1. Parse Event into Structured Data
+
+```lua
+-- In window event callback
+local function on_window_event(event_name, payload)
+    -- Parse event
+    local event_data = event_parser.parse(event_name, payload)
+    
+    print("Event type: " .. event_data.event_type)
+    print("Character: " .. tostring(event_data.character))
+    print("Modifiers: " .. vim.inspect(event_data.modifiers))
+    
+    -- Handle based on event type
+    if event_parser.is_navigation_key(event_name) then
+        -- Handle navigation keys (PageUp, PageDown, Home, End, etc.)
+        if event_name == "pageup" then
+            print("Page up")
+        elseif event_name == "pagedown" then
+            print("Page down")
+        elseif event_name == "home" then
+            print("Go to beginning")
+        elseif event_name == "end" then
+            print("Go to end")
+        end
+    elseif event_parser.is_arrow_key(event_name) then
+        -- Handle arrow keys
+        if event_name == "arrow_up" then
+            print("Move up")
+        elseif event_name == "arrow_down" then
+            print("Move down")
+        end
+    elseif event_parser.is_function_key(event_name) then
+        -- Handle function keys (F1-F12)
+        print("Function key: " .. event_name)
+    end
+    
+    return true
+end
+```
+
+#### 2. Check Event Type
+
+```lua
+-- Check if arrow key
+if event_parser.is_arrow_key(event_name) then
+    print("This is an arrow key")
+end
+
+-- Check if navigation key
+if event_parser.is_navigation_key(event_name) then
+    print("This is a navigation key")
+end
+
+-- Check if function key
+if event_parser.is_function_key(event_name) then
+    print("This is a function key")
+end
+```
+
+#### 3. Get Modifier Information
+
+```lua
+local mods = event_parser.get_modifiers()
+print("Ctrl: " .. tostring(mods.ctrl))
+print("Alt: " .. tostring(mods.alt))
+print("Shift: " .. tostring(mods.shift))
+print("Meta: " .. tostring(mods.meta))
+```
+
+#### 4. Event String Conversion
+
+```lua
+-- Simple event
+local event_str = event_parser.to_string("pageup")
+print(event_str)  -- Output: "pageup"
+
+-- Event with character
+local event_str = event_parser.to_string("char", "a")
+print(event_str)  -- Output: "char:a"
+```
+
+### Supported Event Types
+
+| Event Type | Lua Event Name | Description |
+|------------|----------------|-------------|
+| Arrow Keys | `arrow_up`, `arrow_down`, `arrow_left`, `arrow_right` | Up/Down/Left/Right arrows |
+| Navigation Keys | `pageup`, `pagedown`, `home`, `end`, `insert`, `delete` | Page navigation |
+| Function Keys | `f1` - `f12` | Function keys F1 to F12 |
+| Action Keys | `enter`, `escape`, `backspace`, `tab` | Common actions |
+| Character Keys | `char` | Regular character input (payload = character) |
+| Other Events | `raw` | Undefined events (payload = raw string) |
+
+### Architecture Advantages
+
+#### Before (C++ Hardcoded)
+
+```
+User Key Press → C++ Hardcoded Conversion → Lua Receives Fixed Event Name
+                  ↓
+            Only predefined events supported
+            Adding new events requires C++ code changes
+```
+
+#### After (Lua Side Parsing)
+
+```
+User Key Press → C++ Generic Pass-through → Lua Side Flexible Parsing
+                  ↓                          ↓
+            All events passed         User-defined parsing logic
+                                      New events don't require C++ changes
+```
+
+### Debug Example
+
+```lua
+-- Debug all events in plugin
+local function on_window_event(event_name, payload)
+    -- Print all event information
+    local event_data = event_parser.parse(event_name, payload)
+    
+    print("=== Event Debug Info ===")
+    print("Event Type: " .. event_data.event_type)
+    print("Payload: " .. tostring(payload))
+    print("Is Arrow Key: " .. tostring(event_parser.is_arrow_key(event_name)))
+    print("Is Navigation Key: " .. tostring(event_parser.is_navigation_key(event_name)))
+    print("Is Function Key: " .. tostring(event_parser.is_function_key(event_name)))
+    print("========================")
+    
+    -- ... handling logic
+    return true
+end
+```
+
+### Real-World Application
+
+#### FG Live Grep Plugin Example
+
+```lua
+-- Handle page navigation in FG Live Grep plugin
+local function on_window_event(event_name, payload)
+    -- Use event parser API to check event type
+    if event_parser.is_navigation_key(event_name) then
+        if event_name == "pageup" then
+            -- Page up
+            state.selected = math.max(1, state.selected - CONFIG.list_height)
+            update_visible_results()
+            update_window("pageup")
+        elseif event_name == "pagedown" then
+            -- Page down
+            state.selected = math.min(#state.all_results, state.selected + CONFIG.list_height)
+            update_visible_results()
+            update_window("pagedown")
+        end
+        return true
+    end
+    
+    -- ... other event handling
+    return false
+end
+```
 
 ---
 

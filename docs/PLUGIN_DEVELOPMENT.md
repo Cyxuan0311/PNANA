@@ -12,6 +12,7 @@
 - [命令注册](#命令注册)
 - [事件（autocmd）](#事件autocmd)
 - [键位映射](#键位映射)
+- [事件解析 API](#事件解析-api)
 - [主题 API](#主题-api)
 - [编辑器 API](#编辑器-api)
 - [文件 API](#文件-api)
@@ -193,6 +194,186 @@ vim.keymap.del("n", "<F2>")
 
 - `n`：普通模式（代码编辑区默认）
 - 其他模式由编辑器支持情况决定
+
+---
+
+## 事件解析 API
+
+事件解析 API（`event_parser`）允许 Lua 脚本在 Lua 侧自定义事件解析逻辑，而无需在 C++ 侧硬编码事件转换。这提供了更大的灵活性，特别是在处理复杂事件或新增事件类型时。
+
+### API 概览
+
+| API | 说明 | 返回 |
+|-----|------|------|
+| `event_parser.parse(event_type, character?)` | 解析事件为结构化数据 | `{event_type, modifiers, character}` |
+| `event_parser.to_string(event_type, character?)` | 将事件转换为字符串 | `"event_type"` 或 `"event_type:char"` |
+| `event_parser.get_modifiers()` | 获取修饰键信息 | `{ctrl, alt, shift, meta}` |
+| `event_parser.is_arrow_key(event_type)` | 检查是否是方向键 | `true/false` |
+| `event_parser.is_function_key(event_type)` | 检查是否是功能键 | `true/false` |
+| `event_parser.is_navigation_key(event_type)` | 检查是否是导航键 | `true/false` |
+
+### 使用示例
+
+#### 1. 解析事件为结构化数据
+
+```lua
+-- 在窗口事件回调中
+local function on_window_event(event_name, payload)
+    -- 解析事件
+    local event_data = event_parser.parse(event_name, payload)
+    
+    print("事件类型：" .. event_data.event_type)
+    print("字符：" .. tostring(event_data.character))
+    print("修饰键：" .. vim.inspect(event_data.modifiers))
+    
+    -- 根据事件类型处理
+    if event_parser.is_navigation_key(event_name) then
+        -- 处理导航键（PageUp, PageDown, Home, End 等）
+        if event_name == "pageup" then
+            print("向上翻页")
+        elseif event_name == "pagedown" then
+            print("向下翻页")
+        elseif event_name == "home" then
+            print("跳到开头")
+        elseif event_name == "end" then
+            print("跳到结尾")
+        end
+    elseif event_parser.is_arrow_key(event_name) then
+        -- 处理方向键
+        if event_name == "arrow_up" then
+            print("向上移动")
+        elseif event_name == "arrow_down" then
+            print("向下移动")
+        end
+    elseif event_parser.is_function_key(event_name) then
+        -- 处理功能键（F1-F12）
+        print("功能键：" .. event_name)
+    end
+    
+    return true
+end
+```
+
+#### 2. 检查事件类型
+
+```lua
+-- 检查是否是方向键
+if event_parser.is_arrow_key(event_name) then
+    print("这是一个方向键")
+end
+
+-- 检查是否是导航键
+if event_parser.is_navigation_key(event_name) then
+    print("这是一个导航键")
+end
+
+-- 检查是否是功能键
+if event_parser.is_function_key(event_name) then
+    print("这是一个功能键")
+end
+```
+
+#### 3. 获取修饰键信息
+
+```lua
+local mods = event_parser.get_modifiers()
+print("Ctrl: " .. tostring(mods.ctrl))
+print("Alt: " .. tostring(mods.alt))
+print("Shift: " .. tostring(mods.shift))
+print("Meta: " .. tostring(mods.meta))
+```
+
+#### 4. 事件字符串转换
+
+```lua
+-- 简单事件
+local event_str = event_parser.to_string("pageup")
+print(event_str)  -- 输出："pageup"
+
+-- 带字符的事件
+local event_str = event_parser.to_string("char", "a")
+print(event_str)  -- 输出："char:a"
+```
+
+### 支持的事件类型
+
+| 事件类型 | Lua Event Name | 说明 |
+|----------|----------------|------|
+| 方向键 | `arrow_up`, `arrow_down`, `arrow_left`, `arrow_right` | 上下左右箭头 |
+| 导航键 | `pageup`, `pagedown`, `home`, `end`, `insert`, `delete` | 页面导航 |
+| 功能键 | `f1` - `f12` | 功能键 F1 到 F12 |
+| 操作键 | `enter`, `escape`, `backspace`, `tab` | 常用操作 |
+| 字符键 | `char` | 普通字符输入（payload 为字符） |
+| 其他事件 | `raw` | 未预定义的事件（payload 为原始字符串） |
+
+### 架构优势
+
+#### 修改前（C++ 硬编码）
+
+```
+用户按键 → C++ 硬编码转换 → Lua 接收固定事件名
+          ↓
+    只能支持预定义的事件
+    新增事件需要修改 C++ 代码
+```
+
+#### 修改后（Lua 侧解析）
+
+```
+用户按键 → C++ 通用传递 → Lua 侧灵活解析
+          ↓              ↓
+    所有事件都传递    用户自定义解析逻辑
+                      新增事件无需修改 C++
+```
+
+### 调试示例
+
+```lua
+-- 在插件中调试所有事件
+local function on_window_event(event_name, payload)
+    -- 打印所有事件信息
+    local event_data = event_parser.parse(event_name, payload)
+    
+    print("=== 事件调试信息 ===")
+    print("事件类型：" .. event_data.event_type)
+    print("Payload: " .. tostring(payload))
+    print("是否为方向键：" .. tostring(event_parser.is_arrow_key(event_name)))
+    print("是否为导航键：" .. tostring(event_parser.is_navigation_key(event_name)))
+    print("是否为功能键：" .. tostring(event_parser.is_function_key(event_name)))
+    print("===================")
+    
+    -- ... 处理逻辑
+    return true
+end
+```
+
+### 实际应用场景
+
+#### FG Live Grep 插件示例
+
+```lua
+-- 在 FG Live Grep 插件中处理翻页
+local function on_window_event(event_name, payload)
+    -- 使用事件解析 API 检查事件类型
+    if event_parser.is_navigation_key(event_name) then
+        if event_name == "pageup" then
+            -- 向上翻页
+            state.selected = math.max(1, state.selected - CONFIG.list_height)
+            update_visible_results()
+            update_window("pageup")
+        elseif event_name == "pagedown" then
+            -- 向下翻页
+            state.selected = math.min(#state.all_results, state.selected + CONFIG.list_height)
+            update_visible_results()
+            update_window("pagedown")
+        end
+        return true
+    end
+    
+    -- ... 其他事件处理
+    return false
+end
+```
 
 ---
 
