@@ -779,6 +779,7 @@ if(BUILD_LUA_SUPPORT)
         src/plugins/theme_api.cpp
         src/plugins/system_api.cpp
         src/plugins/ui_api.cpp
+        src/plugins/event_parser_api.cpp
     )
 
     message(STATUS "Plugin system configured with Lua")
