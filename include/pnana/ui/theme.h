@@ -78,12 +78,16 @@ class Theme {
     static ThemeColors PurpleDark();     // Purple Dark - 紫黑主题，深紫底色 + 亮紫点缀
     static ThemeColors Gruvbox();        // Gruvbox
     static ThemeColors TokyoNight();     // Tokyo Night
-    static ThemeColors Catppuccin();     // Catppuccin
-    static ThemeColors Material();       // Material
-    static ThemeColors Ayu();            // Ayu
-    static ThemeColors GitHub();         // GitHub Light
-    static ThemeColors GitHubDark();     // GitHub Dark
-    static ThemeColors GitHubDarkDimmed();        // GitHub Dark Dimmed - 柔和暗色主题
+    static ThemeColors Catppuccin();     // Catppuccin Mocha - 深色版本，暖紫灰基底
+    static ThemeColors CatppuccinLatte();     // Catppuccin Latte - 浅色版本，暖白基底
+    static ThemeColors CatppuccinFrappe();    // Catppuccin Frappé - 中等深色，冷紫灰基底
+    static ThemeColors CatppuccinMacchiato(); // Catppuccin Macchiato - 较深版本，紫灰基底
+    static ThemeColors Doraemon();            // 叮当猫/哆啦 A 梦 - 蓝白红黄经典配色
+    static ThemeColors Material();            // Material
+    static ThemeColors Ayu();                 // Ayu
+    static ThemeColors GitHub();              // GitHub Light
+    static ThemeColors GitHubDark();          // GitHub Dark
+    static ThemeColors GitHubDarkDimmed();    // GitHub Dark Dimmed - 柔和暗色主题
     static ThemeColors GitHubDarkHighContrast();  // GitHub Dark High Contrast - 高对比度主题
     static ThemeColors GitHubLightHighContrast(); // GitHub Light High Contrast - 高对比度亮色
     static ThemeColors GitHubColorblind();        // GitHub Colorblind - 色盲友好主题
@@ -139,6 +143,7 @@ class Theme {
     static ThemeColors Ocean();                   // Ocean - 深海蓝青
     static ThemeColors TangoDark();               // Tango Dark - Tango 调色板深色
     static ThemeColors Synthwave();               // Synthwave - 80 年代霓虹紫青粉
+    static ThemeColors RetroFuture();             // Retro-Future - 复古未来主义 CRT 荧光风
     static ThemeColors Decay();                   // Decay - 冷灰蓝低饱和
     static ThemeColors RiderDark();               // Rider Dark - JetBrains 灰底紫蓝
     static ThemeColors ParchmentDark();           // Parchment Dark - 深褐羊皮纸风
@@ -170,7 +175,11 @@ class Theme {
     static ThemeColors NeonTokyo(); // Neon Tokyo - 霓虹东京主题，深紫黑基底配合霓虹粉/青/绿
     static ThemeColors TraeDark(); // Trae Dark - Trae 暗色主题，深灰黑基底配合蓝/紫/绿
     static ThemeColors TraeDeepBlue(); // Trae Deep Blue - Trae 深蓝主题，深蓝灰基底配合蓝/青/紫
-    static ThemeColors Midnight();    // Midnight - 午夜蓝主题，深邃神秘的蓝紫色调
+    static ThemeColors Midnight(); // Midnight - 午夜蓝主题，深邃神秘的蓝紫色调
+    static ThemeColors
+    FrancisBacon(); // Francis Bacon - 弗朗西斯·培根主题，深红黑基底配合血色/暗金色调
+    static ThemeColors Moray(); // Moray - 莫莱主题，深海鳗鱼色，深蓝绿基底配合荧光绿/橙色
+    static ThemeColors VanGogh(); // Van Gogh - 梵高主题，星空蓝黄基底配合漩涡状色彩
     static ThemeColors Minecraft();   // Minecraft - 我的世界主题，经典像素游戏配色
     static ThemeColors EVAUnit01();   // EVA Unit-01 - 初号机主题，紫/绿配色
     static ThemeColors EVAUnit02();   // EVA Unit-02 - 贰号机主题，红/橙配色

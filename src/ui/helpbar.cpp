@@ -20,8 +20,11 @@ Element Helpbar::render(const std::vector<HelpItem>& items) {
 }
 
 Element Helpbar::renderItem(const HelpItem& item) {
-    return hbox({text(item.key) | color(theme_.getColors().helpbar_key) | bold, text(" "),
-                 text(item.description)});
+    auto& colors = theme_.getColors();
+    // 操作符使用醒目的颜色（如主题中的 function 色），描述使用默认前景色
+    return hbox({text(item.key) | color(colors.function) | bold,
+                 text(" ") | color(colors.helpbar_fg),
+                 text(item.description) | color(colors.helpbar_fg)});
 }
 
 std::vector<HelpItem> Helpbar::getDefaultHelp() {

@@ -904,6 +904,179 @@ ThemeColors Theme::Catppuccin() {
     return colors;
 }
 
+ThemeColors Theme::CatppuccinLatte() {
+    ThemeColors colors;
+    // Catppuccin Latte: 浅色版本，暖白基底 + 柔和粉彩点缀
+    colors.background = Color::RGB(239, 241, 245);        // #eff1f5 Base
+    colors.foreground = Color::RGB(76, 79, 105);          // #4c4f69 Text
+    colors.current_line = Color::RGB(220, 223, 231);      // #dce0e7 Surface0
+    colors.selection = Color::RGB(204, 208, 218);         // #ccd0da Surface1
+    colors.line_number = Color::RGB(156, 160, 176);       // #9ca0b0 Overlay0
+    colors.line_number_current = Color::RGB(76, 79, 105); // #4c4f69
+
+    colors.statusbar_bg = Color::RGB(230, 233, 242); // #e6e9f2 Mantle
+    colors.statusbar_fg = Color::RGB(76, 79, 105);
+
+    colors.menubar_bg = Color::RGB(220, 223, 231); // #dce0e7 Crust
+    colors.menubar_fg = Color::RGB(76, 79, 105);
+
+    colors.helpbar_bg = Color::RGB(230, 233, 242);
+    colors.helpbar_fg = Color::RGB(131, 137, 160); // #8389a0 Overlay
+    colors.helpbar_key = Color::RGB(23, 146, 153); // #179299 Teal
+
+    // Catppuccin Latte 标志色：Mauve/Peach/Green/Teal/Sky
+    colors.keyword = Color::RGB(142, 76, 177);        // #8e44b1 Mauve
+    colors.string = Color::RGB(64, 160, 43);          // #40a02b Green
+    colors.comment = Color::RGB(156, 160, 176);       // #9ca0b0 Overlay0
+    colors.number = Color::RGB(254, 100, 11);         // #fe640b Peach
+    colors.function = Color::RGB(37, 159, 154);       // #259f9a Sky
+    colors.type = Color::RGB(32, 159, 181);           // #209fb5 Sapphire
+    colors.operator_color = Color::RGB(142, 76, 177); // Mauve
+
+    colors.error = Color::RGB(210, 15, 57);    // #d20f39 Red
+    colors.warning = Color::RGB(254, 100, 11); // #fe640b Peach
+    colors.info = Color::RGB(37, 159, 154);    // #259f9a Sky
+    colors.success = Color::RGB(64, 160, 43);  // #40a02b Green
+
+    colors.dialog_bg = Color::RGB(220, 223, 231); // #dce0e7 Surface0
+    colors.dialog_fg = Color::RGB(76, 79, 105);
+    colors.dialog_title_bg = Color::RGB(211, 215, 226); // #d3d7e2 Surface2
+    colors.dialog_title_fg = Color::RGB(76, 79, 105);
+    colors.dialog_border = Color::RGB(186, 187, 203); // #babbc0 Surface2
+
+    return colors;
+}
+
+ThemeColors Theme::CatppuccinFrappe() {
+    ThemeColors colors;
+    // Catppuccin Frappé: 中等深色，冷紫灰基底 + 清爽粉彩点缀
+    colors.background = Color::RGB(48, 52, 70);             // #303446 Base
+    colors.foreground = Color::RGB(198, 208, 245);          // #c6d0f5 Text
+    colors.current_line = Color::RGB(65, 69, 89);           // #414559 Surface0
+    colors.selection = Color::RGB(81, 87, 109);             // #51576d Surface1
+    colors.line_number = Color::RGB(121, 128, 151);         // #798097 Overlay0
+    colors.line_number_current = Color::RGB(198, 208, 245); // #c6d0f5
+
+    colors.statusbar_bg = Color::RGB(41, 44, 60); // #292c3c Mantle
+    colors.statusbar_fg = Color::RGB(198, 208, 245);
+
+    colors.menubar_bg = Color::RGB(35, 38, 52); // #232634 Crust
+    colors.menubar_fg = Color::RGB(198, 208, 245);
+
+    colors.helpbar_bg = Color::RGB(41, 44, 60);
+    colors.helpbar_fg = Color::RGB(165, 173, 206);  // #a5adce Overlay
+    colors.helpbar_key = Color::RGB(125, 207, 255); // #7dcfff Teal
+
+    // Catppuccin Frappé 标志色：Mauve/Peach/Green/Teal/Sky
+    colors.keyword = Color::RGB(202, 158, 230);        // #ca9ee6 Mauve
+    colors.string = Color::RGB(166, 209, 137);         // #a6d189 Green
+    colors.comment = Color::RGB(121, 128, 151);        // #798097 Overlay0
+    colors.number = Color::RGB(239, 159, 118);         // #ef9f76 Peach
+    colors.function = Color::RGB(153, 209, 219);       // #99d1db Sky
+    colors.type = Color::RGB(128, 205, 232);           // #80cdd4 Sapphire
+    colors.operator_color = Color::RGB(202, 158, 230); // Mauve
+
+    colors.error = Color::RGB(227, 135, 145);   // #e38c8f Red
+    colors.warning = Color::RGB(239, 159, 118); // #ef9f76 Peach
+    colors.info = Color::RGB(153, 209, 219);    // #99d1db Sky
+    colors.success = Color::RGB(166, 209, 137); // #a6d189 Green
+
+    colors.dialog_bg = Color::RGB(65, 69, 89); // #414559
+    colors.dialog_fg = Color::RGB(198, 208, 245);
+    colors.dialog_title_bg = Color::RGB(75, 79, 101); // #4b4f65 Surface2
+    colors.dialog_title_fg = Color::RGB(198, 208, 245);
+    colors.dialog_border = Color::RGB(107, 112, 129); // #6b7081 Surface2
+
+    return colors;
+}
+
+ThemeColors Theme::CatppuccinMacchiato() {
+    ThemeColors colors;
+    // Catppuccin Macchiato: 较深版本，紫灰基底 + 鲜艳粉彩点缀
+    colors.background = Color::RGB(36, 39, 57);             // #24273a Base
+    colors.foreground = Color::RGB(202, 211, 245);          // #cad3f5 Text
+    colors.current_line = Color::RGB(54, 58, 79);           // #363a4f Surface0
+    colors.selection = Color::RGB(69, 73, 96);              // #454960 Surface1
+    colors.line_number = Color::RGB(114, 121, 149);         // #727995 Overlay0
+    colors.line_number_current = Color::RGB(202, 211, 245); // #cad3f5
+
+    colors.statusbar_bg = Color::RGB(30, 32, 48); // #1e2030 Mantle
+    colors.statusbar_fg = Color::RGB(202, 211, 245);
+
+    colors.menubar_bg = Color::RGB(24, 26, 40); // #181a28 Crust
+    colors.menubar_fg = Color::RGB(202, 211, 245);
+
+    colors.helpbar_bg = Color::RGB(30, 32, 48);
+    colors.helpbar_fg = Color::RGB(162, 171, 210);  // #a2a9d2 Overlay
+    colors.helpbar_key = Color::RGB(139, 213, 202); // #8bd5ca Teal
+
+    // Catppuccin Macchiato 标志色：Mauve/Peach/Green/Teal/Sky
+    colors.keyword = Color::RGB(198, 160, 246);        // #c6a0f6 Mauve
+    colors.string = Color::RGB(166, 227, 161);         // #a6e3a1 Green
+    colors.comment = Color::RGB(114, 121, 149);        // #727995 Overlay0
+    colors.number = Color::RGB(245, 169, 127);         // #f5a97f Peach
+    colors.function = Color::RGB(145, 211, 235);       // #91d3eb Sky
+    colors.type = Color::RGB(125, 207, 255);           // #7dcfff Sapphire
+    colors.operator_color = Color::RGB(198, 160, 246); // Mauve
+
+    colors.error = Color::RGB(237, 135, 150);   // #ed8796 Red
+    colors.warning = Color::RGB(245, 169, 127); // #f5a97f Peach
+    colors.info = Color::RGB(145, 211, 235);    // #91d3eb Sky
+    colors.success = Color::RGB(166, 227, 161); // #a6e3a1 Green
+
+    colors.dialog_bg = Color::RGB(54, 58, 79); // #363a4f
+    colors.dialog_fg = Color::RGB(202, 211, 245);
+    colors.dialog_title_bg = Color::RGB(64, 68, 91); // #40445b Surface2
+    colors.dialog_title_fg = Color::RGB(202, 211, 245);
+    colors.dialog_border = Color::RGB(94, 101, 124); // #5e657c Surface2
+
+    return colors;
+}
+
+ThemeColors Theme::Doraemon() {
+    ThemeColors colors;
+    // 叮当猫/哆啦 A 梦主题：经典蓝白红黄配色，明亮活泼
+    // 灵感来自哆啦 A 梦的蓝色身体、白色肚皮、红色鼻子和黄色铃铛
+    colors.background = Color::RGB(25, 25, 112);    // #191970 Midnight Blue - 哆啦 A 梦蓝
+    colors.foreground = Color::RGB(255, 255, 255);  // #ffffff 白色肚皮
+    colors.current_line = Color::RGB(40, 40, 140);  // #28288c 稍亮的蓝色
+    colors.selection = Color::RGB(60, 60, 160);     // #3c3ca0 选中背景
+    colors.line_number = Color::RGB(135, 206, 235); // #87ceeb Sky Blue - 柔和蓝色
+    colors.line_number_current = Color::RGB(255, 255, 255); // #ffffff 当前行号
+
+    colors.statusbar_bg = Color::RGB(20, 20, 100); // #141464 深蓝
+    colors.statusbar_fg = Color::RGB(255, 255, 255);
+
+    colors.menubar_bg = Color::RGB(15, 15, 90); // #0f0f5a 更深蓝
+    colors.menubar_fg = Color::RGB(255, 255, 255);
+
+    colors.helpbar_bg = Color::RGB(20, 20, 100);
+    colors.helpbar_fg = Color::RGB(200, 200, 255); // 浅蓝白
+    colors.helpbar_key = Color::RGB(255, 215, 0);  // #ffd700 金色铃铛
+
+    // 叮当猫主题语法色：红鼻子/金铃铛/白肚皮/蓝身体
+    colors.keyword = Color::RGB(220, 20, 60);        // #dc143c Crimson - 红色鼻子
+    colors.string = Color::RGB(255, 255, 255);       // #ffffff 白色肚皮
+    colors.comment = Color::RGB(135, 206, 235);      // #87ceeb Sky Blue
+    colors.number = Color::RGB(255, 215, 0);         // #ffd700 金色铃铛
+    colors.function = Color::RGB(100, 149, 237);     // #6495ed Cornflower Blue
+    colors.type = Color::RGB(176, 196, 222);         // #b0c4de Light Steel Blue
+    colors.operator_color = Color::RGB(220, 20, 60); // Crimson - 红色
+
+    colors.error = Color::RGB(255, 69, 0);      // #ff4500 Orange Red
+    colors.warning = Color::RGB(255, 215, 0);   // #ffd700 金色
+    colors.info = Color::RGB(135, 206, 235);    // #87ceeb Sky Blue
+    colors.success = Color::RGB(255, 255, 255); // #ffffff 白色
+
+    colors.dialog_bg = Color::RGB(40, 40, 140); // #28288c
+    colors.dialog_fg = Color::RGB(255, 255, 255);
+    colors.dialog_title_bg = Color::RGB(220, 20, 60); // #dc143c 红色鼻子
+    colors.dialog_title_fg = Color::RGB(255, 255, 255);
+    colors.dialog_border = Color::RGB(255, 215, 0); // #ffd700 金色铃铛
+
+    return colors;
+}
+
 ThemeColors Theme::Material() {
     ThemeColors colors;
     // Material Oceanic: 经典深蓝灰基底 + 青/紫/橙点缀
@@ -3456,6 +3629,49 @@ ThemeColors Theme::Synthwave() {
     return colors;
 }
 
+ThemeColors Theme::RetroFuture() {
+    ThemeColors colors;
+    // Retro-Future: 复古未来主义，80 年代 CRT 显示器荧光风格
+    // 灵感来自早期科幻电影和老式计算机终端
+    colors.background = Color::RGB(10, 15, 20);           // 深蓝黑背景
+    colors.foreground = Color::RGB(0, 255, 128);          // 经典磷光绿
+    colors.current_line = Color::RGB(15, 25, 35);         // 稍亮的背景
+    colors.selection = Color::RGB(20, 35, 50);            // 选中区域
+    colors.line_number = Color::RGB(0, 180, 100);         // 暗绿色行号
+    colors.line_number_current = Color::RGB(0, 255, 150); // 亮绿当前行
+
+    colors.statusbar_bg = Color::RGB(15, 25, 35);
+    colors.statusbar_fg = Color::RGB(0, 255, 128);
+
+    colors.menubar_bg = Color::RGB(10, 15, 20);
+    colors.menubar_fg = Color::RGB(0, 255, 128);
+
+    colors.helpbar_bg = Color::RGB(15, 25, 35);
+    colors.helpbar_fg = Color::RGB(0, 220, 120);
+    colors.helpbar_key = Color::RGB(255, 0, 255); // 品红快捷键
+
+    colors.keyword = Color::RGB(255, 0, 255);        // 品红关键词
+    colors.string = Color::RGB(255, 200, 0);         // 琥珀色字符串
+    colors.comment = Color::RGB(0, 150, 100);        // 暗绿注释
+    colors.number = Color::RGB(0, 255, 255);         // 青色数字
+    colors.function = Color::RGB(255, 100, 0);       // 橙色函数
+    colors.type = Color::RGB(0, 200, 255);           // 天蓝色类型
+    colors.operator_color = Color::RGB(255, 0, 255); // 品红操作符
+
+    colors.error = Color::RGB(255, 50, 50);   // 红色错误
+    colors.warning = Color::RGB(255, 200, 0); // 琥珀色警告
+    colors.info = Color::RGB(0, 200, 255);    // 青色信息
+    colors.success = Color::RGB(0, 255, 128); // 磷光绿成功
+
+    colors.dialog_bg = Color::RGB(15, 25, 35);
+    colors.dialog_fg = Color::RGB(0, 255, 128);
+    colors.dialog_title_bg = Color::RGB(20, 35, 50);
+    colors.dialog_title_fg = Color::RGB(255, 0, 255);
+    colors.dialog_border = Color::RGB(0, 200, 255);
+
+    return colors;
+}
+
 ThemeColors Theme::Decay() {
     ThemeColors colors;
     // Decay: 冷灰蓝低饱和，柔和护眼
@@ -4807,6 +5023,135 @@ ThemeColors Theme::Midnight() {
     colors.dialog_title_bg = Color::RGB(20, 25, 40);    // #141928
     colors.dialog_title_fg = Color::RGB(180, 160, 255); // #B4A0FF 亮紫
     colors.dialog_border = Color::RGB(70, 85, 115);     // #465573 蓝紫边框
+
+    return colors;
+}
+
+ThemeColors Theme::FrancisBacon() {
+    ThemeColors colors;
+    // Francis Bacon: 弗朗西斯·培根主题，深红黑基底配合血色/暗金色调，灵感来自培根的黑暗绘画风格
+    colors.background = Color::RGB(35, 25, 28);             // #23191C 深红褐色
+    colors.foreground = Color::RGB(225, 210, 200);          // #E1D2C8 暖肉色
+    colors.current_line = Color::RGB(50, 35, 38);           // #322326 红棕
+    colors.selection = Color::RGB(70, 50, 53);              // #463235 深红棕
+    colors.line_number = Color::RGB(130, 100, 90);          // #82645A 暗红棕
+    colors.line_number_current = Color::RGB(230, 190, 170); // #E6BEAA 亮肉色
+
+    colors.statusbar_bg = Color::RGB(45, 30, 33);    // #2D1E21 深红褐
+    colors.statusbar_fg = Color::RGB(225, 210, 200); // #E1D2C8
+
+    colors.menubar_bg = Color::RGB(35, 25, 28);    // #23191C
+    colors.menubar_fg = Color::RGB(225, 210, 200); // #E1D2C8
+
+    colors.helpbar_bg = Color::RGB(45, 30, 33);
+    colors.helpbar_fg = Color::RGB(160, 130, 120); // #A08278 暗棕
+    colors.helpbar_key = Color::RGB(210, 170, 90); // #D2AA5A 暗金
+
+    // Bacon 语法高亮：血红关键词/暗金字符串/深棕注释/橙色数字/金棕函数
+    colors.keyword = Color::RGB(190, 70, 60);        // #BE463C 血红
+    colors.string = Color::RGB(210, 170, 90);        // #D2AA5A 暗金
+    colors.comment = Color::RGB(100, 80, 75);        // #64504B 深棕
+    colors.number = Color::RGB(230, 150, 100);       // #E69664 橙红
+    colors.function = Color::RGB(190, 150, 80);      // #BE9650 金棕
+    colors.type = Color::RGB(210, 130, 100);         // #D28264 橙红
+    colors.operator_color = Color::RGB(190, 70, 60); // #BE463C 血红
+
+    colors.error = Color::RGB(230, 60, 50);     // #E63C32 鲜红
+    colors.warning = Color::RGB(230, 170, 70);  // #E6AA46 橙黄
+    colors.info = Color::RGB(190, 150, 80);     // #BE9650 金棕
+    colors.success = Color::RGB(150, 190, 110); // #96BE6E 橄榄绿
+
+    colors.dialog_bg = Color::RGB(50, 35, 38);          // #322326
+    colors.dialog_fg = Color::RGB(225, 210, 200);       // #E1D2C8
+    colors.dialog_title_bg = Color::RGB(70, 45, 48);    // #462D30 深红
+    colors.dialog_title_fg = Color::RGB(230, 190, 110); // #E6BE6E 金色
+    colors.dialog_border = Color::RGB(130, 90, 80);     // #825A50 红棕边框
+
+    return colors;
+}
+
+ThemeColors Theme::Moray() {
+    ThemeColors colors;
+    // Moray: 莫莱（海鳗）主题，深海鳗鱼色，深蓝绿基底配合荧光绿/橙色，灵感来自深海生物
+    colors.background = Color::RGB(10, 40, 45);             // #0A282D 深海蓝绿
+    colors.foreground = Color::RGB(210, 240, 230);          // #D2F0E6 浅海绿
+    colors.current_line = Color::RGB(20, 55, 60);           // #14373C 深海绿
+    colors.selection = Color::RGB(30, 75, 80);              // #1E4B50 选中绿
+    colors.line_number = Color::RGB(90, 140, 130);          // #5A8C82 海绿
+    colors.line_number_current = Color::RGB(190, 250, 230); // #BEFAE6 亮海绿
+
+    colors.statusbar_bg = Color::RGB(15, 50, 55);    // #0F3237 深蓝绿
+    colors.statusbar_fg = Color::RGB(210, 240, 230); // #D2F0E6
+
+    colors.menubar_bg = Color::RGB(10, 40, 45);    // #0A282D
+    colors.menubar_fg = Color::RGB(210, 240, 230); // #D2F0E6
+
+    colors.helpbar_bg = Color::RGB(15, 50, 55);
+    colors.helpbar_fg = Color::RGB(130, 190, 170); // #82BEAA 中海绿
+    colors.helpbar_key = Color::RGB(255, 190, 90); // #FFBE5A 荧光橙
+
+    // Moray 语法高亮：荧光绿关键词/橙字符串/深绿注释/亮橙数字/青函数
+    colors.keyword = Color::RGB(80, 255, 170);        // #50FFAA 荧光绿
+    colors.string = Color::RGB(255, 170, 90);         // #FFAA5A 橙
+    colors.comment = Color::RGB(50, 120, 110);        // #32786E 深绿
+    colors.number = Color::RGB(255, 210, 110);        // #FFD26E 亮橙
+    colors.function = Color::RGB(70, 230, 210);       // #46E6D2 青绿
+    colors.type = Color::RGB(90, 210, 230);           // #5AD2E6 青
+    colors.operator_color = Color::RGB(80, 255, 170); // #50FFAA 荧光绿
+
+    colors.error = Color::RGB(255, 90, 100);   // #FF5A64 红
+    colors.warning = Color::RGB(255, 190, 70); // #FFBE46 橙
+    colors.info = Color::RGB(70, 230, 210);    // #46E6D2 青绿
+    colors.success = Color::RGB(80, 255, 170); // #50FFAA 荧光绿
+
+    colors.dialog_bg = Color::RGB(20, 55, 60);         // #14373C
+    colors.dialog_fg = Color::RGB(210, 240, 230);      // #D2F0E6
+    colors.dialog_title_bg = Color::RGB(30, 75, 80);   // #1E4B50 深绿
+    colors.dialog_title_fg = Color::RGB(80, 255, 170); // #50FFAA 荧光绿
+    colors.dialog_border = Color::RGB(90, 140, 130);   // #5A8C82 海绿边框
+
+    return colors;
+}
+
+ThemeColors Theme::VanGogh() {
+    ThemeColors colors;
+    // Van Gogh: 梵高主题，星空蓝黄基底配合漩涡状色彩，灵感来自《星夜》等名作
+    colors.background = Color::RGB(15, 20, 40);             // #0F1428 星空深蓝
+    colors.foreground = Color::RGB(255, 240, 190);          // #FFF0BE 星芒黄
+    colors.current_line = Color::RGB(30, 40, 70);           // #1E2846 深蓝
+    colors.selection = Color::RGB(45, 60, 95);              // #2D3C5F 选中蓝
+    colors.line_number = Color::RGB(95, 115, 155);          // #5F739B 星夜蓝
+    colors.line_number_current = Color::RGB(255, 230, 150); // #FFE696 亮星黄
+
+    colors.statusbar_bg = Color::RGB(25, 35, 65);    // #192341 深蓝
+    colors.statusbar_fg = Color::RGB(255, 240, 190); // #FFF0BE
+
+    colors.menubar_bg = Color::RGB(15, 20, 40);    // #0F1428
+    colors.menubar_fg = Color::RGB(255, 240, 190); // #FFF0BE
+
+    colors.helpbar_bg = Color::RGB(25, 35, 65);
+    colors.helpbar_fg = Color::RGB(175, 185, 215); // #AFB9D7 星夜灰蓝
+    colors.helpbar_key = Color::RGB(255, 210, 90); // #FFD25A 向日葵黄
+
+    // Van Gogh 语法高亮：向日葵黄关键词/橙红字符串/深蓝灰注释/金黄数字/漩涡蓝函数
+    colors.keyword = Color::RGB(255, 230, 110);        // #FFE66E 向日葵黄
+    colors.string = Color::RGB(255, 150, 90);          // #FF965A 橙红
+    colors.comment = Color::RGB(65, 80, 115);          // #415073 深蓝灰
+    colors.number = Color::RGB(255, 210, 70);          // #FFD246 金黄
+    colors.function = Color::RGB(70, 175, 220);        // #46AFDC 漩涡蓝
+    colors.type = Color::RGB(90, 195, 240);            // #5AC3F0 天蓝
+    colors.operator_color = Color::RGB(255, 190, 110); // #FFBE6E 橙黄
+
+    colors.error = Color::RGB(255, 110, 90);    // #FF6E5A 朱红
+    colors.warning = Color::RGB(255, 210, 90);  // #FFD25A 橙黄
+    colors.info = Color::RGB(70, 175, 220);     // #46AFDC 漩涡蓝
+    colors.success = Color::RGB(130, 220, 150); // #82DC96 橄榄绿
+
+    colors.dialog_bg = Color::RGB(30, 40, 70);          // #1E2846
+    colors.dialog_fg = Color::RGB(255, 240, 190);       // #FFF0BE
+    colors.dialog_title_bg = Color::RGB(45, 60, 95);    // #2D3C5F 深蓝
+    colors.dialog_title_fg = Color::RGB(255, 230, 110); // #FFE66E 向日葵黄
+    colors.dialog_border = Color::RGB(95, 115, 155);    // #5F739B 星夜蓝边框
 
     return colors;
 }
@@ -6359,6 +6704,14 @@ void Theme::setTheme(const std::string& name) {
         colors_ = TokyoNight();
     } else if (name == "catppuccin") {
         colors_ = Catppuccin();
+    } else if (name == "catppuccin-latte") {
+        colors_ = CatppuccinLatte();
+    } else if (name == "catppuccin-frappe") {
+        colors_ = CatppuccinFrappe();
+    } else if (name == "catppuccin-macchiato") {
+        colors_ = CatppuccinMacchiato();
+    } else if (name == "doraemon") {
+        colors_ = Doraemon();
     } else if (name == "material") {
         colors_ = Material();
     } else if (name == "ayu") {
@@ -6479,6 +6832,8 @@ void Theme::setTheme(const std::string& name) {
         colors_ = TangoDark();
     } else if (name == "synthwave") {
         colors_ = Synthwave();
+    } else if (name == "retro-future") {
+        colors_ = RetroFuture();
     } else if (name == "decay") {
         colors_ = Decay();
     } else if (name == "rider-dark") {
@@ -6545,6 +6900,12 @@ void Theme::setTheme(const std::string& name) {
         colors_ = TraeDeepBlue();
     } else if (name == "midnight") {
         colors_ = Midnight();
+    } else if (name == "francis-bacon") {
+        colors_ = FrancisBacon();
+    } else if (name == "moray") {
+        colors_ = Moray();
+    } else if (name == "van-gogh") {
+        colors_ = VanGogh();
     } else if (name == "minecraft") {
         colors_ = Minecraft();
     } else if (name == "eva-unit01") {
@@ -6757,6 +7118,10 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "gruvbox",
             "tokyo-night",
             "catppuccin",
+            "catppuccin-latte",
+            "catppuccin-frappe",
+            "catppuccin-macchiato",
+            "doraemon",
             "material",
             "ayu",
             "github",
@@ -6817,6 +7182,7 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "ocean",
             "tango-dark",
             "synthwave",
+            "retro-future",
             "decay",
             "rider-dark",
             "parchment-dark",
@@ -6850,6 +7216,9 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "trae-dark",
             "trae-deep-blue",
             "midnight",
+            "francis-bacon",
+            "moray",
+            "van-gogh",
             "minecraft",
             "eva-unit01",
             "eva-unit02",
@@ -6913,6 +7282,18 @@ std::vector<Color> Theme::getGradientColors() const {
           &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
         {"catppuccin",
          {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"catppuccin-latte",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"catppuccin-frappe",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"catppuccin-macchiato",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::number,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"doraemon",
+         {&ThemeColors::keyword, &ThemeColors::number, &ThemeColors::function, &ThemeColors::string,
           &ThemeColors::keyword, &ThemeColors::success}},
         {"material",
          {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,

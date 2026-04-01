@@ -247,6 +247,9 @@ ftxui::Element ExtractPathDialog::renderInputField(const std::string& label,
                              (is_active ? bold : dim));
     field_elements.push_back(text(" "));
 
+    // 计算可用于显示文本的最大宽度（对话框宽度 75 - 标签 - 边距）
+    const size_t max_display_width = 55;
+
     if (value.empty()) {
         // 空输入时显示块状光标
         if (is_active) {
@@ -256,12 +259,43 @@ ftxui::Element ExtractPathDialog::renderInputField(const std::string& label,
             field_elements.push_back(text("_") | color(colors.comment) | dim);
         }
     } else {
+        // 如果文本过长，进行截断显示
+        std::string display_value = value;
+        size_t display_cursor_pos = safe_cursor_pos;
+
+        if (value.length() > max_display_width) {
+            // 需要根据光标位置决定如何截断
+            if (safe_cursor_pos <= max_display_width / 2 - 2) {
+                // 光标在开头：显示开头部分 + ...
+                display_value = value.substr(0, max_display_width - 3) + "...";
+                display_cursor_pos = safe_cursor_pos;
+            } else if (safe_cursor_pos >= value.length() - (max_display_width / 2 - 2)) {
+                // 光标在结尾：显示... + 结尾部分
+                size_t start = value.length() - (max_display_width - 3);
+                display_value = "..." + value.substr(start);
+                display_cursor_pos = max_display_width - 3 + (safe_cursor_pos - start);
+            } else {
+                // 光标在中间：显示... + 中间部分 + ...
+                size_t half = (max_display_width - 6) / 2;
+                size_t start = safe_cursor_pos - half;
+                size_t end = start + max_display_width - 6;
+                if (end > value.length()) {
+                    end = value.length();
+                    start = end - (max_display_width - 6);
+                }
+                display_value = "..." + value.substr(start, end - start) + "...";
+                display_cursor_pos = 3 + (safe_cursor_pos - start);
+            }
+        }
+
         // 分割字符串：光标前、光标处字符、光标后
-        std::string before = value.substr(0, safe_cursor_pos);
-        std::string cursor_char =
-            safe_cursor_pos < value.length() ? value.substr(safe_cursor_pos, 1) : " ";
-        std::string after =
-            safe_cursor_pos < value.length() ? value.substr(safe_cursor_pos + 1) : "";
+        std::string before = display_value.substr(0, display_cursor_pos);
+        std::string cursor_char = display_cursor_pos < display_value.length()
+                                      ? display_value.substr(display_cursor_pos, 1)
+                                      : " ";
+        std::string after = display_cursor_pos < display_value.length()
+                                ? display_value.substr(display_cursor_pos + 1)
+                                : "";
 
         // 渲染光标前的文本
         if (!before.empty()) {

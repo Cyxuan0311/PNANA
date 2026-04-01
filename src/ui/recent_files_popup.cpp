@@ -83,17 +83,15 @@ bool RecentFilesPopup::handleInput(ftxui::Event event) {
         return true;
     } else if (event == ftxui::Event::Return) {
         auto current_items = getCurrentTabItems();
-        if (file_open_callback_ && selected_index_ < current_items.size()) {
-            // 需要找到原始项目列表中的索引
-            size_t original_index = 0;
-            for (size_t i = 0; i < recent_projects_.size(); ++i) {
-                if (recent_projects_[i].path == current_items[selected_index_].path &&
-                    recent_projects_[i].type == current_items[selected_index_].type) {
-                    original_index = i;
-                    break;
-                }
+        if (selected_index_ < current_items.size()) {
+            const auto& selected_project = current_items[selected_index_];
+            // 根据项目类型调用不同的回调
+            if (selected_project.type == features::ProjectType::FILE && file_open_callback_) {
+                file_open_callback_(selected_project.path);
+            } else if (selected_project.type == features::ProjectType::FOLDER &&
+                       folder_open_callback_) {
+                folder_open_callback_(selected_project.path);
             }
-            file_open_callback_(original_index);
         }
         close();
         return true;
@@ -129,8 +127,12 @@ void RecentFilesPopup::close() {
     selected_index_ = 0;
 }
 
-void RecentFilesPopup::setFileOpenCallback(std::function<void(size_t)> callback) {
+void RecentFilesPopup::setFileOpenCallback(std::function<void(const std::string&)> callback) {
     file_open_callback_ = callback;
+}
+
+void RecentFilesPopup::setFolderOpenCallback(std::function<void(const std::string&)> callback) {
+    folder_open_callback_ = callback;
 }
 
 Element RecentFilesPopup::renderTitle() const {

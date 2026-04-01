@@ -43,7 +43,10 @@ class RecentFilesPopup {
     void close();
 
     // 设置文件打开回调
-    void setFileOpenCallback(std::function<void(size_t)> callback);
+    void setFileOpenCallback(std::function<void(const std::string&)> callback);
+
+    // 设置文件夹打开回调
+    void setFolderOpenCallback(std::function<void(const std::string&)> callback);
 
   private:
     // Tab 类型枚举
@@ -57,7 +60,10 @@ class RecentFilesPopup {
     utils::FileTypeIconMapper icon_mapper_;
 
     // 文件打开回调
-    std::function<void(size_t)> file_open_callback_;
+    std::function<void(const std::string&)> file_open_callback_;
+
+    // 文件夹打开回调
+    std::function<void(const std::string&)> folder_open_callback_;
 
     // 渲染各个组件
     ftxui::Element renderTitle() const;
