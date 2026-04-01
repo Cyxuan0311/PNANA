@@ -4,6 +4,7 @@
 #include "core/document.h"
 #include "core/editor.h"
 #include "features/command_palette.h"
+#include "plugins/event_parser_api.h"
 #include "plugins/icon_api.h"
 #include "utils/logger.h"
 #include <cstdio>
@@ -30,6 +31,7 @@ LuaAPI::LuaAPI(core::Editor* editor) : editor_(editor), engine_(nullptr) {
     system_api_ = std::make_unique<SystemAPI>();
     ui_api_ = std::make_unique<UIAPI>();
     icon_api_ = std::make_unique<IconAPI>();
+    event_parser_api_ = std::make_unique<EventParserAPI>();
 }
 
 LuaAPI::~LuaAPI() {}
@@ -75,6 +77,7 @@ void LuaAPI::initialize(LuaEngine* engine) {
     system_api_->registerFunctions(L);
     ui_api_->registerFunctions(L);
     icon_api_->registerFunctions(L);
+    event_parser_api_->registerAPI(engine);
 }
 
 core::Editor* LuaAPI::getEditorFromLua(lua_State* L) {

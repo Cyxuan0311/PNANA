@@ -4,6 +4,7 @@
 #ifdef BUILD_LUA_SUPPORT
 
 #include "plugins/editor_api.h"
+#include "plugins/event_parser_api.h"
 #include "plugins/file_api.h"
 #include "plugins/icon_api.h"
 #include "plugins/lua_engine.h"
@@ -131,6 +132,7 @@ class LuaAPI {
     std::unique_ptr<SystemAPI> system_api_;
     std::unique_ptr<UIAPI> ui_api_;
     std::unique_ptr<LuaUIRuntime> lua_ui_runtime_;
+    std::unique_ptr<EventParserAPI> event_parser_api_;
 
     // 事件监听器映射: event -> [callbacks] (旧API兼容)
     std::map<std::string, std::vector<std::string>> event_listeners_;

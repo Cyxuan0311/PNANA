@@ -415,6 +415,7 @@ int UIAPI::lua_fn_open_window(lua_State* L) {
     // 构建 PopupSpec
     pnana::core::ui::PopupSpec spec;
     spec.title = widget_spec.window_title.empty() ? "Window" : widget_spec.window_title;
+    spec.window_title_decorators = widget_spec.window_title_decorators;
 
     // 从 lines 或 children 构建消息内容
     if (!widget_spec.items.empty()) {
@@ -466,6 +467,7 @@ int UIAPI::lua_fn_update_window(lua_State* L) {
 
     if (!widget_spec.window_title.empty()) {
         patch.title = widget_spec.window_title;
+        patch.window_title_decorators = widget_spec.window_title_decorators;
     }
 
     // 从 lines 或 children 构建消息内容
@@ -553,6 +555,7 @@ int UIAPI::lua_fn_open_component_window(lua_State* L) {
     // 构建 PopupSpec
     pnana::core::ui::PopupSpec spec;
     spec.title = widget_spec.window_title.empty() ? "Component Window" : widget_spec.window_title;
+    spec.window_title_decorators = widget_spec.window_title_decorators;
     spec.width = widget_spec.min_width > 0 ? widget_spec.min_width : 90;
     spec.height = widget_spec.min_height > 0 ? widget_spec.min_height : 24;
     spec.modal = true;
@@ -663,6 +666,7 @@ int UIAPI::lua_fn_update_component_window(lua_State* L) {
     // 从 widget_spec 填充 patch
     if (!widget_spec.window_title.empty()) {
         patch.title = widget_spec.window_title;
+        patch.window_title_decorators = widget_spec.window_title_decorators;
     }
 
     // 从 lines 或 children 构建 component_lines
