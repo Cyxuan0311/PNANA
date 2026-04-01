@@ -490,6 +490,11 @@ void TUIConfigManager::initializeSystemTools() {
                  "system");
 
     // 系统信息工具
+    addTUIConfig("fastfetch", "Fastfetch", "Fast, feature-rich system information tool",
+                 {"~/.config/fastfetch/config.jsonc", "~/.config/fastfetch/config.json",
+                  "~/.fastfetch.jsonc", "~/.fastfetch.json"},
+                 "system");
+
     addTUIConfig(
         "neofetch", "Neofetch", "Fast, highly customizable system info script",
         {"~/.config/neofetch/config.conf", "~/.config/neofetch/config", "~/.config/neofetch"},

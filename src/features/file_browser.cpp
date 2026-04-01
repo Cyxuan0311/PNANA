@@ -10,8 +10,14 @@ namespace pnana {
 namespace features {
 
 FileBrowser::FileBrowser(ui::Theme& theme)
-    : theme_(theme), current_directory_("."), selected_index_(0), visible_(false),
-      show_hidden_(false), directory_loaded_(false), clipboard_data_{} {
+    : theme_(theme), selected_index_(0), visible_(false), show_hidden_(false),
+      directory_loaded_(false), clipboard_data_{} {
+    // 初始化当前目录为绝对路径
+    try {
+        current_directory_ = fs::current_path().string();
+    } catch (const std::exception&) {
+        current_directory_ = ".";
+    }
     // 延迟加载：不在构造函数中加载目录，只在首次显示时才加载
 }
 
@@ -30,11 +36,16 @@ bool FileBrowser::openDirectory(const std::string& path) {
             selected_index_ = 0;
             directory_loaded_ = true;
             return true;
+        } else {
+            // 路径不存在或不是目录，尝试转换为绝对路径
+            fs::path abs_path = fs::absolute(path);
+            current_directory_ = abs_path.string();
+            // 不加载目录内容，因为路径无效
+            return false;
         }
     } catch (const std::exception&) {
         return false;
     }
-    return false;
 }
 
 void FileBrowser::setRemoteLoader(RemoteLoader fn) {

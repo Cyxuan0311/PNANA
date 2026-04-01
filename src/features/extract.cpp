@@ -16,11 +16,9 @@ namespace features {
 ExtractManager::ExtractManager() : extracting_(false), cancel_requested_(false) {}
 
 ExtractManager::~ExtractManager() {
-    if (extracting_.load()) {
+    if (extract_thread_.joinable()) {
         cancelExtraction();
-        if (extract_thread_.joinable()) {
-            extract_thread_.join();
-        }
+        extract_thread_.join();
     }
 }
 
