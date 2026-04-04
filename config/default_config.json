@@ -83,5 +83,9 @@
     "keep_critical_versions": true,
     "critical_change_threshold": 50,
     "critical_time_interval": 86400
+  },
+  "ui": {
+    "_comment": "UI settings",
+    "toast_enabled": false
   }
 }

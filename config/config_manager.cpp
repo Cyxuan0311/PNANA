@@ -181,6 +181,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t lsp_pos = cleaned.find("\"lsp\":{");
     size_t animation_pos = cleaned.find("\"animation\":{");
     size_t history_pos = cleaned.find("\"history\":{");
+    size_t ui_pos = cleaned.find("\"ui\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
@@ -658,6 +659,14 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 ui 配置
+    if (ui_pos != std::string::npos) {
+        size_t ui_end = cleaned.find("}", ui_pos + 1);
+        if (ui_end != std::string::npos) {
+            config_.ui.toast_enabled = extractBool("toast_enabled", ui_pos, ui_end, false);
+        }
+    }
+
     return true;
 }
 
@@ -804,6 +813,10 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"critical_change_threshold\": " << config_.history.critical_change_threshold
         << ",\n";
     oss << "    \"critical_time_interval\": " << config_.history.critical_time_interval << "\n";
+    oss << "  },\n";
+    oss << "  \"ui\": {\n";
+    oss << "    \"_comment\": \"UI settings\",\n";
+    oss << "    \"toast_enabled\": " << (config_.ui.toast_enabled ? "true" : "false") << "\n";
     oss << "  }\n";
     oss << "}\n";
     return oss.str();
