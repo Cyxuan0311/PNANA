@@ -893,6 +893,67 @@ const std::vector<std::string> LOGO_UNDERSCORE_SLASH = {
     " _|     _| \\_| _/    _\\ _| \\_| _/    _\\ ",
 };
 
+// Underscore Mini 风格（用户提供，精简版）
+const std::vector<std::string> LOGO_UNDERSCORE_MINI = {
+    R"PNANA(  _ \  \ |    \     \ |    \   )PNANA",
+    R"PNANA(  __/ .  |   _ \   .  |   _ \  )PNANA",
+    R"PNANA( _|  _|\_| _/  _\ _|\_| _/  _\ )PNANA",
+};
+
+// Tick Grid 风格（用户提供，|`````````,）
+const std::vector<std::string> LOGO_TICK_GRID = {
+    R"PNANA(                                                                          )PNANA",
+    R"PNANA(|`````````, |..          |       .'.       |..          |       .'.       )PNANA",
+    R"PNANA(|'''''''''  |  ``..      |     .''```.     |  ``..      |     .''```.     )PNANA",
+    R"PNANA(|           |      ``..  |   .'       `.   |      ``..  |   .'       `.   )PNANA",
+    R"PNANA(|           |          ``| .'           `. |          ``| .'           `. )PNANA",
+    R"PNANA(                                                                          )PNANA",
+};
+
+// OO Banner 风格（用户提供，( (OO  )）
+const std::vector<std::string> LOGO_OO_BANNER = {
+    R"PNANA(   _ (`-.      .-') _    ('-.         .-') _    ('-.     )PNANA",
+    R"PNANA(  ( (OO  )    ( OO ) )  ( OO ).-.    ( OO ) )  ( OO ).-. )PNANA",
+    R"PNANA( _.`     \,--./ ,--,'   / . --. /,--./ ,--,'   / . --. / )PNANA",
+    R"PNANA((__...--''|   \ |  |\   | \-.  \ |   \ |  |\   | \-.  \  )PNANA",
+    R"PNANA( |  /  | ||    \|  | ).-'-'  |  ||    \|  | ).-'-'  |  | )PNANA",
+    R"PNANA( |  |_.' ||  .     |/  \| |_.'  ||  .     |/  \| |_.'  | )PNANA",
+    R"PNANA( |  .___.'|  |\    |    |  .-.  ||  |\    |    |  .-.  | )PNANA",
+    R"PNANA( |  |     |  | \   |    |  | |  ||  | \   |    |  | |  | )PNANA",
+    R"PNANA( `--'     `--'  `--'    `--' `--'`--'  `--'    `--' `--' )PNANA",
+};
+
+// BBBBB 风格（用户提供，dBBBBb）
+const std::vector<std::string> LOGO_BBBBB = {
+    R"PNANA(   dBBBBBb  dBBBBb dBBBBBb     dBBBBb dBBBBBb )PNANA",
+    R"PNANA(       dB'     dBP      BB        dBP      BB )PNANA",
+    R"PNANA(   dBBBP' dBP dBP   dBP BB   dBP dBP   dBP BB )PNANA",
+    R"PNANA(  dBP    dBP dBP   dBP  BB  dBP dBP   dBP  BB )PNANA",
+    R"PNANA( dBP    dBP dBP   dBBBBBBB dBP dBP   dBBBBBBB )PNANA",
+};
+
+// O-Waves 风格（用户提供，O~~~~~~~）
+const std::vector<std::string> LOGO_O_WAVES = {
+    R"PNANA(O~~~~~~~  O~~~     O~~      O~       O~~~     O~~      O~       )PNANA",
+    R"PNANA(O~~    O~~O~ O~~   O~~     O~ ~~     O~ O~~   O~~     O~ ~~     )PNANA",
+    R"PNANA(O~~    O~~O~~ O~~  O~~    O~  O~~    O~~ O~~  O~~    O~  O~~    )PNANA",
+    R"PNANA(O~~~~~~~  O~~  O~~ O~~   O~~   O~~   O~~  O~~ O~~   O~~   O~~   )PNANA",
+    R"PNANA(O~~       O~~   O~ O~~  O~~~~~~ O~~  O~~   O~ O~~  O~~~~~~ O~~  )PNANA",
+    R"PNANA(O~~       O~~    O~ ~~ O~~       O~~ O~~    O~ ~~ O~~       O~~ )PNANA",
+    R"PNANA(O~~       O~~      O~~O~~         O~~O~~      O~~O~~         O~~)PNANA",
+};
+
+// Hash Blocks 风格（用户提供，##########）
+const std::vector<std::string> LOGO_HASH_BLOCKS2 = {
+    R"PNANA(   #        #        ##########   #        ########## )PNANA",
+    R"PNANA(  #######   #              ###    #              ###  )PNANA",
+    R"PNANA( #     #  ##########      #     ##########      #     )PNANA",
+    R"PNANA(# #   #     #     #      #        #     #      #      )PNANA",
+    R"PNANA(   ###      #           #         #           #       )PNANA",
+    R"PNANA(  ##        #          #          #          #        )PNANA",
+    R"PNANA(##           ######   #            ######   #         )PNANA",
+};
+
 // Underline 风格（test.txt 第 743–748 行）
 const std::vector<std::string> LOGO_UNDERLINE = {
     "_____________   _____________   ________ ", "___  __ \\__  | / /__    |__  | / /__    |",
@@ -945,16 +1006,192 @@ const std::vector<std::string> LOGO_QUESTION_88 = {
     " ?8P                                              ",
 };
 
-// Digital 风格（科技感数字风格）
-const std::vector<std::string> LOGO_DIGITAL = {
-    "╔════════════════════════════════════════════╗",
-    "║  ██████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗ ║",
-    "║  ██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗║",
-    "║  ██████╔╝██╔██╗ ██║███████║██╔██╗ ██║███████║║",
-    "║  ██╔═══╝ ██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║║",
-    "║  ██║     ██║ ╚████║██║  ██║██║ ╚████║██║  ██║║",
-    "║  ╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝║",
-    "╚════════════════════════════════════════════╝",
+// Flourish Arc 风格（用户提供，装饰弧形）
+const std::vector<std::string> LOGO_FLOURISH_ARC = {
+    R"PNANA((¯¯¨*·~-.,¸‚    ‘    .·´¯¯`·.     .·´(  '     ¸,.-~*¨¯`·.         .·´¯¯`·.     .·´(  '     ¸,.-~*¨¯`·.      )PNANA",
+    R"PNANA( )/\  ¸.-~·. `·,  °  /   /`·.¸  `·.|'.   \‚     |¯¯)         \/|     /   /`·.¸  `·.|'.   \‚     |¯¯)         \/|   )PNANA",
+    R"PNANA( |.·'| |_¸.·´_.·'|‘   /   /    '`·.   `·'    \' '  |.·´    /`·.   '(|    /   /    '`·.   `·'    \' '  |.·´    /`·.   '(|   )PNANA",
+    R"PNANA(    | |¯¯¯     |‘  '|   |`·.       `·.       |°(    ¸_'´¯¨*·'  `·.'‘'|   |`·.       `·.       |°(    ¸_'´¯¨*·'  `·.'‘)PNANA",
+    R"PNANA(   / /|____.·´  ' '|\   \  `·.       \   .·´| |`·.(   ¯¨*-.     .'|'|\   \  `·.       \   .·´| |`·.(   ¯¨*-.     .'|)PNANA",
+    R"PNANA(  |\(.´       '      '|  '\(      `·.     \(   '| '·.   |¯¨*·-.').·´  '|'|  '\(      `·.     \(   '| '·.   |¯¨*·-.').·´  '|)PNANA",
+    R"PNANA(  '·.|                '·.  '|        `·.   |   .' '  `·.|       |    .·´ '·.  '|        `·.   |   .' '  `·.|       |    .·´)PNANA",
+    R"PNANA(     °                  `·|           `·.|·´'                |.·´ °      `·|           `·.|·´'                |.·´ °  )PNANA",
+    R"PNANA(‚              '                                                                                                     )PNANA",
+};
+
+// Baroque Curl 风格（test.txt 第 821–838 行）
+const std::vector<std::string>
+    LOGO_BAROQUE_CURL =
+        {
+            R"PNANA(            °             '                                                          '                                   ''       '                                                        '                                   ''       '                  )PNANA",
+            R"PNANA(                                °        '                        "        °                                                         ''     '                          "        °                                                         ''     '       )PNANA",
+            R"PNANA(            (`·.                )\       ''                       )\       )\                º                      )\      )\'                                       )\       )\                º                      )\      )\'                    )PNANA",
+            R"PNANA(             )  `·.   .·´(' .·´  (     /(°                   .·´  /  .·´.:/     º      .·´(                  .·´  /  .·´.:/           .·'´(                    .·´  /  .·´.:/     º      .·´(                  .·´  /  .·´.:/           .·'´(    )PNANA",
+            R"PNANA(     .·´( .·´:..::(,(::-- `’''\::.`·._) `·.        .·´(     ):.::`·.)::::)    ')\     )  '`·.      .·´(     ):.::`·.)::::)    )\     )   `·.'       .·´(     ):.::`·.)::::)    ')\     )  '`·.      .·´(     ):.::`·.)::::)    )\     )   `·.')PNANA",
+            R"PNANA(     );; :--  ' '               \::....:::::::)     (  .:::`·./::;,  --  ' '\/(.·´.::).·´:   .::)   (  .:::`·./::;,  --   '\/(.·´.::).·´:   .::)     (  .:::`·./::;,  --  ' '\/(.·´.::).·´:   .::)   (  .:::`·./::;,  --   '\/(.·´.::).·´:   .::))PNANA",
+            R"PNANA(  .·´/\’                ,...     ¯¯¯`·:·´´  .·´.;);;--  ' '               '\:::::.    .:::·´" .·´.;);;--  ' '               '\:::::.···.:::·´  .·´.;);;--  ' '               '\:::::.    .:::·´" .·´.;);;--  ' '               '\:::::.···.:::·´ )PNANA",
+            R"PNANA( ")/:::'\...:´/       /:::::::::::/      /’    (::::/\                         `` ··:::::(""     I:::/\                         `` ··:::::·´´  ' (::::/\                         `` ··:::::(""     I:::/\                         `` ··:::::·´´  ' )PNANA",
+            R"PNANA(   '\:::/:::"/       /;;::;;´-··´´     /        )/:::'\...:´/        /`::-..,         ``/`'      )/::::'\..:´/       /`::-..,         `./'  '       )/:::'\...:´/        /`::-..,         ``/`'      )/::::'\..:´/       /`::-..,         `./'  '     )PNANA",
+            R"PNANA(     \/;::-'/                 ,...:··´'/          \:::'/::::/        /:::::::::/         /         '\:::'/::::/       /,::-·· ' '        `/"    "      \:::'/::::/        /:::::::::/         /         '\:::'/::::/       /,::-·· ' '        `/"    "   )PNANA",
+            R"PNANA(          '/        ,, -:::::::::::::"/             \/;::-/        /``·-:::`/        `/''           \/;::-'/       ,...-::::·/         /’               \/;::-/        /``·-:::`/        `/''           \/;::-'/       ,...-::::·/         /’          )PNANA",
+            R"PNANA(    .·´( /        /::::::::::;;-··"'                    /        /         /         /'                  /        /::::::::·/         /´'                    /        /         /         /'                  /        /::::::::·/         /´'          )PNANA",
+            R"PNANA(  _) ::/        /’;;:::: · ´'                         '/        /         /         /                  '/       '/;::: ·- ·/         /´    `'              '/        /         /         /                  '/       '/;::: ·- ·/         /´    `'      )PNANA",
+            R"PNANA(  )..::/        /"'                                  ·/____/         /        `/"                 /____/.·´)    (/         /"                   ·/____/         /        `/"                 /____/.·´)    (/         /"             )PNANA",
+            R"PNANA(  '`·:/____/                                     /::::::::/.. --  ´´      .·´/"       "         /::::::::/;;  --  ´´      .·’/'    ’’               /::::::::/.. --  ´´      .·´/"       "         /::::::::/;;  --  ´´      .·’/'    ’’         )PNANA",
+            R"PNANA(   º /::::::::/’                                    /::::::::/:-.., .,..-::·/·::/`'                 /::::::::/':-.., .,..-::/::::'/"                    /::::::::/:-.., .,..-::·/·::/`'                 /::::::::/':-.., .,..-::/::::'/"               )PNANA",
+            R"PNANA(  ° /::::::::/'                                     ¯¯¯¯/::::::'/::::::'/::·´                    ¯¯¯¯/::::::/:::::::/:::·´'                      ¯¯¯¯/::::::'/::::::'/::·´                    ¯¯¯¯/::::::/:::::::/:::·´'                 )PNANA",
+            R"PNANA(   ’’¯¯¯¯’’                                             ` ·::;/:;:-·::’'´´                              '` ·::;/::;::-··´´                                 ` ·::;/:;:-·::’'´´                              '` ·::;/::;::-··´´                     )PNANA",
+};
+
+// Calligraphy Twin 风格（test.txt 第 881–892 行）
+const std::vector<std::string> LOGO_CALLIGRAPHY_TWIN = {
+    R"PNANA(       .,                           ,.         ,·´'; '                  ,.,   '                 ,.         ,·´'; '                  ,.,   '      )PNANA",
+    R"PNANA(   ,·´    '` ·.'                ;'´*´ ,'\       ,'  ';'\°               ;´   '· .,           ;'´*´ ,'\       ,'  ';'\°               ;´   '· .,     )PNANA",
+    R"PNANA(    \`; `·;·.   `·,            ;    ';::\      ;  ;::'\             .´  .-,    ';\         ;    ';::\      ;  ;::'\             .´  .-,    ';\   )PNANA",
+    R"PNANA(     ;   ,'\::`·,   \'         ;      '\;'      ;  ;:::;            /   /:\:';   ;:'\'      ;      '\;'      ;  ;:::;            /   /:\:';   ;:'\' )PNANA",
+    R"PNANA(    ;   ,'::'\:::';   ';       ,'  ,'`\   \      ;  ;:::;          ,'  ,'::::'\';  ;::';     ,'  ,'`\   \      ;  ;:::;          ,'  ,'::::'\';  ;::'; )PNANA",
+    R"PNANA(    ;   ;:::;'·:.'  ,·'\'      ;  ;::;'\  '\    ;  ;:::;       ,.-·'  '·~^*'´¨,  ';::;     ;  ;::;'\  '\    ;  ;:::;       ,.-·'  '·~^*'´¨,  ';::; )PNANA",
+    R"PNANA(   ';  ';: -· '´. ·'´:::'\'    ;  ;:::;  '\  '\ ,'  ;:::;'       ':,  ,·:²*´¨¯'`;  ;::';    ;  ;:::;  '\  '\ ,'  ;:::;'       ':,  ,·:²*´¨¯'`;  ;::'; )PNANA",
+    R"PNANA(   ;  ,-·:'´:\:::::::;·'    ,' ,'::;'     '\   ¨ ,'\::;'        ,'  / \::::::::';  ;::';   ,' ,'::;'     '\   ¨ ,'\::;'        ,'  / \::::::::';  ;::'; )PNANA",
+    R"PNANA(  ,'  ';::::::'\;:·'´        ;.'\::;        \`*´\::\; °      ,' ,'::::\·²*'´¨¯':,'\:;    ;.'\::;        \`*´\::\; °      ,' ,'::::\·²*'´¨¯':,'\:;  )PNANA",
+    R"PNANA(  \·.,·\;-· '´  '           \:::\'          '\:::\:' '        \`¨\:::/          \::\'    \:::\'          '\:::\:' '        \`¨\:::/          \::\'  )PNANA",
+    R"PNANA(   \::\:\                    \:'             `*´'‚           '\::\;'            '\;'  '    \:'             `*´'‚           '\::\;'            '\;'  ')PNANA",
+    R"PNANA(    `'·;·'                                                     `¨'                                                        `¨'                   )PNANA",
+};
+
+// Floral Script Frame 风格（test.txt 第 896–907 行）
+const std::vector<std::string> LOGO_FLORAL_SCRIPT_FRAME = {
+    R"PNANA(  ,:´'*:^-:´¯'`:·,         ‘                .:':'`:·          ,:´'`;' ‘              ,.-:~:-.                     .:':'`:·          ,:´'`;' ‘              ,.-:~:-.            )PNANA",
+    R"PNANA( '/::::/::::::::::;¯'`*:^:-.,  ‘          /:::::::/`·,      /::::/;‘             /':::::::::'`,                 /:::::::/`·,      /::::/;‘             /':::::::::'`,          )PNANA",
+    R"PNANA(/·´'*^-·´¯'`^·,/::::::::::::'`:,         /:·*'`·:/:::::' , /·´'`;/::';'          /;:-·~·-:;':::',               /:·*'`·:/:::::' , /·´'`;/::';'          /;:-·~·-:;':::',         )PNANA",
+    R"PNANA('`,             ¯'`*^·-:;::::::'\' ‘    ,'         `:;::::'`i    ';:::';        ,'´          '`:;::`,           ,'         `:;::::'`i    ';:::';        ,'´          '`:;::`,       )PNANA",
+    R"PNANA(  '`·,                     '`·;:::i'‘    ;            '`;:::'i    'i::::i       /                `;::\          ;            '`;:::'i    'i::::i       /                `;::\      )PNANA",
+    R"PNANA(     '|       .,_             \:'/'     i               `;:';    'i:::i'     ,'                   '`,::;        i               `;:';    'i:::i'     ,'                   '`,::;    )PNANA",
+    R"PNANA(     'i       'i:::'`·,          i/' ‘    i      ,          \|     '|:::i°   i'       ,';´'`;         '\:::', ‘    i      ,          \|     '|:::i°   i'       ,';´'`;         '\:::', ‘)PNANA",
+    R"PNANA(     'i       'i::/:,:          /'       |     ,'`,                i:;'' ‚ ,'        ;' /´:`';         ';:::'i‘    |     ,'`,                i:;'' ‚ ,'        ;' /´:`';         ';:::'i‘)PNANA",
+    R"PNANA(      ;      ,'.^*'´     _,.·´‘        'i    'i:::i',             ';/'    ;        ;/:;::;:';         ',:::;    'i    'i:::i',             ';/'    ;        ;/:;::;:';         ',:::;)PNANA",
+    R"PNANA(      ';     ;/ '`*^*'´¯               'i     ;::/ \           ;/'     'i        '´        `'         'i::'/    'i     ;::/ \           ;/'     'i        '´        `'         'i::'/)PNANA",
+    R"PNANA(       \    /                           \    'i/    '`·,      ,''       ¦       '/`' *^~-·'´\         ';'/'‚     \    'i/    '`·,      ,''       ¦       '/`' *^~-·'´\         ';'/'‚)PNANA",
+    R"PNANA(        '`^'´‘                            '`~´         '`·–·'´'        '`., .·´              `·.,_,.·´  ‚      '`~´         '`·–·'´'        '`., .·´              `·.,_,.·´  ‚)PNANA",
+};
+
+// Railroad Banner 风格（test.txt 第 919–933 行）
+const std::vector<std::string> LOGO_RAILROAD_BANNER = {
+    R"PNANA(,-.----.            ,--.                        ,--.                )PNANA",
+    R"PNANA(\    /  \         ,--.'|   ,---,              ,--.'|   ,---,        )PNANA",
+    R"PNANA(|   :    \    ,--,:  : |  '  .' \         ,--,:  : |  '  .' \       )PNANA",
+    R"PNANA(|   |  .\ :,`--.'`|  ' : /  ;    '.    ,`--.'`|  ' : /  ;    '.     )PNANA",
+    R"PNANA(.   :  |: ||   :  :  | |:  :       \   |   :  :  | |:  :       \    )PNANA",
+    R"PNANA(|   |   \ ::   |   \ | ::  |   /\   \  :   |   \ | ::  |   /\   \   )PNANA",
+    R"PNANA(|   : .   /|   : '  '; ||  :  ' ;.   : |   : '  '; ||  :  ' ;.   :  )PNANA",
+    R"PNANA(;   | |`-' '   ' ;.    ;|  |  ;/  \   \'   ' ;.    ;|  |  ;/  \   \ )PNANA",
+    R"PNANA(|   | ;    |   | | \   |'  :  | \  \ ,'|   | | \   |'  :  | \  \ ,' )PNANA",
+    R"PNANA(:   ' |    '   : |  ; .'|  |  '  '--'  '   : |  ; .'|  |  '  '--'   )PNANA",
+    R"PNANA(:   : :    |   | '`--'  |  :  :        |   | '`--'  |  :  :         )PNANA",
+    R"PNANA(|   | :    '   : |      |  | ,'        '   : |      |  | ,'         )PNANA",
+    R"PNANA(`---'.|    ;   |.'      `--''          ;   |.'      `--''           )PNANA",
+    R"PNANA(  `---`    '---'                       '---'                        )PNANA",
+};
+
+// Prism Towers 风格（test.txt 第 935–956 行）
+const std::vector<std::string> LOGO_PRISM_TOWERS = {
+    R"PNANA(          _____                    _____                    _____                    _____                    _____          )PNANA",
+    R"PNANA(         /\    \                  /\    \                  /\    \                  /\    \                  /\    \         )PNANA",
+    R"PNANA(        /::\    \                /::\____\                /::\    \                /::\____\                /::\    \        )PNANA",
+    R"PNANA(       /::::\    \              /::::|   |               /::::\    \              /::::|   |               /::::\    \       )PNANA",
+    R"PNANA(      /::::::\    \            /:::::|   |              /::::::\    \            /:::::|   |              /::::::\    \      )PNANA",
+    R"PNANA(     /:::/\:::\    \          /::::::|   |             /:::/\:::\    \          /::::::|   |             /:::/\:::\    \     )PNANA",
+    R"PNANA(    /:::/__\:::\    \        /:::/|::|   |            /:::/__\:::\    \        /:::/|::|   |            /:::/__\:::\    \    )PNANA",
+    R"PNANA(   /::::\   \:::\    \      /:::/ |::|   |           /::::\   \:::\    \      /:::/ |::|   |           /::::\   \:::\    \   )PNANA",
+    R"PNANA(  /::::::\   \:::\    \    /:::/  |::|   | _____    /::::::\   \:::\    \    /:::/  |::|   | _____    /::::::\   \:::\    \  )PNANA",
+    R"PNANA( /:::/\:::\   \:::\____\  /:::/   |::|   |/\    \  /:::/\:::\   \:::\    \  /:::/   |::|   |/\    \  /:::/\:::\   \:::\    \ )PNANA",
+    R"PNANA(/:::/  \:::\   \:::|    |/:: /    |::|   /::\____\/:::/  \:::\   \:::\____\/:: /    |::|   /::\____\/:::/  \:::\   \:::\____\)PNANA",
+    R"PNANA(\::/    \:::\  /:::|____|\::/    /|::|  /:::/    /\::/    \:::\  /:::/    /\::/    /|::|  /:::/    /\::/    \:::\  /:::/    /)PNANA",
+    R"PNANA( \/_____/\:::\/:::/    /  \/____/ |::| /:::/    /  \/____/ \:::\/:::/    /  \/____/ |::| /:::/    /  \/____/ \:::\/:::/    / )PNANA",
+    R"PNANA(          \::::::/    /           |::|/:::/    /            \::::::/    /           |::|/:::/    /            \::::::/    /  )PNANA",
+    R"PNANA(           \::::/    /            |::::::/    /              \::::/    /            |::::::/    /              \::::/    /   )PNANA",
+    R"PNANA(            \::/____/             |:::::/    /               /:::/    /             |:::::/    /               /:::/    /    )PNANA",
+    R"PNANA(             ~~                   |::::/    /               /:::/    /              |::::/    /               /:::/    /     )PNANA",
+    R"PNANA(                                  /:::/    /               /:::/    /               /:::/    /               /:::/    /      )PNANA",
+    R"PNANA(                                 /:::/    /               /:::/    /               /:::/    /               /:::/    /       )PNANA",
+    R"PNANA(                                 \::/    /                \::/    /                \::/    /                \::/    /        )PNANA",
+    R"PNANA(                                  \/____/                  \/____/                  \/____/                  \/____/         )PNANA",
+};
+
+// PPNNAAA Monolith 风格（test.txt 第 971–986 行）
+const std::vector<std::string> LOGO_PPNNAAA_MONOLITH = {
+    R"PNANA(PPPPPPPPPPPPPPPPP   NNNNNNNN        NNNNNNNN               AAA               NNNNNNNN        NNNNNNNN               AAA               )PNANA",
+    R"PNANA(P::::::::::::::::P  N:::::::N       N::::::N              A:::A              N:::::::N       N::::::N              A:::A              )PNANA",
+    R"PNANA(P::::::PPPPPP:::::P N::::::::N      N::::::N             A:::::A             N::::::::N      N::::::N             A:::::A             )PNANA",
+    R"PNANA(PP:::::P     P:::::PN:::::::::N     N::::::N            A:::::::A            N:::::::::N     N::::::N            A:::::::A            )PNANA",
+    R"PNANA(  P::::P     P:::::PN::::::::::N    N::::::N           A:::::::::A           N::::::::::N    N::::::N           A:::::::::A           )PNANA",
+    R"PNANA(  P::::P     P:::::PN:::::::::::N   N::::::N          A:::::A:::::A          N:::::::::::N   N::::::N          A:::::A:::::A          )PNANA",
+    R"PNANA(  P::::PPPPPP:::::P N:::::::N::::N  N::::::N         A:::::A A:::::A         N:::::::N::::N  N::::::N         A:::::A A:::::A         )PNANA",
+    R"PNANA(  P:::::::::::::PP  N::::::N N::::N N::::::N        A:::::A   A:::::A        N::::::N N::::N N::::::N        A:::::A   A:::::A        )PNANA",
+    R"PNANA(  P::::PPPPPPPPP    N::::::N  N::::N:::::::N       A:::::A     A:::::A       N::::::N  N::::N:::::::N       A:::::A     A:::::A       )PNANA",
+    R"PNANA(  P::::P            N::::::N   N:::::::::::N      A:::::AAAAAAAAA:::::A      N::::::N   N:::::::::::N      A:::::AAAAAAAAA:::::A      )PNANA",
+    R"PNANA(  P::::P            N::::::N    N::::::::::N     A:::::::::::::::::::::A     N::::::N    N::::::::::N     A:::::::::::::::::::::A     )PNANA",
+    R"PNANA(  P::::P            N::::::N     N:::::::::N    A:::::AAAAAAAAAAAAA:::::A    N::::::N     N:::::::::N    A:::::AAAAAAAAAAAAA:::::A    )PNANA",
+    R"PNANA(PP::::::PP          N::::::N      N::::::::N   A:::::A             A:::::A   N::::::N      N::::::::N   A:::::A             A:::::A   )PNANA",
+    R"PNANA(P::::::::P          N::::::N       N:::::::N  A:::::A               A:::::A  N::::::N       N:::::::N  A:::::A               A:::::A  )PNANA",
+    R"PNANA(P::::::::P          N::::::N        N::::::N A:::::A                 A:::::A N::::::N        N::::::N A:::::A                 A:::::A )PNANA",
+    R"PNANA(PPPPPPPPPPP          NNNNNNNN         NNNNNNNAAAAAAA                   AAAAAAANNNNNNNN         NNNNNNNAAAAAAA                   AAAAAAA)PNANA",
+};
+
+// Dashes Figlet 风格（test.txt 第 993–1001 行）
+const std::vector<std::string> LOGO_DASHES_FIGLET = {
+    R"PNANA(.-------. ,---.   .--.   ____    ,---.   .--.   ____     )PNANA",
+    R"PNANA(\  _(`)_ \|    \  |  | .'  __ `. |    \  |  | .'  __ `.  )PNANA",
+    R"PNANA(| (_ o._)||  ,  \ |  |/   '  \  \|  ,  \ |  |/   '  \  \ )PNANA",
+    R"PNANA(|  (_,_) /|  |\_ \|  ||___|  /  ||  |\_ \|  ||___|  /  | )PNANA",
+    R"PNANA(|   '-.-' |  _( )_\  |   _.-`   ||  _( )_\  |   _.-`   | )PNANA",
+    R"PNANA(|   |     | (_ o _)  |.'   _    || (_ o _)  |.'   _    | )PNANA",
+    R"PNANA(|   |     |  (_,_)\  ||  _( )_  ||  (_,_)\  ||  _( )_  | )PNANA",
+    R"PNANA(/   )     |  |    |  |\ (_ o _) /|  |    |  |\ (_ o _) / )PNANA",
+    R"PNANA(`---'     '--'    '--' '.(_,_).' '--'    '--' '.(_,_).'  )PNANA",
+};
+
+// Typewriter Double 风格（test.txt 第 1004–1011 行）
+const std::vector<std::string> LOGO_TYPEWRITER_DOUBLE = {
+    R"PNANA(    _______   _____  ___        __      _____  ___        __      )PNANA",
+    R"PNANA(  |   __ "\ (\"   \|"  \      /""\    (\"   \|"  \      /""\     )PNANA",
+    R"PNANA(  (. |__) :)|.\\   \    |    /    \   |.\\   \    |    /    \    )PNANA",
+    R"PNANA(  |:  ____/ |: \.   \\  |   /' /\  \  |: \.   \\  |   /' /\  \   )PNANA",
+    R"PNANA(  (|  /     |.  \    \. |  //  __'  \ |.  \    \. |  //  __'  \  )PNANA",
+    R"PNANA( /|__/ \    |    \    \ | /   /  \\  \|    \    \ | /   /  \\  \ )PNANA",
+    R"PNANA((_______)    \___|\____\)(___/    \___)\___|\____\)(___/    \___))PNANA",
+};
+
+// Block Steps 风格（test.txt 第 1013–1018 行）
+const std::vector<std::string> LOGO_BLOCK_STEPS = {
+    R"PNANA(░       ░░░   ░░░  ░░░      ░░░   ░░░  ░░░      ░░)PNANA",
+    R"PNANA(▒  ▒▒▒▒  ▒▒    ▒▒  ▒▒  ▒▒▒▒  ▒▒    ▒▒  ▒▒  ▒▒▒▒  ▒)PNANA",
+    R"PNANA(▓       ▓▓▓  ▓  ▓  ▓▓  ▓▓▓▓  ▓▓  ▓  ▓  ▓▓  ▓▓▓▓  ▓)PNANA",
+    R"PNANA(█  ████████  ██    ██        ██  ██    ██        █)PNANA",
+    R"PNANA(█  ████████  ███   ██  ████  ██  ███   ██  ████  █)PNANA",
+};
+
+// YB Groove 风格（test.txt 第 1037–1047 行）
+const std::vector<std::string> LOGO_YB_GROOVE = {
+    R"PNANA(                              db                      db    )PNANA",
+    R"PNANA(                           db    db                db    db )PNANA",
+    R"PNANA(                                                            )PNANA",
+    R"PNANA(`Yb.d888b   `Yb d88b d88b    'Yb    `Yb d88b d88b    'Yb    )PNANA",
+    R"PNANA( 88'    8Y   88P   8Y   8b    88     88P   8Y   8b    88    )PNANA",
+    R"PNANA( 88     8P   88    8P   88    88     88    8P   88    88    )PNANA",
+    R"PNANA( 88   ,dP   .8P  bdP  bdP    .8P    .8P  bdP  bdP    .8P    )PNANA",
+    R"PNANA( 88888888b.                                                 )PNANA",
+    R"PNANA( 88                                                         )PNANA",
+    R"PNANA(.8P                                                         )PNANA",
+};
+
+// Signature Triptych 风格（test.txt 第 1049–1053 行）
+const std::vector<std::string> LOGO_SIGNATURE_TRIPTYCH = {
+    R"PNANA( \· . _ . · ´ ¯ ` ·.°             \· . _ . ·/    .· ´ ¯ ` ·.                \· . _ . ·/    .· ´ ¯ ` ·.   )PNANA",
+    R"PNANA(  '\               o |‚ \· . _ .·'/ /        /'    /·´¯ ` .    \   \· . _ .·'/ /        /'    /·´¯ ` .    \  )PNANA",
+    R"PNANA(   '|      |`· . _ . ´   |        \/        /      .· ´ ¯ `     '|‘  |        \/        /      .· ´ ¯ `     '|‘)PNANA",
+    R"PNANA(   '|      '\             |       '|\.·´ ¯ `·\     | o           /°  |       '|\.·´ ¯ `·\     | o           /°)PNANA",
+    R"PNANA(  '/· ´ ¯ `·\    '      /·´ ¯ ` ·\                `· . _ . · ´    /·´ ¯ ` ·\                `· . _ . · ´   )PNANA",
 };
 
 const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
@@ -1032,14 +1269,31 @@ const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"paren_line", LOGO_PAREN_LINE},
     {"apostrophe_line", LOGO_APOSTROPHE_LINE},
     {"underscore_slash", LOGO_UNDERSCORE_SLASH},
+    {"underscore_mini", LOGO_UNDERSCORE_MINI},
+    {"tick_grid", LOGO_TICK_GRID},
+    {"oo_banner", LOGO_OO_BANNER},
+    {"bbbbb", LOGO_BBBBB},
+    {"o_waves", LOGO_O_WAVES},
     {"underline", LOGO_UNDERLINE},
+    {"hash_blocks2", LOGO_HASH_BLOCKS2},
     {"seven", LOGO_SEVEN},
     {"comma", LOGO_COMMA},
     {"dash_star", LOGO_DASH_STAR},
     {"roman_line", LOGO_ROMAN_LINE},
     {"question", LOGO_QUESTION},
     {"question88", LOGO_QUESTION_88},
-    {"digital", LOGO_DIGITAL},
+    {"baroque_curl", LOGO_BAROQUE_CURL},
+    {"calligraphy_twin", LOGO_CALLIGRAPHY_TWIN},
+    {"floral_script_frame", LOGO_FLORAL_SCRIPT_FRAME},
+    {"flourish_arc", LOGO_FLOURISH_ARC},
+    {"railroad_banner", LOGO_RAILROAD_BANNER},
+    {"prism_towers", LOGO_PRISM_TOWERS},
+    {"ppnnaaa_monolith", LOGO_PPNNAAA_MONOLITH},
+    {"dashes_figlet", LOGO_DASHES_FIGLET},
+    {"typewriter_double", LOGO_TYPEWRITER_DOUBLE},
+    {"block_steps", LOGO_BLOCK_STEPS},
+    {"yb_groove", LOGO_YB_GROOVE},
+    {"signature_triptych", LOGO_SIGNATURE_TRIPTYCH},
 };
 
 const std::vector<LogoStyleEntry> STYLES = {
@@ -1117,14 +1371,31 @@ const std::vector<LogoStyleEntry> STYLES = {
     {"paren_line", "Paren Line"},
     {"apostrophe_line", "Apostrophe Line"},
     {"underscore_slash", "Underscore Slash"},
+    {"underscore_mini", "Underscore Mini"},
+    {"tick_grid", "Tick Grid"},
+    {"oo_banner", "OO Banner"},
+    {"bbbbb", "BBBBB"},
+    {"o_waves", "O Waves"},
     {"underline", "Underline"},
+    {"hash_blocks2", "Hash Blocks 2"},
     {"seven", "Seven"},
     {"comma", "Comma"},
     {"dash_star", "Dash Star"},
     {"roman_line", "Roman Line"},
     {"question", "Question"},
     {"question88", "Question 88"},
-    {"digital", "Digital"},
+    {"baroque_curl", "Baroque Curl"},
+    {"calligraphy_twin", "Calligraphy Twin"},
+    {"floral_script_frame", "Floral Script Frame"},
+    {"flourish_arc", "Flourish Arc"},
+    {"railroad_banner", "Railroad Banner"},
+    {"prism_towers", "Prism Towers"},
+    {"ppnnaaa_monolith", "PPNNAAA Monolith"},
+    {"dashes_figlet", "Dashes Figlet"},
+    {"typewriter_double", "Typewriter Double"},
+    {"block_steps", "Block Steps"},
+    {"yb_groove", "YB Groove"},
+    {"signature_triptych", "Signature Triptych"},
 };
 
 } // namespace
