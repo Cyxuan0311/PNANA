@@ -1194,6 +1194,74 @@ const std::vector<std::string> LOGO_SIGNATURE_TRIPTYCH = {
     R"PNANA(  '/· ´ ¯ `·\    '      /·´ ¯ ` ·\                `· . _ . · ´    /·´ ¯ ` ·\                `· . _ . · ´   )PNANA",
 };
 
+// Block Grid 风格（test.txt 第 1063–1070 行）
+const std::vector<std::string> LOGO_BLOCK_GRID = {
+    " ____  ____    ____  ____    ____ ", "|    |\\    \\  /    ||    \\  /    |",
+    "|  o  )  _  ||  o  ||  _  ||  o  |", "|   _/|  |  ||     ||  |  ||     |",
+    "|  |  |  |  ||  _  ||  |  ||  _  |", "|  |  |  |  ||  |  ||  |  ||  |  |",
+    "|__|  |__|__||__|__||__|__||__|__|", "                                  ",
+};
+
+// U Plus 风格（test.txt 第 1073–1080 行）
+const std::vector<std::string> LOGO_U_PLUS = {
+    "  ____     _   _       _      _   _       _      ",
+    "U|  _\"\\ u | \\ |\"|  U  /\"\\  u | \\ |\"|  U  /\"\\  u  ",
+    "\\| |_) |/<|  \\| |>  \\/ _ \\/ <|  \\| |>  \\/ _ \\/   ",
+    " |  __/  U| |\\  |u  / ___ \\ U| |\\  |u  / ___ \\   ",
+    " |_|      |_| \\_|  /_/   \\_\\ |_| \\_|  /_/   \\_\\  ",
+    " ||>>_    ||   \\\\,-.\\\\    >> ||   \\\\,-.\\\\    >> ",
+    "(__)__)   (_\")  (_/(__)  (__)(_\")  (_/(__)  (__) ",
+    "                                              ",
+};
+
+// Parenthesis Wave 风格（test.txt 第 1083–1090 行）
+const std::vector<std::string> LOGO_PARENTHESIS_WAVE = {
+    " _______  _        _______  _        _______ ",
+    "(  ____ )( (    /|(  ___  )( (    /|(  ___  )",
+    "| (    )||  \\  ( || (   ) ||  \\  ( || (   ) |",
+    "| (____)||   \\ | || (___) ||   \\ | || (___) |",
+    "|  _____)| (\\ \\) ||  ___  || (\\ \\) ||  ___  |",
+    "| (      | | \\   || (   ) || | \\   || (   ) |",
+    "| )      | )  \\  || )   ( || )  \\  || )   ( |",
+    "|/       |/    )_)|/     \\||/    )_)|/     \\|",
+    "                                             ",
+};
+
+// Slash Diamond 风格（test.txt 第 1093–1099 行）
+const std::vector<std::string> LOGO_SLASH_DIAMOND = {
+    "  __ __    __   __    _____    __   __    _____    ",
+    " /_/\\__/\\ /_/\\ /\\_\\  /\\___/\\  /_/\\ /\\_\\  /\\___/\\   ",
+    " ) ) ) ) )) ) \\ ( ( / / _ \\ \\ ) ) \\ ( ( / / _ \\ \\  ",
+    "/_/ /_/ //_/   \\ \\_\\\\ \\(_)/ //_/   \\ \\_\\\\ \\(_)/ /  ",
+    "\\ \\ \\_\\/ \\ \\ \\   / // / _ \\ \\\\ \\ \\   / // / _ \\ \\  ",
+    " )_) )    )_) \\ (_(( (_( )_) ))_) \\ (_(( (_( )_) ) ",
+    " \\_\\/     \\_\\/ \\/_/ \\/_/ \\_\\/ \\_\\/ \\/_/ \\/_/ \\_\\/  ",
+    "                                                ",
+};
+
+// Underscore Script 风格（test.txt 第 1102–1108 行）
+const std::vector<std::string> LOGO_UNDERSCORE_SCRIPT = {
+    "  _____   _   _      ___      _   _      ___       ",
+    " |  __ \\ | \\ | |    /   \\    | \\ | |    /   \\      ",
+    " | |__) ||  \\| |   /  ^  \\   |  \\| |   /  ^  \\     ",
+    " |  ___/ | . ` |  /  /_\\  \\  | . ` |  /  /_\\  \\    ",
+    " | |     | |\\  | /  _____  \\ | |\\  | /  _____  \\   ",
+    " |_|     |_| \\_|/__/     \\__\\|_| \\_|/__/     \\__\\ ",
+    "                |__|     |__|       |__|     |__|  ",
+    "                                                ",
+};
+
+// ASCII Banner 风格（test.txt 第 1111–1116 行）
+const std::vector<std::string> LOGO_ASCII_BANNER = {
+    " _______  ____  _____       _       ____  _____       _       ",
+    "|_   __ \\|_   \\|_   _|     / \\     |_   \\|_   _|     / \\      ",
+    "  | |__) | |   \\ | |      / _ \\      |   \\ | |      / _ \\     ",
+    "  |  ___/  | |\\ \\| |     / ___ \\     | |\\ \\| |     / ___ \\    ",
+    " _| |_    _| |_\\   |_  _/ /   \\ \\_  _| |_\\   |_  _/ /   \\ \\_  ",
+    "|_____|  |_____|\\____||____| |____||_____|\\____||____| |____| ",
+    "                                                            ",
+};
+
 const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"block", LOGO_BLOCK},
     {"roman", LOGO_ROMAN},
@@ -1294,6 +1362,12 @@ const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"block_steps", LOGO_BLOCK_STEPS},
     {"yb_groove", LOGO_YB_GROOVE},
     {"signature_triptych", LOGO_SIGNATURE_TRIPTYCH},
+    {"block_grid", LOGO_BLOCK_GRID},
+    {"u_plus", LOGO_U_PLUS},
+    {"parenthesis_wave", LOGO_PARENTHESIS_WAVE},
+    {"slash_diamond", LOGO_SLASH_DIAMOND},
+    {"underscore_script", LOGO_UNDERSCORE_SCRIPT},
+    {"ascii_banner", LOGO_ASCII_BANNER},
 };
 
 const std::vector<LogoStyleEntry> STYLES = {
@@ -1396,6 +1470,12 @@ const std::vector<LogoStyleEntry> STYLES = {
     {"block_steps", "Block Steps"},
     {"yb_groove", "YB Groove"},
     {"signature_triptych", "Signature Triptych"},
+    {"block_grid", "Block Grid"},
+    {"u_plus", "U Plus"},
+    {"parenthesis_wave", "Parenthesis Wave"},
+    {"slash_diamond", "Slash Diamond"},
+    {"underscore_script", "Underscore Script"},
+    {"ascii_banner", "ASCII Banner"},
 };
 
 } // namespace
