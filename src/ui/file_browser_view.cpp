@@ -6,6 +6,7 @@
 #include "utils/file_type_icon_mapper.h"
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <ftxui/dom/elements.hpp>
 
 using namespace ftxui;
@@ -57,8 +58,8 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     size_t total_items = flat_items.size();
     size_t selected_index = browser.getSelectedIndex();
 
-    // 计算可用高度：总高度 - 标题(1) - 分隔符(1) - 底部分隔符(1) - 状态栏(1) = height - 4
-    size_t available_height = static_cast<size_t>(height - 4);
+    // 计算可用高度：总高度 - 标题 (1) - 分隔符 (1) - 底部分隔符 (1) - 文件信息栏 (1) = height - 4
+    size_t available_height = static_cast<size_t>(height > 4 ? height - 4 : 1);
 
     // 根据选中项目调整滚动位置，确保选中项目可见
     // 使用更智能的滚动策略：保持选中项目在中间偏上位置
@@ -67,7 +68,7 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     if (selected_index < scroll_offset_) {
         // 选中项目在可见区域上方
         // 将选中项目放在可见区域的中间位置
-        size_t ideal_position = available_height / 3; // 选中项目在1/3位置
+        size_t ideal_position = available_height / 3; // 选中项目在 1/3 位置
         if (selected_index >= ideal_position) {
             target_scroll = selected_index - ideal_position;
         } else {
@@ -76,7 +77,7 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
     } else if (selected_index >= scroll_offset_ + available_height) {
         // 选中项目在可见区域下方
         // 将选中项目放在可见区域的中间位置
-        size_t ideal_position = available_height / 3; // 选中项目在1/3位置
+        size_t ideal_position = available_height / 3; // 选中项目在 1/3 位置
         target_scroll = selected_index - ideal_position;
     } else {
         // 选中项目已在可见范围内，检查是否需要微调以获得更好的视觉体验
@@ -116,17 +117,12 @@ Element FileBrowserView::render(const features::FileBrowser& browser, int height
         }
     }
 
-    // 如果文件项数少于可用高度，填充空行
-    while (file_list_elements.size() < available_height) {
-        file_list_elements.push_back(text(""));
-    }
+    // 将文件列表添加到内容中（不再填充空行，让 vbox 自动处理布局）
+    content.push_back(vbox(file_list_elements) | flex);
 
-    // 将文件列表添加到内容中
-    content.push_back(vbox(file_list_elements));
-
-    // 底部状态栏
+    // 底部文件信息栏（反白效果）- 固定在底部
     content.push_back(separator());
-    content.push_back(renderStatusBar(browser));
+    content.push_back(renderFileInfoBar(browser));
 
     return vbox(content) | bgcolor(colors.background);
 }
@@ -204,6 +200,107 @@ Element FileBrowserView::renderStatusBar(const features::FileBrowser& browser) c
                  text(selection_info) | color(colors.keyword) | bold, filler(),
                  text(hidden_indicator) | color(colors.comment)}) |
            bgcolor(colors.menubar_bg);
+}
+
+Element FileBrowserView::renderFileInfoBar(const features::FileBrowser& browser) const {
+    auto& colors = theme_.getColors();
+
+    if (!browser.hasSelection()) {
+        return hbox({text(" No file selected") | color(colors.comment) | bold}) |
+               bgcolor(colors.selection);
+    }
+
+    const auto& flat_items = browser.getFlatItems();
+    size_t selected_index = browser.getSelectedIndex();
+
+    if (selected_index >= flat_items.size()) {
+        return hbox({text(" Invalid selection") | color(colors.comment) | bold}) |
+               bgcolor(colors.selection);
+    }
+
+    const features::FileItem* item = flat_items[selected_index];
+    if (!item) {
+        return hbox({text(" Invalid selection") | color(colors.comment) | bold}) |
+               bgcolor(colors.selection);
+    }
+
+    // 获取文件大小
+    std::string size_str;
+    if (item->is_directory) {
+        size_str = "Folder";
+    } else if (item->size > 0) {
+        // 已经有缓存的大小
+        if (item->size >= 1024ULL * 1024 * 1024) {
+            size_str = std::to_string(item->size / (1024 * 1024 * 1024)) + " GB";
+        } else if (item->size >= 1024 * 1024) {
+            size_str = std::to_string(item->size / (1024 * 1024)) + " MB";
+        } else if (item->size >= 1024) {
+            size_str = std::to_string(item->size / 1024) + " KB";
+        } else {
+            size_str = std::to_string(item->size) + " B";
+        }
+    } else {
+        // 尝试动态获取文件大小
+        try {
+            uintmax_t size = std::filesystem::file_size(item->path);
+            if (size >= 1024ULL * 1024 * 1024) {
+                size_str = std::to_string(size / (1024 * 1024 * 1024)) + " GB";
+            } else if (size >= 1024 * 1024) {
+                size_str = std::to_string(size / (1024 * 1024)) + " MB";
+            } else if (size >= 1024) {
+                size_str = std::to_string(size / 1024) + " KB";
+            } else {
+                size_str = std::to_string(size) + " B";
+            }
+        } catch (...) {
+            size_str = "Unknown";
+        }
+    }
+
+    // 获取文件权限
+    std::string perm_type, perm_owner, perm_group, perm_others;
+    try {
+        std::filesystem::file_status status = std::filesystem::status(item->path);
+        std::filesystem::perms perm = status.permissions();
+        auto check = [perm](std::filesystem::perms pm) {
+            return (perm & pm) != std::filesystem::perms::none;
+        };
+
+        // 文件类型标识
+        perm_type = item->is_directory ? 'd' : '-';
+
+        // 所有者权限
+        perm_owner += check(std::filesystem::perms::owner_read) ? 'r' : '-';
+        perm_owner += check(std::filesystem::perms::owner_write) ? 'w' : '-';
+        perm_owner += check(std::filesystem::perms::owner_exec) ? 'x' : '-';
+
+        // 组权限
+        perm_group += check(std::filesystem::perms::group_read) ? 'r' : '-';
+        perm_group += check(std::filesystem::perms::group_write) ? 'w' : '-';
+        perm_group += check(std::filesystem::perms::group_exec) ? 'x' : '-';
+
+        // 其他用户权限
+        perm_others += check(std::filesystem::perms::others_read) ? 'r' : '-';
+        perm_others += check(std::filesystem::perms::others_write) ? 'w' : '-';
+        perm_others += check(std::filesystem::perms::others_exec) ? 'x' : '-';
+    } catch (...) {
+        perm_type = "-";
+        perm_owner = "---";
+        perm_group = "---";
+        perm_others = "---";
+    }
+
+    // 构建状态栏元素 - 使用下划线和粗体效果，不同部分使用不同颜色
+    Elements elements = {text(" "),
+                         text(size_str) | color(colors.keyword) | bold | underlined,
+                         text("  "),
+                         text(perm_type) | color(colors.foreground) | bold | underlined,
+                         text(perm_owner) | color(colors.function) | bold | underlined,
+                         text(perm_group) | color(colors.keyword) | bold | underlined,
+                         text(perm_others) | color(colors.comment) | bold | underlined,
+                         filler()};
+
+    return hbox(elements) | bgcolor(colors.background);
 }
 
 Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t index,

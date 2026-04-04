@@ -41,6 +41,7 @@ class FileBrowserView {
     ftxui::Element renderFileList(const features::FileBrowser& browser, size_t visible_start,
                                   size_t visible_count) const;
     ftxui::Element renderStatusBar(const features::FileBrowser& browser) const;
+    ftxui::Element renderFileInfoBar(const features::FileBrowser& browser) const;
     ftxui::Element renderFileItem(const features::FileItem* item, size_t index,
                                   size_t selected_index,
                                   const std::vector<features::FileItem*>& flat_items,
