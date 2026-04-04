@@ -135,6 +135,12 @@ Any field you omit falls back to the internal default colors. Once defined, cust
 | `regex` | boolean | `false` | Use regular expressions |
 | `wrap_around` | boolean | `true` | Wrap around when searching |
 
+### ui
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `toast_enabled` | boolean | `false` | Enable Toast popup notifications (e.g., copy success提示) |
+
 ---
 
 ## LSP Configuration

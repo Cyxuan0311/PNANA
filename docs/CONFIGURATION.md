@@ -133,6 +133,12 @@ pnana 的配置文件位于：
 | `regex` | boolean | `false` | 正则表达式 |
 | `wrap_around` | boolean | `true` | 循环搜索 |
 
+### ui（界面）
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `toast_enabled` | boolean | `false` | 是否启用 Toast 弹窗通知（如复制成功提示） |
+
 ---
 
 ## LSP 配置
