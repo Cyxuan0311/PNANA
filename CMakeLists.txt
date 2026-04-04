@@ -342,6 +342,7 @@ set(SOURCES
     # UI模块
     src/ui/theme.cpp
     src/ui/statusbar.cpp
+    src/ui/toast.cpp
     src/ui/statusbar_theme.cpp
     src/ui/helpbar.cpp
     src/ui/tabbar.cpp
@@ -544,6 +545,7 @@ set(HEADERS
     # UI模块头文件
     include/pnana/ui/theme.h
     include/pnana/ui/statusbar.h
+    include/pnana/ui/toast.h
     include/pnana/ui/terminal_session_dialog.h
     include/pnana/ui/statusbar_theme.h
     include/pnana/ui/helpbar.h
