@@ -222,6 +222,28 @@ bool FzfPopup::fuzzyMatch(const std::string& path, const std::string& query) {
     return true;
 }
 
+// 根据扩展名判断是否为图片文件
+static bool isImageFile(const std::string& filepath) {
+    try {
+        std::string ext = std::filesystem::path(filepath).extension().string();
+        if (!ext.empty() && ext[0] == '.')
+            ext = ext.substr(1);
+        std::string ext_lower = ext;
+        std::transform(ext_lower.begin(), ext_lower.end(), ext_lower.begin(), ::tolower);
+
+        // 图片扩展名列表
+        static const std::vector<std::string> IMAGE_EXTS = {
+            "png", "jpg",  "jpeg", "gif", "bmp", "webp", "ico", "tiff", "tif",
+            "svg", "svgz", "xpm",  "xbm", "pcx", "tga",  "ppm", "pgm",  "pbm"};
+        for (const auto& e : IMAGE_EXTS) {
+            if (ext_lower == e)
+                return true;
+        }
+    } catch (...) {
+    }
+    return false;
+}
+
 // 根据扩展名判断是否为不可预览文件（图片、二进制等）
 static bool isNonPreviewableFile(const std::string& filepath) {
     try {
@@ -231,14 +253,9 @@ static bool isNonPreviewableFile(const std::string& filepath) {
         std::string ext_lower = ext;
         std::transform(ext_lower.begin(), ext_lower.end(), ext_lower.begin(), ::tolower);
 
-        // 图片
-        static const std::vector<std::string> IMAGE_EXTS = {
-            "png", "jpg",  "jpeg", "gif", "bmp", "webp", "ico", "tiff", "tif",
-            "svg", "svgz", "xpm",  "xbm", "pcx", "tga",  "ppm", "pgm",  "pbm"};
-        for (const auto& e : IMAGE_EXTS) {
-            if (ext_lower == e)
-                return true;
-        }
+        // 图片 - 现在可以预览，所以从不可预览列表中移除
+        // static const std::vector<std::string> IMAGE_EXTS = {...};
+
         // 二进制 / 可执行
         static const std::vector<std::string> BINARY_EXTS = {
             "exe", "dll", "so",   "dylib", "o",     "a",   "lib", "obj", "class",
@@ -267,8 +284,9 @@ void FzfPopup::filterFiles() {
     }
     selected_index_ = 0;
     scroll_offset_ = 0;
-    preview_page_ = 0;     // 过滤变化时重置预览页
-    preview_h_offset_ = 0; // 过滤变化时重置水平偏移
+    preview_page_ = 0;             // 过滤变化时重置预览页
+    preview_h_offset_ = 0;         // 过滤变化时重置水平偏移
+    image_preview_loaded_ = false; // 过滤变化时重置图片预览
     if (selected_index_ >= filtered_files_.size() && !filtered_files_.empty()) {
         selected_index_ = filtered_files_.size() - 1;
     }
@@ -477,7 +495,19 @@ Element FzfPopup::renderPreview() const {
 
     const std::string& filepath = filtered_files_[selected_index_];
 
-    // 图片、二进制等不可预览文件显示提示
+    // 图片文件：使用 ImagePreview 渲染
+    if (isImageFile(filepath)) {
+        if (image_preview_loaded_) {
+            return image_preview_.render() | flex;
+        } else {
+            // 正在加载中或加载失败
+            return hbox({text("  "),
+                         text("Loading image preview...") | color(colors.comment) | dim}) |
+                   bgcolor(colors.background) | center;
+        }
+    }
+
+    // 二进制等不可预览文件显示提示
     if (isNonPreviewableFile(filepath)) {
         return hbox({text("  "),
                      text("This file cannot be previewed") | color(colors.comment) | dim}) |
@@ -559,6 +589,17 @@ bool FzfPopup::handleInput(ftxui::Event event) {
             }
             preview_page_ = 0; // 切换选中文件时重置预览页
             preview_h_offset_ = 0;
+
+            // 如果选中图片文件，加载预览
+            const std::string& filepath = filtered_files_[selected_index_];
+            if (isImageFile(filepath)) {
+                int preview_width = 40;
+                int max_height = 20;
+                image_preview_loaded_ =
+                    image_preview_.loadImage(filepath, preview_width, max_height);
+            } else {
+                image_preview_loaded_ = false;
+            }
         }
         return true;
     }
@@ -577,6 +618,17 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                 }
             }
             preview_page_ = 0; // 切换选中文件时重置预览页
+
+            // 如果选中图片文件，加载预览
+            const std::string& filepath = filtered_files_[selected_index_];
+            if (isImageFile(filepath)) {
+                int preview_width = 40;
+                int max_height = 20;
+                image_preview_loaded_ =
+                    image_preview_.loadImage(filepath, preview_width, max_height);
+            } else {
+                image_preview_loaded_ = false;
+            }
         }
         return true;
     }

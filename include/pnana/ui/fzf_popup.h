@@ -2,6 +2,7 @@
 #define PNANA_UI_FZF_POPUP_H
 
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
+#include "features/image_preview.h"
 #include "ui/theme.h"
 #include "utils/file_type_color_mapper.h"
 #include "utils/file_type_icon_mapper.h"
@@ -75,12 +76,14 @@ class FzfPopup {
     size_t preview_page_;         // 当前预览页（0 起），切换选中文件时重置为 0
     size_t preview_h_offset_ = 0; // 预览水平偏移（Tab 横向滚动）
     size_t preview_h_step_ = 24;  // 每次 Tab 横向滚动步长
+    bool image_preview_loaded_ = false; // 图片是否已加载
 
     static const size_t PREVIEW_LINES_PER_PAGE = 25; // 每页预览行数
 
     utils::FileTypeIconMapper icon_mapper_;
     utils::FileTypeColorMapper color_mapper_;
     std::unique_ptr<features::SyntaxHighlighter> syntax_highlighter_;
+    features::ImagePreview image_preview_; // 图片预览后端
 
     std::function<void(const std::string&)> file_open_callback_;
     std::function<void(std::vector<std::string>, std::vector<std::string>, std::string)>

@@ -101,6 +101,7 @@ class Theme {
     static ThemeColors VSCodeDarkModern();        // VS Code Dark Modern
     static ThemeColors VSCodeMonokai();           // VS Code Monokai
     static ThemeColors VSCodeDarkPlus();          // VS Code Dark Plus
+    static ThemeColors DarkPlusMoonLight();       // Dark Plus Moon Light - 月光银白蓝紫渐变
     static ThemeColors NightOwl();                // Night Owl
     static ThemeColors Palenight();               // Material Palenight
     static ThemeColors OceanicNext();             // Oceanic Next
@@ -193,6 +194,7 @@ class Theme {
     static ThemeColors Superman(); // Superman - 超人主题，红蓝配色 + 黄金 S 标志
     static ThemeColors Godfather(); // The Godfather - 教父主题，黑金配色 + 意大利黑手党风格
     static ThemeColors RoboCop(); // RoboCop - 机械战警主题，银色金属 + HUD 界面蓝 + 警示红
+    static ThemeColors Robot();    // Robot - 机器人主题，金属银 + 科技蓝 + 电子绿
     static ThemeColors Icy();      // Icy - 冰蓝主题，灰色与浅蓝色配色，清新冷冽
     static ThemeColors PureBlue(); // Pure Blue - 纯净蓝白主题，纯白 + 天蓝极简配色
     static ThemeColors Silver(); // Silver - 银色主题，高端金属质感，银白 + 深灰 + 亮银点缀

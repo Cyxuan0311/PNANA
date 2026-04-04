@@ -189,16 +189,16 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
         left_elements.push_back(hl(text(oss.str()) | color(colors.warning) | dim));
     }
 
-    // Git信息（分支和未提交文件数）
+    // Git 信息（分支和未提交文件数）
     if (!git_branch.empty()) {
         left_elements.push_back(hl(text(sep) | color(colors.comment) | dim));
         left_elements.push_back(hl(text(icons::GIT_BRANCH) | color(colors.keyword)));
         left_elements.push_back(hl(text(" " + git_branch) | color(colors.string) | bold));
 
         if (git_uncommitted_count > 0) {
-            std::ostringstream git_oss;
-            git_oss << " " << git_uncommitted_count;
-            left_elements.push_back(hl(text(git_oss.str()) | color(colors.warning) | bold));
+            left_elements.push_back(hl(text(" ") | color(colors.warning)));
+            left_elements.push_back(hl(text(std::to_string(git_uncommitted_count)) |
+                                       color(colors.warning) | bold | underlined));
         }
     }
 

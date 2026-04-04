@@ -4303,6 +4303,50 @@ ThemeColors Theme::SakuraDark() {
     return colors;
 }
 
+ThemeColors Theme::DarkPlusMoonLight() {
+    ThemeColors colors;
+    // Dark Plus Moon Light: 深邃夜空黑底 + 月光银白 + 蓝紫渐变，现代优雅暗色主题
+    // 灵感来源：VSCode Dark+、皎洁月光、深夜编程、静谧优雅
+    colors.background = Color::RGB(10, 12, 20);             // #0A0C14 深邃夜空黑
+    colors.foreground = Color::RGB(220, 225, 235);          // #DCE1EB 月光银白
+    colors.current_line = Color::RGB(25, 30, 45);           // #191E2D 月光下的深蓝
+    colors.selection = Color::RGB(40, 48, 70);              // #283046 夜色选择区
+    colors.line_number = Color::RGB(100, 110, 130);         // #646E82 灰蓝行号
+    colors.line_number_current = Color::RGB(180, 200, 255); // #B4C8FF 月光高亮✨
+
+    colors.statusbar_bg = Color::RGB(20, 25, 40);    // #141928 深夜蓝
+    colors.statusbar_fg = Color::RGB(200, 210, 230); // #C8D2E6 银灰
+
+    colors.menubar_bg = Color::RGB(15, 18, 28);    // #0F121C 深空蓝
+    colors.menubar_fg = Color::RGB(220, 225, 235); // #DCE1EB 月光银白
+
+    colors.helpbar_bg = Color::RGB(20, 25, 40);
+    colors.helpbar_fg = Color::RGB(150, 165, 195);  // #96A5C3 月灰
+    colors.helpbar_key = Color::RGB(120, 180, 255); // #78B4FF 月光蓝
+
+    // Dark Plus Moon Light 语法高亮：月光银 + 蓝紫渐变
+    colors.keyword = Color::RGB(200, 120, 255);        // #C878FF 紫罗兰（月光魔法）
+    colors.string = Color::RGB(150, 220, 180);         // #96DCB4 月光绿（极光）
+    colors.comment = Color::RGB(90, 100, 120);         // #5A6478 夜灰（低调注释）
+    colors.number = Color::RGB(255, 180, 120);         // #FFB478 月橙（温暖光晕）
+    colors.function = Color::RGB(100, 180, 255);       // #64B4FF 天空蓝（函数调用）
+    colors.type = Color::RGB(255, 150, 200);           // #FF96C8 樱花粉（类型）
+    colors.operator_color = Color::RGB(180, 200, 255); // #B4C8FF 月光银白
+
+    colors.error = Color::RGB(255, 100, 120);   // #FF6478 月蚀红
+    colors.warning = Color::RGB(255, 200, 100); // #FFC864 警戒橙
+    colors.info = Color::RGB(100, 180, 255);    // #64B4FF 天空蓝
+    colors.success = Color::RGB(120, 220, 180); // #78DCB4 极光绿
+
+    colors.dialog_bg = Color::RGB(30, 38, 58);          // #1E263A 深夜蓝（对话框）
+    colors.dialog_fg = Color::RGB(220, 225, 235);       // #DCE1EB 月光银白
+    colors.dialog_title_bg = Color::RGB(80, 120, 200);  // #5078C8 月光蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(90, 100, 120);    // #5A6478 夜灰边框
+
+    return colors;
+}
+
 ThemeColors Theme::Monochrome() {
     ThemeColors colors;
     // Monochrome 黑白版：纯黑/白/灰，无彩色
@@ -5728,6 +5772,50 @@ ThemeColors Theme::RoboCop() {
     return colors;
 }
 
+ThemeColors Theme::Robot() {
+    ThemeColors colors;
+    // Robot: 机器人主题，金属银 + 科技蓝 + 电子绿
+    // 灵感来源：未来机器人、AI 界面、量子计算、赛博科技
+    colors.background = Color::RGB(15, 20, 25);           // #0F1419 深空黑（宇宙背景）
+    colors.foreground = Color::RGB(220, 230, 240);        // #DCE6F0 亮银白（金属外壳）
+    colors.current_line = Color::RGB(30, 40, 50);         // #1E2832 深空蓝（选中行）
+    colors.selection = Color::RGB(45, 60, 75);            // #2D3C4B 科技蓝（选择区）
+    colors.line_number = Color::RGB(100, 120, 140);       // #64788C 中灰蓝（行号）
+    colors.line_number_current = Color::RGB(0, 255, 200); // #00FFC8 电子绿（AI 高亮）✨
+
+    colors.statusbar_bg = Color::RGB(25, 35, 45);    // #19232D 深空蓝（状态栏）
+    colors.statusbar_fg = Color::RGB(220, 230, 240); // #DCE6F0 亮银白
+
+    colors.menubar_bg = Color::RGB(15, 20, 25);    // #0F1419 深空黑
+    colors.menubar_fg = Color::RGB(220, 230, 240); // #DCE6F0 亮银白
+
+    colors.helpbar_bg = Color::RGB(25, 35, 45);
+    colors.helpbar_fg = Color::RGB(140, 160, 180); // #8CA0B4 科技灰
+    colors.helpbar_key = Color::RGB(0, 255, 200);  // #00FFC8 电子绿
+
+    // Robot 语法高亮：银关键词/青字符串/灰注释/橙数字/蓝函数
+    colors.keyword = Color::RGB(200, 210, 220);        // #C8D2DC 亮银（金属主色）
+    colors.string = Color::RGB(60, 200, 255);          // #3CC8FF 青蓝（数据流）
+    colors.comment = Color::RGB(80, 100, 120);         // #506478 深灰（低调注释）
+    colors.number = Color::RGB(255, 150, 80);          // #FF9650 橙色（能量指示）
+    colors.function = Color::RGB(100, 180, 255);       // #64B4FF 天蓝（系统功能）
+    colors.type = Color::RGB(120, 220, 255);           // #78DCFF 浅青（数据类型）
+    colors.operator_color = Color::RGB(210, 220, 230); // #D2DCE6 亮银
+
+    colors.error = Color::RGB(255, 80, 100);   // #FF5064 系统红（错误警报）
+    colors.warning = Color::RGB(255, 200, 80); // #FFC850 警戒黄（警告）
+    colors.info = Color::RGB(80, 200, 255);    // #50C8FF 青蓝（系统信息）
+    colors.success = Color::RGB(0, 255, 180);  // #00FFB4 电子绿（运行正常）
+
+    colors.dialog_bg = Color::RGB(30, 40, 50);          // #1E2832 深空蓝（对话框）
+    colors.dialog_fg = Color::RGB(220, 230, 240);       // #DCE6F0 亮银白
+    colors.dialog_title_bg = Color::RGB(0, 180, 255);   // #00B4FF 科技蓝（标题栏）
+    colors.dialog_title_fg = Color::RGB(255, 255, 255); // #FFFFFF 纯白
+    colors.dialog_border = Color::RGB(80, 100, 120);    // #506478 深灰边框
+
+    return colors;
+}
+
 ThemeColors Theme::Icy() {
     ThemeColors colors;
     // Icy: 冰蓝主题，灰色与浅蓝色配色，清新冷冽
@@ -6748,6 +6836,8 @@ void Theme::setTheme(const std::string& name) {
         colors_ = VSCodeMonokai();
     } else if (name == "vscode-dark-plus") {
         colors_ = VSCodeDarkPlus();
+    } else if (name == "dark-plus-moon-light") {
+        colors_ = DarkPlusMoonLight();
     } else if (name == "night-owl") {
         colors_ = NightOwl();
     } else if (name == "palenight") {
@@ -6932,6 +7022,8 @@ void Theme::setTheme(const std::string& name) {
         colors_ = Godfather();
     } else if (name == "robocop") {
         colors_ = RoboCop();
+    } else if (name == "robot") {
+        colors_ = Robot();
     } else if (name == "icy") {
         colors_ = Icy();
     } else if (name == "pure-blue") {
@@ -7140,6 +7232,7 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "vscode-dark-modern",
             "vscode-monokai",
             "vscode-dark-plus",
+            "dark-plus-moon-light",
             "night-owl",
             "palenight",
             "oceanic-next",
@@ -7232,6 +7325,7 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "superman",
             "godfather",
             "robocop",
+            "robot",
             "icy",
             "pure-blue",
             "silver",
@@ -7308,6 +7402,9 @@ std::vector<Color> Theme::getGradientColors() const {
          {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::string,
           &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
         {"vscode-dark",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"dark-plus-moon-light",
          {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
           &ThemeColors::keyword, &ThemeColors::success}},
         {"night-owl",

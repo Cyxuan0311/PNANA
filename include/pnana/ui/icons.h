@@ -599,6 +599,10 @@ constexpr const char* BOOK = "\uf02d";   // nf-fa-book (文档)
 // 终端
 constexpr const char* TERMINAL = "\uf120"; // nf-fa-terminal (终端)
 
+// SSH 和网络
+constexpr const char* SERVER = "\uf233";  // nf-fa-server (服务器)
+constexpr const char* NETWORK = "\uf233"; // nf-fa-server (网络)
+
 // 包管理和容器
 constexpr const char* PACKAGE = "\uf187";   // nf-fa-archive (包)
 constexpr const char* CONTAINER = "\ue7b0"; // nf-dev-docker (容器)
