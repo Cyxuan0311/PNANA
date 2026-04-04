@@ -23,6 +23,10 @@ namespace fs = std::filesystem;
 namespace pnana {
 namespace features {
 
+// 初始化静态缓存成员
+std::unordered_map<std::string, CachedImageData> ImagePreview::cache_;
+bool ImagePreview::cache_enabled_ = true;
+
 ImagePreview::ImagePreview()
     : loaded_(false), image_width_(0), image_height_(0), render_width_(0), render_height_(0) {}
 
@@ -59,6 +63,40 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
         return false;
     }
 
+    // 生成缓存键：文件路径 + 渲染尺寸
+    std::string cache_key =
+        filepath + "_" + std::to_string(width) + "_" + std::to_string(max_height);
+
+    // 尝试从缓存加载
+    if (cache_enabled_) {
+        auto cache_it = cache_.find(cache_key);
+        if (cache_it != cache_.end()) {
+            auto now = std::chrono::steady_clock::now();
+            auto cache_age =
+                std::chrono::duration_cast<std::chrono::seconds>(now - cache_it->second.last_access)
+                    .count();
+
+            // 检查缓存是否过期
+            if (cache_age < CACHE_DURATION_SECONDS) {
+                // 使用缓存数据
+                preview_lines_ = cache_it->second.preview_lines;
+                preview_pixels_ = cache_it->second.preview_pixels;
+                render_width_ = cache_it->second.render_width;
+                render_height_ = cache_it->second.render_height;
+                loaded_ = !preview_pixels_.empty();
+
+                // 更新访问时间和计数
+                cache_it->second.last_access = now;
+                cache_it->second.access_count++;
+
+                return loaded_;
+            } else {
+                // 缓存过期，移除
+                cache_.erase(cache_it);
+            }
+        }
+    }
+
     const int MAX_PREVIEW_WIDTH = 300;
     const int MAX_PREVIEW_HEIGHT = 150;
     if (width > MAX_PREVIEW_WIDTH) {
@@ -73,11 +111,11 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
     int channels = 0;
     unsigned char* image_data =
         stbi_load(filepath.c_str(), &image_width, &image_height, &channels, STBI_rgb_alpha);
+
     if (!image_data) {
         const char* reason = stbi_failure_reason();
         LOG_ERROR("ImagePreview::loadImage() - stb_image decode failed: " +
                   std::string(reason ? reason : "unknown error"));
-        stbi_image_free(image_data);
         return false;
     }
 
@@ -123,6 +161,32 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
 #endif
 
     stbi_image_free(image_data);
+
+    // 保存到缓存
+    if (success && cache_enabled_) {
+        // 如果缓存已满，移除最少使用的项
+        if (cache_.size() >= MAX_CACHE_SIZE) {
+            auto min_it = cache_.begin();
+            for (auto it = cache_.begin(); it != cache_.end(); ++it) {
+                if (it->second.access_count < min_it->second.access_count) {
+                    min_it = it;
+                }
+            }
+            cache_.erase(min_it);
+        }
+
+        // 保存当前加载结果到缓存
+        CachedImageData cached_data;
+        cached_data.preview_lines = preview_lines_;
+        cached_data.preview_pixels = preview_pixels_;
+        cached_data.render_width = render_width_;
+        cached_data.render_height = render_height_;
+        cached_data.last_access = std::chrono::steady_clock::now();
+        cached_data.access_count = 1;
+
+        cache_[cache_key] = cached_data;
+    }
+
     return success;
 }
 
@@ -131,23 +195,45 @@ bool ImagePreview::loadWithChafa(unsigned char* image_data, int image_width, int
     ChafaCanvasConfig* config = chafa_canvas_config_new();
     chafa_canvas_config_set_geometry(config, render_width_, render_height_);
     chafa_canvas_config_set_canvas_mode(config, CHAFA_CANVAS_MODE_TRUECOLOR);
-    chafa_canvas_config_set_fg_only_enabled(config, TRUE);
+    chafa_canvas_config_set_fg_only_enabled(config, FALSE); // 启用背景和前景色
     chafa_canvas_config_set_color_extractor(config, CHAFA_COLOR_EXTRACTOR_AVERAGE);
 #if defined(CHAFA_COLOR_SPACE_SRGB)
     chafa_canvas_config_set_color_space(config, CHAFA_COLOR_SPACE_SRGB);
 #else
     chafa_canvas_config_set_color_space(config, CHAFA_COLOR_SPACE_RGB);
 #endif
-    chafa_canvas_config_set_dither_mode(config, CHAFA_DITHER_MODE_DIFFUSION);
+    chafa_canvas_config_set_dither_mode(config, CHAFA_DITHER_MODE_ORDERED); // 使用有序抖动
     chafa_canvas_config_set_cell_geometry(config, 1, 2);
     chafa_canvas_config_set_pixel_mode(config, CHAFA_PIXEL_MODE_SYMBOLS);
 
+    // 只使用块状和阴影符号，避免使用可能显示为日韩文字的符号
     ChafaSymbolMap* symbol_map = chafa_symbol_map_new();
-    chafa_symbol_map_add_by_tags(
-        symbol_map, static_cast<ChafaSymbolTags>(CHAFA_SYMBOL_TAG_BLOCK | CHAFA_SYMBOL_TAG_SOLID));
+
+    // 添加实心符号（用于实色区域）
+    chafa_symbol_map_add_by_tags(symbol_map, CHAFA_SYMBOL_TAG_SOLID);
+
+    // 添加块状符号（用于渐变）
+    chafa_symbol_map_add_by_tags(symbol_map, CHAFA_SYMBOL_TAG_BLOCK);
+
+    // 添加半块符号（用于水平/垂直渐变）- 这些是安全的
+    chafa_symbol_map_add_by_tags(symbol_map, CHAFA_SYMBOL_TAG_HALF);
+
+    // 添加阴影符号（用于细腻渐变）- 使用点状而非线条
+    chafa_symbol_map_add_by_tags(symbol_map, CHAFA_SYMBOL_TAG_STIPPLE);
+
+    // 添加空白符号
+    chafa_symbol_map_add_by_tags(symbol_map, CHAFA_SYMBOL_TAG_SPACE);
+
+    // 明确排除可能显示为日韩文字的符号
+    // 不使用 CHAFA_SYMBOL_TAG_BRAILLE (Braille 点阵在某些字体下显示异常)
+    // 不使用 CHAFA_SYMBOL_TAG_QUAD (四象限符号在某些字体下显示异常)
+    // 不使用 CHAFA_SYMBOL_TAG_LINE (线条符号可能显示异常)
+    // 不使用 CHAFA_SYMBOL_TAG_WIDE (宽字符可能显示异常)
+
     chafa_canvas_config_set_symbol_map(config, symbol_map);
 
     ChafaCanvas* canvas = chafa_canvas_new(config);
+
     chafa_canvas_draw_all_pixels(canvas, CHAFA_PIXEL_RGBA8_UNASSOCIATED, image_data, image_width,
                                  image_height, image_width * 4);
 
@@ -162,12 +248,16 @@ bool ImagePreview::loadWithChafa(unsigned char* image_data, int image_width, int
         for (int x = 0; x < render_width_; ++x) {
             gunichar ch = chafa_canvas_get_char_at(canvas, x, y);
             gint fg_color = 0;
-            chafa_canvas_get_raw_colors_at(canvas, x, y, &fg_color, nullptr);
+            gint bg_color = 0;
+            chafa_canvas_get_raw_colors_at(canvas, x, y, &fg_color, &bg_color);
 
             PreviewPixel pixel{};
             pixel.r = static_cast<unsigned char>((fg_color >> 16) & 0xFF);
             pixel.g = static_cast<unsigned char>((fg_color >> 8) & 0xFF);
             pixel.b = static_cast<unsigned char>(fg_color & 0xFF);
+            pixel.bg_r = static_cast<unsigned char>((bg_color >> 16) & 0xFF);
+            pixel.bg_g = static_cast<unsigned char>((bg_color >> 8) & 0xFF);
+            pixel.bg_b = static_cast<unsigned char>(bg_color & 0xFF);
 
             char utf8_buffer[8] = {};
             int utf8_length = g_unichar_to_utf8(ch, utf8_buffer);
@@ -248,6 +338,30 @@ void ImagePreview::clear() {
     render_height_ = 0;
 }
 
+void ImagePreview::setPreviewData(const std::vector<std::string>& lines,
+                                  const std::vector<std::vector<PreviewPixel>>& pixels) {
+    preview_lines_ = lines;
+    preview_pixels_ = pixels;
+    loaded_ = !pixels.empty();
+}
+
+// 缓存管理方法
+void ImagePreview::clearCache() {
+    cache_.clear();
+}
+
+void ImagePreview::setCacheEnabled(bool enabled) {
+    cache_enabled_ = enabled;
+}
+
+bool ImagePreview::isCacheEnabled() {
+    return cache_enabled_;
+}
+
+size_t ImagePreview::getCacheSize() {
+    return cache_.size();
+}
+
 ftxui::Element ImagePreview::render() const {
     using namespace ftxui;
 
@@ -275,8 +389,9 @@ ftxui::Element ImagePreview::render() const {
 
         for (size_t j = 0; j < row.size(); ++j) {
             const auto& pixel = row[j];
-            ftxui::Color pixel_color = Color::RGB(pixel.r, pixel.g, pixel.b);
-            pixel_elements.push_back(text(pixel.ch) | color(pixel_color));
+            ftxui::Color fg_color = Color::RGB(pixel.r, pixel.g, pixel.b);
+            ftxui::Color bg_color = Color::RGB(pixel.bg_r, pixel.bg_g, pixel.bg_b);
+            pixel_elements.push_back(text(pixel.ch) | color(fg_color) | bgcolor(bg_color));
         }
 
         preview_rows.push_back(hbox(pixel_elements));
