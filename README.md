@@ -86,8 +86,15 @@ Simple JSON configuration file supporting themes, fonts, indentation, and other 
 
 ## 🚀 Quick Start
 
+> **⚠️ Important:** Before compiling, please ensure all required dependencies are installed.
+> 
+> - **Required**: FTXUI terminal UI library must be installed
+> - **Optional Features**: To enable advanced features like image preview, Tree-sitter syntax highlighting, Lua plugin system, SSH support, AI client, etc., please refer to [Dependencies Documentation](docs/DEPENDENCIES.md) to install corresponding dependencies
+> - **Quick Start**: For detailed build steps and feature enabling guide, see [Quick Start Guide](QUICKSTART.md)
+
 ### Build Requirements
-**[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation
+**[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation  
+**[Quick Start Guide](QUICKSTART.md)** - 5-minute quick start guide
 
 ### Build and Install
 
