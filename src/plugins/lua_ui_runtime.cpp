@@ -533,6 +533,86 @@ function M.popup(opts)
     layout = layout,
   })
 end
+
+-- ========== 高阶模板（保持兼容：仅新增，不改变既有行为）==========
+M.templates = M.templates or {}
+
+-- dialog 模板：统一 header/body/footer 布局，减少插件样板代码
+-- opts:
+--   title: string
+--   body: string | string[]
+--   buttons: { {label=string, primary=bool}? }  -- 仅用于渲染（事件处理仍由调用方决定）
+--   width/height: number (用于 open_* convenience)
+--   style: { border="rounded"|"normal", padding=number, spacing=number }
+function M.templates.dialog(opts)
+  opts = opts or {}
+  local title = opts.title or "Dialog"
+  local style = opts.style or {}
+
+  local padding = style.padding
+  if padding == nil then padding = 1 end
+  local spacing = style.spacing
+  if spacing == nil then spacing = 1 end
+  local border = style.border or "rounded"
+
+  local body_nodes = {}
+  local body = opts.body
+  if type(body) == "string" then
+    body_nodes = { M.paragraph(body) }
+  elseif type(body) == "table" then
+    for _, line in ipairs(body) do
+      table.insert(body_nodes, M.text(tostring(line)))
+    end
+  else
+    body_nodes = { M.text("") }
+  end
+
+  local button_nodes = {}
+  if type(opts.buttons) == "table" and #opts.buttons > 0 then
+    for _, b in ipairs(opts.buttons) do
+      local label = (type(b) == "table" and b.label) and tostring(b.label) or tostring(b)
+      local btn = M.button(label)
+      if type(b) == "table" and b.primary then
+        btn.decorators = btn.decorators or {}
+        table.insert(btn.decorators, { name = "bold", value = true })
+      end
+      table.insert(button_nodes, btn)
+    end
+  end
+
+  local footer = nil
+  if #button_nodes > 0 then
+    footer = M.hbox(button_nodes, { spacing = 2, align = "center" })
+  end
+
+  local children = {}
+  -- body
+  table.insert(children, M.vbox(body_nodes, { spacing = spacing, align = "start" }))
+  -- footer
+  if footer then
+    table.insert(children, M.separator())
+    table.insert(children, footer)
+  end
+
+  return M.window(title, children, {
+    padding = padding,
+    spacing = spacing,
+    border = border,
+    window_title_decorators = { bold = true },
+  })
+end
+
+-- 直接打开 dialog（使用现有 open_layout_window，保持兼容）
+function M.open_dialog_window(opts)
+  opts = opts or {}
+  local layout = opts.layout or M.templates.dialog(opts)
+  return vim.ui.open_layout_window({
+    title = opts.title or "Dialog",
+    width = opts.width or 60,
+    height = opts.height or 14,
+    layout = layout,
+  })
+end
 )LUA";
 } // namespace
 
