@@ -153,6 +153,11 @@ struct HistoryConfig {
     int critical_time_interval = 86400;
 };
 
+// UI 配置结构
+struct UIConfig {
+    bool toast_enabled = false; // 是否启用 Toast 弹窗通知
+};
+
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
@@ -163,6 +168,7 @@ struct AppConfig {
     LspConfig lsp;
     AnimationConfig animation;
     HistoryConfig history;
+    UIConfig ui;
 
     // 主题配置
     std::string current_theme = "monokai";

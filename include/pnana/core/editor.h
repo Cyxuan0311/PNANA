@@ -48,6 +48,7 @@
 #include "ui/terminal_session_dialog.h"
 #include "ui/theme.h"
 #include "ui/theme_menu.h"
+#include "ui/toast.h"
 #include "ui/todo_panel.h"
 #include "ui/tui_config_popup.h"
 #include "ui/welcome_screen.h"
@@ -444,6 +445,7 @@ class Editor {
 #endif
     pnana::vgit::GitPanel git_panel_;
     pnana::ui::StatusbarStyleMenu statusbar_style_menu_;
+    pnana::ui::Toast toast_;
 
     // 功能模块
     features::SearchEngine search_engine_;
@@ -483,6 +485,14 @@ class Editor {
         std::vector<features::SearchMatch> word_matches_;
         size_t word_highlight_row_ = 0;
         size_t word_highlight_col_ = 0;
+
+        // 图片预览状态（每个区域独立）
+        std::string image_path_;
+        std::vector<std::string> image_preview_lines_;
+        std::vector<std::vector<features::PreviewPixel>> image_preview_pixels_;
+        bool image_loaded_ = false;
+        int image_render_width_ = 0;
+        int image_render_height_ = 0;
     };
     std::vector<RegionState> region_states_;
 

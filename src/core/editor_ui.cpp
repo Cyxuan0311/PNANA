@@ -587,6 +587,16 @@ Element Editor::overlayDialogs(Element main_ui) {
         overlayed = popup_manager_->render(overlayed, screen_.dimx(), screen_.dimy());
     }
 
+    // 更新并渲染 Toast 通知（右下角，叠加效果）
+    toast_.update();
+    if (toast_.isVisible()) {
+        // 渲染 Toast（使用主题色）
+        auto toast_element = toast_.render(theme_);
+
+        // 使用 dbox 实现叠加效果，Toast 浮动在右下角
+        overlayed = dbox({overlayed, hbox({filler(), vbox({filler(), toast_element})})});
+    }
+
     return overlayed;
 }
 
@@ -875,6 +885,63 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     if (doc->isBinary() && !is_image_file) {
         binary_file_view_.setFilePath(doc->getFilePath());
         return binary_file_view_.render();
+    }
+
+    // 图片预览逻辑：在分屏模式下为每个区域独立加载图片预览
+    if (is_image_file && !doc->getFilePath().empty()) {
+        std::string image_path = doc->getFilePath();
+
+        // 计算区域的实际可用尺寸
+        int preview_width = region.width;
+        int preview_height = region.height - 3; // 减去标题、尺寸、分隔符
+
+        // 确保最小尺寸
+        if (preview_width < 20)
+            preview_width = 20;
+        if (preview_height < 5)
+            preview_height = 5;
+
+        // 检查是否需要重新加载图片
+        bool need_reload = false;
+        if (region_index < region_states_.size()) {
+            auto& region_state = region_states_[region_index];
+            if (!region_state.image_loaded_ || region_state.image_path_ != image_path ||
+                region_state.image_render_width_ != preview_width ||
+                region_state.image_render_height_ != preview_height) {
+                need_reload = true;
+            }
+        } else {
+            need_reload = true;
+        }
+
+        // 重新加载图片预览
+        if (need_reload) {
+            image_preview_.loadImage(image_path, preview_width, preview_height);
+
+            // 保存到区域状态
+            if (region_index < region_states_.size()) {
+                auto& region_state = region_states_[region_index];
+                region_state.image_path_ = image_path;
+                region_state.image_preview_lines_ = image_preview_.getPreviewLines();
+                region_state.image_preview_pixels_ = image_preview_.getPreviewPixels();
+                region_state.image_loaded_ = image_preview_.isLoaded();
+                region_state.image_render_width_ = preview_width;
+                region_state.image_render_height_ = preview_height;
+            }
+        }
+
+        // 使用区域保存的预览数据渲染
+        if (region_index < region_states_.size()) {
+            auto& region_state = region_states_[region_index];
+            if (region_state.image_loaded_) {
+                // 临时设置 image_preview_ 的数据用于渲染
+                image_preview_.setPreviewData(region_state.image_preview_lines_,
+                                              region_state.image_preview_pixels_);
+                auto result = image_preview_.render() | size(HEIGHT, EQUAL, region.height) |
+                              size(WIDTH, EQUAL, region.width);
+                return result;
+            }
+        }
     }
 
     Elements lines;

@@ -16,6 +16,7 @@
 #include "features/package_manager/yum_manager.h"
 #include "ui/icons.h"
 #include "ui/statusbar_theme.h"
+#include "ui/toast.h"
 #include "utils/file_type_detector.h"
 #include "utils/logger.h"
 #ifdef BUILD_LUA_SUPPORT
@@ -605,6 +606,9 @@ void Editor::loadConfig(const std::string& config_path) {
     current_search_options_.whole_word = config.search.whole_word;
     current_search_options_.regex = config.search.regex;
     current_search_options_.wrap_around = config.search.wrap_around;
+
+    // 应用 UI 配置
+    pnana::ui::Toast::setEnabled(config.ui.toast_enabled);
 
     // 应用 history 保留配置
     {

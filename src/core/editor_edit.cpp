@@ -661,10 +661,13 @@ void Editor::copy() {
         getCurrentDocument()->setClipboard(content);
         setStatusMessage(selection_active_ ? "Selection copied to clipboard"
                                            : "Line copied to clipboard");
+        // 显示 Toast 通知
+        toast_.showSuccess("Copied " + std::to_string(content.length()) + " characters");
     } else {
         // 如果系统剪贴板不可用，使用内部剪贴板
         getCurrentDocument()->setClipboard(content);
         setStatusMessage("Copied to internal clipboard (system clipboard unavailable)");
+        toast_.showWarning("Copied to internal clipboard (system clipboard unavailable)");
     }
 
     // 复制后不取消选中（保持选中状态，方便用户继续操作）
@@ -778,6 +781,18 @@ void Editor::paste() {
     adjustViewOffset();
     doc->setModified(true);
     setStatusMessage("Pasted from clipboard");
+
+    // 计算粘贴的行数和字符数
+    size_t line_count = std::count(clipboard.begin(), clipboard.end(), '\n') + 1;
+    size_t char_count = clipboard.length();
+
+    // 显示 Toast 通知
+    if (line_count == 1) {
+        toast_.showSuccess("Pasted " + std::to_string(char_count) + " characters");
+    } else {
+        toast_.showSuccess("Pasted " + std::to_string(line_count) + " lines (" +
+                           std::to_string(char_count) + " characters)");
+    }
 }
 
 // 撤销/重做

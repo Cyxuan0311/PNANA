@@ -242,6 +242,29 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
         return items;
     });
 
+    // 设置递归加载器（用于展开子目录）
+    file_browser_.setRemoteRecursiveLoader([this](const std::string& ssh_uri) {
+        pnana::ui::SSHConfig c;
+        if (!parseSSHPath(ssh_uri, c))
+            return std::vector<features::FileItem>{};
+        features::ssh::Client client;
+        features::ssh::Result r = client.listDir(c);
+        if (!r.success)
+            return std::vector<features::FileItem>{};
+        std::vector<features::ssh::RemoteDirEntry> entries =
+            features::ssh::parseListDirContent(r.content);
+        std::string base = buildSSHUri(current_ssh_config_, c.remote_path);
+        if (!base.empty() && base.back() == '/')
+            base.pop_back();
+        std::vector<features::FileItem> items;
+        for (const auto& e : entries) {
+            std::string full = (c.remote_path == "/" ? "/" : c.remote_path + "/") + e.name;
+            items.push_back(features::FileItem(e.name, buildSSHUri(current_ssh_config_, full),
+                                               e.is_directory, 0));
+        }
+        return items;
+    });
+
     // 注入文件操作执行器（删除/重命名/创建目录/粘贴等均走 SSH）
     file_browser_.setRemoteFileOpExecutor(
         [this](const std::string& cmd) -> std::pair<bool, std::string> {
@@ -274,6 +297,9 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
         terminal_.startSSHSession(config.host, config.user, config.port, config.key_path,
                                   config.password);
         setStatusMessage("SSH: " + config.user + "@" + config.host + " | Del: disconnect");
+
+        // 显示 Toast 通知
+        toast_.showSuccess("Connected to " + config.user + "@" + config.host);
         return;
     }
 
@@ -322,6 +348,9 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
         terminal_.startSSHSession(config.host, config.user, config.port, config.key_path,
                                   config.password);
         setStatusMessage("SSH: " + config.user + "@" + config.host + " | Del: disconnect");
+
+        // 显示 Toast 通知
+        toast_.showSuccess("Connected to " + config.user + "@" + config.host);
         return;
     }
 
@@ -348,6 +377,9 @@ void Editor::disconnectSSH() {
         terminal_.restoreLocalShell();
     }
     setStatusMessage("SSH disconnected");
+
+    // 显示 Toast 通知
+    toast_.showInfo("SSH disconnected");
 }
 
 void Editor::showSSHTransferDialog() {

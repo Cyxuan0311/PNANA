@@ -40,7 +40,7 @@ void Editor::initializeCommandPalette() {
                                                  openRecentFilesDialog();
                                              }));
 
-    command_palette_.registerCommand(Command("file.fzf", "FZF", "Fuzzy find and open files",
+    command_palette_.registerCommand(Command("file.fzf", "FZF-Like", "Fuzzy find and open files",
                                              {"fzf", "fuzzy", "find", "file", "open", "search"},
                                              [this]() {
                                                  openFzfPopup();
