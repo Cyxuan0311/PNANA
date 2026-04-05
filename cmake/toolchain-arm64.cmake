@@ -5,8 +5,8 @@ set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
 # 提前设置架构变量，这样 CMakeLists.txt 中的架构检测可以正确工作
-set(ARCHITECTURE "arm64" CACHE STRING "Target architecture")
-set(ARCH_CFLAGS "-march=armv8-a+crc" CACHE STRING "Architecture flags")
+set(ARCHITECTURE "arm64")
+set(ARCH_CFLAGS "-march=armv8-a+crc")
 
 # Specify the cross compiler
 set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)

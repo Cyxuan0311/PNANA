@@ -60,6 +60,11 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
 endif()
 
+# 交叉编译时设置 pthread 参数
+if(CMAKE_CROSSCOMPILING)
+    set(THREADS_PTHREAD_ARG "2" CACHE STRING "Forced by CMake toolchain file")
+endif()
+
 # 查找 FTXUI 库
 find_package(ftxui REQUIRED)
 

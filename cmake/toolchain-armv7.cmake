@@ -5,8 +5,8 @@ set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR armv7l)
 
 # 提前设置架构变量，这样 CMakeLists.txt 中的架构检测可以正确工作
-set(ARCHITECTURE "armv7" CACHE STRING "Target architecture")
-set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "Architecture flags")
+set(ARCHITECTURE "armv7")
+set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard")
 
 # Specify the cross compiler
 set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
