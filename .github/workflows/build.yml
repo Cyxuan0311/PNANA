@@ -238,9 +238,10 @@ jobs:
         run: |
           set +x
           
-          # 关键修复：清空 CGO 错误的 -m64 标志（ARM64/ARMv7/RISC-V 不支持）
-          # ARMv7 是 32 位架构，不能使用 -m64（64 位参数）
-          export CGO_CFLAGS="-fPIC"
+          # 🔥 终极修复：清空 CGO 错误的 -m64 标志
+          # Go 会自动检测主机架构（amd64）并添加 -m64，必须强制屏蔽！
+          # -U__x86_64__ 屏蔽 x86_64 宏定义，阻止 Go 自动添加 -m64
+          export CGO_CFLAGS="-fPIC -U__x86_64__ -U__i386__"
           export CGO_LDFLAGS=""
           export CGO_ENABLED=1
           
@@ -279,7 +280,8 @@ jobs:
           fi
           echo "CC=$CC"
           echo "CXX=$CXX"
-          echo "CGO_CFLAGS=$CGO_CFLAGS (NO -m64!)"
+          echo "CGO_CFLAGS=$CGO_CFLAGS"
+          echo "  (NO -m64! Using -U__x86_64__ to block Go auto-detection)"
           echo "CGO_LDFLAGS=$CGO_LDFLAGS"
           echo "CGO_ENABLED=$CGO_ENABLED"
           echo "============================================"
@@ -318,38 +320,38 @@ jobs:
 
       - name: Build
         run: |
-          # 关键修复：构建时必须保留 CGO 环境变量
-          # ARMv7 是 32 位，不能使用 -m64！
-          export CGO_CFLAGS="-fPIC"
-          export CGO_LDFLAGS=""
+          # 🔥 终极修复：强制 Go 不要加 -m64（Go 会自动检测主机架构并添加 -m64）
           export CGO_ENABLED=1
-          
-          # 根据架构设置编译器
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            # ARM64 (64 位)
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-          elif [ "${{ matrix.arch }}" = "armv7" ]; then
-            # ARMv7 (32 位) - 关键：不能用 -m64！
-            export CC=arm-linux-gnueabihf-gcc
-            export CXX=arm-linux-gnueabihf-g++
-          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-            # RISC-V 64
-            export CC=riscv64-linux-gnu-gcc
-            export CXX=riscv64-linux-gnu-g++
-          else
-            # x86_64 (64 位)
-            export CC=gcc
-            export CXX=g++
+          export GOARCH=${{ matrix.arch }}
+          export CC=${{ matrix.cc }}
+          export CXX=${{ matrix.cxx }}
+
+          # 强制禁止 -m64（ARM64 / RISC-V / ARMv7 都需要）
+          # -U__x86_64__ 屏蔽 x86_64 宏定义，阻止 Go 自动添加 -m64
+          export CGO_CFLAGS="-fPIC -U__x86_64__ -U__i386__"
+          export CGO_LDFLAGS=""
+
+          # 针对 ARMv7 特殊处理
+          if [ "${{ matrix.arch }}" = "armv7" ]; then
+            export GOARCH=arm
+            export GOARM=7
           fi
-          
-          echo "Building with:"
+
+          echo "============================================"
+          echo "Building safely (NO -m64!)"
+          echo "============================================"
+          echo "  GOARCH=$GOARCH"
+          if [ "${{ matrix.arch }}" = "armv7" ]; then
+            echo "  GOARM=7"
+          fi
           echo "  CC=$CC"
           echo "  CXX=$CXX"
-          echo "  CGO_CFLAGS=$CGO_CFLAGS (NO -m64!)"
-          
+          echo "  CGO_CFLAGS=$CGO_CFLAGS"
+          echo "  CGO_LDFLAGS=$CGO_LDFLAGS"
+          echo "============================================"
+
           cd build
-          ninja -j$(nproc) -v
+          ninja -j$(nproc)
 
       - name: Show ccache stats
         run: ccache -s
