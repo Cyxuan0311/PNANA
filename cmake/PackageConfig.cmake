@@ -1,5 +1,5 @@
 # PNANA 打包配置
-# 此文件包含所有CPack和安装相关的配置
+# 此文件包含所有 CPack 和安装相关的配置
 
 # ============================================================================
 # 通用打包配置
@@ -13,8 +13,8 @@ set(CPACK_PACKAGE_VENDOR "PNANA Project")
 set(CPACK_PACKAGE_CONTACT "https://github.com/Cyxuan0311/PNANA.git")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Cyxuan0311/PNANA.git")
 
-# 设置包的元信息
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}")
+# 设置包的元信息 - 支持多架构
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/packages")
 
 # 设置安装组件
@@ -43,32 +43,67 @@ elseif(UNIX)
     # Linux/Unix - 扩展支持多种包格式
     set(CPACK_GENERATOR "DEB;RPM;TGZ;ZIP;TXZ;TBZ2")
 
+    # 自动检测架构并设置正确的架构名称
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)")
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
+        set(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64")
+        set(ARCH_NAME "arm64")
+        message(STATUS "Packaging for ARM64 architecture")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)")
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+        set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
+        set(ARCH_NAME "x86_64")
+        message(STATUS "Packaging for x86_64 architecture")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7l|armv7|ARMV7L)")
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+        set(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl")
+        set(ARCH_NAME "armv7")
+        message(STATUS "Packaging for ARMv7 architecture")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(riscv64|RISCV64)")
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "riscv64")
+        set(CPACK_RPM_PACKAGE_ARCHITECTURE "riscv64")
+        set(ARCH_NAME "riscv64")
+        message(STATUS "Packaging for RISC-V 64 architecture")
+    else()
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+        set(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+        set(ARCH_NAME "${CMAKE_SYSTEM_PROCESSOR}")
+        message(STATUS "Packaging for architecture: ${ARCH_NAME}")
+    endif()
+
     # DEB 包配置 (Debian/Ubuntu/Mint/Pop!_OS 等)
     set(CPACK_DEBIAN_PACKAGE_NAME "pnana")
     set(CPACK_DEBIAN_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
-    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
     set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
     set(CPACK_DEBIAN_PACKAGE_SECTION "editors")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
     set(CPACK_DEBIAN_PACKAGE_LICENSE "MIT")
+    # 设置依赖
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.27), libstdc++6 (>= 7.3.0), libncurses6 (>= 6.1), libtinfo6 (>= 6.1)")
 
     # RPM 包配置 (Red Hat/Fedora/CentOS/RHEL/SUSE 等)
     set(CPACK_RPM_PACKAGE_NAME "pnana")
     set(CPACK_RPM_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
-    set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
     set(CPACK_RPM_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
     set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
     set(CPACK_RPM_PACKAGE_GROUP "Applications/Editors")
     set(CPACK_RPM_PACKAGE_LICENSE "MIT")
     set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
+    # 设置依赖
+    set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.27, libstdc++ >= 7.3.0, ncurses >= 6.1")
 
     # Arch Linux 包配置 (通过 TXZ)
     set(CPACK_ARCHIVE_TXZ_COMPRESSION "XZ")
 
     # 通用归档配置 - 生成单个完整包而不是按组件分割
     set(CPACK_ARCHIVE_COMPONENT_INSTALL OFF)
+
+    # 为不同格式设置更友好的文件名
+    set(CPACK_DEBIAN_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}.deb")
+    set(CPACK_RPM_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_${CPACK_RPM_PACKAGE_ARCHITECTURE}.rpm")
+    set(CPACK_ARCHIVE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-ubuntu22.04-${ARCH_NAME}")
 
     # 安装后脚本
     set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_BINARY_DIR}/debian/postinst")
@@ -83,10 +118,10 @@ endif()
 # Linux 包格式扩展配置
 # ============================================================================
 if(UNIX AND NOT APPLE)
-    # Pacman (Arch Linux) 包配置
+    # Pacman (Arch Linux) 包配置 - 支持多架构
     set(CPACK_PACMAN_PACKAGE_NAME "pnana")
     set(CPACK_PACMAN_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
-    set(CPACK_PACMAN_PACKAGE_ARCHITECTURE "x86_64")
+    set(CPACK_PACMAN_PACKAGE_ARCHITECTURE "${ARCH_NAME}")
     set(CPACK_PACMAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
     set(CPACK_PACMAN_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
     set(CPACK_PACMAN_PACKAGE_LICENSE "MIT")
@@ -101,7 +136,7 @@ if(UNIX AND NOT APPLE)
         set(CPACK_SNAP_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
         set(CPACK_SNAP_PACKAGE_LICENSE "MIT")
         set(CPACK_SNAP_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
-        set(CPACK_SNAP_PACKAGE_ARCHITECTURE "amd64")
+        set(CPACK_SNAP_PACKAGE_ARCHITECTURE "${ARCH_NAME}")
 
         # Snap 特定配置
         set(CPACK_SNAP_SNAPCRAFT_FILE "${CMAKE_SOURCE_DIR}/snap/snapcraft.yaml")
@@ -114,12 +149,14 @@ if(UNIX AND NOT APPLE)
         set(CPACK_FLATPAK_BUILD_DIR "${CMAKE_BINARY_DIR}/flatpak-build")
     endif()
 
-    # AppImage 配置 (如果启用)
+    # AppImage 配置 (如果启用) - 通用架构
     option(BUILD_APPIMAGE "Build AppImage package" OFF)
     if(BUILD_APPIMAGE)
         set(CPACK_APPIMAGE_BASEDIR "${CMAKE_BINARY_DIR}/AppDir")
         set(CPACK_APPIMAGE_DESKTOP_FILE "${CMAKE_SOURCE_DIR}/appimage/pnana.desktop")
         set(CPACK_APPIMAGE_ICON_FILE "${CMAKE_SOURCE_DIR}/appimage/pnana.png")
+        # AppImage 是通用的，但需要指定架构
+        set(CPACK_APPIMAGE_PACKAGE_ARCHITECTURE "${ARCH_NAME}")
     endif()
 endif()
 
