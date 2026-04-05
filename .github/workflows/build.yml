@@ -132,6 +132,12 @@ jobs:
             libchafa-dev \
             libglib2.0-dev
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+
       - name: Build and install FTXUI (native)
         if: "!matrix.cross_compile"
         run: |
@@ -284,11 +290,21 @@ jobs:
       - name: Check code formatting
         run: |
           echo "Checking code formatting..."
+          echo "Files to check:"
+          find src include -name "*.cpp" -o -name "*.h" | head -20
+          
+          echo "Running clang-format check..."
           if find src include -name "*.cpp" -o -name "*.h" | \
-              xargs clang-format --dry-run --Werror --style=file 2>&1; then
+              xargs clang-format --dry-run --Werror --style=file 2>&1 | tee /tmp/clang-format-output.log; then
             echo "✅ Code formatting check passed!"
           else
             echo "❌ Code formatting check failed."
+            echo ""
+            echo "Failed files:"
+            cat /tmp/clang-format-output.log | head -20
+            echo ""
+            echo "To fix locally, run:"
+            echo "  find src include -name \"*.cpp\" -o -name \"*.h\" | xargs clang-format -i"
             exit 1
           fi
 
