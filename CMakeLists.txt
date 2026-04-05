@@ -1,15 +1,58 @@
 cmake_minimum_required(VERSION 3.10)
-project(pnana)
 
-# 设置C++标准
+# 检测目标架构并设置优化选项
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)")
+    set(ARCHITECTURE "arm64")
+    set(ARCH_CFLAGS "-march=armv8-a+crc")
+    message(STATUS "Building for ARM64 architecture")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)")
+    set(ARCHITECTURE "x86_64")
+    set(ARCH_CFLAGS "-march=x86-64 -mtune=generic")
+    message(STATUS "Building for x86_64 architecture")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(riscv64|RISCV64)")
+    set(ARCHITECTURE "riscv64")
+    set(ARCH_CFLAGS "-march=rv64gc -mabi=lp64d")
+    message(STATUS "Building for RISC-V 64 architecture")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7l|armv7|ARMV7L)")
+    set(ARCHITECTURE "armv7")
+    set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard")
+    message(STATUS "Building for ARMv7 architecture")
+else()
+    set(ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+    set(ARCH_CFLAGS "")
+    message(STATUS "Building for architecture: ${ARCHITECTURE}")
+endif()
+
+project(pnana VERSION 1.0.0 LANGUAGES CXX C)
+
+# 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 设置编译选项
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O2")
+# 设置编译选项 - 支持多架构优化
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ARCH_CFLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ARCH_CFLAGS} -Wall -Wextra")
 
-# 查找FTXUI库
+# 优化编译选项
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+    # 启用链接时优化（LTO）- 提升性能但增加编译时间
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_OUTPUT)
+    if(LTO_SUPPORTED)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        message(STATUS "LTO enabled for better performance")
+    else()
+        message(STATUS "LTO not supported: ${LTO_OUTPUT}")
+    endif()
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
+endif()
+
+# 查找 FTXUI 库
 find_package(ftxui REQUIRED)
 
 # 添加自定义 CMake 模块路径
