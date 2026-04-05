@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 
-# 检测目标架构并设置优化选项
+# 先定义项目，这样才能正确获取 CMAKE_SYSTEM_PROCESSOR
+project(pnana VERSION 1.0.0 LANGUAGES CXX C)
+
+# 检测目标架构并设置优化选项（在 project() 之后）
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)")
     set(ARCHITECTURE "arm64")
     set(ARCH_CFLAGS "-march=armv8-a+crc")
@@ -22,8 +25,6 @@ else()
     set(ARCH_CFLAGS "")
     message(STATUS "Building for architecture: ${ARCHITECTURE}")
 endif()
-
-project(pnana VERSION 1.0.0 LANGUAGES CXX C)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
