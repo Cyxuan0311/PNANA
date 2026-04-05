@@ -9,7 +9,7 @@ on:
       - 'src/**'
       - 'include/**'
       - '.github/workflows/multi-arch-build.yml'
-      - 'cmake/toolchain-*.cmake'
+      - 'cmake/**'
   pull_request:
     branches: [master, develop, fix/ci-actions]
   workflow_dispatch:
