@@ -1,19 +1,18 @@
 # CMake toolchain file for ARMv7 cross-compilation
-# 必须在 project() 之前设置 CMAKE_SYSTEM_PROCESSOR
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR armv7l)
 
-# 提前设置架构变量，这样 CMakeLists.txt 中的架构检测可以正确工作
-set(ARCHITECTURE "armv7")
-set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard")
-
-# Specify the cross compiler
+# 指定交叉编译器
 set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
 set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
 
-# 不设置 sysroot，让编译器使用默认路径
-# Ubuntu 的交叉编译包会自动安装在正确的位置
+# 强制设置架构变量，确保 CMakeLists.txt 能正确检测
+set(ARCHITECTURE "armv7" PARENT_SCOPE)
+set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" PARENT_SCOPE)
+
+# 设置 pthread 参数，避免检测失败
+set(THREADS_PTHREAD_ARG "2" CACHE INTERNAL "pthread works" FORCE)
 
 # Search for programs in the build host directories
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
@@ -24,5 +23,5 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
 # Additional flags for ARMv7 with NEON
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "" FORCE)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "" FORCE)
