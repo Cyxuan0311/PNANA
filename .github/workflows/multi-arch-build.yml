@@ -70,8 +70,9 @@ jobs:
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
-            qemu-user-static \
-            binfmt-support
+            libc6-dev-arm64-cross \
+            libstdc++6-arm64-cross \
+            binutils-aarch64-linux-gnu
 
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.arch == 'armv7'
@@ -79,8 +80,9 @@ jobs:
           sudo apt-get install -y \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
-            qemu-user-static \
-            binfmt-support
+            libc6-dev-armhf-cross \
+            libstdc++6-armhf-cross \
+            binutils-arm-linux-gnueabihf
 
       - name: Install build dependencies
         run: |
