@@ -761,13 +761,19 @@ if(BUILD_GO_MODULE)
     
     # 构建 Go 模块为静态库
     # 注意：go.mod 在项目根目录，所有 Go 文件在 go/ssh/ 子目录
+    if(GOARM)
+        set(GO_COMMENT "Building Go SSH module (GOARCH=${GOARCH}, GOARM=${GOARM})")
+    else()
+        set(GO_COMMENT "Building Go SSH module (GOARCH=${GOARCH})")
+    endif()
+    
     add_custom_command(
         OUTPUT ${GO_MODULE_OUTPUT}
         COMMAND ${CMAKE_COMMAND} -E env ${GO_BUILD_ENV} ${GO_EXECUTABLE} mod tidy
         COMMAND ${CMAKE_COMMAND} -E env ${GO_BUILD_ENV} ${GO_EXECUTABLE} mod download
         COMMAND ${CMAKE_COMMAND} -E env ${GO_BUILD_ENV} ${GO_EXECUTABLE} build -buildmode=c-archive -o ${GO_MODULE_OUTPUT} ./go/ssh
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Building Go SSH module (GOARCH=${GOARCH}${GOARM:+, GOARM=${GOARM}})"
+        COMMENT "${GO_COMMENT}"
         DEPENDS ${GO_SSH_SOURCES}
     )
     
