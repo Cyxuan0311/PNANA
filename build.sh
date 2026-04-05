@@ -170,7 +170,7 @@ show_help() {
     echo "  --help           Show this help message"
     echo ""
     echo "CMake Options (enable features):"
-    echo "  BUILD_IMAGE_PREVIEW=ON    Enable image preview support (requires FFmpeg)"
+    echo "  BUILD_IMAGE_PREVIEW=ON    Enable image preview support (requires chafa)"
     echo "  BUILD_TREE_SITTER=ON      Enable Tree-sitter syntax highlighting"
     echo "  BUILD_LUA=ON              Enable Lua plugin system"
     echo "  BUILD_GO=ON              Enable Go SSH module"
