@@ -78,7 +78,11 @@ jobs:
       - name: Install cross-compilation tools (ARM64)
         if: matrix.arch == 'arm64'
         run: |
-          sudo dpkg --add-architecture arm64
+          # ARM64 使用 ports.ubuntu.com 源
+          sudo bash -c 'echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" > /etc/apt/sources.list.d/arm64.list'
+          sudo bash -c 'echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list'
+          sudo bash -c 'echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list'
+          sudo bash -c 'echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list'
           sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-arm64 \
@@ -92,7 +96,11 @@ jobs:
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.arch == 'armv7'
         run: |
-          sudo dpkg --add-architecture armhf
+          # ARMv7 使用 ports.ubuntu.com 源
+          sudo bash -c 'echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" > /etc/apt/sources.list.d/armhf.list'
+          sudo bash -c 'echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/armhf.list'
+          sudo bash -c 'echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" >> /etc/apt/sources.list.d/armhf.list'
+          sudo bash -c 'echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/armhf.list'
           sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-armhf \
@@ -106,7 +114,11 @@ jobs:
       - name: Install cross-compilation tools (RISC-V 64)
         if: matrix.arch == 'riscv64'
         run: |
-          sudo dpkg --add-architecture riscv64
+          # RISC-V 64 使用 ports.ubuntu.com 源
+          sudo bash -c 'echo "deb [arch=riscv64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" > /etc/apt/sources.list.d/riscv64.list'
+          sudo bash -c 'echo "deb [arch=riscv64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/riscv64.list'
+          sudo bash -c 'echo "deb [arch=riscv64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" >> /etc/apt/sources.list.d/riscv64.list'
+          sudo bash -c 'echo "deb [arch=riscv64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/riscv64.list'
           sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-riscv64 \
