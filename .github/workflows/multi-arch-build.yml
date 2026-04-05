@@ -59,6 +59,15 @@ jobs:
             build_type: Release
             cross_compile: true
 
+          # RISC-V 64 Linux (使用 QEMU 模拟)
+          - os: ubuntu-22.04
+            arch: riscv64
+            compiler: gcc
+            cc: riscv64-linux-gnu-gcc
+            cxx: riscv64-linux-gnu-g++
+            build_type: Release
+            cross_compile: true
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -84,6 +93,16 @@ jobs:
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
             binutils-arm-linux-gnueabihf
+
+      - name: Install cross-compilation tools (RISC-V 64)
+        if: matrix.arch == 'riscv64'
+        run: |
+          sudo apt-get install -y \
+            crossbuild-essential-riscv64 \
+            libc6-dev-riscv64-cross \
+            gcc-riscv64-linux-gnu \
+            g++-riscv64-linux-gnu \
+            binutils-riscv64-linux-gnu
 
       - name: Install build dependencies
         run: |

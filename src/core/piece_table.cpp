@@ -368,7 +368,7 @@ std::string PieceTable::getText(size_t pos, size_t length) const {
             const size_t piece_available = node->piece.length - offset;
             const size_t buffer_available = buffer.size() - node->piece.start;
             const size_t safe_available = std::min(
-                piece_available, (offset < buffer_available) ? (buffer_available - offset) : 0UL);
+                piece_available, (offset < buffer_available) ? (buffer_available - offset) : 0u);
             const size_t take = std::min(remaining, safe_available);
 
             if (take > 0) {
