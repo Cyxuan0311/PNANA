@@ -103,7 +103,7 @@ jobs:
             libc6-dev-riscv64-cross \
             libatomic1-riscv64-cross \
             gcc-riscv64-linux-gnu \
-            g++-iscv64-linux-gnu \
+            g++-riscv64-linux-gnu \
             binutils-riscv64-linux-gnu
 
       - name: Install build dependencies
@@ -135,8 +135,37 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
           cache: false
+
+      - name: Configure CGO for cross-compilation
+        run: |
+          # 关键修复：清空错误的 -m64 标志（ARM64/RISC-V 不支持）
+          export CGO_CFLAGS="-fPIC"
+          export CGO_LDFLAGS=""
+          export CGO_ENABLED=1
+          
+          # 根据架构设置编译器
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            export CC=arm-linux-gnueabihf-gcc
+            export CXX=arm-linux-gnueabihf-g++
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            export CC=riscv64-linux-gnu-gcc
+            export CXX=riscv64-linux-gnu-g++
+          else
+            # x86_64 使用默认设置
+            export CC=gcc
+            export CXX=g++
+          fi
+          
+          # 输出配置信息
+          echo "CGO_CFLAGS=$CGO_CFLAGS"
+          echo "CGO_LDFLAGS=$CGO_LDFLAGS"
+          echo "CC=$CC"
+          echo "CXX=$CXX"
 
       - name: Build and install FTXUI (native)
         if: "!matrix.cross_compile"
