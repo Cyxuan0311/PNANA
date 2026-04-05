@@ -78,33 +78,45 @@ jobs:
       - name: Install cross-compilation tools (ARM64)
         if: matrix.arch == 'arm64'
         run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-arm64 \
             libc6-dev-arm64-cross \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
-            binutils-aarch64-linux-gnu
+            binutils-aarch64-linux-gnu \
+            libncurses-dev:arm64 \
+            libtinfo-dev:arm64
 
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.arch == 'armv7'
         run: |
+          sudo dpkg --add-architecture armhf
+          sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-armhf \
             libc6-dev-armhf-cross \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
-            binutils-arm-linux-gnueabihf
+            binutils-arm-linux-gnueabihf \
+            libncurses-dev:armhf \
+            libtinfo-dev:armhf
 
       - name: Install cross-compilation tools (RISC-V 64)
         if: matrix.arch == 'riscv64'
         run: |
+          sudo dpkg --add-architecture riscv64
+          sudo apt-get update
           sudo apt-get install -y \
             crossbuild-essential-riscv64 \
             libc6-dev-riscv64-cross \
             libatomic1-riscv64-cross \
             gcc-riscv64-linux-gnu \
             g++-riscv64-linux-gnu \
-            binutils-riscv64-linux-gnu
+            binutils-riscv64-linux-gnu \
+            libncurses-dev:riscv64 \
+            libtinfo-dev:riscv64
 
       - name: Install build dependencies
         run: |
