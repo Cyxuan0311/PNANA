@@ -217,6 +217,13 @@ jobs:
             package_deb: "pnana_${{ needs.prepare-release.outputs.version }}_armhf.deb"
             package_rpm: "pnana_${{ needs.prepare-release.outputs.version }}_armv7hl.rpm"
             package_tar: "pnana-ubuntu22.04-armv7.tar.gz"
+          # RISC-V 64 cross-compile
+          - arch: riscv64
+            arch_name: riscv64
+            cross_compile: true
+            package_deb: "pnana_${{ needs.prepare-release.outputs.version }}_riscv64.deb"
+            package_rpm: "pnana_${{ needs.prepare-release.outputs.version }}_riscv64.rpm"
+            package_tar: "pnana-ubuntu22.04-riscv64.tar.gz"
 
     steps:
       - name: Checkout code
@@ -226,21 +233,32 @@ jobs:
         if: matrix.cross_compile && matrix.arch == 'arm64'
         run: |
           sudo apt-get install -y \
+            crossbuild-essential-arm64 \
+            libc6-dev-arm64-cross \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
-            libc6-dev-arm64-cross \
-            libstdc++6-arm64-cross \
             binutils-aarch64-linux-gnu
 
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.cross_compile && matrix.arch == 'armv7'
         run: |
           sudo apt-get install -y \
+            crossbuild-essential-armhf \
+            libc6-dev-armhf-cross \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
-            libc6-dev-armhf-cross \
-            libstdc++6-armhf-cross \
             binutils-arm-linux-gnueabihf
+
+      - name: Install cross-compilation tools (RISC-V 64)
+        if: matrix.cross_compile && matrix.arch == 'riscv64'
+        run: |
+          sudo apt-get install -y \
+            crossbuild-essential-riscv64 \
+            libc6-dev-riscv64-cross \
+            libatomic1-riscv64-cross \
+            gcc-riscv64-linux-gnu \
+            g++-riscv64-linux-gnu \
+            binutils-riscv64-linux-gnu
 
       - name: Install dependencies
         run: |
@@ -290,6 +308,9 @@ jobs:
           elif [ "${{ matrix.arch }}" = "armv7" ]; then
             C_COMPILER=arm-linux-gnueabihf-gcc
             CXX_COMPILER=arm-linux-gnueabihf-g++
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            C_COMPILER=riscv64-linux-gnu-gcc
+            CXX_COMPILER=riscv64-linux-gnu-g++
           fi
           
           cmake .. \
@@ -330,6 +351,8 @@ jobs:
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
               -DCMAKE_PREFIX_PATH=/usr/local \
               -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake \
+              -DCMAKE_SYSTEM_NAME=Linux \
+              -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} \
               -DBUILD_IMAGE_PREVIEW=OFF \
               -DBUILD_TREE_SITTER=OFF \
               -DBUILD_LUA=OFF \
