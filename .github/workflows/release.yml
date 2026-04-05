@@ -225,6 +225,7 @@ jobs:
       - name: Install cross-compilation tools (ARM64)
         if: matrix.cross_compile && matrix.arch == 'arm64'
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
@@ -237,6 +238,7 @@ jobs:
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.cross_compile && matrix.arch == 'armv7'
         run: |
+          sudo dpkg --add-architecture armhf
           sudo apt-get update
           sudo apt-get install -y \
             gcc-arm-linux-gnueabihf \
