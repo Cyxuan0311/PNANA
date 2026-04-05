@@ -181,19 +181,34 @@ jobs:
           rm -rf build
           mkdir -p build
           cd build
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCMAKE_PREFIX_PATH=/usr/local \
-            -DBUILD_TESTING=ON \
-            -DBUILD_IMAGE_PREVIEW=OFF \
-            -DBUILD_TREE_SITTER=OFF \
-            -DBUILD_LUA=OFF \
-            -DBUILD_GO=OFF \
+          
+          # 基础 CMake 参数
+          CMAKE_ARGS=(
+            -G Ninja
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCMAKE_PREFIX_PATH=/usr/local
+            -DBUILD_TESTING=ON
+            -DBUILD_IMAGE_PREVIEW=OFF
+            -DBUILD_TREE_SITTER=OFF
+            -DBUILD_LUA=OFF
+            -DBUILD_GO=OFF
             -DBUILD_LIBVTERM=OFF
+          )
+          
+          # 关键修复：交叉编译时，自动加载工具链文件
+          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            CMAKE_ARGS+=(
+              -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }}
+            )
+          fi
+          
+          # 执行 cmake
+          cmake .. "${CMAKE_ARGS[@]}"
 
       - name: Build
         run: |
