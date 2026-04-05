@@ -10,6 +10,7 @@ on:
       - 'include/**'
       - '.github/workflows/build.yml'
       - 'cmake/**'
+      - 'go.mod'``
   pull_request:
     branches: [master, develop, fix/ci-actions]
   workflow_dispatch:
