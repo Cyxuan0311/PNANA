@@ -12,13 +12,8 @@ set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "Archi
 set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
 set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
 
-# 设置 sysroot 以正确找到 pthread 等库
-if(DEFINED ENV{SYSROOT})
-    set(CMAKE_SYSROOT $ENV{SYSROOT})
-else()
-    # 使用默认的 sysroot 路径
-    set(CMAKE_SYSROOT /usr/arm-linux-gnueabihf)
-endif()
+# 不设置 sysroot，让编译器使用默认路径
+# Ubuntu 的交叉编译包会自动安装在正确的位置
 
 # Search for programs in the build host directories
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
