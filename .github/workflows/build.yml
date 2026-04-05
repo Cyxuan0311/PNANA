@@ -237,6 +237,54 @@ jobs:
       - name: Configure CMake (Full Build)
         run: |
           set +x
+          
+          # 关键修复：清空 CGO 错误的 -m64 标志（ARM64/ARMv7/RISC-V 不支持）
+          # ARMv7 是 32 位架构，不能使用 -m64（64 位参数）
+          export CGO_CFLAGS="-fPIC"
+          export CGO_LDFLAGS=""
+          export CGO_ENABLED=1
+          
+          # 根据架构设置 Go 编译环境变量
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            # ARM64 (64 位)
+            export GOARCH=arm64
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            # ARMv7 (32 位) - 关键：不能用 -m64！
+            export GOARCH=arm
+            export GOARM=7
+            export CC=arm-linux-gnueabihf-gcc
+            export CXX=arm-linux-gnueabihf-g++
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            # RISC-V 64
+            export GOARCH=riscv64
+            export CC=riscv64-linux-gnu-gcc
+            export CXX=riscv64-linux-gnu-g++
+          else
+            # x86_64 (64 位)
+            export GOARCH=amd64
+            export CC=gcc
+            export CXX=g++
+          fi
+          
+          # 输出配置信息
+          echo "============================================"
+          echo "CGO Cross-Compilation Configuration"
+          echo "============================================"
+          echo "Architecture: ${{ matrix.arch }}"
+          echo "GOARCH=$GOARCH"
+          if [ -n "$GOARM" ]; then
+            echo "GOARM=$GOARM (ARM version)"
+          fi
+          echo "CC=$CC"
+          echo "CXX=$CXX"
+          echo "CGO_CFLAGS=$CGO_CFLAGS (NO -m64!)"
+          echo "CGO_LDFLAGS=$CGO_LDFLAGS"
+          echo "CGO_ENABLED=$CGO_ENABLED"
+          echo "============================================"
+          
+          # 清理旧的 build 目录，避免缓存问题
           rm -rf build
           mkdir -p build
           cd build
@@ -270,6 +318,36 @@ jobs:
 
       - name: Build
         run: |
+          # 关键修复：构建时必须保留 CGO 环境变量
+          # ARMv7 是 32 位，不能使用 -m64！
+          export CGO_CFLAGS="-fPIC"
+          export CGO_LDFLAGS=""
+          export CGO_ENABLED=1
+          
+          # 根据架构设置编译器
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            # ARM64 (64 位)
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            # ARMv7 (32 位) - 关键：不能用 -m64！
+            export CC=arm-linux-gnueabihf-gcc
+            export CXX=arm-linux-gnueabihf-g++
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            # RISC-V 64
+            export CC=riscv64-linux-gnu-gcc
+            export CXX=riscv64-linux-gnu-g++
+          else
+            # x86_64 (64 位)
+            export CC=gcc
+            export CXX=g++
+          fi
+          
+          echo "Building with:"
+          echo "  CC=$CC"
+          echo "  CXX=$CXX"
+          echo "  CGO_CFLAGS=$CGO_CFLAGS (NO -m64!)"
+          
           cd build
           ninja -j$(nproc) -v
 
