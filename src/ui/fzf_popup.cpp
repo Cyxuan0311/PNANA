@@ -1,5 +1,6 @@
 #include "ui/fzf_popup.h"
 #include "ui/icons.h"
+#include "utils/file_info_utils.h"
 #include "utils/file_type_detector.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
@@ -378,6 +379,8 @@ Element FzfPopup::render() {
 
     dialog_content.push_back(hbox(main_row) | flex);
     dialog_content.push_back(separator());
+    dialog_content.push_back(renderFileInfoBar());
+    dialog_content.push_back(separator());
     dialog_content.push_back(renderHelpBar());
 
     int height = std::min(35, int(12 + static_cast<int>(list_display_count_)));
@@ -551,6 +554,43 @@ Element FzfPopup::renderPreview() const {
     }
 
     return vbox(lines) | bgcolor(colors.background) | yflex;
+}
+
+Element FzfPopup::renderFileInfoBar() const {
+    const auto& colors = theme_.getColors();
+
+    if (is_loading_) {
+        return hbox({text(" "), text("Loading...") | color(colors.comment) | bold}) |
+               bgcolor(colors.dialog_bg);
+    }
+
+    if (filtered_files_.empty()) {
+        return hbox({text(" No files match") | color(colors.comment) | bold}) |
+               bgcolor(colors.dialog_bg);
+    }
+
+    if (selected_index_ >= filtered_files_.size()) {
+        return hbox({text(" No selection") | color(colors.comment) | bold}) |
+               bgcolor(colors.dialog_bg);
+    }
+
+    const std::string& filepath = filtered_files_[selected_index_];
+
+    // 使用工具类获取文件大小和权限
+    auto size_info = utils::getFileSize(filepath);
+    auto perm_info = utils::getFilePermission(filepath);
+
+    // 构建状态栏元素 - 使用下划线和粗体效果，不同部分使用不同颜色
+    Elements elements = {text(" "),
+                         text(size_info.formatted_size) | color(colors.keyword) | bold | underlined,
+                         text("  "),
+                         text(perm_info.type) | color(colors.foreground) | bold | underlined,
+                         text(perm_info.owner) | color(colors.function) | bold | underlined,
+                         text(perm_info.group) | color(colors.keyword) | bold | underlined,
+                         text(perm_info.others) | color(colors.comment) | bold | underlined,
+                         filler()};
+
+    return hbox(elements) | bgcolor(colors.dialog_bg);
 }
 
 Element FzfPopup::renderHelpBar() const {
