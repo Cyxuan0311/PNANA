@@ -282,6 +282,16 @@ jobs:
             https://github.com/ArthurSonzogni/FTXUI.git
           cd FTXUI
           mkdir build && cd build
+          
+          # 根据架构设置编译器
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            C_COMPILER=aarch64-linux-gnu-gcc
+            CXX_COMPILER=aarch64-linux-gnu-g++
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            C_COMPILER=arm-linux-gnueabihf-gcc
+            CXX_COMPILER=arm-linux-gnueabihf-g++
+          fi
+          
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=17 \
@@ -289,7 +299,9 @@ jobs:
             -DFTXUI_BUILD_EXAMPLES=OFF \
             -DFTXUI_BUILD_DOCS=OFF \
             -DFTXUI_ENABLE_INSTALL=ON \
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake
+            -DCMAKE_C_COMPILER=$C_COMPILER \
+            -DCMAKE_CXX_COMPILER=$CXX_COMPILER \
+            -DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchain-${{ matrix.arch }}.cmake
           make -j$(nproc)
           sudo make install
           cd ../..
