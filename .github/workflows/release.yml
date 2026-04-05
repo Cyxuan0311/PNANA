@@ -192,32 +192,55 @@ jobs:
   build:
     needs: prepare-release
     if: needs.prepare-release.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
-          - package_type: DEB
-            package_name: "pnana_${{ needs.prepare-release.outputs.version }}_amd64.deb"
-            cpack_generator: "DEB"
-          - package_type: RPM
-            package_name: "pnana_${{ needs.prepare-release.outputs.version }}_x86_64.rpm"
-            cpack_generator: "RPM"
-          - package_type: TGZ
-            package_name: "pnana-ubuntu22.04.tar.gz"
-            cpack_generator: "TGZ"
-          - package_type: ZIP
-            package_name: "pnana-ubuntu22.04.zip"
-            cpack_generator: "ZIP"
-          - package_type: TXZ
-            package_name: "pnana-ubuntu22.04.tar.xz"
-            cpack_generator: "TXZ"
-          - package_type: TBZ2
-            package_name: "pnana-ubuntu22.04.tar.bz2"
-            cpack_generator: "TBZ2"
+          # x86_64 native build
+          - arch: x86_64
+            arch_name: amd64
+            cross_compile: false
+            package_deb: "pnana_${{ needs.prepare-release.outputs.version }}_amd64.deb"
+            package_rpm: "pnana_${{ needs.prepare-release.outputs.version }}_x86_64.rpm"
+            package_tar: "pnana-ubuntu22.04-x86_64.tar.gz"
+          # ARM64 cross-compile
+          - arch: arm64
+            arch_name: arm64
+            cross_compile: true
+            package_deb: "pnana_${{ needs.prepare-release.outputs.version }}_arm64.deb"
+            package_rpm: "pnana_${{ needs.prepare-release.outputs.version }}_aarch64.rpm"
+            package_tar: "pnana-ubuntu22.04-arm64.tar.gz"
+          # ARMv7 cross-compile
+          - arch: armv7
+            arch_name: armhf
+            cross_compile: true
+            package_deb: "pnana_${{ needs.prepare-release.outputs.version }}_armhf.deb"
+            package_rpm: "pnana_${{ needs.prepare-release.outputs.version }}_armv7hl.rpm"
+            package_tar: "pnana-ubuntu22.04-armv7.tar.gz"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install cross-compilation tools (ARM64)
+        if: matrix.cross_compile && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            qemu-user-static \
+            binfmt-support
+
+      - name: Install cross-compilation tools (ARMv7)
+        if: matrix.cross_compile && matrix.arch == 'armv7'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf \
+            qemu-user-static \
+            binfmt-support
 
       - name: Install dependencies
         run: |
@@ -233,7 +256,8 @@ jobs:
             git \
             ccache
 
-      - name: Build and install FTXUI
+      - name: Build and install FTXUI (native)
+        if: "!matrix.cross_compile"
         run: |
           git clone --depth 1 --branch main \
             https://github.com/ArthurSonzogni/FTXUI.git
@@ -251,30 +275,65 @@ jobs:
           cd ../..
           rm -rf FTXUI
 
+      - name: Build and install FTXUI (cross-compile)
+        if: "matrix.cross_compile"
+        run: |
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_ENABLE_INSTALL=ON \
+            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake
+          make -j$(nproc)
+          sudo make install
+          cd ../..
+          rm -rf FTXUI
+
       - name: Setup environment
         run: |
           echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
+          echo "TARGET_ARCH=${{ matrix.arch_name }}" >> $GITHUB_ENV
 
       - name: Cache ccache
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ${{ runner.os }}-ccache
+          key: ${{ runner.os }}-${{ matrix.arch }}-ccache
 
       - name: Configure CMake
         run: |
           mkdir -p build
           cd build
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_PREFIX_PATH=/usr/local \
-            -DBUILD_IMAGE_PREVIEW=OFF \
-            -DBUILD_TREE_SITTER=OFF \
-            -DBUILD_LUA=OFF \
-            -DBUILD_GO=OFF
+          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            cmake .. \
+              -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_PREFIX_PATH=/usr/local \
+              -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake \
+              -DBUILD_IMAGE_PREVIEW=OFF \
+              -DBUILD_TREE_SITTER=OFF \
+              -DBUILD_LUA=OFF \
+              -DBUILD_GO=OFF
+          else
+            cmake .. \
+              -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_PREFIX_PATH=/usr/local \
+              -DBUILD_IMAGE_PREVIEW=OFF \
+              -DBUILD_TREE_SITTER=OFF \
+              -DBUILD_LUA=OFF \
+              -DBUILD_GO=OFF
+          fi
 
       - name: Build project
         run: |
@@ -284,36 +343,60 @@ jobs:
       - name: Show ccache stats
         run: ccache -s
 
-      - name: Create ${{ matrix.package_type }} package
+      - name: Verify binary architecture
         run: |
           cd build
-          echo "Creating ${{ matrix.package_type }} package with generator ${{ matrix.cpack_generator }}"
-          cpack -G ${{ matrix.cpack_generator }}
-          echo "Generated packages:"
-          ls -la *.deb *.rpm *.tar.gz *.zip *.tar.xz *.tar.bz2 2>/dev/null || true
-
-      - name: Find and upload package
-        id: find-package
-        run: |
-          cd build/packages
-          # Find the generated package file
-          PACKAGE_FILE=$(ls -1 *.deb *.rpm *.tar.gz *.zip *.tar.xz *.tar.bz2 2>/dev/null | head -1)
-          if [ -z "$PACKAGE_FILE" ]; then
-            echo "Error: No package file found in packages directory"
-            echo "Contents of build directory:"
-            ls -la ../
-            echo "Contents of build/packages directory:"
-            ls -la ./
-            exit 1
+          echo "=== Binary Information ==="
+          file pnana
+          if command -v readelf &> /dev/null; then
+            readelf -h pnana | grep -E "Class|Machine"
           fi
-          echo "Found package: $PACKAGE_FILE"
-          echo "package_file=packages/$PACKAGE_FILE" >> $GITHUB_OUTPUT
 
-      - name: Upload build artifacts
+      - name: Create DEB package
+        run: |
+          cd build
+          cpack -G DEB \
+            -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_deb }}" \
+            -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=${{ matrix.arch_name }}
+          echo "Generated DEB package:"
+          ls -la *.deb
+
+      - name: Create RPM package
+        run: |
+          cd build
+          cpack -G RPM \
+            -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_rpm }}" \
+            -DCPACK_RPM_PACKAGE_ARCHITECTURE=${{ matrix.arch_name == 'armhf' && 'armv7hl' || matrix.arch_name }}
+          echo "Generated RPM package:"
+          ls -la *.rpm
+
+      - name: Create TAR.GZ package
+        run: |
+          cd build
+          cpack -G TGZ \
+            -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_tar }}"
+          echo "Generated TAR.GZ package:"
+          ls -la *.tar.gz
+
+      - name: Upload DEB package
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.package_name }}
-          path: build/${{ steps.find-package.outputs.package_file }}
+          name: deb-${{ matrix.arch_name }}
+          path: build/${{ matrix.package_deb }}
+          retention-days: 30
+
+      - name: Upload RPM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.arch_name }}
+          path: build/${{ matrix.package_rpm }}
+          retention-days: 30
+
+      - name: Upload TAR.GZ package
+        uses: actions/upload-artifact@v4
+        with:
+          name: tar-${{ matrix.arch_name }}
+          path: build/${{ matrix.package_tar }}
           retention-days: 30
 
   create-release:
@@ -333,24 +416,27 @@ jobs:
       - name: List downloaded artifacts
         run: |
           echo "=== Downloaded artifacts structure ==="
-          find artifacts -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.zip" -o -name "*.tar.xz" -o -name "*.tar.bz2" \) | head -20
+          find artifacts -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" \) | head -30
           echo ""
           echo "=== Artifacts directory structure ==="
           ls -la artifacts/
           echo ""
-          echo "=== Checking for subdirectories ==="
+          echo "=== Collecting all packages ==="
+          mkdir -p release-packages
           for dir in artifacts/*/; do
             if [ -d "$dir" ]; then
-              echo "Contents of $dir:"
-              ls -la "$dir"
+              echo "Processing $dir"
+              cp "$dir"/*.deb "$dir"/*.rpm "$dir"/*.tar.gz release-packages/ 2>/dev/null || true
             fi
           done
+          echo ""
+          echo "=== Packages ready for release ==="
+          ls -la release-packages/
 
       - name: Create Git tag
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # Configure git to use GITHUB_TOKEN for authentication
           git config --local url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
           git tag ${{ needs.prepare-release.outputs.tag_name }}
           git push origin ${{ needs.prepare-release.outputs.tag_name }}
@@ -364,12 +450,9 @@ jobs:
           draft: ${{ github.event.inputs.draft == 'true' }}
           prerelease: ${{ github.event.inputs.release_type != 'stable' }}
           files: |
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.tar.gz
-            artifacts/**/*.zip
-            artifacts/**/*.tar.xz
-            artifacts/**/*.tar.bz2
+            release-packages/*.deb
+            release-packages/*.rpm
+            release-packages/*.tar.gz
 
       - name: Update CHANGELOG.md after release
         if: github.event_name == 'push'

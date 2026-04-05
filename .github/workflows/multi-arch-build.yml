@@ -1,0 +1,263 @@
+---
+name: Multi-Architecture Build
+
+on:
+  push:
+    branches: [master, develop]
+    paths:
+      - 'CMakeLists.txt'
+      - 'src/**'
+      - 'include/**'
+      - '.github/workflows/multi-arch-build.yml'
+  pull_request:
+    branches: [master, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  # 构建矩阵：支持多种架构和操作系统
+  build-matrix:
+    name: Build ${{ matrix.arch }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x86_64 Linux
+          - os: ubuntu-22.04
+            arch: x86_64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+            build_type: Release
+          - os: ubuntu-22.04
+            arch: x86_64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            build_type: Release
+
+          # ARM64 Linux (使用 QEMU 模拟)
+          - os: ubuntu-22.04
+            arch: arm64
+            compiler: gcc
+            cc: aarch64-linux-gnu-gcc
+            cxx: aarch64-linux-gnu-g++
+            build_type: Release
+            cross_compile: true
+
+          # ARMv7 Linux (使用 QEMU 模拟)
+          - os: ubuntu-22.04
+            arch: armv7
+            compiler: gcc
+            cc: arm-linux-gnueabihf-gcc
+            cxx: arm-linux-gnueabihf-g++
+            build_type: Release
+            cross_compile: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install cross-compilation tools (ARM64)
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            qemu-user-static \
+            binfmt-support
+
+      - name: Install cross-compilation tools (ARMv7)
+        if: matrix.arch == 'armv7'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf \
+            qemu-user-static \
+            binfmt-support
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            build-essential \
+            pkg-config \
+            nlohmann-json3-dev \
+            liblua5.4-dev \
+            libtree-sitter-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            libswscale-dev \
+            libavutil-dev \
+            golang-go \
+            libncurses-dev \
+            libtinfo-dev \
+            git \
+            ccache \
+            curl \
+            libcurl4-openssl-dev \
+            libvterm-dev \
+            libchafa-dev \
+            libglib2.0-dev
+
+      - name: Build and install FTXUI (native)
+        if: "!matrix.cross_compile"
+        run: |
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_ENABLE_INSTALL=ON
+          make -j$(nproc)
+          sudo make install
+          cd ../..
+          rm -rf FTXUI
+
+      - name: Build and install FTXUI (cross-compile)
+        if: "matrix.cross_compile"
+        run: |
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_ENABLE_INSTALL=ON \
+            -DCMAKE_TOOLCHAIN_FILE=../toolchain-${{ matrix.arch }}.cmake
+          make -j$(nproc)
+          sudo make install
+          cd ../..
+          rm -rf FTXUI
+
+      - name: Setup environment
+        run: |
+          echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
+          echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
+          echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
+          echo "ARCH=${{ matrix.arch }}" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-${{ matrix.arch }}-ccache
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_PREFIX_PATH=/usr/local \
+            -DBUILD_TESTING=ON \
+            -DBUILD_IMAGE_PREVIEW=OFF \
+            -DBUILD_TREE_SITTER=OFF \
+            -DBUILD_LUA=OFF \
+            -DBUILD_GO=OFF \
+            -DBUILD_LIBVTERM=OFF
+
+      - name: Build
+        run: |
+          cd build
+          ninja -j$(nproc) -v
+
+      - name: Show ccache stats
+        run: ccache -s
+
+      - name: Verify binary architecture
+        run: |
+          cd build
+          echo "=== Binary Information ==="
+          file pnana
+          if command -v readelf &> /dev/null; then
+            readelf -h pnana | grep -E "Class|Machine"
+          fi
+          echo "=== Architecture: ${{ matrix.arch }} ==="
+
+      - name: Test (native only)
+        if: "!matrix.cross_compile"
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: matrix.build_type == 'Release'
+        with:
+          name: pnana-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: |
+            build/pnana
+            build/compile_commands.json
+          retention-days: 14
+
+  # 架构兼容性报告
+  arch-report:
+    name: Generate Architecture Report
+    runs-on: ubuntu-22.04
+    needs: build-matrix
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate architecture compatibility report
+        run: |
+          echo "## Architecture Build Report" > arch_report.md
+          echo "" >> arch_report.md
+          echo "Generated at: $(date -u)" >> arch_report.md
+          echo "" >> arch_report.md
+          echo "| Architecture | OS | Compiler | Status |" >> arch_report.md
+          echo "|--------------|-----|----------|--------|" >> arch_report.md
+
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              name=$(basename "$dir")
+              # Extract architecture from directory name
+              arch=$(echo "$name" | grep -oP '(?<=-)(x86_64|arm64|armv7|riscv64)(?=-)')
+              os=$(echo "$name" | grep -oP '(?<=pnana-)(ubuntu-[0-9.]+)(?=-)')
+              compiler=$(echo "$name" | grep -oP '(?<=-)(gcc|clang)$')
+              
+              if [ -f "$dir/pnana" ]; then
+                status="✅ Success"
+              else
+                status="❌ Failed"
+              fi
+              
+              echo "| ${arch:-unknown} | ${os:-unknown} | ${compiler:-unknown} | ${status} |" >> arch_report.md
+            fi
+          done
+
+          cat arch_report.md
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-report
+          path: arch_report.md
+          retention-days: 30
