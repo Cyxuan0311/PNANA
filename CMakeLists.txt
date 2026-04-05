@@ -761,6 +761,12 @@ target_link_libraries(pnana
 # 检查并配置原子操作支持
 check_and_configure_atomic(pnana)
 
+# Force RISC-V to link libatomic (fixes detection false positive)
+if(ARCHITECTURE STREQUAL "riscv64")
+    target_link_libraries(pnana PRIVATE atomic)
+    message(STATUS "RISC-V: Forcing libatomic link for atomic operations support")
+endif()
+
 # 只在找到 Chafa 时链接
 if(BUILD_IMAGE_PREVIEW_SUPPORT)
     target_link_libraries(pnana PRIVATE ${CHAFA_LIBRARIES})
