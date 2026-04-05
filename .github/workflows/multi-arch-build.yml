@@ -177,6 +177,8 @@ jobs:
 
       - name: Configure CMake
         run: |
+          # 清理旧的 build 目录，避免缓存问题
+          rm -rf build
           mkdir -p build
           cd build
           cmake .. \

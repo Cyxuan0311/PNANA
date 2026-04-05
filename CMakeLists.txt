@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 3.10)
 
+# 在 project() 之前读取工具链文件设置的 ARCHITECTURE
+# 工具链文件使用 CACHE FORCE 设置，所以可以直接使用
+if(DEFINED ARCHITECTURE)
+    message(STATUS "Using architecture from toolchain: ${ARCHITECTURE}")
+endif()
+
+# 强制设置 pthread 参数（工具链文件可能已经设置，但确保覆盖）
+set(THREADS_PTHREAD_ARG "2" CACHE INTERNAL "pthread works" FORCE)
+
 # 先定义项目，这样才能正确获取 CMAKE_SYSTEM_PROCESSOR
 project(pnana VERSION 1.0.0 LANGUAGES CXX C)
 
 # 检测目标架构并设置优化选项（在 project() 之后）
-# 工具链文件可能已经设置了 ARCHITECTURE (CACHE FORCE)
+# 优先使用工具链文件设置的 ARCHITECTURE
 if(ARCHITECTURE STREQUAL "arm64")
     set(ARCH_CFLAGS "-march=armv8-a+crc")
     message(STATUS "Building for ARM64 architecture (cross-compile)")
