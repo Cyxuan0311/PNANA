@@ -7,9 +7,9 @@ set(CMAKE_SYSTEM_PROCESSOR armv7l)
 set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
 set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
 
-# 强制设置架构变量，确保 CMakeLists.txt 能正确检测
-set(ARCHITECTURE "armv7" PARENT_SCOPE)
-set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" PARENT_SCOPE)
+# 设置架构变量（使用 CACHE FORCE 确保覆盖）
+set(ARCHITECTURE "armv7" CACHE STRING "Target architecture" FORCE)
+set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "Architecture flags" FORCE)
 
 # 设置 pthread 参数，避免检测失败
 set(THREADS_PTHREAD_ARG "2" CACHE INTERNAL "pthread works" FORCE)
