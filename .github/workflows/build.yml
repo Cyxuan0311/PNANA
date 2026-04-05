@@ -4,32 +4,69 @@ name: Build and Test
 on:
   push:
     branches: [master, develop, fix/ci-actions]
+    paths:
+      - 'CMakeLists.txt'
+      - 'src/**'
+      - 'include/**'
+      - '.github/workflows/build.yml'
+      - 'cmake/**'
   pull_request:
     branches: [master, develop, fix/ci-actions]
+  workflow_dispatch:
 
 permissions:
   contents: read
   security-events: write
 
 jobs:
-  # 1️⃣ 构建 PNANA
-  build:
-    name: Build PNANA on ${{ matrix.os }}
+  # 多架构构建矩阵
+  build-matrix:
+    name: Build ${{ matrix.arch }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        compiler: [gcc, clang]
-        build_type: [Release]
         include:
-          - os: ubuntu-latest
+          # x86_64 Linux
+          - os: ubuntu-22.04
+            arch: x86_64
             compiler: gcc
             cc: gcc
             cxx: g++
-          - os: ubuntu-latest
+            build_type: Release
+          - os: ubuntu-22.04
+            arch: x86_64
             compiler: clang
             cc: clang
             cxx: clang++
+            build_type: Release
+
+          # ARM64 Linux (交叉编译)
+          - os: ubuntu-22.04
+            arch: arm64
+            compiler: gcc
+            cc: aarch64-linux-gnu-gcc
+            cxx: aarch64-linux-gnu-g++
+            build_type: Release
+            cross_compile: true
+
+          # ARMv7 Linux (交叉编译)
+          - os: ubuntu-22.04
+            arch: armv7
+            compiler: gcc
+            cc: arm-linux-gnueabihf-gcc
+            cxx: arm-linux-gnueabihf-g++
+            build_type: Release
+            cross_compile: true
+
+          # RISC-V 64 Linux (交叉编译)
+          - os: ubuntu-22.04
+            arch: riscv64
+            compiler: gcc
+            cc: riscv64-linux-gnu-gcc
+            cxx: riscv64-linux-gnu-g++
+            build_type: Release
+            cross_compile: true
 
     steps:
       - name: Checkout code
@@ -37,7 +74,38 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install dependencies
+      - name: Install cross-compilation tools (ARM64)
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get install -y \
+            crossbuild-essential-arm64 \
+            libc6-dev-arm64-cross \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu
+
+      - name: Install cross-compilation tools (ARMv7)
+        if: matrix.arch == 'armv7'
+        run: |
+          sudo apt-get install -y \
+            crossbuild-essential-armhf \
+            libc6-dev-armhf-cross \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf \
+            binutils-arm-linux-gnueabihf
+
+      - name: Install cross-compilation tools (RISC-V 64)
+        if: matrix.arch == 'riscv64'
+        run: |
+          sudo apt-get install -y \
+            crossbuild-essential-riscv64 \
+            libc6-dev-riscv64-cross \
+            libatomic1-riscv64-cross \
+            gcc-riscv64-linux-gnu \
+            g++-iscv64-linux-gnu \
+            binutils-riscv64-linux-gnu
+
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -63,7 +131,8 @@ jobs:
             libchafa-dev \
             libglib2.0-dev
 
-      - name: Build and install FTXUI
+      - name: Build and install FTXUI (native)
+        if: "!matrix.cross_compile"
         run: |
           git clone --depth 1 --branch main \
             https://github.com/ArthurSonzogni/FTXUI.git
@@ -81,35 +150,87 @@ jobs:
           cd ../..
           rm -rf FTXUI
 
+      - name: Build and install FTXUI (cross-compile)
+        if: "matrix.cross_compile"
+        run: |
+          set +x
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          mkdir build && cd build
+          
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            C_COMPILER=aarch64-linux-gnu-gcc
+            CXX_COMPILER=aarch64-linux-gnu-g++
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            C_COMPILER=arm-linux-gnueabihf-gcc
+            CXX_COMPILER=arm-linux-gnueabihf-g++
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            C_COMPILER=riscv64-linux-gnu-gcc
+            CXX_COMPILER=riscv64-linux-gnu-g++
+          fi
+          
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_ENABLE_INSTALL=ON \
+            -DCMAKE_C_COMPILER=$C_COMPILER \
+            -DCMAKE_CXX_COMPILER=$CXX_COMPILER \
+            -DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchain-${{ matrix.arch }}.cmake
+          make -j$(nproc)
+          sudo make install
+          cd ../..
+          rm -rf FTXUI
+
       - name: Setup environment
         run: |
           echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
           echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
           echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
+          echo "ARCH=${{ matrix.arch }}" >> $GITHUB_ENV
 
       - name: Cache ccache
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ${{ runner.os }}-ccache
+          key: ${{ runner.os }}-${{ matrix.arch }}-ccache
 
-      - name: Configure CMake
+      - name: Configure CMake (Full Build)
         run: |
+          set +x
+          rm -rf build
           mkdir -p build
           cd build
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCMAKE_PREFIX_PATH=/usr/local \
-            -DBUILD_TESTING=ON \
-            -DBUILD_IMAGE_PREVIEW=ON \
-            -DBUILD_TREE_SITTER=ON \
-            -DBUILD_LUA=ON \
-            -DBUILD_GO=ON \
+          
+          CMAKE_ARGS=(
+            -G Ninja
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCMAKE_PREFIX_PATH=/usr/local
+            -DBUILD_TESTING=ON
+            -DBUILD_IMAGE_PREVIEW=ON
+            -DBUILD_TREE_SITTER=ON
+            -DBUILD_LUA=ON
+            -DBUILD_GO=ON
             -DBUILD_LIBVTERM=ON
+            -DBUILD_AI_CLIENT=ON
+            -DBUILD_ICONV_SUPPORT=ON
+          )
+          
+          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            CMAKE_ARGS+=(
+              -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake
+              -DCMAKE_SYSTEM_NAME=Linux
+              -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }}
+            )
+          fi
+          
+          cmake .. "${CMAKE_ARGS[@]}"
 
       - name: Build
         run: |
@@ -119,7 +240,18 @@ jobs:
       - name: Show ccache stats
         run: ccache -s
 
-      - name: Test
+      - name: Verify binary architecture
+        run: |
+          cd build
+          echo "=== Binary Information ==="
+          file pnana
+          if command -v readelf &> /dev/null; then
+            readelf -h pnana | grep -E "Class|Machine"
+          fi
+          echo "=== Architecture: ${{ matrix.arch }} ==="
+
+      - name: Test (native only)
+        if: "!matrix.cross_compile"
         run: |
           cd build
           ctest --output-on-failure
@@ -128,13 +260,13 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.build_type == 'Release'
         with:
-          name: pnana-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
+          name: pnana-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
           path: |
             build/pnana
             build/compile_commands.json
-          retention-days: 30
+          retention-days: 14
 
-  # 3️⃣ 代码风格检查
+  # 代码质量检查
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
@@ -151,31 +283,15 @@ jobs:
       - name: Check code formatting
         run: |
           echo "Checking code formatting..."
-          echo "Files to check:"
-          find src include -name "*.cpp" -o -name "*.h" | head -10
-
-          echo "Running clang-format check..."
-          # 先强制格式化可能有问题的文件
-          clang-format -i src/ui/help.cpp \
-            include/pnana/features/file_browser.h 2>/dev/null || true
-
-          # 然后检查所有文件
           if find src include -name "*.cpp" -o -name "*.h" | \
               xargs clang-format --dry-run --Werror --style=file 2>&1; then
             echo "✅ Code formatting check passed!"
           else
             echo "❌ Code formatting check failed."
-            echo "Problematic files:"
-            find src include -name "*.cpp" -o -name "*.h" | \
-              xargs clang-format --dry-run --Werror --style=file 2>&1 | head -10
-            echo ""
-            echo "To fix locally, run:"
-            echo "  find src include -name \"*.cpp\" -o -name \"*.h\" | \
-              xargs clang-format -i"
             exit 1
           fi
 
-  # 4️⃣ 安全扫描
+  # 安全扫描
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -196,3 +312,50 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+  # 架构报告
+  arch-report:
+    name: Generate Architecture Report
+    runs-on: ubuntu-22.04
+    needs: build-matrix
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate architecture compatibility report
+        run: |
+          echo "## Architecture Build Report" > arch_report.md
+          echo "" >> arch_report.md
+          echo "Generated at: $(date -u)" >> arch_report.md
+          echo "" >> arch_report.md
+          echo "| Architecture | OS | Compiler | Status |" >> arch_report.md
+          echo "|--------------|-----|----------|--------|" >> arch_report.md
+
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              name=$(basename "$dir")
+              arch=$(echo "$name" | grep -oP '(?<=-)(x86_64|arm64|armv7|riscv64)(?=-)')
+              os=$(echo "$name" | grep -oP '(?<=pnana-)(ubuntu-[0-9.]+)(?=-)')
+              compiler=$(echo "$name" | grep -oP '(?<=-)(gcc|clang)$')
+              
+              if [ -f "$dir/pnana" ]; then
+                status="✅ Success"
+              else
+                status="❌ Failed"
+              fi
+              
+              echo "| ${arch:-unknown} | ${os:-unknown} | ${compiler:-unknown} | ${status} |" >> arch_report.md
+            fi
+          done
+
+          cat arch_report.md
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-report
+          path: arch_report.md
+          retention-days: 30

@@ -153,6 +153,7 @@ jobs:
       - name: Build and install FTXUI (cross-compile)
         if: "matrix.cross_compile"
         run: |
+          set +x
           git clone --depth 1 --branch main \
             https://github.com/ArthurSonzogni/FTXUI.git
           cd FTXUI
@@ -165,6 +166,9 @@ jobs:
           elif [ "${{ matrix.arch }}" = "armv7" ]; then
             C_COMPILER=arm-linux-gnueabihf-gcc
             CXX_COMPILER=arm-linux-gnueabihf-g++
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            C_COMPILER=riscv64-linux-gnu-gcc
+            CXX_COMPILER=riscv64-linux-gnu-g++
           fi
           
           cmake .. \
@@ -197,6 +201,7 @@ jobs:
 
       - name: Configure CMake
         run: |
+          set +x
           # 清理旧的 build 目录，避免缓存问题
           rm -rf build
           mkdir -p build
