@@ -135,37 +135,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.22'
           cache: false
-
-      - name: Configure CGO for cross-compilation
-        run: |
-          # 关键修复：清空错误的 -m64 标志（ARM64/RISC-V 不支持）
-          export CGO_CFLAGS="-fPIC"
-          export CGO_LDFLAGS=""
-          export CGO_ENABLED=1
-          
-          # 根据架构设置编译器
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-          elif [ "${{ matrix.arch }}" = "armv7" ]; then
-            export CC=arm-linux-gnueabihf-gcc
-            export CXX=arm-linux-gnueabihf-g++
-          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-            export CC=riscv64-linux-gnu-gcc
-            export CXX=riscv64-linux-gnu-g++
-          else
-            # x86_64 使用默认设置
-            export CC=gcc
-            export CXX=g++
-          fi
-          
-          # 输出配置信息
-          echo "CGO_CFLAGS=$CGO_CFLAGS"
-          echo "CGO_LDFLAGS=$CGO_LDFLAGS"
-          echo "CC=$CC"
-          echo "CXX=$CXX"
 
       - name: Build and install FTXUI (native)
         if: "!matrix.cross_compile"
@@ -237,60 +208,11 @@ jobs:
       - name: Configure CMake (Full Build)
         run: |
           set +x
-          
-          # 🔥 终极修复：清空 CGO 错误的 -m64 标志
-          # Go 会自动检测主机架构（amd64）并添加 -m64，必须强制屏蔽！
-          # -U__x86_64__ 屏蔽 x86_64 宏定义，阻止 Go 自动添加 -m64
-          export CGO_CFLAGS="-fPIC -U__x86_64__ -U__i386__"
-          export CGO_LDFLAGS=""
-          export CGO_ENABLED=1
-          
-          # 根据架构设置 Go 编译环境变量
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            # ARM64 (64 位)
-            export GOARCH=arm64
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-          elif [ "${{ matrix.arch }}" = "armv7" ]; then
-            # ARMv7 (32 位) - 关键：不能用 -m64！
-            export GOARCH=arm
-            export GOARM=7
-            export CC=arm-linux-gnueabihf-gcc
-            export CXX=arm-linux-gnueabihf-g++
-          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-            # RISC-V 64
-            export GOARCH=riscv64
-            export CC=riscv64-linux-gnu-gcc
-            export CXX=riscv64-linux-gnu-g++
-          else
-            # x86_64 (64 位)
-            export GOARCH=amd64
-            export CC=gcc
-            export CXX=g++
-          fi
-          
-          # 输出配置信息
-          echo "============================================"
-          echo "CGO Cross-Compilation Configuration"
-          echo "============================================"
-          echo "Architecture: ${{ matrix.arch }}"
-          echo "GOARCH=$GOARCH"
-          if [ -n "$GOARM" ]; then
-            echo "GOARM=$GOARM (ARM version)"
-          fi
-          echo "CC=$CC"
-          echo "CXX=$CXX"
-          echo "CGO_CFLAGS=$CGO_CFLAGS"
-          echo "  (NO -m64! Using -U__x86_64__ to block Go auto-detection)"
-          echo "CGO_LDFLAGS=$CGO_LDFLAGS"
-          echo "CGO_ENABLED=$CGO_ENABLED"
-          echo "============================================"
-          
-          # 清理旧的 build 目录，避免缓存问题
           rm -rf build
           mkdir -p build
           cd build
           
+          # 基础 CMake 参数
           CMAKE_ARGS=(
             -G Ninja
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -302,12 +224,19 @@ jobs:
             -DBUILD_IMAGE_PREVIEW=ON
             -DBUILD_TREE_SITTER=ON
             -DBUILD_LUA=ON
-            -DBUILD_GO=ON
             -DBUILD_LIBVTERM=ON
             -DBUILD_AI_CLIENT=ON
             -DBUILD_ICONV_SUPPORT=ON
           )
           
+          # 交叉编译时禁用 Go 模块（避免架构不兼容）
+          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            CMAKE_ARGS+=(-DBUILD_GO=OFF)
+          else
+            CMAKE_ARGS+=(-DBUILD_GO=ON)
+          fi
+          
+          # 交叉编译时添加工具链文件
           if [ "${{ matrix.cross_compile }}" = "true" ]; then
             CMAKE_ARGS+=(
               -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake
@@ -320,38 +249,8 @@ jobs:
 
       - name: Build
         run: |
-          # 🔥 终极修复：强制 Go 不要加 -m64（Go 会自动检测主机架构并添加 -m64）
-          export CGO_ENABLED=1
-          export GOARCH=${{ matrix.arch }}
-          export CC=${{ matrix.cc }}
-          export CXX=${{ matrix.cxx }}
-
-          # 强制禁止 -m64（ARM64 / RISC-V / ARMv7 都需要）
-          # -U__x86_64__ 屏蔽 x86_64 宏定义，阻止 Go 自动添加 -m64
-          export CGO_CFLAGS="-fPIC -U__x86_64__ -U__i386__"
-          export CGO_LDFLAGS=""
-
-          # 针对 ARMv7 特殊处理
-          if [ "${{ matrix.arch }}" = "armv7" ]; then
-            export GOARCH=arm
-            export GOARM=7
-          fi
-
-          echo "============================================"
-          echo "Building safely (NO -m64!)"
-          echo "============================================"
-          echo "  GOARCH=$GOARCH"
-          if [ "${{ matrix.arch }}" = "armv7" ]; then
-            echo "  GOARM=7"
-          fi
-          echo "  CC=$CC"
-          echo "  CXX=$CXX"
-          echo "  CGO_CFLAGS=$CGO_CFLAGS"
-          echo "  CGO_LDFLAGS=$CGO_LDFLAGS"
-          echo "============================================"
-
           cd build
-          ninja -j$(nproc)
+          ninja -j$(nproc) -v
 
       - name: Show ccache stats
         run: ccache -s

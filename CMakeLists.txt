@@ -716,64 +716,15 @@ if(BUILD_GO_MODULE)
         ${GO_MODULE_DIR}/ssh/client.go
     )
     
-    # 🔥 交叉编译关键配置：设置正确的 GOARCH，阻止 Go 自动添加 -m64
-    if(CMAKE_CROSSCOMPILING)
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-            set(GOARCH "arm64")
-            set(GOARM "")
-        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "armv7|arm|ARMV7L")
-            set(GOARCH "arm")
-            set(GOARM "7")
-        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64")
-            set(GOARCH "riscv64")
-            set(GOARM "")
-        else()
-            set(GOARCH "amd64")
-            set(GOARM "")
-        endif()
-        
-        # 设置交叉编译环境变量
-        set(GO_BUILD_ENV
-            GOARCH=${GOARCH}
-            CGO_ENABLED=1
-            CC=${CMAKE_C_COMPILER}
-            CXX=${CMAKE_CXX_COMPILER}
-        )
-        
-        if(GOARM)
-            list(APPEND GO_BUILD_ENV GOARM=${GOARM})
-        endif()
-        
-        message(STATUS "Cross-compiling Go SSH module:")
-        message(STATUS "  GOARCH=${GOARCH}")
-        if(GOARM)
-            message(STATUS "  GOARM=${GOARM}")
-        endif()
-        message(STATUS "  CC=${CMAKE_C_COMPILER}")
-    else()
-        # 本地编译
-        set(GO_BUILD_ENV
-            CGO_ENABLED=1
-            CC=${CMAKE_C_COMPILER}
-            CXX=${CMAKE_CXX_COMPILER}
-        )
-    endif()
-    
     # 构建 Go 模块为静态库
     # 注意：go.mod 在项目根目录，所有 Go 文件在 go/ssh/ 子目录
-    if(GOARM)
-        set(GO_COMMENT "Building Go SSH module (GOARCH=${GOARCH}, GOARM=${GOARM})")
-    else()
-        set(GO_COMMENT "Building Go SSH module (GOARCH=${GOARCH})")
-    endif()
-    
     add_custom_command(
         OUTPUT ${GO_MODULE_OUTPUT}
-        COMMAND ${CMAKE_COMMAND} -E env ${GO_BUILD_ENV} ${GO_EXECUTABLE} mod tidy
-        COMMAND ${CMAKE_COMMAND} -E env ${GO_BUILD_ENV} ${GO_EXECUTABLE} mod download
-        COMMAND ${CMAKE_COMMAND} -E env ${GO_BUILD_ENV} ${GO_EXECUTABLE} build -buildmode=c-archive -o ${GO_MODULE_OUTPUT} ./go/ssh
+        COMMAND ${GO_EXECUTABLE} mod tidy
+        COMMAND ${GO_EXECUTABLE} mod download
+        COMMAND ${GO_EXECUTABLE} build -buildmode=c-archive -o ${GO_MODULE_OUTPUT} ./go/ssh
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "${GO_COMMENT}"
+        COMMENT "Building Go SSH module"
         DEPENDS ${GO_SSH_SOURCES}
     )
     
