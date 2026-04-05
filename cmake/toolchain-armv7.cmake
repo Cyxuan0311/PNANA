@@ -1,10 +1,24 @@
 # CMake toolchain file for ARMv7 cross-compilation
+# 必须在 project() 之前设置 CMAKE_SYSTEM_PROCESSOR
+
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR armv7l)
+
+# 提前设置架构变量，这样 CMakeLists.txt 中的架构检测可以正确工作
+set(ARCHITECTURE "armv7" CACHE STRING "Target architecture")
+set(ARCH_CFLAGS "-march=armv7-a -mfpu=neon -mfloat-abi=hard" CACHE STRING "Architecture flags")
 
 # Specify the cross compiler
 set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
 set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
+
+# 设置 sysroot 以正确找到 pthread 等库
+if(DEFINED ENV{SYSROOT})
+    set(CMAKE_SYSROOT $ENV{SYSROOT})
+else()
+    # 使用默认的 sysroot 路径
+    set(CMAKE_SYSROOT /usr/arm-linux-gnueabihf)
+endif()
 
 # Search for programs in the build host directories
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

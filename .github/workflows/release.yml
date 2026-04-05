@@ -230,7 +230,9 @@ jobs:
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             qemu-user-static \
-            binfmt-support
+            binfmt-support \
+            libncurses-dev:arm64 \
+            libtinfo-dev:arm64
 
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.cross_compile && matrix.arch == 'armv7'
@@ -240,7 +242,9 @@ jobs:
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
             qemu-user-static \
-            binfmt-support
+            binfmt-support \
+            libncurses-dev:armhf \
+            libtinfo-dev:armhf
 
       - name: Install dependencies
         run: |
