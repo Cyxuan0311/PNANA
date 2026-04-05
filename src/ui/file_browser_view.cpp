@@ -1,6 +1,7 @@
 #include "ui/file_browser_view.h"
 #include "features/file_browser.h"
 #include "ui/icons.h"
+#include "utils/file_info_utils.h"
 #include "utils/file_type_color_mapper.h"
 #include "utils/file_type_detector.h"
 #include "utils/file_type_icon_mapper.h"
@@ -224,80 +225,18 @@ Element FileBrowserView::renderFileInfoBar(const features::FileBrowser& browser)
                bgcolor(colors.selection);
     }
 
-    // 获取文件大小
-    std::string size_str;
-    if (item->is_directory) {
-        size_str = "Folder";
-    } else if (item->size > 0) {
-        // 已经有缓存的大小
-        if (item->size >= 1024ULL * 1024 * 1024) {
-            size_str = std::to_string(item->size / (1024 * 1024 * 1024)) + " GB";
-        } else if (item->size >= 1024 * 1024) {
-            size_str = std::to_string(item->size / (1024 * 1024)) + " MB";
-        } else if (item->size >= 1024) {
-            size_str = std::to_string(item->size / 1024) + " KB";
-        } else {
-            size_str = std::to_string(item->size) + " B";
-        }
-    } else {
-        // 尝试动态获取文件大小
-        try {
-            uintmax_t size = std::filesystem::file_size(item->path);
-            if (size >= 1024ULL * 1024 * 1024) {
-                size_str = std::to_string(size / (1024 * 1024 * 1024)) + " GB";
-            } else if (size >= 1024 * 1024) {
-                size_str = std::to_string(size / (1024 * 1024)) + " MB";
-            } else if (size >= 1024) {
-                size_str = std::to_string(size / 1024) + " KB";
-            } else {
-                size_str = std::to_string(size) + " B";
-            }
-        } catch (...) {
-            size_str = "Unknown";
-        }
-    }
-
-    // 获取文件权限
-    std::string perm_type, perm_owner, perm_group, perm_others;
-    try {
-        std::filesystem::file_status status = std::filesystem::status(item->path);
-        std::filesystem::perms perm = status.permissions();
-        auto check = [perm](std::filesystem::perms pm) {
-            return (perm & pm) != std::filesystem::perms::none;
-        };
-
-        // 文件类型标识
-        perm_type = item->is_directory ? 'd' : '-';
-
-        // 所有者权限
-        perm_owner += check(std::filesystem::perms::owner_read) ? 'r' : '-';
-        perm_owner += check(std::filesystem::perms::owner_write) ? 'w' : '-';
-        perm_owner += check(std::filesystem::perms::owner_exec) ? 'x' : '-';
-
-        // 组权限
-        perm_group += check(std::filesystem::perms::group_read) ? 'r' : '-';
-        perm_group += check(std::filesystem::perms::group_write) ? 'w' : '-';
-        perm_group += check(std::filesystem::perms::group_exec) ? 'x' : '-';
-
-        // 其他用户权限
-        perm_others += check(std::filesystem::perms::others_read) ? 'r' : '-';
-        perm_others += check(std::filesystem::perms::others_write) ? 'w' : '-';
-        perm_others += check(std::filesystem::perms::others_exec) ? 'x' : '-';
-    } catch (...) {
-        perm_type = "-";
-        perm_owner = "---";
-        perm_group = "---";
-        perm_others = "---";
-    }
+    // 使用工具类获取文件大小和权限
+    auto size_info = utils::getFileSize(item->path);
+    auto perm_info = utils::getFilePermission(item->path);
 
     // 构建状态栏元素 - 使用下划线和粗体效果，不同部分使用不同颜色
     Elements elements = {text(" "),
-                         text(size_str) | color(colors.keyword) | bold | underlined,
+                         text(size_info.formatted_size) | color(colors.keyword) | bold | underlined,
                          text("  "),
-                         text(perm_type) | color(colors.foreground) | bold | underlined,
-                         text(perm_owner) | color(colors.function) | bold | underlined,
-                         text(perm_group) | color(colors.keyword) | bold | underlined,
-                         text(perm_others) | color(colors.comment) | bold | underlined,
+                         text(perm_info.type) | color(colors.foreground) | bold | underlined,
+                         text(perm_info.owner) | color(colors.function) | bold | underlined,
+                         text(perm_info.group) | color(colors.keyword) | bold | underlined,
+                         text(perm_info.others) | color(colors.comment) | bold | underlined,
                          filler()};
 
     return hbox(elements) | bgcolor(colors.background);

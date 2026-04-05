@@ -1395,8 +1395,9 @@ Element GitPanel::renderClonePanel() {
                            text(" Repository URL (HTTPS/SSH):") | color(colors.menubar_fg)};
     elements.push_back(hbox(std::move(url_header)));
 
-    // URL input with focus indication
-    auto url_input = text(clone_url_) | color(colors.foreground);
+    // URL input with focus indication and cursor
+    std::string url_display = clone_url_.empty() ? "_" : clone_url_ + "_";
+    auto url_input = text(url_display) | color(colors.foreground);
     if (clone_focus_on_url_ && clone_state_ != CloneState::CLONING) {
         url_input = url_input | border | bgcolor(colors.selection) | color(colors.background);
     } else {
@@ -1410,8 +1411,9 @@ Element GitPanel::renderClonePanel() {
                             text(" Clone to path:") | color(colors.menubar_fg)};
     elements.push_back(hbox(std::move(path_header)));
 
-    // Path input with focus indication
-    auto path_input = text(clone_path_) | color(colors.foreground);
+    // Path input with focus indication and cursor
+    std::string path_display = clone_path_.empty() ? "_" : clone_path_ + "_";
+    auto path_input = text(path_display) | color(colors.foreground);
     if (!clone_focus_on_url_ && clone_state_ != CloneState::CLONING) {
         path_input = path_input | border | bgcolor(colors.selection) | color(colors.background);
     } else {

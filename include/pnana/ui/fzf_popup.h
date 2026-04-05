@@ -110,9 +110,10 @@ class FzfPopup {
 
     // 渲染组件
     ftxui::Element renderTitle() const;
-    ftxui::Element renderInputBox() const; // 带光标的输入框
-    ftxui::Element renderFileList() const; // 带图标的文件列表
-    ftxui::Element renderPreview() const;  // 语法高亮预览
+    ftxui::Element renderInputBox() const;    // 带光标的输入框
+    ftxui::Element renderFileList() const;    // 带图标的文件列表
+    ftxui::Element renderPreview() const;     // 语法高亮预览
+    ftxui::Element renderFileInfoBar() const; // 文件信息栏（大小、权限）
     ftxui::Element renderHelpBar() const;
 
     // 获取文件图标和颜色

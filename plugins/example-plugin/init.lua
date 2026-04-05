@@ -79,3 +79,11 @@ end, { desc = "Show file path" })
 
 -- 插件初始化完成
 -- vim.log.info("Example plugin initialized successfully!")
+
+-- Register example command: type `example` to open a popup
+vim.api.create_user_command("example", function(opts)
+    vim.ui.open_window({
+        items = {"This is an example plugin"},
+        window_title = "Example Plugin"
+    })
+end, { desc = "Open example popup" })

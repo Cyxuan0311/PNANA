@@ -395,6 +395,7 @@ set(SOURCES
     src/utils/match_highlight.cpp
     src/utils/archive_validator.cpp
     src/utils/version_detector.cpp
+    src/utils/file_info_utils.cpp
     src/features/recent_files_manager.cpp
     src/features/tui_config_manager.cpp
     src/ui/recent_files_popup.cpp
