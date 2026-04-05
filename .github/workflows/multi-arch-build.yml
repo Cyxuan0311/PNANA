@@ -67,28 +67,20 @@ jobs:
       - name: Install cross-compilation tools (ARM64)
         if: matrix.arch == 'arm64'
         run: |
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             qemu-user-static \
-            binfmt-support \
-            libncurses-dev:arm64 \
-            libtinfo-dev:arm64
+            binfmt-support
 
       - name: Install cross-compilation tools (ARMv7)
         if: matrix.arch == 'armv7'
         run: |
-          sudo dpkg --add-architecture armhf
-          sudo apt-get update
           sudo apt-get install -y \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
             qemu-user-static \
-            binfmt-support \
-            libncurses-dev:armhf \
-            libtinfo-dev:armhf
+            binfmt-support
 
       - name: Install build dependencies
         run: |
