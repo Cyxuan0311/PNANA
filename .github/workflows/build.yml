@@ -227,10 +227,6 @@ jobs:
             -DBUILD_LIBVTERM=ON
             -DBUILD_AI_CLIENT=ON
             -DBUILD_ICONV_SUPPORT=ON
-            
-            # ✅ 修复关键：强制交叉编译器只看自己架构的头文件
-            -DCMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES=/usr/${{ matrix.arch }}-linux-gnu/include
-            -DCMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES=/usr/${{ matrix.arch }}-linux-gnu/include
           )
           
           # 交叉编译时禁用 Go 模块（避免架构不兼容）
