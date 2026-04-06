@@ -106,8 +106,7 @@ jobs:
             g++-riscv64-linux-gnu \
             binutils-riscv64-linux-gnu
 
-      - name: Install build dependencies (native)
-        if: "!matrix.cross_compile"
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -132,78 +131,6 @@ jobs:
             libvterm-dev \
             libchafa-dev \
             libglib2.0-dev
-
-      - name: Install build dependencies (cross-compile ARM64)
-        if: matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            pkg-config \
-            nlohmann-json3-dev \
-            liblua5.4-dev:arm64 \
-            libtree-sitter-dev:arm64 \
-            libavformat-dev:arm64 \
-            libavcodec-dev:arm64 \
-            libswscale-dev:arm64 \
-            libavutil-dev:arm64 \
-            libncurses-dev:arm64 \
-            libtinfo-dev:arm64 \
-            libcurl4-openssl-dev:arm64 \
-            libvterm-dev:arm64 \
-            libchafa-dev:arm64 \
-            libglib2.0-dev:arm64
-
-      - name: Install build dependencies (cross-compile ARMv7)
-        if: matrix.arch == 'armv7'
-        run: |
-          sudo apt-get update
-          sudo dpkg --add-architecture armhf
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            pkg-config \
-            nlohmann-json3-dev \
-            liblua5.4-dev:armhf \
-            libtree-sitter-dev:armhf \
-            libavformat-dev:armhf \
-            libavcodec-dev:armhf \
-            libswscale-dev:armhf \
-            libavutil-dev:armhf \
-            libncurses-dev:armhf \
-            libtinfo-dev:armhf \
-            libcurl4-openssl-dev:armhf \
-            libvterm-dev:armhf \
-            libchafa-dev:armhf \
-            libglib2.0-dev:armhf
-
-      - name: Install build dependencies (cross-compile RISC-V 64)
-        if: matrix.arch == 'riscv64'
-        run: |
-          sudo apt-get update
-          sudo dpkg --add-architecture riscv64
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            ninja-build \
-            pkg-config \
-            nlohmann-json3-dev \
-            liblua5.4-dev:riscv64 \
-            libtree-sitter-dev:riscv64 \
-            libavformat-dev:riscv64 \
-            libavcodec-dev:riscv64 \
-            libswscale-dev:riscv64 \
-            libavutil-dev:riscv64 \
-            libncurses-dev:riscv64 \
-            libtinfo-dev:riscv64 \
-            libcurl4-openssl-dev:riscv64 \
-            libvterm-dev:riscv64 \
-            libchafa-dev:riscv64 \
-            libglib2.0-dev:riscv64
 
       - name: Set up Go
         uses: actions/setup-go@v5
