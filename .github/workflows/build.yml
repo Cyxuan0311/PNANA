@@ -106,7 +106,31 @@ jobs:
             g++-riscv64-linux-gnu \
             binutils-riscv64-linux-gnu
 
-      - name: Install build dependencies
+      - name: Enable multiarch and install cross-dependencies
+        if: matrix.cross_compile
+        run: |
+          # 启用目标架构
+          sudo dpkg --add-architecture ${{ matrix.arch }}
+          sudo apt-get update
+          
+          # 安装目标架构的依赖库
+          sudo apt-get install -y \
+            libchafa-dev:${{ matrix.arch }} \
+            libglib2.0-dev:${{ matrix.arch }} \
+            liblua5.4-dev:${{ matrix.arch }} \
+            libncurses-dev:${{ matrix.arch }} \
+            libtinfo-dev:${{ matrix.arch }} \
+            libcurl4-openssl-dev:${{ matrix.arch }} \
+            libavformat-dev:${{ matrix.arch }} \
+            libavcodec-dev:${{ matrix.arch }} \
+            libswscale-dev:${{ matrix.arch }} \
+            libavutil-dev:${{ matrix.arch }} \
+            nlohmann-json3-dev:${{ matrix.arch }} \
+            libtree-sitter-dev:${{ matrix.arch }} \
+            libvterm-dev:${{ matrix.arch }}
+
+      - name: Install build dependencies (native)
+        if: "!matrix.cross_compile"
         run: |
           sudo apt-get update
           sudo apt-get install -y \
