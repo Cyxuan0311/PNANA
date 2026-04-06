@@ -106,16 +106,15 @@ jobs:
             g++-riscv64-linux-gnu \
             binutils-riscv64-linux-gnu
 
-      - name: Enable multiarch and install cross-dependencies
+      - name: Install cross-dependencies (apt)
         if: matrix.cross_compile
         run: |
-          # 启用目标架构
+          # 启用多架构支持
           sudo dpkg --add-architecture ${{ matrix.arch }}
           sudo apt-get update
           
-          # 安装目标架构的依赖库
+          # 安装其他依赖库（chafa 通过源码编译）
           sudo apt-get install -y \
-            libchafa-dev:${{ matrix.arch }} \
             libglib2.0-dev:${{ matrix.arch }} \
             liblua5.4-dev:${{ matrix.arch }} \
             libncurses-dev:${{ matrix.arch }} \
@@ -127,7 +126,47 @@ jobs:
             libavutil-dev:${{ matrix.arch }} \
             nlohmann-json3-dev:${{ matrix.arch }} \
             libtree-sitter-dev:${{ matrix.arch }} \
-            libvterm-dev:${{ matrix.arch }}
+            libvterm-dev:${{ matrix.arch }} \
+            libfreetype6-dev:${{ matrix.arch }} \
+            libjpeg-dev:${{ matrix.arch }} \
+            librsvg2-dev:${{ matrix.arch }} \
+            libtiff-dev:${{ matrix.arch }} \
+            libwebp-dev:${{ matrix.arch }} \
+            autoconf \
+            automake \
+            libtool \
+            gtk-doc-tools
+
+      - name: Build and install Chafa (cross-compile)
+        if: matrix.cross_compile
+        run: |
+          set +x
+          git clone --depth 1 https://github.com/hpjansson/chafa.git
+          cd chafa
+          
+          # 设置交叉编译环境变量
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            HOST=aarch64-linux-gnu
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            HOST=arm-linux-gnueabihf
+          elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+            HOST=riscv64-linux-gnu
+          fi
+          
+          export PKG_CONFIG_PATH=/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig
+          export PKG_CONFIG_LIBDIR=/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          
+          ./autogen.sh
+          ./configure \
+            --host=$HOST \
+            --prefix=/usr/local \
+            --disable-gtk-doc \
+            --disable-static \
+            --enable-shared
+          make -j$(nproc)
+          sudo make install
+          cd ..
+          rm -rf chafa
 
       - name: Install build dependencies (native)
         if: "!matrix.cross_compile"
@@ -153,8 +192,34 @@ jobs:
             curl \
             libcurl4-openssl-dev \
             libvterm-dev \
-            libchafa-dev \
-            libglib2.0-dev
+            libglib2.0-dev \
+            libfreetype6-dev \
+            libjpeg-dev \
+            librsvg2-dev \
+            libtiff-dev \
+            libwebp-dev \
+            autoconf \
+            automake \
+            libtool \
+            gtk-doc-tools
+
+      - name: Build and install Chafa (native)
+        if: "!matrix.cross_compile"
+        run: |
+          set +x
+          git clone --depth 1 https://github.com/hpjansson/chafa.git
+          cd chafa
+          
+          ./autogen.sh
+          ./configure \
+            --prefix=/usr/local \
+            --disable-gtk-doc \
+            --disable-static \
+            --enable-shared
+          make -j$(nproc)
+          sudo make install
+          cd ..
+          rm -rf chafa
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -236,10 +301,14 @@ jobs:
           mkdir -p build
           cd build
           
-          # ✅ 核心修复：强制 pkg-config 使用目标架构的路径
+          # ✅ 设置 pkg-config 路径（包含源码编译的 chafa）
           if [ "${{ matrix.cross_compile }}" = "true" ]; then
-            export PKG_CONFIG_LIBDIR=/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_PATH=/usr/local/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_LIBDIR=/usr/local/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/share/pkgconfig
             export PKG_CONFIG_SYSROOT_DIR=/usr/${{ matrix.arch }}-linux-gnu
+          else
+            export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_LIBDIR=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
           fi
           
           # 基础 CMake 参数
