@@ -228,9 +228,9 @@ jobs:
             -DBUILD_AI_CLIENT=ON
             -DBUILD_ICONV_SUPPORT=ON
             
-            # ✅ 修复关键：强制忽略原生 x86 系统头文件路径
-            -DCMAKE_IGNORE_SYSTEM_C_INCLUDE_PATH=ON
-            -DCMAKE_IGNORE_SYSTEM_CXX_INCLUDE_PATH=ON
+            # ✅ 修复关键：强制交叉编译器只看自己架构的头文件
+            -DCMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES=/usr/${{ matrix.arch }}-linux-gnu/include
+            -DCMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES=/usr/${{ matrix.arch }}-linux-gnu/include
           )
           
           # 交叉编译时禁用 Go 模块（避免架构不兼容）

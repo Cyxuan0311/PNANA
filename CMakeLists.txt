@@ -354,8 +354,7 @@ endif()
 # 配置 libvterm（终端 VT 解析与屏幕模型）
 include(ConfigureLibVTerm)
 
-# 包含目录
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/pnana)
+# 包含目录（已移除全局 include_directories，使用 target_include_directories 替代）
 
 # Package manager sources (auto-discovered)
 file(GLOB PACKAGE_MANAGER_SOURCES CONFIGURE_DEPENDS
