@@ -212,6 +212,12 @@ jobs:
           mkdir -p build
           cd build
           
+          # ✅ 核心修复：强制 pkg-config 使用目标架构的路径
+          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            export PKG_CONFIG_LIBDIR=/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_SYSROOT_DIR=/usr/${{ matrix.arch }}-linux-gnu
+          fi
+          
           # 基础 CMake 参数
           CMAKE_ARGS=(
             -G Ninja
@@ -227,10 +233,6 @@ jobs:
             -DBUILD_LIBVTERM=ON
             -DBUILD_AI_CLIENT=ON
             -DBUILD_ICONV_SUPPORT=ON
-            
-            # ✅ 修复关键：强制忽略原生 x86 系统头文件路径
-            -DCMAKE_IGNORE_SYSTEM_C_INCLUDE_PATH=ON
-            -DCMAKE_IGNORE_SYSTEM_CXX_INCLUDE_PATH=ON
           )
           
           # 交叉编译时禁用 Go 模块（避免架构不兼容）
