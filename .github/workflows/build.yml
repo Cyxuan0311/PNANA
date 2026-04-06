@@ -220,28 +220,35 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
             -DCMAKE_PREFIX_PATH=/usr/local
-            -DBUILD_TESTING=ON
-            -DBUILD_IMAGE_PREVIEW=ON
-            -DBUILD_TREE_SITTER=ON
-            -DBUILD_LUA=ON
-            -DBUILD_LIBVTERM=ON
-            -DBUILD_AI_CLIENT=ON
-            -DBUILD_ICONV_SUPPORT=ON
           )
           
-          # 交叉编译时禁用 Go 模块（避免架构不兼容）
+          # 交叉编译架构（ARM64/ARMv7/RISC-V64）只启用核心功能
           if [ "${{ matrix.cross_compile }}" = "true" ]; then
-            CMAKE_ARGS+=(-DBUILD_GO=OFF)
-          else
-            CMAKE_ARGS+=(-DBUILD_GO=ON)
-          fi
-          
-          # 交叉编译时添加工具链文件
-          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            # 交叉编译时只启用 tree-sitter、lua、vterm 支持
             CMAKE_ARGS+=(
+              -DBUILD_TREE_SITTER=ON
+              -DBUILD_LUA=ON
+              -DBUILD_LIBVTERM=ON
+              -DBUILD_GO=OFF
+              -DBUILD_IMAGE_PREVIEW=OFF
+              -DBUILD_AI_CLIENT=OFF
+              -DBUILD_ICONV_SUPPORT=OFF
+              -DBUILD_TESTING=OFF
               -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake
               -DCMAKE_SYSTEM_NAME=Linux
               -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }}
+            )
+          else
+            # 原生编译时启用所有功能
+            CMAKE_ARGS+=(
+              -DBUILD_TESTING=ON
+              -DBUILD_IMAGE_PREVIEW=ON
+              -DBUILD_TREE_SITTER=ON
+              -DBUILD_LUA=ON
+              -DBUILD_LIBVTERM=ON
+              -DBUILD_AI_CLIENT=ON
+              -DBUILD_ICONV_SUPPORT=ON
+              -DBUILD_GO=ON
             )
           fi
           
