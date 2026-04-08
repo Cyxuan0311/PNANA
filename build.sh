@@ -166,6 +166,7 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  --clean          Clean build directory before building"
+    echo "  --all            Enable all CMake build options (sets all BUILD_* to ON)"
     echo "  --install        Install the project after building"
     echo "  --help           Show this help message"
     echo ""
@@ -186,20 +187,29 @@ show_help() {
     echo "  $0 --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
     echo "  $0 --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
     echo "  $0 BUILD_LIBVTERM=ON                    # Build with libvterm support"
+    echo "  $0 --all                                # Build with all optional features enabled"
 }
 
 # 主函数
 main() {
     local clean_flag=false
     local install_flag=false
+    local build_all=false
     
-    # 初始化 CMake 选项变量
+    # 初始化 CMake 选项变量（空表示未由用户显式设置）
     BUILD_IMAGE_PREVIEW=""
     BUILD_TREE_SITTER=""
     BUILD_LUA=""
     BUILD_GO=""
     BUILD_AI_CLIENT=""
     BUILD_LIBVTERM=""
+    # 标记每个选项是否由用户显式设置（用于 --all 后允许显式覆盖）
+    BUILD_IMAGE_PREVIEW_SET=false
+    BUILD_TREE_SITTER_SET=false
+    BUILD_LUA_SET=false
+    BUILD_GO_SET=false
+    BUILD_AI_CLIENT_SET=false
+    BUILD_LIBVTERM_SET=false
     
     # 解析命令行参数
     while [[ $# -gt 0 ]]; do
@@ -212,32 +222,42 @@ main() {
                 install_flag=true
                 shift
                 ;;
+            --all)
+                build_all=true
+                shift
+                ;;
             --help|-h)
                 show_help
                 exit 0
                 ;;
             BUILD_IMAGE_PREVIEW=*)
                 BUILD_IMAGE_PREVIEW="${1#*=}"
+                BUILD_IMAGE_PREVIEW_SET=true
                 shift
                 ;;
             BUILD_TREE_SITTER=*)
                 BUILD_TREE_SITTER="${1#*=}"
+                BUILD_TREE_SITTER_SET=true
                 shift
                 ;;
             BUILD_LUA=*)
                 BUILD_LUA="${1#*=}"
+                BUILD_LUA_SET=true
                 shift
                 ;;
             BUILD_GO=*)
                 BUILD_GO="${1#*=}"
+                BUILD_GO_SET=true
                 shift
                 ;;
             BUILD_AI_CLIENT=*)
                 BUILD_AI_CLIENT="${1#*=}"
+                BUILD_AI_CLIENT_SET=true
                 shift
                 ;;
             BUILD_LIBVTERM=*)
                 BUILD_LIBVTERM="${1#*=}"
+                BUILD_LIBVTERM_SET=true
                 shift
                 ;;
             *)
@@ -247,6 +267,17 @@ main() {
                 ;;
         esac
     done
+
+    # 如果启用了 --all，则将未显式设置的 BUILD_* 选项置为 ON（允许用户在命令行中显式覆盖）
+    if [ "$build_all" = true ]; then
+        print_info "--all: enabling all optional CMake features (unless explicitly set)."
+        if [ "$BUILD_IMAGE_PREVIEW_SET" = false ]; then BUILD_IMAGE_PREVIEW="ON"; fi
+        if [ "$BUILD_TREE_SITTER_SET" = false ]; then BUILD_TREE_SITTER="ON"; fi
+        if [ "$BUILD_LUA_SET" = false ]; then BUILD_LUA="ON"; fi
+        if [ "$BUILD_GO_SET" = false ]; then BUILD_GO="ON"; fi
+        if [ "$BUILD_AI_CLIENT_SET" = false ]; then BUILD_AI_CLIENT="ON"; fi
+        if [ "$BUILD_LIBVTERM_SET" = false ]; then BUILD_LIBVTERM="ON"; fi
+    fi
     
     print_info "Starting build process..."
     print_info "Project root: $PROJECT_ROOT"
