@@ -29,6 +29,28 @@ void CommandPalette::registerCommand(const Command& command) {
     }
 }
 
+bool CommandPalette::unregisterCommand(const std::string& command_id) {
+    auto old_size = commands_.size();
+    commands_.erase(std::remove_if(commands_.begin(), commands_.end(),
+                                   [&command_id](const Command& cmd) {
+                                       return cmd.id == command_id;
+                                   }),
+                    commands_.end());
+
+    bool removed = commands_.size() != old_size;
+    if (removed && is_open_) {
+        filterCommands();
+        if (selected_index_ >= filtered_commands_.size() && !filtered_commands_.empty()) {
+            selected_index_ = filtered_commands_.size() - 1;
+        } else if (filtered_commands_.empty()) {
+            selected_index_ = 0;
+        }
+        updateScrollOffset();
+    }
+
+    return removed;
+}
+
 void CommandPalette::open() {
     is_open_ = true;
     input_ = "";

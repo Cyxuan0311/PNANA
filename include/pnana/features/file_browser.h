@@ -148,6 +148,10 @@ class FileBrowser {
     bool isCutOperation() const;                    // 检查当前操作是剪切还是复制
     void clearClipboard(); // 清除剪贴板数据（复制/剪切状态）
 
+    // 远程模式下获取文件状态栏信息（size + permissions）
+    bool getRemoteFileStat(const std::string& path, std::string& size_display,
+                           std::string& permission_display) const;
+
   private:
     ui::Theme& theme_;
     std::string current_directory_;

@@ -96,8 +96,10 @@ Terminal::~Terminal() {
 }
 
 void Terminal::setVisible(bool visible) {
-    if (visible_ == visible)
+    if (visible_ == visible) {
+        LOG_DEBUG("[Terminal] setVisible no-op target=" + std::string(visible ? "true" : "false"));
         return;
+    }
     LOG("[Terminal] setVisible(" + std::string(visible ? "true" : "false") + ")");
     visible_ = visible;
     if (visible) {

@@ -5,6 +5,10 @@
 #include <vector>
 
 namespace pnana {
+namespace core {
+struct CustomLogoConfig;
+}
+
 namespace features {
 
 // Logo 样式项：id 用于配置存储，display_name 用于菜单显示
@@ -18,7 +22,10 @@ class LogoManager {
   public:
     LogoManager() = default;
 
-    // 获取所有可用样式（id + 显示名）
+    // 设置来自配置文件的自定义 Logo（会覆盖上一轮注入）
+    static void setCustomLogos(const std::vector<core::CustomLogoConfig>& custom_logos);
+
+    // 获取所有可用样式（内置 + 自定义，id + 显示名）
     static std::vector<LogoStyleEntry> getAvailableStyles();
 
     // 根据样式 id 获取 logo 文本行（用于渲染）；若 id 未知则回退到 block

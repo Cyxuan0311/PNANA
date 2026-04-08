@@ -1,10 +1,13 @@
 #include "features/logo_manager.h"
+#include "core/config_manager.h"
 #include <map>
 
 namespace pnana {
 namespace features {
 
 namespace {
+
+std::vector<core::CustomLogoConfig> CUSTOM_LOGOS;
 
 // 各样式对应的 PNANA logo 行（参考 test.txt 中的类型）
 const std::vector<std::string> LOGO_BLOCK = {
@@ -1262,6 +1265,77 @@ const std::vector<std::string> LOGO_ASCII_BANNER = {
     "                                                            ",
 };
 
+// 用户添加的自定义 Logo（保持原始字符对齐）
+const std::vector<std::string> LOGO_CUSTOM_ADDED = {
+    "▄▄▄▄▄▄▄ ▄▄    ▄ ▄▄▄▄▄▄▄ ▄▄    ▄ ▄▄▄▄▄▄▄ ",  "█       █  █  █ █       █  █  █ █       █",
+    "█    ▄  █   █▄█ █   ▄   █   █▄█ █   ▄   █", "█   █▄█ █       █  █▄█  █       █  █▄█  █",
+    "█    ▄▄▄█  ▄    █       █  ▄    █       █", "█   █   █ █ █   █   ▄   █ █ █   █   ▄   █",
+    "█▄▄▄█   █▄█  █▄▄█▄▄█ █▄▄█▄█  █▄▄█▄▄█ █▄▄█",
+};
+
+// 由用户提供的第二个 Logo（保持对齐）
+const std::vector<std::string> LOGO_CUSTOM_TWO = {
+    "▀███▀▀▀██▄▀███▄   ▀███▀     ██     ▀███▄   ▀███▀     ██      ",
+    "  ██   ▀██▄ ███▄    █      ▄██▄      ███▄    █      ▄██▄     ",
+    "  ██   ▄██  █ ███   █     ▄█▀██▄     █ ███   █     ▄█▀██▄    ",
+    "  ███████   █  ▀██▄ █    ▄█  ▀██     █  ▀██▄ █    ▄█  ▀██    ",
+    "  ██        █   ▀██▄█    ████████    █   ▀██▄█    ████████   ",
+    "  ██        █     ███   █▀      ██   █     ███   █▀      ██  ",
+    "▄████▄    ▄███▄    ██ ▄███▄   ▄████▄███▄    ██ ▄███▄   ▄████▄",
+    "                                                             ",
+    "                                                             ",
+};
+
+// 由用户提供的第三个 Logo（保持对齐，多行装饰）
+const std::vector<std::string> LOGO_CUSTOM_THREE = {
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░        ░░░    ░░░░░   ░░░░░░░  ░░░░░░░░    ░░░░░   ░░░░░░░  ░░░░░░░",
+    "▒   ▒▒▒▒   ▒  ▒   ▒▒▒   ▒▒▒▒▒▒  ▒  ▒▒▒▒▒▒  ▒   ▒▒▒   ▒▒▒▒▒▒  ▒  ▒▒▒▒▒",
+    "▒   ▒▒▒▒   ▒   ▒   ▒▒   ▒▒▒▒▒  ▒▒   ▒▒▒▒▒   ▒   ▒▒   ▒▒▒▒▒  ▒▒   ▒▒▒▒",
+    "▓        ▓▓▓   ▓▓   ▓   ▓▓▓▓   ▓▓▓   ▓▓▓▓   ▓▓   ▓   ▓▓▓▓   ▓▓▓   ▓▓▓",
+    "▓   ▓▓▓▓▓▓▓▓   ▓▓▓  ▓   ▓▓▓       ▓   ▓▓▓   ▓▓▓  ▓   ▓▓▓       ▓   ▓▓",
+    "▓   ▓▓▓▓▓▓▓▓   ▓▓▓▓  ▓  ▓▓   ▓▓▓▓▓▓▓   ▓▓   ▓▓▓▓  ▓  ▓▓   ▓▓▓▓▓▓▓   ▓",
+    "█   ████████   ██████   █   █████████   █   ██████   █   █████████   ",
+    "█████████████████████████████████████████████████████████████████████",
+};
+
+// 用户提供的额外 Logo 1
+const std::vector<std::string> LOGO_USER_A = {
+    " █▒▒▒▒▒▒▒   █▒▒▒     █▒▒      █▒        █▒▒▒     █▒▒      █▒       ",
+    " █▒▒    █▒▒ █▒ █▒▒   █▒▒      █▒ ▒▒      █▒ █▒▒   █▒▒      █▒ ▒▒     ",
+    " █▒▒    █▒▒ █▒▒ █▒▒  █▒▒     █▒  █▒▒     █▒▒ █▒▒  █▒▒     █▒  █▒▒    ",
+    " █▒▒▒▒▒▒▒   █▒▒  █▒▒ █▒▒    █▒▒   █▒▒    █▒▒  █▒▒ █▒▒    █▒▒   █▒▒   ",
+    " █▒▒        █▒▒   █▒ █▒▒   █▒▒▒▒▒▒ █▒▒   █▒▒   █▒ █▒▒   █▒▒▒▒▒▒ █▒▒  ",
+    " █▒▒        █▒▒    █▒ ▒▒  █▒▒       █▒▒  █▒▒    █▒ ▒▒  █▒▒       █▒▒ ",
+    " █▒▒        █▒▒      █▒▒ █▒▒         █▒▒ █▒▒      █▒▒ █▒▒         █▒▒ ",
+    "",
+};
+
+// 用户提供的额外 Logo 2
+const std::vector<std::string> LOGO_USER_B = {
+    " ████████   ████     ███       ██        ████     ███       ██       ",
+    " ███    ███ ██ ███   ███      ██ ██      ██ ███   ███      ██ ██     ",
+    " ███    ███ ███ ███  ███     ██  ███     ███ ███  ███     ██  ███    ",
+    " ████████   ███  ███ ███    ███   ███    ███  ███ ███    ███   ███   ",
+    " ███        ███   ██ ███   ███████ ███   ███   ██ ███   ███████ ███  ",
+    " ███        ███    ██ ██  ███       ███  ███    ██ ██  ███       ███ ",
+    " ███        ███      ███ ███         ███ ███      ███ ███         ███",
+    "",
+};
+
+// 用户提供的额外 Logo 3
+const std::vector<std::string> LOGO_USER_C = {
+    " █        ███    █████   ███████  ████████    █████   ███████  ███████",
+    " █   ████   █  █   ███   ██████  █  ██████  █   ███   ██████  █  █████",
+    " █   ████   █   █   ██   █████  ██   █████   █   ██   █████  ██   ████ ",
+    " █        ███   ██   █   ████   ███   ████   ██   █   ████   ███   ███ ",
+    " █   ████████   ███  █   ███       █   ███   ███  █   ███       █   ██ ",
+    " █   ████████   ████  █  ██   ███████   ██   ████  █  ██   ███████   █ ",
+    " █   ████████   ██████   █   █████████   █   ██████   █   █████████   ",
+    " █████████████████████████████████████████████████████████████████████",
+    "",
+};
+
 const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"block", LOGO_BLOCK},
     {"roman", LOGO_ROMAN},
@@ -1368,6 +1442,12 @@ const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"slash_diamond", LOGO_SLASH_DIAMOND},
     {"underscore_script", LOGO_UNDERSCORE_SCRIPT},
     {"ascii_banner", LOGO_ASCII_BANNER},
+    {"custom_added", LOGO_CUSTOM_ADDED},
+    {"custom_two", LOGO_CUSTOM_TWO},
+    {"custom_three", LOGO_CUSTOM_THREE},
+    {"user_a", LOGO_USER_A},
+    {"user_b", LOGO_USER_B},
+    {"user_c", LOGO_USER_C},
 };
 
 const std::vector<LogoStyleEntry> STYLES = {
@@ -1476,12 +1556,33 @@ const std::vector<LogoStyleEntry> STYLES = {
     {"slash_diamond", "Slash Diamond"},
     {"underscore_script", "Underscore Script"},
     {"ascii_banner", "ASCII Banner"},
+    {"custom_added", "Custom Added"},
+    {"custom_two", "Custom Two"},
+    {"custom_three", "Custom Three"},
+    {"user_a", "User A"},
+    {"user_b", "User B"},
+    {"user_c", "User C"},
 };
 
 } // namespace
 
+void LogoManager::setCustomLogos(const std::vector<core::CustomLogoConfig>& custom_logos) {
+    CUSTOM_LOGOS.clear();
+    for (const auto& logo : custom_logos) {
+        if (logo.id.empty() || logo.display_name.empty() || logo.lines.empty()) {
+            continue;
+        }
+        CUSTOM_LOGOS.push_back(logo);
+    }
+}
+
 std::vector<LogoStyleEntry> LogoManager::getAvailableStyles() {
-    return STYLES;
+    std::vector<LogoStyleEntry> styles = STYLES;
+    styles.reserve(STYLES.size() + CUSTOM_LOGOS.size());
+    for (const auto& logo : CUSTOM_LOGOS) {
+        styles.push_back({logo.id, logo.display_name});
+    }
+    return styles;
 }
 
 std::vector<std::string> LogoManager::getLogoLines(const std::string& style_id) {
@@ -1489,11 +1590,26 @@ std::vector<std::string> LogoManager::getLogoLines(const std::string& style_id) 
     if (it != LOGO_MAP.end()) {
         return it->second;
     }
+
+    for (const auto& logo : CUSTOM_LOGOS) {
+        if (logo.id == style_id) {
+            return logo.lines;
+        }
+    }
+
     return LOGO_BLOCK;
 }
 
 bool LogoManager::isValidStyle(const std::string& style_id) {
-    return LOGO_MAP.find(style_id) != LOGO_MAP.end();
+    if (LOGO_MAP.find(style_id) != LOGO_MAP.end()) {
+        return true;
+    }
+    for (const auto& logo : CUSTOM_LOGOS) {
+        if (logo.id == style_id) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace features

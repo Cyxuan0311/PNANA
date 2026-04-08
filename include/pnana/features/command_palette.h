@@ -39,6 +39,9 @@ class CommandPalette {
     // 注册命令
     void registerCommand(const Command& command);
 
+    // 注销命令
+    bool unregisterCommand(const std::string& command_id);
+
     // 打开命令面板
     void open();
 

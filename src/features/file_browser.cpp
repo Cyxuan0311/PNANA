@@ -1,10 +1,12 @@
 #include "features/file_browser.h"
 #include "ui/file_browser_view.h"
+#include "utils/file_info_utils.h"
 #include <algorithm>
 #include <cctype>
 #include <deque>
 #include <fstream>
 #include <functional>
+#include <sstream>
 
 namespace pnana {
 namespace features {
@@ -659,6 +661,67 @@ bool FileBrowser::isCutOperation() const {
 void FileBrowser::clearClipboard() {
     clipboard_data_.paths.clear();
     clipboard_data_.is_cut = false;
+}
+
+bool FileBrowser::getRemoteFileStat(const std::string& path, std::string& size_display,
+                                    std::string& permission_display) const {
+    if (!remote_file_op_exec_)
+        return false;
+
+    auto shellQuote = [](const std::string& s) {
+        std::string q = "'";
+        for (char c : s) {
+            if (c == '\'')
+                q += "'\\''";
+            else
+                q += c;
+        }
+        return q + "'";
+    };
+
+    std::string remote_path = (path.find("ssh://") == 0) ? extractRemotePath(path) : path;
+    std::string cmd = "stat -c '%A|%s|%F' " + shellQuote(remote_path) +
+                      " 2>/dev/null || stat -f '%Sp|%z|%HT' " + shellQuote(remote_path) +
+                      " 2>/dev/null";
+
+    auto [ok, out] = remote_file_op_exec_(cmd);
+    if (!ok || out.empty())
+        return false;
+
+    while (!out.empty() && (out.back() == '\n' || out.back() == '\r'))
+        out.pop_back();
+
+    std::vector<std::string> parts;
+    std::stringstream ss(out);
+    std::string part;
+    while (std::getline(ss, part, '|')) {
+        parts.push_back(part);
+    }
+    if (parts.size() < 2)
+        return false;
+
+    permission_display = parts[0];
+
+    bool is_dir = false;
+    if (parts.size() >= 3) {
+        std::string t = parts[2];
+        std::transform(t.begin(), t.end(), t.begin(), ::tolower);
+        is_dir = (t.find("directory") != std::string::npos);
+    }
+
+    if (is_dir) {
+        size_display = "Folder";
+        return true;
+    }
+
+    try {
+        uintmax_t raw_size = static_cast<uintmax_t>(std::stoull(parts[1]));
+        size_display = utils::formatFileSize(raw_size);
+    } catch (...) {
+        size_display = "Unknown";
+    }
+
+    return true;
 }
 
 bool FileBrowser::copyFileOrDirectory(const std::string& source, const std::string& target) {
