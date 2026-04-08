@@ -31,7 +31,7 @@ On first run, if the configuration file does not exist, pnana will create it wit
 
 ## Configuration Options
 
-The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, `lsp`, and `history`.
+The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, `lsp`, `history`, `custom_logos`, and `ui`.
 
 ### editor
 
@@ -135,11 +135,47 @@ Any field you omit falls back to the internal default colors. Once defined, cust
 | `regex` | boolean | `false` | Use regular expressions |
 | `wrap_around` | boolean | `true` | Wrap around when searching |
 
+### custom_logos
+
+`custom_logos` is a user-defined logo list for the welcome screen. The default configuration is now empty.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_logos` | array | `[]` | Custom logo list. Each item is an object with `id`, `display_name`, and `lines` (array of logo text lines). |
+
+Example:
+
+```json
+"custom_logos": [
+  {
+    "id": "my_logo",
+    "display_name": "My Logo",
+    "lines": [
+      "███",
+      "PNANA"
+    ]
+  }
+]
+```
+
+Custom logo effect examples:
+
+![Custom logo effect example 1](../resources/config1.png)
+
+![Custom logo effect example 2](../resources/config2.png)
+
+![Custom logo effect example 3](../resources/config3.png)
+
 ### ui
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `toast_enabled` | boolean | `false` | Enable Toast popup notifications (e.g., copy success提示) |
+| `toast_enabled` | boolean | `false` | Enable Toast popup notifications (e.g., copy success hints) |
+| `toast_style` | string | `"classic"` | Toast style. Options: `classic`, `minimal`, `solid`, `accent`, `outline` |
+| `toast_duration_ms` | number | `3000` | Toast display duration in milliseconds. `0` means do not auto-hide (stays until replaced/hidden) |
+| `toast_max_width` | number | `50` | Maximum Toast width in characters |
+| `toast_show_icon` | boolean | `true` | Whether to show type icon (success/info/warning/error) |
+| `toast_bold_text` | boolean | `false` | Whether to render Toast text in bold |
 
 ---
 
@@ -349,8 +385,17 @@ Example:
     "regex": false,
     "wrap_around": true
   },
-  "themes": { "current": "monokai", "available": [] },
+  "themes": { "current": "monokai", "available": [], "custom": {} },
   "plugins": { "enabled_plugins": [] },
+  "custom_logos": [],
+  "ui": {
+    "toast_enabled": false,
+    "toast_style": "classic",
+    "toast_duration_ms": 3000,
+    "toast_max_width": 50,
+    "toast_show_icon": true,
+    "toast_bold_text": false
+  },
   "lsp": { "enabled": true, "completion_popup_enabled": true, "servers": [] }
 }
 ```
