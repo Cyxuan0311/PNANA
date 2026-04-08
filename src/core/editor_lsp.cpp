@@ -419,6 +419,7 @@ std::string Editor::filepathToUri(const std::string& filepath) {
 
 void Editor::updateCurrentFileDiagnostics() {
     Document* doc = getCurrentDocument();
+    LOG_DEBUG("[LSP_FMT_DBG] updateCurrentFileDiagnostics doc=" + std::string(doc ? "yes" : "no"));
     if (!doc) {
         std::lock_guard<std::mutex> lock(diagnostics_mutex_);
         current_file_diagnostics_.clear();
@@ -439,6 +440,7 @@ void Editor::updateCurrentFileDiagnostics() {
     }
 
     std::string uri = filepathToUri(filepath);
+    LOG_DEBUG("[LSP_FMT_DBG] diagnostics uri='" + uri + "'");
 
     std::lock_guard<std::mutex> cache_lock(diagnostics_cache_mutex_);
     auto it = diagnostics_cache_.find(uri);
@@ -553,6 +555,7 @@ void Editor::cleanupExpiredCaches() {
 
 void Editor::updateCurrentFileFolding() {
     Document* doc = getCurrentDocument();
+    LOG_DEBUG("[LSP_FMT_DBG] updateCurrentFileFolding doc=" + std::string(doc ? "yes" : "no"));
     if (!doc) {
 #ifdef BUILD_LSP_SUPPORT
         if (folding_manager_) {
@@ -583,6 +586,7 @@ void Editor::updateCurrentFileFolding() {
         has_lsp_client = (lsp_manager_->getClientForFile(filepath) != nullptr);
     }
     if (!has_lsp_client) {
+        LOG_DEBUG("[LSP_FMT_DBG] updateCurrentFileFolding: no LSP client for file");
         doc->clearFoldingRanges();
         if (folding_manager_) {
             folding_manager_->clear();
@@ -672,13 +676,30 @@ void Editor::updateCurrentFileFolding() {
     last_render_source_ = "folding_update";
 }
 
+void Editor::syncLspAfterEdit(bool structure_changed) {
+#ifdef BUILD_LSP_SUPPORT
+    if (!lsp_enabled_) {
+        return;
+    }
+
+    // 结构变化（换行/合并行/粘贴多行/撤销重做等）强制同步；
+    // 普通字符编辑走防抖，平衡实时性与性能。
+    updateLspDocument(/* force_sync_for_completion */ structure_changed);
+    completion_popup_.hide();
+#else
+    (void)structure_changed;
+#endif
+}
+
 void Editor::updateLspDocument(bool force_sync_for_completion) {
     if (!lsp_enabled_ || !lsp_manager_) {
+        // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument skipped: lsp disabled or manager missing");
         return;
     }
 
     Document* doc = getCurrentDocument();
     if (!doc) {
+        // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument skipped: no current document");
         return;
     }
 
@@ -689,6 +710,7 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
 
     std::string filepath = doc->getFilePath();
     if (filepath.empty()) {
+        // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument skipped: empty filepath");
         return;
     }
 
@@ -713,7 +735,13 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
         features::LspClient* client = lsp_manager_->getClientForFile(filepath);
         bool is_connected = client ? client->isConnected() : false;
 
+        // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument uri='" + uri + "' lang='" + language_id +
+        //           "' client=" + std::string(client ? "yes" : "no") +
+        //           " connected=" + std::string(is_connected ? "yes" : "no") +
+        //           " force_sync=" + std::string(force_sync_for_completion ? "true" : "false"));
+
         if (!client) {
+            // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument skipped: no client for file");
             return;
         }
 
@@ -728,6 +756,8 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
         }
 
         if (!is_connected) {
+            // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument client not connected, trigger async
+            // init");
             try {
                 std::thread([this, filepath]() {
                     try {
@@ -747,6 +777,7 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
             }
 
             // 跳过当前文档更新，等待后台初始化完成
+            // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument return: waiting client init");
             return;
         }
 
@@ -766,7 +797,8 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
 
         // 检查是否已经打开过
         if (file_language_map_.find(uri) == file_language_map_.end()) {
-            // 首次打开：在后台线程发送 didOpen，避免主线程阻塞
+            // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument path=didOpen (new uri)");
+            //  首次打开：在后台线程发送 didOpen，避免主线程阻塞
             if (!lsp_async_manager_) {
                 lsp_async_manager_ = std::make_unique<features::LspAsyncManager>();
             }
@@ -853,7 +885,8 @@ void Editor::updateLspDocument(bool force_sync_for_completion) {
 
             file_language_map_[uri] = language_id;
         } else {
-            // 已打开过的文件：若 language_id 与 folding_manager_ 不同，需替换为对应 client
+            // LOG_DEBUG("[LSP_FMT_DBG] updateLspDocument path=didChange (existing uri)");
+            //  已打开过的文件：若 language_id 与 folding_manager_ 不同，需替换为对应 client
             bool need_new_folding_manager =
                 !folding_manager_ || folding_manager_language_id_ != language_id;
             if (need_new_folding_manager) {

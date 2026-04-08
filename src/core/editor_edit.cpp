@@ -57,14 +57,14 @@ void Editor::insertChar(char ch) {
             if (is_member_trigger) {
                 last_completion_trigger_ = std::string(1, ch);
                 completion_trigger_delay_ = 0;
-                updateLspDocument();
+                syncLspAfterEdit(false);
                 triggerCompletion();
             } else {
                 completion_trigger_delay_++;
                 if (completion_trigger_delay_ >= 1) {
                     last_completion_trigger_.clear();
                     completion_trigger_delay_ = 0;
-                    updateLspDocument();
+                    syncLspAfterEdit(false);
                     triggerCompletion();
                 }
             }
@@ -124,14 +124,14 @@ void Editor::insertText(const std::string& text) {
             if (is_member_trigger) {
                 last_completion_trigger_ = std::string(1, ch);
                 completion_trigger_delay_ = 0;
-                updateLspDocument();
+                syncLspAfterEdit(false);
                 triggerCompletion();
             } else {
                 completion_trigger_delay_++;
                 if (completion_trigger_delay_ >= 1) {
                     last_completion_trigger_.clear();
                     completion_trigger_delay_ = 0;
-                    updateLspDocument();
+                    syncLspAfterEdit(false);
                     triggerCompletion();
                 }
             }
@@ -174,10 +174,8 @@ void Editor::insertNewline() {
     cursor_col_ = 0;
 
 #ifdef BUILD_LSP_SUPPORT
-    // 更新 LSP 文档
-    updateLspDocument();
-    // 换行时隐藏补全弹窗
-    completion_popup_.hide();
+    // 空行插入会影响折叠结构，强制同步以避免折叠符号滞后一拍
+    syncLspAfterEdit(true);
 #endif
 
     // 更新markdown预览（延迟更新以提升性能）
@@ -231,6 +229,11 @@ void Editor::deleteChar() {
         last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
         last_render_source_ = "edit_deleteChar";
     }
+
+#ifdef BUILD_LSP_SUPPORT
+    // 普通删除走防抖同步
+    syncLspAfterEdit(false);
+#endif
 }
 
 void Editor::backspace() {
@@ -298,10 +301,8 @@ void Editor::backspace() {
         doc->setModified(true);
 
 #ifdef BUILD_LSP_SUPPORT
-        // 更新 LSP 文档
-        updateLspDocument();
-        // 删除时隐藏补全弹窗
-        completion_popup_.hide();
+        // 选择删除通常跨范围，按结构变化处理
+        syncLspAfterEdit(true);
 #endif
 
         // 更新markdown预览（延迟更新以提升性能）
@@ -352,10 +353,8 @@ void Editor::backspace() {
     }
 
 #ifdef BUILD_LSP_SUPPORT
-    // 更新 LSP 文档
-    updateLspDocument();
-    // 删除时隐藏补全弹窗
-    completion_popup_.hide();
+    // 退格合并/删除空行时按结构变化处理
+    syncLspAfterEdit(true);
 #endif
 
     // 更新markdown预览（延迟更新以提升性能）
@@ -374,6 +373,11 @@ void Editor::deleteLine() {
     doc->deleteLine(cursor_row_);
     adjustCursor();
     setStatusMessage("Line deleted");
+
+#ifdef BUILD_LSP_SUPPORT
+    // 删行属于结构变化
+    syncLspAfterEdit(true);
+#endif
 
     // 更新markdown预览（延迟更新以提升性能）
     if (isMarkdownPreviewActive()) {
@@ -399,6 +403,11 @@ void Editor::deleteWord() {
 
     cursor_col_ = start;
     getCurrentDocument()->setModified(true);
+
+#ifdef BUILD_LSP_SUPPORT
+    // 单词删除通常不改变行结构，走防抖
+    syncLspAfterEdit(false);
+#endif
 
     // 更新markdown预览（延迟更新以提升性能）
     if (isMarkdownPreviewActive()) {
@@ -782,6 +791,12 @@ void Editor::paste() {
     doc->setModified(true);
     setStatusMessage("Pasted from clipboard");
 
+#ifdef BUILD_LSP_SUPPORT
+    // 粘贴是否结构变化取决于是否多行
+    bool structure_changed = (clipboard.find('\n') != std::string::npos);
+    syncLspAfterEdit(structure_changed);
+#endif
+
     // 计算粘贴的行数和字符数
     size_t line_count = std::count(clipboard.begin(), clipboard.end(), '\n') + 1;
     size_t char_count = clipboard.length();
@@ -821,6 +836,11 @@ void Editor::undo() {
         // 撤销操作后清除选择状态（VSCode 行为）
         selection_active_ = false;
 
+#ifdef BUILD_LSP_SUPPORT
+        // 撤销可能引入结构变化（如恢复/删除换行），用强制同步更稳妥
+        syncLspAfterEdit(true);
+#endif
+
         // 不显示成功消息，避免UI干扰（VSCode 行为）
     } else {
         setStatusMessage("Nothing to undo");
@@ -850,6 +870,11 @@ void Editor::redo() {
         // 重做操作后清除选择状态（VSCode 行为）
         selection_active_ = false;
 
+#ifdef BUILD_LSP_SUPPORT
+        // 重做可能引入结构变化，强制同步保证折叠/诊断及时
+        syncLspAfterEdit(true);
+#endif
+
     } else {
         setStatusMessage("Nothing to redo");
     }
@@ -864,6 +889,11 @@ void Editor::moveLineUp() {
     cursor_row_--;
     getCurrentDocument()->setModified(true);
     setStatusMessage("Line moved up");
+
+#ifdef BUILD_LSP_SUPPORT
+    // 移动行是结构变化
+    syncLspAfterEdit(true);
+#endif
 }
 
 void Editor::moveLineDown() {
@@ -875,6 +905,11 @@ void Editor::moveLineDown() {
     cursor_row_++;
     getCurrentDocument()->setModified(true);
     setStatusMessage("Line moved down");
+
+#ifdef BUILD_LSP_SUPPORT
+    // 移动行是结构变化
+    syncLspAfterEdit(true);
+#endif
 }
 
 void Editor::indentLine() {

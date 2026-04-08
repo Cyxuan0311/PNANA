@@ -39,6 +39,7 @@
 #include <ftxui/screen/screen.hpp>
 #include <iostream>
 #include <sstream>
+#include <streambuf>
 
 using namespace ftxui;
 
@@ -250,11 +251,6 @@ Editor::Editor()
     // PTY 线程直接调用 screen_.PostEvent（线程安全），触发主线程重绘。
     // 不能在 screen_.Post 回调里再调用 screen_.PostEvent，ftxui 会死锁（持锁重入）。
     terminal_.setOnOutputAdded([this]() {
-        static std::atomic<int> output_count{0};
-        int n = ++output_count;
-        if (n <= 5 || n % 30 == 0)
-            pnana::utils::Logger::getInstance().log("[Editor] on_output_added_ #" +
-                                                    std::to_string(n) + " -> PostEvent");
         terminal_has_output_.store(true, std::memory_order_relaxed);
         screen_.PostEvent(Event::Custom);
     });
@@ -437,7 +433,22 @@ Editor::~Editor() {
 }
 
 void Editor::run() {
+    // 强制隐藏宿主终端光标，避免与编辑器内部光标叠加闪烁。
+    // 使用 RAII 确保无论正常退出或异常路径都恢复可见性。
+    struct TerminalCursorGuard {
+        TerminalCursorGuard() {
+            std::cout << "\x1b[?25l" << std::flush;
+        }
+        ~TerminalCursorGuard() {
+            std::cout << "\x1b[?25h" << std::flush;
+        }
+    };
+
+    TerminalCursorGuard terminal_cursor_guard;
     main_component_ = CatchEvent(Renderer([this] {
+                                     // 每帧渲染时再次隐藏宿主光标，压住 FTXUI 可能输出的
+                                     // \x1b[?25h。 这里不记录 ANSI 日志，避免高频渲染导致日志爆炸。
+                                     std::cout << "\x1b[?25l" << std::flush;
                                      return renderUI();
                                  }),
                                  [this](Event event) {
@@ -511,6 +522,9 @@ void Editor::setTheme(const std::string& theme_name) {
 void Editor::loadConfig(const std::string& config_path) {
     // 加载配置文件
     config_manager_.loadConfig(config_path);
+
+    // 注入配置中的自定义 Logo（供欢迎页与 Logo 菜单使用）
+    features::LogoManager::setCustomLogos(config_manager_.getConfig().custom_logos);
 
     // 从配置获取主题名称并应用
     const auto& config = config_manager_.getConfig();
@@ -609,6 +623,26 @@ void Editor::loadConfig(const std::string& config_path) {
 
     // 应用 UI 配置
     pnana::ui::Toast::setEnabled(config.ui.toast_enabled);
+
+    {
+        using pnana::ui::ToastStyle;
+        ToastStyle style = ToastStyle::CLASSIC;
+        const std::string& style_str = config.ui.toast_style;
+        if (style_str == "minimal") {
+            style = ToastStyle::MINIMAL;
+        } else if (style_str == "solid") {
+            style = ToastStyle::SOLID;
+        } else if (style_str == "accent") {
+            style = ToastStyle::ACCENT;
+        } else if (style_str == "outline") {
+            style = ToastStyle::OUTLINE;
+        }
+        pnana::ui::Toast::setDefaultStyle(style);
+        pnana::ui::Toast::setDefaultDurationMs(config.ui.toast_duration_ms);
+        pnana::ui::Toast::setDefaultMaxWidth(config.ui.toast_max_width);
+        pnana::ui::Toast::setDefaultShowIcon(config.ui.toast_show_icon);
+        pnana::ui::Toast::setDefaultBoldText(config.ui.toast_bold_text);
+    }
 
     // 应用 history 保留配置
     {
@@ -2234,6 +2268,8 @@ void Editor::openFilePicker() {
                         // 添加到最近文件夹列表
                         recent_files_manager_.addFolder(path);
                         setStatusMessage("Changed to directory: " + path);
+                        // 显示 toast 提示用户已切换目录
+                        toast_.showSuccess("Changed to directory: " + path);
                     } else {
                         setStatusMessage("Failed to open directory: " + path);
                     }

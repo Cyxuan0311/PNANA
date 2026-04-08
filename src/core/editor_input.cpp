@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <iostream>
+#include <optional>
 #include <regex>
 #include <sstream>
 
@@ -239,56 +240,11 @@ void Editor::handleInput(Event event) {
         return;
     }
 
-    // 如果另存为对话框打开，优先处理
+    // 如果另存为对话框打开，优先处理（对话框内部处理具体按键）
     if (show_save_as_) {
-        if (event == Event::Escape) {
-            show_save_as_ = false;
-            save_as_dialog_.setInput("");
-            setStatusMessage("Save as cancelled");
-        } else if (event == Event::Return) {
-            std::string input = save_as_dialog_.getInput();
-            if (!input.empty()) {
-                // 如果输入的不是完整路径（不包含目录分隔符），则使用当前目录
-                std::string filepath = input;
-                if (input.find('/') == std::string::npos && input.find('\\') == std::string::npos) {
-                    // 只输入了文件名，添加当前目录
-                    Document* doc = getCurrentDocument();
-                    if (doc && !doc->getFilePath().empty()) {
-                        // 使用当前文件的目录
-                        std::filesystem::path current_path(doc->getFilePath());
-                        filepath = (current_path.parent_path() / input).string();
-                    } else {
-                        // 使用文件浏览器的当前目录
-                        filepath =
-                            (std::filesystem::path(file_browser_.getCurrentDirectory()) / input)
-                                .string();
-                    }
-                }
-                // 保存文件
-                if (saveFileAs(filepath)) {
-                    show_save_as_ = false;
-                    save_as_dialog_.setInput("");
-                }
-            }
-        } else if (event == Event::Backspace) {
-            std::string input = save_as_dialog_.getInput();
-            if (!input.empty()) {
-                input.pop_back();
-                save_as_dialog_.setInput(input);
-            }
-        } else if (event.is_character()) {
-            std::string ch = event.character();
-            if (ch.length() == 1) {
-                char c = ch[0];
-                // 接受所有可打印字符（文件路径可以包含各种字符）
-                if (c >= 32 && c < 127) {
-                    std::string input = save_as_dialog_.getInput();
-                    input += c;
-                    save_as_dialog_.setInput(input);
-                }
-            }
+        if (save_as_dialog_.handleInput(event)) {
+            return;
         }
-        return;
     }
 
     // 如果创建文件夹对话框打开，优先处理

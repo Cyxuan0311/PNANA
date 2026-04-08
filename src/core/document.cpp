@@ -653,16 +653,28 @@ void Document::deleteLine(size_t row) {
         return;
     }
 
+    const size_t old_size = lines_.size();
     std::string deleted = lines_[row];
 
-    if (lines_.size() == 1) {
+    if (old_size == 1) {
+        // 单行文档：退化为替换为空串，撤销可直接恢复原行
         lines_[0] = "";
-    } else {
-        lines_.erase(lines_.begin() + row);
+        pushChange(DocumentChange(DocumentChange::Type::REPLACE, row, 0, deleted, ""));
+        return;
     }
 
-    // 删除行需要记录到撤销栈 - 使用特殊的INSERT类型表示撤销时插入这一行
-    pushChange(DocumentChange(DocumentChange::Type::INSERT, row, 0, "", deleted));
+    if (row == old_size - 1) {
+        // 删除最后一行：等价于删除上一行行尾处的 "\n + deleted"
+        size_t prev_row = row - 1;
+        size_t prev_col = lines_[prev_row].length();
+        lines_.erase(lines_.begin() + row);
+        pushChange(
+            DocumentChange(DocumentChange::Type::DELETE, prev_row, prev_col, "\n" + deleted, ""));
+    } else {
+        // 删除中间/首行：等价于从本行行首删除 "deleted + \n"
+        lines_.erase(lines_.begin() + row);
+        pushChange(DocumentChange(DocumentChange::Type::DELETE, row, 0, deleted + "\n", ""));
+    }
 }
 
 void Document::deleteChar(size_t row, size_t col) {

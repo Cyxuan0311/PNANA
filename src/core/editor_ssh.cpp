@@ -2,6 +2,7 @@
 #include "features/cursor/cursor_renderer.h"
 #include "features/package_manager/package_manager_registry.h"
 #include "features/ssh/ssh_client.h"
+#include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <regex>
 #include <sstream>
@@ -362,6 +363,19 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
 void Editor::disconnectSSH() {
     if (current_ssh_config_.host.empty())
         return;
+
+    // 清理 SSH 图片预览临时文件
+    for (const auto& [_, temp_path] : remote_image_temp_files_) {
+        try {
+            if (!temp_path.empty() && std::filesystem::exists(temp_path)) {
+                std::filesystem::remove(temp_path);
+            }
+        } catch (...) {
+            // 忽略清理失败，避免影响断开 SSH 主流程
+        }
+    }
+    remote_image_temp_files_.clear();
+
     current_ssh_config_ = pnana::ui::SSHConfig{};
     ssh_remote_home_.clear();
     document_ssh_configs_.clear();

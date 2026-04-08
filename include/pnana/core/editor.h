@@ -93,8 +93,10 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace pnana {
@@ -463,7 +465,23 @@ class Editor {
     std::vector<features::SearchMatch> word_matches_; // 单词匹配位置
     size_t word_highlight_row_;                       // 单词所在行
     size_t word_highlight_col_;                       // 单词起始列
+
+    // 括号匹配高亮状态（仅光标所在括号 + 匹配括号，按需计算）
+    bool bracket_highlight_active_ = false;
+    size_t bracket_current_line_ = 0;
+    size_t bracket_current_col_ = 0;
+    size_t bracket_match_line_ = 0;
+    size_t bracket_match_col_ = 0;
+    size_t bracket_cache_cursor_row_ = SIZE_MAX;
+    size_t bracket_cache_cursor_col_ = SIZE_MAX;
+    std::string bracket_cache_file_path_;
+    std::optional<size_t> bracket_cache_document_index_;
+    void updateBracketHighlight();
+    void clearBracketHighlight();
+
     features::ImagePreview image_preview_;
+    // SSH 图片预览临时本地缓存：remote_uri -> local_temp_file
+    std::unordered_map<std::string, std::string> remote_image_temp_files_;
     features::SyntaxHighlighter syntax_highlighter_;
     features::CommandPalette command_palette_;
     features::RecentFilesManager recent_files_manager_;
@@ -907,6 +925,7 @@ class Editor {
     void handleCompletionInput(ftxui::Event event);
     void triggerCompletionResolveIfNeeded();
     void applyCompletion();
+    void syncLspAfterEdit(bool structure_changed = false);
     void updateLspDocument(bool force_sync_for_completion = false);
     void updateCurrentFileDiagnostics();
     void updateCurrentFileFolding();

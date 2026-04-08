@@ -98,6 +98,9 @@ void Editor::moveCursorUp() {
 
     // 清除搜索高亮
     clearSearchHighlight();
+
+    // 更新括号匹配高亮
+    updateBracketHighlight();
 }
 
 void Editor::moveCursorDown() {

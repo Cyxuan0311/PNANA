@@ -541,6 +541,20 @@ void Editor::startSaveAs() {
 
     show_save_as_ = true;
     save_as_dialog_.setCurrentFileName(doc->getFileName());
+    // 设置当前目录与回调，交由对话框内部处理输入与补全
+    save_as_dialog_.setCurrentDirectory(file_browser_.getCurrentDirectory());
+    save_as_dialog_.setOnConfirm([this](const std::string& path) {
+        // 保存文件（支持本地与 ssh:// 路径）
+        if (saveFileAs(path)) {
+            show_save_as_ = false;
+            save_as_dialog_.setInput("");
+        }
+    });
+    save_as_dialog_.setOnCancel([this]() {
+        show_save_as_ = false;
+        save_as_dialog_.setInput("");
+        setStatusMessage("Save as cancelled");
+    });
     // 输入框只显示文件名或空白，不显示完整路径
     if (!doc->getFilePath().empty()) {
         // 只显示文件名，不显示完整路径

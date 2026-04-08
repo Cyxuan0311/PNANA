@@ -4,6 +4,7 @@
 #include "core/ui/ui_router.h"
 #include "features/cursor/cursor_renderer.h"
 #include "features/image_preview.h"
+#include "features/ssh/ssh_client.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
@@ -17,6 +18,7 @@
 #include "ui/terminal_ui.h"
 #include "ui/theme_menu.h"
 #include "ui/welcome_screen.h"
+#include "utils/bracket_matcher.h"
 #include "utils/file_type_detector.h"
 #include "utils/logger.h"
 #include "utils/text_utils.h"
@@ -89,6 +91,7 @@ static std::string expandTabsForDisplay(const std::string& s, int tab_size) {
 #include <cctype>
 #include <chrono>
 #include <climits>
+#include <filesystem>
 #include <ftxui/dom/elements.hpp>
 #include <map>
 #include <mutex>
@@ -664,6 +667,41 @@ Element Editor::renderEditor() {
         features::ImagePreview::isImageFile(doc->getFilePath())) {
         std::string image_path = doc->getFilePath();
 
+        // SSH 远程图片：先下载到本地临时文件，再走现有图片预览链路
+        if (image_path.rfind("ssh://", 0) == 0) {
+            auto it = remote_image_temp_files_.find(image_path);
+            if (it != remote_image_temp_files_.end() && std::filesystem::exists(it->second)) {
+                image_path = it->second;
+            } else if (!current_ssh_config_.host.empty()) {
+                std::regex ssh_regex(R"(^ssh://([^@]+)@([^:/]+)(?::(\d+))?(/.*)$)");
+                std::smatch m;
+                const std::string remote_uri = doc->getFilePath();
+                if (std::regex_match(remote_uri, m, ssh_regex)) {
+                    pnana::ui::SSHConfig cfg = current_ssh_config_;
+                    cfg.user = m[1].str();
+                    cfg.host = m[2].str();
+                    cfg.port = (m[3].matched && !m[3].str().empty()) ? std::stoi(m[3].str()) : 22;
+                    cfg.remote_path = m[4].str();
+
+                    std::string ext = std::filesystem::path(cfg.remote_path).extension().string();
+                    if (ext.empty())
+                        ext = ".img";
+                    std::string temp_name =
+                        "pnana_ssh_preview_" +
+                        std::to_string(std::hash<std::string>{}(doc->getFilePath())) + ext;
+                    std::string local_temp =
+                        (std::filesystem::temp_directory_path() / temp_name).string();
+
+                    features::ssh::Client ssh_client;
+                    auto dl = ssh_client.downloadFile(cfg, cfg.remote_path, local_temp);
+                    if (dl.success && std::filesystem::exists(local_temp)) {
+                        remote_image_temp_files_[doc->getFilePath()] = local_temp;
+                        image_path = local_temp;
+                    }
+                }
+            }
+        }
+
         // 计算代码区的实际可用尺寸
         int code_area_width = screen_.dimx();
         int code_area_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
@@ -720,6 +758,9 @@ Element Editor::renderEditor() {
     if (doc->getFilePath().empty() && doc->lineCount() == 1 && doc->getLine(0).empty()) {
         return new_file_prompt_.render();
     }
+
+    // 括号匹配高亮：渲染前按需更新（有缓存，不会每帧重复扫描）
+    updateBracketHighlight();
 
     Elements lines;
 
@@ -944,6 +985,9 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
         }
     }
 
+    // 括号匹配高亮：渲染前按需更新（有缓存，不会每帧重复扫描）
+    updateBracketHighlight();
+
     Elements lines;
 
     // 获取可见行（考虑折叠状态）
@@ -1129,6 +1173,18 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                     word_line_matches.push_back(match);
                 }
             }
+        }
+    }
+
+    // 获取当前行的括号匹配高亮（仅两个位置，O(1)判定）
+    std::vector<features::SearchMatch> bracket_line_matches;
+    if (bracket_highlight_active_) {
+        if (bracket_current_line_ == line_num) {
+            bracket_line_matches.emplace_back(line_num, bracket_current_col_, 1);
+        }
+        if (bracket_match_line_ == line_num && !(bracket_match_line_ == bracket_current_line_ &&
+                                                 bracket_match_col_ == bracket_current_col_)) {
+            bracket_line_matches.emplace_back(line_num, bracket_match_col_, 1);
         }
     }
 
@@ -1327,30 +1383,33 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                     break;
                 }
             }
-        } else if (!word_line_matches.empty()) {
-            // 有单词高亮匹配，需要同时处理单词高亮和选中高亮
+        } else if (!word_line_matches.empty() || !bracket_line_matches.empty()) {
+            std::vector<features::SearchMatch> combined_matches = word_line_matches;
+            combined_matches.insert(combined_matches.end(), bracket_line_matches.begin(),
+                                    bracket_line_matches.end());
+            std::sort(combined_matches.begin(), combined_matches.end(),
+                      [](const features::SearchMatch& a, const features::SearchMatch& b) {
+                          if (a.column != b.column)
+                              return a.column < b.column;
+                          return a.length < b.length;
+                      });
+
             size_t pos = 0;
             size_t match_idx = 0;
 
             while (pos < line_content.length()) {
-                // 检查是否有匹配从当前位置开始
                 bool found_match = false;
-                for (size_t i = match_idx; i < word_line_matches.size(); ++i) {
-                    if (word_line_matches[i].column == pos) {
-                        // 找到匹配，高亮显示
-                        size_t match_len = word_line_matches[i].length;
+                for (size_t i = match_idx; i < combined_matches.size(); ++i) {
+                    if (combined_matches[i].column == pos) {
+                        size_t match_len = combined_matches[i].length;
                         size_t match_end = pos + match_len;
 
-                        // 检查光标是否在匹配范围内
                         bool cursor_in_match =
                             has_cursor && cursor_pos >= pos && cursor_pos < match_end;
-
-                        // 检查匹配是否在选中范围内
                         bool match_in_selection = line_in_selection && pos < selection_end_col &&
                                                   match_end > selection_start_col;
 
                         if (cursor_in_match) {
-                            // 光标在匹配内，需要分割匹配文本
                             size_t before_cursor = cursor_pos - pos;
                             size_t after_cursor = match_end - cursor_pos;
 
@@ -1358,20 +1417,17 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                 std::string before = line_content.substr(pos, before_cursor);
                                 bool is_selected = match_in_selection && pos >= selection_start_col;
                                 Element before_elem = renderSegment(before, pos, is_selected);
-                                // 如果不在选中范围内，应用单词高亮（灰色背景）
                                 if (!is_selected) {
                                     before_elem = before_elem | bgcolor(Color::GrayDark);
                                 }
                                 parts.push_back(before_elem);
                             }
 
-                            // 光标位置的字符
                             std::string cursor_char =
                                 pnana::utils::getUtf8CharAt(line_content, cursor_pos);
                             Element cursor_elem = cursor_renderer.renderCursorElement(
                                 cursorCharForBlock(cursor_char), cursor_pos, line_content.length(),
                                 colors.foreground, colors.background);
-                            // 选中高亮优先于单词高亮
                             if (match_in_selection && cursor_pos >= selection_start_col &&
                                 cursor_pos < selection_end_col) {
                                 cursor_elem = cursor_elem | bgcolor(colors.selection);
@@ -1387,17 +1443,14 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                     match_in_selection && cursor_pos + 1 >= selection_start_col;
                                 Element after_elem =
                                     renderSegment(after, cursor_pos + 1, is_selected);
-                                // 如果不在选中范围内，应用单词高亮
                                 if (!is_selected) {
                                     after_elem = after_elem | bgcolor(Color::GrayDark);
                                 }
                                 parts.push_back(after_elem);
                             }
                         } else {
-                            // 光标不在匹配内，正常高亮匹配
                             std::string match_text = line_content.substr(pos, match_len);
                             Element match_elem = renderSegment(match_text, pos, match_in_selection);
-                            // 如果不在选中范围内，应用单词高亮
                             if (!match_in_selection) {
                                 match_elem = match_elem | bgcolor(Color::GrayDark);
                             }
@@ -1412,22 +1465,18 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                 }
 
                 if (!found_match) {
-                    // 没有匹配，找到下一个匹配的位置
                     size_t next_match_pos = line_content.length();
-                    for (size_t i = match_idx; i < word_line_matches.size(); ++i) {
-                        if (word_line_matches[i].column > pos &&
-                            word_line_matches[i].column < next_match_pos) {
-                            next_match_pos = word_line_matches[i].column;
+                    for (size_t i = match_idx; i < combined_matches.size(); ++i) {
+                        if (combined_matches[i].column > pos &&
+                            combined_matches[i].column < next_match_pos) {
+                            next_match_pos = combined_matches[i].column;
                         }
                     }
 
                     std::string segment = line_content.substr(pos, next_match_pos - pos);
-
-                    // 检查这段是否在选中范围内
                     bool segment_in_selection = line_in_selection && pos < selection_end_col &&
                                                 next_match_pos > selection_start_col;
 
-                    // 检查光标是否在这个段内
                     if (has_cursor && cursor_pos >= pos && cursor_pos < next_match_pos) {
                         size_t before_cursor = cursor_pos - pos;
                         std::string before = segment.substr(0, before_cursor);
@@ -1456,7 +1505,6 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                                 segment_in_selection && cursor_pos + 1 >= selection_start_col));
                         }
                     } else {
-                        // 没有光标，正常渲染
                         parts.push_back(renderSegment(segment, pos, segment_in_selection));
                     }
 
