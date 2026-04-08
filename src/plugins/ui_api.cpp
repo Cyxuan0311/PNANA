@@ -5,9 +5,12 @@
 #include "core/ui/lua_ui_parser.h"
 #include "plugins/lua_api.h"
 #include "utils/logger.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <lua.hpp>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -58,6 +61,8 @@ void UIAPI::registerFunctions(lua_State* L) {
     lua_setfield(L, -2, "open_component_window");
     lua_pushcfunction(L, lua_fn_update_component_window);
     lua_setfield(L, -2, "update_component_window");
+    lua_pushcfunction(L, lua_fn_set_style);
+    lua_setfield(L, -2, "set_style");
 
     // 高级 UI API
     lua_pushcfunction(L, lua_fn_progress);
@@ -68,6 +73,8 @@ void UIAPI::registerFunctions(lua_State* L) {
     lua_setfield(L, -2, "close_progress");
     lua_pushcfunction(L, lua_fn_multiselect);
     lua_setfield(L, -2, "multiselect");
+    lua_pushcfunction(L, lua_fn_form);
+    lua_setfield(L, -2, "form");
     lua_pushcfunction(L, lua_fn_hover);
     lua_setfield(L, -2, "hover");
     lua_pushcfunction(L, lua_fn_close_hover);
@@ -907,7 +914,8 @@ int UIAPI::lua_fn_close_progress(lua_State* L) {
 // 多选列表对话框
 int UIAPI::lua_fn_multiselect(lua_State* L) {
     LuaAPI* lua_api = getLuaAPIFromLua(L);
-    if (!lua_api || !lua_api->getEditor() || !lua_istable(L, 1) || !lua_isfunction(L, 3)) {
+    if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua() ||
+        !lua_istable(L, 1) || !lua_isfunction(L, 3)) {
         lua_pushboolean(L, false);
         return 1;
     }
@@ -917,16 +925,18 @@ int UIAPI::lua_fn_multiselect(lua_State* L) {
     std::vector<std::string> item_labels;
     std::vector<bool> default_selected;
 
-    // 解析项目列表
     int item_count = static_cast<int>(luaL_len(L, 1));
+    item_labels.reserve(item_count);
+    default_selected.reserve(item_count);
+
     for (int i = 1; i <= item_count; ++i) {
         lua_rawgeti(L, 1, i);
         if (lua_istable(L, -1)) {
             lua_getfield(L, -1, "text");
             if (lua_isstring(L, -1)) {
-                item_labels.push_back(lua_tostring(L, -1));
+                item_labels.emplace_back(lua_tostring(L, -1));
             } else {
-                item_labels.push_back("<item " + std::to_string(i) + ">");
+                item_labels.emplace_back("<item " + std::to_string(i) + ">");
             }
             lua_pop(L, 1);
 
@@ -934,16 +944,15 @@ int UIAPI::lua_fn_multiselect(lua_State* L) {
             default_selected.push_back(lua_isboolean(L, -1) && lua_toboolean(L, -1));
             lua_pop(L, 1);
         } else if (lua_isstring(L, -1)) {
-            item_labels.push_back(lua_tostring(L, -1));
+            item_labels.emplace_back(lua_tostring(L, -1));
             default_selected.push_back(false);
         } else {
-            item_labels.push_back("<item " + std::to_string(i) + ">");
+            item_labels.emplace_back("<item " + std::to_string(i) + ">");
             default_selected.push_back(false);
         }
         lua_pop(L, 1);
     }
 
-    // 解析选项
     if (lua_istable(L, 2)) {
         lua_getfield(L, 2, "prompt");
         if (lua_isstring(L, -1)) {
@@ -958,44 +967,477 @@ int UIAPI::lua_fn_multiselect(lua_State* L) {
         lua_pop(L, 1);
     }
 
-    // 构建显示内容（带复选框）
-    std::string message = prompt + "\n\n";
-    for (size_t i = 0; i < item_labels.size(); ++i) {
-        message += "[ ] " + item_labels[i] + "\n";
-    }
-    message += "\n(使用 vim.ui.select 单选模式，多选版本需要 PopupManager 支持)";
-
     lua_pushvalue(L, 3);
     int callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_State* lua_state = L;
 
-    // 暂时使用确认对话框，实际应该使用支持多选的 UI
-    lua_api->getEditor()->showConfirmDialogForLua(
-        title, message, [lua_state, callback_ref](bool ok) {
+    struct MultiSelectState {
+        std::string title;
+        std::string prompt;
+        std::vector<std::string> items;
+        std::vector<bool> selected;
+        int cursor = 0;
+        int lua_win_id = 0;
+        int handle = 0;
+        bool finished = false;
+    };
+
+    auto st = std::make_shared<MultiSelectState>();
+    st->title = title;
+    st->prompt = prompt;
+    st->items = item_labels;
+    st->selected = default_selected;
+
+    auto build_spec = [st]() {
+        pnana::core::ui::PopupSpec spec;
+        spec.title = st->title;
+        spec.width = 88;
+        spec.height = 24;
+        spec.modal = true;
+        spec.component_mode = true;
+        spec.component_input_line = "❯ space: toggle  enter: submit  esc: cancel";
+        spec.component_left_title = "Items";
+        spec.component_right_title = "Info";
+
+        for (size_t i = 0; i < st->items.size(); ++i) {
+            bool active = static_cast<int>(i) == st->cursor;
+            std::string marker = active ? ">>" : "  ";
+            std::string checkbox = st->selected[i] ? "[x] " : "[ ] ";
+            spec.component_left_lines.push_back(marker + " " + checkbox + st->items[i]);
+        }
+        if (spec.component_left_lines.empty()) {
+            spec.component_left_lines.push_back("  (empty)");
+        }
+
+        int selected_count = 0;
+        for (bool v : st->selected) {
+            if (v)
+                selected_count++;
+        }
+        spec.component_right_lines.push_back(st->prompt);
+        spec.component_right_lines.push_back("");
+        spec.component_right_lines.push_back("Total: " + std::to_string(st->items.size()));
+        spec.component_right_lines.push_back("Selected: " + std::to_string(selected_count));
+        spec.component_help_lines = {
+            "↑/↓: move cursor",
+            "Space: toggle current item",
+            "Enter: submit  Esc: cancel",
+        };
+        return spec;
+    };
+
+    pnana::core::ui::PopupCallbacks callbacks;
+    callbacks.on_component_event = [st, build_spec, lua_state, callback_ref, lua_api](
+                                       const std::string& event_name, const std::string& payload) {
+        (void)payload;
+        if (st->finished) {
+            return true;
+        }
+
+        auto popup_manager = lua_api->getEditor()->getPopupManagerForLua();
+        if (!popup_manager) {
+            return false;
+        }
+
+        if (event_name == "arrow_up") {
+            if (!st->items.empty()) {
+                st->cursor = std::max(0, st->cursor - 1);
+                popup_manager->updatePopup(st->handle, build_spec());
+            }
+            return true;
+        }
+        if (event_name == "arrow_down") {
+            if (!st->items.empty()) {
+                st->cursor = std::min(static_cast<int>(st->items.size()) - 1, st->cursor + 1);
+                popup_manager->updatePopup(st->handle, build_spec());
+            }
+            return true;
+        }
+        if (event_name == "char" && payload == " ") {
+            if (!st->items.empty() && st->cursor >= 0 &&
+                st->cursor < static_cast<int>(st->selected.size())) {
+                st->selected[st->cursor] = !st->selected[st->cursor];
+                popup_manager->updatePopup(st->handle, build_spec());
+            }
+            return true;
+        }
+
+        if (event_name == "enter" || event_name == "escape") {
+            st->finished = true;
+            bool submit = (event_name == "enter");
+
             lua_rawgeti(lua_state, LUA_REGISTRYINDEX, callback_ref);
-            if (!lua_isfunction(lua_state, -1)) {
-                lua_pop(lua_state, 1);
-                luaL_unref(lua_state, LUA_REGISTRYINDEX, callback_ref);
-                return;
-            }
+            if (lua_isfunction(lua_state, -1)) {
+                if (submit) {
+                    lua_newtable(lua_state);
+                    int idx = 1;
+                    for (size_t i = 0; i < st->selected.size(); ++i) {
+                        if (st->selected[i]) {
+                            lua_pushinteger(lua_state, static_cast<lua_Integer>(i + 1));
+                            lua_rawseti(lua_state, -2, idx++);
+                        }
+                    }
+                } else {
+                    lua_pushnil(lua_state);
+                }
 
-            if (ok) {
-                // 返回空表作为选中的项目（实际实现需要更复杂的逻辑）
-                lua_newtable(lua_state);
+                if (lua_pcall(lua_state, 1, 0, 0) != LUA_OK) {
+                    const char* error = lua_tostring(lua_state, -1);
+                    LOG_ERROR("vim.ui.multiselect callback error: " +
+                              std::string(error ? error : "unknown"));
+                    lua_pop(lua_state, 1);
+                }
             } else {
-                lua_pushnil(lua_state);
-            }
-
-            if (lua_pcall(lua_state, 1, 0, 0) != LUA_OK) {
-                const char* error = lua_tostring(lua_state, -1);
-                LOG_ERROR("vim.ui.multiselect callback error: " +
-                          std::string(error ? error : "unknown"));
                 lua_pop(lua_state, 1);
             }
+
             luaL_unref(lua_state, LUA_REGISTRYINDEX, callback_ref);
-        });
+            popup_manager->closePopup(st->handle, false);
+            window_handles_.erase(st->lua_win_id);
+            window_event_refs_.erase(st->lua_win_id);
+            window_lua_states_.erase(st->lua_win_id);
+            return true;
+        }
+
+        return false;
+    };
+
+    int lua_win_id = next_window_id_++;
+    auto spec = build_spec();
+    int handle = lua_api->getEditor()->getPopupManagerForLua()->openPopup(spec, callbacks);
+    st->lua_win_id = lua_win_id;
+    st->handle = handle;
+    window_handles_[lua_win_id] = handle;
 
     lua_pushboolean(L, true);
+    return 1;
+}
+
+// vim.ui.form(opts, callback) -> boolean
+// 统一表单（input/select/checkbox/radio）
+int UIAPI::lua_fn_form(lua_State* L) {
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua() ||
+        !lua_istable(L, 1) || !lua_isfunction(L, 2)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    std::string title = "Form";
+    std::string prompt = "Please confirm:";
+
+    lua_getfield(L, 1, "title");
+    if (lua_isstring(L, -1)) {
+        title = lua_tostring(L, -1);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "prompt");
+    if (lua_isstring(L, -1)) {
+        prompt = lua_tostring(L, -1);
+    }
+    lua_pop(L, 1);
+
+    struct FormFieldState {
+        std::string name;
+        std::string type;
+        std::string label;
+        std::vector<std::string> options;
+        int selected_index = 0;
+        bool checked = false;
+        std::string text;
+    };
+
+    struct FormState {
+        std::string title;
+        std::string prompt;
+        std::vector<FormFieldState> fields;
+        int cursor = 0;
+        int lua_win_id = 0;
+        int handle = 0;
+        bool finished = false;
+    };
+
+    auto st = std::make_shared<FormState>();
+    st->title = title;
+    st->prompt = prompt;
+
+    lua_getfield(L, 1, "fields");
+    if (lua_istable(L, -1)) {
+        int len = static_cast<int>(luaL_len(L, -1));
+        st->fields.reserve(len);
+
+        for (int i = 1; i <= len; ++i) {
+            lua_rawgeti(L, -1, i);
+            if (lua_istable(L, -1)) {
+                FormFieldState f;
+                f.name = "field_" + std::to_string(i);
+                f.type = "input";
+                f.label = f.name;
+
+                lua_getfield(L, -1, "name");
+                if (lua_isstring(L, -1))
+                    f.name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "type");
+                if (lua_isstring(L, -1))
+                    f.type = lua_tostring(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "label");
+                if (lua_isstring(L, -1))
+                    f.label = lua_tostring(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "default");
+                if (lua_isstring(L, -1)) {
+                    f.text = lua_tostring(L, -1);
+                } else if (lua_isboolean(L, -1)) {
+                    f.checked = lua_toboolean(L, -1);
+                    f.text = f.checked ? "true" : "false";
+                } else if (lua_isnumber(L, -1)) {
+                    f.selected_index = static_cast<int>(lua_tointeger(L, -1));
+                }
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "options");
+                if (lua_istable(L, -1)) {
+                    int olen = static_cast<int>(luaL_len(L, -1));
+                    for (int oi = 1; oi <= olen; ++oi) {
+                        lua_rawgeti(L, -1, oi);
+                        if (lua_isstring(L, -1)) {
+                            f.options.emplace_back(lua_tostring(L, -1));
+                        }
+                        lua_pop(L, 1);
+                    }
+                }
+                lua_pop(L, 1);
+
+                if (!f.options.empty()) {
+                    f.selected_index =
+                        std::clamp(f.selected_index, 0, static_cast<int>(f.options.size()) - 1);
+                    if ((f.type == "select" || f.type == "radio") && f.text.empty()) {
+                        f.text = f.options[f.selected_index];
+                    }
+                }
+
+                st->fields.push_back(std::move(f));
+            }
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    lua_pushvalue(L, 2);
+    int callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_State* lua_state = L;
+
+    auto build_spec = [st]() {
+        pnana::core::ui::PopupSpec spec;
+        spec.title = st->title;
+        spec.width = 96;
+        spec.height = 26;
+        spec.modal = true;
+        spec.component_mode = true;
+        spec.component_input_line = "❯ form mode";
+        spec.component_left_title = "Fields";
+        spec.component_right_title = "Help";
+
+        for (size_t i = 0; i < st->fields.size(); ++i) {
+            const auto& f = st->fields[i];
+            bool active = static_cast<int>(i) == st->cursor;
+            std::string marker = active ? ">>" : "  ";
+            std::string value_text;
+            if (f.type == "checkbox") {
+                value_text = f.checked ? "[x]" : "[ ]";
+            } else if (f.type == "radio" || f.type == "select") {
+                value_text = f.text;
+            } else {
+                value_text = f.text;
+            }
+            spec.component_left_lines.push_back(marker + " " + f.label + " = " + value_text);
+        }
+        if (spec.component_left_lines.empty()) {
+            spec.component_left_lines.push_back("  (no fields)");
+        }
+
+        spec.component_right_lines = {
+            st->prompt,
+            "",
+            "↑/↓: move field",
+            "←/→: select/radio option",
+            "Space: toggle checkbox",
+            "Backspace: edit input",
+            "Enter: submit  Esc: cancel",
+        };
+
+        spec.component_help_lines = {
+            "input: type chars / backspace",
+            "select/radio: left/right cycle",
+            "checkbox: space toggle",
+        };
+
+        return spec;
+    };
+
+    pnana::core::ui::PopupCallbacks callbacks;
+    callbacks.on_component_event = [st, build_spec, lua_state, callback_ref, lua_api](
+                                       const std::string& event_name, const std::string& payload) {
+        (void)payload;
+        if (st->finished) {
+            return true;
+        }
+
+        auto popup_manager = lua_api->getEditor()->getPopupManagerForLua();
+        if (!popup_manager) {
+            return false;
+        }
+
+        if (event_name == "arrow_up") {
+            if (!st->fields.empty()) {
+                st->cursor = std::max(0, st->cursor - 1);
+                popup_manager->updatePopup(st->handle, build_spec());
+            }
+            return true;
+        }
+        if (event_name == "arrow_down") {
+            if (!st->fields.empty()) {
+                st->cursor = std::min(static_cast<int>(st->fields.size()) - 1, st->cursor + 1);
+                popup_manager->updatePopup(st->handle, build_spec());
+            }
+            return true;
+        }
+
+        if (!st->fields.empty() && st->cursor >= 0 &&
+            st->cursor < static_cast<int>(st->fields.size())) {
+            auto& f = st->fields[st->cursor];
+
+            if (event_name == "char") {
+                if (f.type == "input") {
+                    f.text += payload;
+                    popup_manager->updatePopup(st->handle, build_spec());
+                } else if (f.type == "checkbox" && payload == " ") {
+                    f.checked = !f.checked;
+                    f.text = f.checked ? "true" : "false";
+                    popup_manager->updatePopup(st->handle, build_spec());
+                }
+                return true;
+            }
+
+            if (event_name == "backspace" && f.type == "input") {
+                if (!f.text.empty()) {
+                    f.text.pop_back();
+                    popup_manager->updatePopup(st->handle, build_spec());
+                }
+                return true;
+            }
+
+            if ((event_name == "arrow_left" || event_name == "arrow_right") &&
+                (f.type == "select" || f.type == "radio") && !f.options.empty()) {
+                if (event_name == "arrow_left") {
+                    f.selected_index = (f.selected_index - 1 + static_cast<int>(f.options.size())) %
+                                       static_cast<int>(f.options.size());
+                } else {
+                    f.selected_index = (f.selected_index + 1) % static_cast<int>(f.options.size());
+                }
+                f.text = f.options[f.selected_index];
+                popup_manager->updatePopup(st->handle, build_spec());
+                return true;
+            }
+        }
+
+        if (event_name == "enter" || event_name == "escape") {
+            st->finished = true;
+            bool submit = (event_name == "enter");
+
+            lua_rawgeti(lua_state, LUA_REGISTRYINDEX, callback_ref);
+            if (lua_isfunction(lua_state, -1)) {
+                if (submit) {
+                    lua_newtable(lua_state);
+                    for (const auto& f : st->fields) {
+                        if (f.type == "checkbox") {
+                            lua_pushboolean(lua_state, f.checked ? 1 : 0);
+                        } else {
+                            lua_pushstring(lua_state, f.text.c_str());
+                        }
+                        lua_setfield(lua_state, -2, f.name.c_str());
+                    }
+                } else {
+                    lua_pushnil(lua_state);
+                }
+
+                if (lua_pcall(lua_state, 1, 0, 0) != LUA_OK) {
+                    const char* error = lua_tostring(lua_state, -1);
+                    LOG_ERROR("vim.ui.form callback error: " +
+                              std::string(error ? error : "unknown"));
+                    lua_pop(lua_state, 1);
+                }
+            } else {
+                lua_pop(lua_state, 1);
+            }
+
+            luaL_unref(lua_state, LUA_REGISTRYINDEX, callback_ref);
+            popup_manager->closePopup(st->handle, false);
+            window_handles_.erase(st->lua_win_id);
+            window_event_refs_.erase(st->lua_win_id);
+            window_lua_states_.erase(st->lua_win_id);
+            return true;
+        }
+
+        return false;
+    };
+
+    int lua_win_id = next_window_id_++;
+    auto spec = build_spec();
+    int handle = lua_api->getEditor()->getPopupManagerForLua()->openPopup(spec, callbacks);
+    st->lua_win_id = lua_win_id;
+    st->handle = handle;
+    window_handles_[lua_win_id] = handle;
+
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+// vim.ui.set_style(win_id, style_table) -> boolean
+int UIAPI::lua_fn_set_style(lua_State* L) {
+    LuaAPI* lua_api = getLuaAPIFromLua(L);
+    if (!lua_api || !lua_api->getEditor() || !lua_api->getEditor()->getPopupManagerForLua()) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    int lua_win_id = static_cast<int>(lua_tointeger(L, 1));
+    auto it = window_handles_.find(lua_win_id);
+    if (it == window_handles_.end() || !lua_istable(L, 2)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    pnana::core::ui::PopupSpec patch;
+    patch.component_mode = true;
+
+    lua_pushnil(L);
+    while (lua_next(L, 2) != 0) {
+        if (lua_isstring(L, -2)) {
+            std::string key = lua_tostring(L, -2);
+            std::string value;
+            if (lua_isstring(L, -1)) {
+                value = lua_tostring(L, -1);
+            } else if (lua_isboolean(L, -1)) {
+                value = lua_toboolean(L, -1) ? "true" : "false";
+            } else if (lua_isnumber(L, -1)) {
+                value = std::to_string(lua_tonumber(L, -1));
+            }
+            if (!value.empty()) {
+                patch.style_tokens[key] = value;
+            }
+        }
+        lua_pop(L, 1);
+    }
+
+    bool ok = lua_api->getEditor()->getPopupManagerForLua()->updatePopup(it->second, patch);
+    lua_pushboolean(L, ok ? 1 : 0);
     return 1;
 }
 

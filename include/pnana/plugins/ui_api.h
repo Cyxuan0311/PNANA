@@ -51,12 +51,14 @@ class UIAPI {
     static int lua_fn_close_window(lua_State* L);
     static int lua_fn_open_component_window(lua_State* L);
     static int lua_fn_update_component_window(lua_State* L);
+    static int lua_fn_set_style(lua_State* L);
 
     // 高级 UI API
     static int lua_fn_progress(lua_State* L);
     static int lua_fn_update_progress(lua_State* L);
     static int lua_fn_close_progress(lua_State* L);
     static int lua_fn_multiselect(lua_State* L);
+    static int lua_fn_form(lua_State* L);
     static int lua_fn_hover(lua_State* L);
     static int lua_fn_close_hover(lua_State* L);
     static int lua_fn_list_windows(lua_State* L);

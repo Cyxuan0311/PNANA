@@ -48,6 +48,11 @@ class LuaAPI {
     // 触发事件
     void triggerEvent(const std::string& event, const std::vector<std::string>& args = {});
 
+    // 插件上下文（用于跟踪注册归属）
+    void setCurrentPluginContext(const std::string& plugin_name);
+    void clearCurrentPluginContext();
+    void unregisterPluginArtifacts(const std::string& plugin_name);
+
     // 注册事件监听器
     void registerEventListener(const std::string& event, const std::string& callback);
     void registerEventListenerFunction(const std::string& event);
@@ -147,6 +152,7 @@ class LuaAPI {
         bool once;
         bool nested;
         std::string group;
+        std::string plugin_owner;
     };
     std::map<std::string, std::vector<AutocmdInfo>> autocmds_;
 
@@ -159,6 +165,7 @@ class LuaAPI {
         std::string nargs; // "0", "1", "*", "?", "+"
         std::string desc;
         bool force;
+        std::string plugin_owner;
     };
     std::map<std::string, UserCommandInfo> user_commands_;
 
@@ -168,6 +175,7 @@ class LuaAPI {
         std::string name;
         std::string desc;
         std::vector<std::string> keywords;
+        std::string plugin_owner;
     };
     std::map<std::string, PaletteCommandInfo> palette_commands_;
 
@@ -193,8 +201,12 @@ class LuaAPI {
         bool expr;
         bool nowait;
         std::string desc;
+        std::string plugin_owner;
     };
     std::map<std::string, std::map<std::string, KeymapInfo>> keymaps_info_;
+
+    // 当前正在加载/执行回调的插件上下文
+    std::string current_plugin_context_;
 
     // 注册 API 函数
     void registerAPIFunctions();

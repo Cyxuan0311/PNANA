@@ -270,6 +270,7 @@ void LuaAPI::registerUserCommand(const std::string& name, int callback_ref,
     info.nargs = nargs;
     info.desc = desc;
     info.force = force;
+    info.plugin_owner = current_plugin_context_;
     user_commands_[name] = info;
 }
 
@@ -372,6 +373,7 @@ void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs, int
     info.expr = expr;
     info.nowait = nowait;
     info.desc = desc;
+    info.plugin_owner = current_plugin_context_;
     keymaps_info_[mode][lhs] = info;
 }
 
@@ -386,6 +388,7 @@ void LuaAPI::registerKeymap(const std::string& mode, const std::string& lhs,
     info.expr = expr;
     info.nowait = nowait;
     info.desc = desc;
+    info.plugin_owner = current_plugin_context_;
     keymaps_info_[mode][lhs] = info;
 }
 
@@ -501,6 +504,7 @@ void LuaAPI::registerAutocmd(const std::string& event, int callback_ref, const s
     info.once = once;
     info.nested = nested;
     info.group = group;
+    info.plugin_owner = current_plugin_context_;
     // desc is stored for future use (e.g., debugging, documentation)
     (void)desc; // Suppress unused parameter warning
     autocmds_[event].push_back(info);
@@ -585,6 +589,7 @@ void LuaAPI::registerPaletteCommand(const std::string& id, const std::string& na
     info.name = name;
     info.desc = desc;
     info.keywords = keywords;
+    info.plugin_owner = current_plugin_context_;
 
     // 使用 emplace 而不是 operator[] 来避免不必要的拷贝
     auto result = palette_commands_.emplace(id, std::move(info));
@@ -719,6 +724,85 @@ void LuaAPI::processDeferred() {
                                              return c.cancelled;
                                          }),
                           deferred_calls_.end());
+}
+
+void LuaAPI::setCurrentPluginContext(const std::string& plugin_name) {
+    current_plugin_context_ = plugin_name;
+}
+
+void LuaAPI::clearCurrentPluginContext() {
+    current_plugin_context_.clear();
+}
+
+void LuaAPI::unregisterPluginArtifacts(const std::string& plugin_name) {
+    if (plugin_name.empty()) {
+        return;
+    }
+
+    lua_State* L = (engine_ ? engine_->getState() : nullptr);
+
+    // 删除用户命令
+    for (auto it = user_commands_.begin(); it != user_commands_.end();) {
+        if (it->second.plugin_owner == plugin_name) {
+            if (L) {
+                luaL_unref(L, LUA_REGISTRYINDEX, it->second.callback_ref);
+            }
+            it = user_commands_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    // 删除键映射
+    for (auto mode_it = keymaps_info_.begin(); mode_it != keymaps_info_.end(); ++mode_it) {
+        for (auto km_it = mode_it->second.begin(); km_it != mode_it->second.end();) {
+            if (km_it->second.plugin_owner == plugin_name) {
+                if (L && km_it->second.rhs_ref != -1) {
+                    luaL_unref(L, LUA_REGISTRYINDEX, km_it->second.rhs_ref);
+                }
+                km_it = mode_it->second.erase(km_it);
+            } else {
+                ++km_it;
+            }
+        }
+    }
+
+    // 删除 autocmd
+    for (auto ac_it = autocmds_.begin(); ac_it != autocmds_.end();) {
+        auto& infos = ac_it->second;
+        infos.erase(std::remove_if(infos.begin(), infos.end(),
+                                   [&](const AutocmdInfo& info) {
+                                       if (info.plugin_owner == plugin_name) {
+                                           if (L) {
+                                               luaL_unref(L, LUA_REGISTRYINDEX, info.callback_ref);
+                                           }
+                                           return true;
+                                       }
+                                       return false;
+                                   }),
+                    infos.end());
+
+        if (infos.empty()) {
+            ac_it = autocmds_.erase(ac_it);
+        } else {
+            ++ac_it;
+        }
+    }
+
+    // 删除命令面板命令
+    for (auto it = palette_commands_.begin(); it != palette_commands_.end();) {
+        if (it->second.plugin_owner == plugin_name) {
+            if (L) {
+                luaL_unref(L, LUA_REGISTRYINDEX, it->second.callback_ref);
+            }
+            if (editor_) {
+                editor_->getCommandPalette().unregisterCommand(it->first);
+            }
+            it = palette_commands_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 } // namespace plugins

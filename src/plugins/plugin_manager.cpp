@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <regex>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -234,8 +235,11 @@ bool PluginManager::loadPlugin(const std::string& plugin_path) {
         return true;
     }
 
-    // 执行插件初始化
-    if (!executePluginInit(plugin_path)) {
+    // 执行插件初始化（设置插件上下文，便于后续精准卸载注册项）
+    lua_api_->setCurrentPluginContext(info.name);
+    bool init_ok = executePluginInit(plugin_path);
+    lua_api_->clearCurrentPluginContext();
+    if (!init_ok) {
         LOG_ERROR("[loadPlugin] executePluginInit failed");
         return false;
     }
@@ -247,38 +251,43 @@ bool PluginManager::loadPlugin(const std::string& plugin_path) {
 }
 
 bool PluginManager::loadPluginConfig(const std::string& plugin_path, PluginInfo& info) {
-    if (!lua_engine_ || !lua_engine_->getState()) {
+    // 扫描阶段只读取 plugin.lua 元信息，不执行 init.lua，避免未启用插件产生副作用。
+    std::string config_file = plugin_path + "/plugin.lua";
+    if (!fs::exists(config_file) || !fs::is_regular_file(config_file)) {
         return false;
     }
 
-    // 查找 plugin.lua 或 init.lua
-    std::vector<std::string> config_files = {plugin_path + "/plugin.lua",
-                                             plugin_path + "/init.lua"};
-
-    for (const auto& config_file : config_files) {
-        if (fs::exists(config_file)) {
-            // 执行插件文件
-            if (lua_engine_->executeFile(config_file)) {
-                // 尝试从全局变量获取插件信息
-                info.name = lua_engine_->getGlobalString("plugin_name");
-                if (info.name.empty()) {
-                    info.name = fs::path(plugin_path).filename().string();
-                }
-
-                info.version = lua_engine_->getGlobalString("plugin_version");
-                if (info.version.empty()) {
-                    info.version = "1.0.0";
-                }
-
-                info.description = lua_engine_->getGlobalString("plugin_description");
-                info.author = lua_engine_->getGlobalString("plugin_author");
-
-                return true;
-            }
-        }
+    std::ifstream in(config_file);
+    if (!in.is_open()) {
+        return false;
     }
 
-    return false;
+    std::stringstream buffer;
+    buffer << in.rdbuf();
+    std::string content = buffer.str();
+
+    auto extract_string = [&](const std::string& key) -> std::string {
+        // 支持：key = "value" 或 key='value'
+        std::regex re(key + R"(\s*=\s*(["'])(.*?)\1)");
+        std::smatch m;
+        if (std::regex_search(content, m, re) && m.size() >= 3) {
+            return m[2].str();
+        }
+        return "";
+    };
+
+    std::string parsed_name = extract_string("plugin_name");
+    info.name = parsed_name.empty() ? fs::path(plugin_path).filename().string() : parsed_name;
+
+    info.version = extract_string("plugin_version");
+    if (info.version.empty()) {
+        info.version = "1.0.0";
+    }
+
+    info.description = extract_string("plugin_description");
+    info.author = extract_string("plugin_author");
+
+    return true;
 }
 
 bool PluginManager::executePluginInit(const std::string& plugin_path) {
@@ -327,6 +336,11 @@ bool PluginManager::unloadPlugin(const std::string& plugin_name) {
     // 清理插件相关 UI 句柄（防止悬空窗口）
     if (editor_) {
         UIAPI::closeAllWindows(editor_);
+    }
+
+    // 清理该插件注册的命令、键位、autocmd、命令面板项
+    if (lua_api_) {
+        lua_api_->unregisterPluginArtifacts(plugin_name);
     }
 
     it->second.loaded = false;
