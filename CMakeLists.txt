@@ -374,6 +374,7 @@ set(SOURCES
     src/core/editor_comment.cpp
     src/core/editor_ui.cpp
     src/core/editor_word_highlight.cpp
+    src/core/editor_bracket_highlight.cpp
     src/core/editor_lua_ui_api.cpp
     src/core/overlay_manager.cpp
     src/core/editor_input.cpp
@@ -443,6 +444,7 @@ set(SOURCES
     src/utils/file_type_icon_mapper.cpp
     src/utils/file_type_color_mapper.cpp
     src/utils/match_highlight.cpp
+    src/utils/bracket_matcher.cpp
     src/utils/archive_validator.cpp
     src/utils/version_detector.cpp
     src/utils/file_info_utils.cpp
