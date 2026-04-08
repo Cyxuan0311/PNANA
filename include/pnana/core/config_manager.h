@@ -155,7 +155,19 @@ struct HistoryConfig {
 
 // UI 配置结构
 struct UIConfig {
-    bool toast_enabled = false; // 是否启用 Toast 弹窗通知
+    bool toast_enabled = false;          // 是否启用 Toast 弹窗通知
+    std::string toast_style = "classic"; // classic/minimal/solid/accent/outline
+    int toast_duration_ms = 3000;        // 默认显示时长（0=不自动消失）
+    int toast_max_width = 50;            // 默认最大宽度
+    bool toast_show_icon = true;         // 默认是否显示图标
+    bool toast_bold_text = false;        // 默认是否粗体文本
+};
+
+// 自定义 Logo 配置
+struct CustomLogoConfig {
+    std::string id;                 // 唯一 ID，用于 logo_style 持久化
+    std::string display_name;       // 菜单展示名
+    std::vector<std::string> lines; // Logo 文本行
 };
 
 // 完整配置结构
@@ -169,6 +181,9 @@ struct AppConfig {
     AnimationConfig animation;
     HistoryConfig history;
     UIConfig ui;
+
+    // Logo 配置
+    std::vector<CustomLogoConfig> custom_logos; // 用户自定义 logo 列表
 
     // 主题配置
     std::string current_theme = "monokai";

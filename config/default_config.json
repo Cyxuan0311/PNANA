@@ -84,8 +84,16 @@
     "critical_change_threshold": 50,
     "critical_time_interval": 86400
   },
+  "custom_logos": [],
   "ui": {
-    "_comment": "UI settings",
-    "toast_enabled": false
+    "_comment": "UI settings (Toast: enabled/style/duration/max_width/icon/bold)",
+    "_comment_toast_style": "Toast style: classic | minimal | solid | accent | outline",
+    "_comment_toast_duration": "toast_duration_ms: 0 means stay until replaced/hidden",
+    "toast_enabled": false,
+    "toast_style": "classic",
+    "toast_duration_ms": 3000,
+    "toast_max_width": 50,
+    "toast_show_icon": true,
+    "toast_bold_text": false
   }
 }

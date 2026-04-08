@@ -659,11 +659,96 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 custom_logos 配置
+    config_.custom_logos.clear();
+    size_t custom_logos_pos = cleaned.find("\"custom_logos\":[");
+    if (custom_logos_pos != std::string::npos) {
+        size_t array_start = custom_logos_pos + 16; // 跳过 "custom_logos":[
+
+        // 找到 custom_logos 外层数组的真正结束位置（不能直接 find(']')，
+        // 因为每个 logo 的 lines 本身也是数组）
+        size_t array_end = array_start;
+        int arr_depth = 1;
+        while (arr_depth > 0 && array_end < cleaned.size()) {
+            char c = cleaned[array_end++];
+            if (c == '[')
+                arr_depth++;
+            else if (c == ']')
+                arr_depth--;
+        }
+
+        if (arr_depth == 0) {
+            const size_t array_content_end = array_end - 1; // 指向外层 ]
+            size_t obj_start = array_start;
+            while (obj_start < array_content_end) {
+                size_t brace = cleaned.find("{", obj_start);
+                if (brace == std::string::npos || brace >= array_content_end)
+                    break;
+
+                size_t brace_end = brace + 1;
+                int depth = 1;
+                while (depth > 0 && brace_end < cleaned.size()) {
+                    char c = cleaned[brace_end++];
+                    if (c == '{')
+                        depth++;
+                    else if (c == '}')
+                        depth--;
+                }
+
+                if (depth == 0) {
+                    size_t obj_end = brace_end - 1;
+                    CustomLogoConfig logo;
+                    logo.id = extractStr("id", brace, obj_end);
+                    logo.display_name = extractStr("display_name", brace, obj_end);
+
+                    size_t lines_pos = cleaned.find("\"lines\":[", brace);
+                    if (lines_pos != std::string::npos && lines_pos < obj_end) {
+                        size_t lines_start = lines_pos + 9; // 跳过 "lines":[
+                        size_t lines_end = cleaned.find("]", lines_start);
+                        if (lines_end != std::string::npos && lines_end <= obj_end) {
+                            std::string lines_content =
+                                cleaned.substr(lines_start, lines_end - lines_start);
+                            size_t p = 0;
+                            while ((p = lines_content.find("\"", p)) != std::string::npos) {
+                                p++;
+                                size_t e = lines_content.find("\"", p);
+                                if (e == std::string::npos)
+                                    break;
+                                logo.lines.push_back(lines_content.substr(p, e - p));
+                                p = e + 1;
+                            }
+                        }
+                    }
+
+                    if (!logo.id.empty() && !logo.display_name.empty() && !logo.lines.empty()) {
+                        config_.custom_logos.push_back(logo);
+                    }
+                }
+
+                obj_start = brace_end;
+            }
+        }
+    }
+
     // 解析 ui 配置
     if (ui_pos != std::string::npos) {
         size_t ui_end = cleaned.find("}", ui_pos + 1);
         if (ui_end != std::string::npos) {
             config_.ui.toast_enabled = extractBool("toast_enabled", ui_pos, ui_end, false);
+
+            std::string toast_style = extractStr("toast_style", ui_pos, ui_end);
+            if (!toast_style.empty()) {
+                config_.ui.toast_style = toast_style;
+            }
+
+            config_.ui.toast_duration_ms =
+                extractInt("toast_duration_ms", ui_pos, ui_end, config_.ui.toast_duration_ms);
+            config_.ui.toast_max_width =
+                extractInt("toast_max_width", ui_pos, ui_end, config_.ui.toast_max_width);
+            config_.ui.toast_show_icon =
+                extractBool("toast_show_icon", ui_pos, ui_end, config_.ui.toast_show_icon);
+            config_.ui.toast_bold_text =
+                extractBool("toast_bold_text", ui_pos, ui_end, config_.ui.toast_bold_text);
         }
     }
 
@@ -814,9 +899,35 @@ std::string ConfigManager::generateJSON() const {
         << ",\n";
     oss << "    \"critical_time_interval\": " << config_.history.critical_time_interval << "\n";
     oss << "  },\n";
+    oss << "  \"custom_logos\": [\n";
+    for (size_t i = 0; i < config_.custom_logos.size(); ++i) {
+        const auto& logo = config_.custom_logos[i];
+        oss << "    {\"id\":\"" << logo.id << "\",\"display_name\":\"" << logo.display_name
+            << "\",\"lines\":[";
+        for (size_t j = 0; j < logo.lines.size(); ++j) {
+            oss << "\"" << logo.lines[j] << "\"";
+            if (j < logo.lines.size() - 1)
+                oss << ",";
+        }
+        oss << "]}";
+        if (i < config_.custom_logos.size() - 1)
+            oss << ",";
+        oss << "\n";
+    }
+    oss << "  ],\n";
     oss << "  \"ui\": {\n";
-    oss << "    \"_comment\": \"UI settings\",\n";
-    oss << "    \"toast_enabled\": " << (config_.ui.toast_enabled ? "true" : "false") << "\n";
+    oss << "    \"_comment\": \"UI settings (Toast: "
+           "enabled/style/duration/max_width/icon/bold)\",\n";
+    oss << "    \"_comment_toast_style\": \"Toast style: classic | minimal | solid | accent | "
+           "outline\",\n";
+    oss << "    \"_comment_toast_duration\": \"toast_duration_ms: 0 means stay until "
+           "replaced/hidden\",\n";
+    oss << "    \"toast_enabled\": " << (config_.ui.toast_enabled ? "true" : "false") << ",\n";
+    oss << "    \"toast_style\": \"" << config_.ui.toast_style << "\",\n";
+    oss << "    \"toast_duration_ms\": " << config_.ui.toast_duration_ms << ",\n";
+    oss << "    \"toast_max_width\": " << config_.ui.toast_max_width << ",\n";
+    oss << "    \"toast_show_icon\": " << (config_.ui.toast_show_icon ? "true" : "false") << ",\n";
+    oss << "    \"toast_bold_text\": " << (config_.ui.toast_bold_text ? "true" : "false") << "\n";
     oss << "  }\n";
     oss << "}\n";
     return oss.str();
