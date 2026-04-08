@@ -38,7 +38,7 @@ void printHelp() {
     std::cout << "https://github.com/Cyxuan0311/PNANA.git\n";
 }
 
-void printVersion() {
+void printVersion(const std::string& config_path = "") {
     const std::string RESET = "\033[0m";
     const std::string BOLD = "\033[1m";
     const std::string RED = "\033[31m";
@@ -49,8 +49,12 @@ void printVersion() {
     const std::string CYAN = "\033[36m";
 
     pnana::core::ConfigManager configManager;
-    configManager.loadConfig();
-    std::string logoStyle = configManager.getConfig().display.logo_style;
+    configManager.loadConfig(config_path);
+
+    const auto& config = configManager.getConfig();
+    // 让 --version 也能识别用户本地 custom_logos
+    pnana::features::LogoManager::setCustomLogos(config.custom_logos);
+    std::string logoStyle = config.display.logo_style;
 
     auto logoLines = pnana::features::LogoManager::getLogoLines(logoStyle);
     for (const auto& line : logoLines) {
@@ -108,7 +112,7 @@ int main(int argc, char* argv[]) {
                 printHelp();
                 return 0;
             } else if (arg == "-v" || arg == "--version") {
-                printVersion();
+                printVersion(config_path);
                 return 0;
             } else if (arg == "-t" || arg == "--theme") {
                 if (i + 1 < argc) {

@@ -1265,16 +1265,16 @@ const std::vector<std::string> LOGO_ASCII_BANNER = {
     "                                                            ",
 };
 
-// 用户添加的自定义 Logo（保持原始字符对齐）
-const std::vector<std::string> LOGO_CUSTOM_ADDED = {
+// PNANA 方块文字 Logo
+const std::vector<std::string> LOGO_PNANA_BLOCK = {
     "▄▄▄▄▄▄▄ ▄▄    ▄ ▄▄▄▄▄▄▄ ▄▄    ▄ ▄▄▄▄▄▄▄ ",  "█       █  █  █ █       █  █  █ █       █",
     "█    ▄  █   █▄█ █   ▄   █   █▄█ █   ▄   █", "█   █▄█ █       █  █▄█  █       █  █▄█  █",
     "█    ▄▄▄█  ▄    █       █  ▄    █       █", "█   █   █ █ █   █   ▄   █ █ █   █   ▄   █",
     "█▄▄▄█   █▄█  █▄▄█▄▄█ █▄▄█▄█  █▄▄█▄▄█ █▄▄█",
 };
 
-// 由用户提供的第二个 Logo（保持对齐）
-const std::vector<std::string> LOGO_CUSTOM_TWO = {
+// PNANA 编辑器三角线条 Logo
+const std::vector<std::string> LOGO_PNANA_EDITOR = {
     "▀███▀▀▀██▄▀███▄   ▀███▀     ██     ▀███▄   ▀███▀     ██      ",
     "  ██   ▀██▄ ███▄    █      ▄██▄      ███▄    █      ▄██▄     ",
     "  ██   ▄██  █ ███   █     ▄█▀██▄     █ ███   █     ▄█▀██▄    ",
@@ -1286,8 +1286,8 @@ const std::vector<std::string> LOGO_CUSTOM_TWO = {
     "                                                             ",
 };
 
-// 由用户提供的第三个 Logo（保持对齐，多行装饰）
-const std::vector<std::string> LOGO_CUSTOM_THREE = {
+// 渐变装饰 Logo
+const std::vector<std::string> LOGO_GRADIENT_DECORATION = {
     "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
     "░        ░░░    ░░░░░   ░░░░░░░  ░░░░░░░░    ░░░░░   ░░░░░░░  ░░░░░░░",
     "▒   ▒▒▒▒   ▒  ▒   ▒▒▒   ▒▒▒▒▒▒  ▒  ▒▒▒▒▒▒  ▒   ▒▒▒   ▒▒▒▒▒▒  ▒  ▒▒▒▒▒",
@@ -1299,8 +1299,8 @@ const std::vector<std::string> LOGO_CUSTOM_THREE = {
     "█████████████████████████████████████████████████████████████████████",
 };
 
-// 用户提供的额外 Logo 1
-const std::vector<std::string> LOGO_USER_A = {
+// EDITOR 文字 Logo
+const std::vector<std::string> LOGO_EDITOR_TEXT = {
     " █▒▒▒▒▒▒▒   █▒▒▒     █▒▒      █▒        █▒▒▒     █▒▒      █▒       ",
     " █▒▒    █▒▒ █▒ █▒▒   █▒▒      █▒ ▒▒      █▒ █▒▒   █▒▒      █▒ ▒▒     ",
     " █▒▒    █▒▒ █▒▒ █▒▒  █▒▒     █▒  █▒▒     █▒▒ █▒▒  █▒▒     █▒  █▒▒    ",
@@ -1311,8 +1311,8 @@ const std::vector<std::string> LOGO_USER_A = {
     "",
 };
 
-// 用户提供的额外 Logo 2
-const std::vector<std::string> LOGO_USER_B = {
+// TERMINAL 文字 Logo
+const std::vector<std::string> LOGO_TERMINAL_TEXT = {
     " ████████   ████     ███       ██        ████     ███       ██       ",
     " ███    ███ ██ ███   ███      ██ ██      ██ ███   ███      ██ ██     ",
     " ███    ███ ███ ███  ███     ██  ███     ███ ███  ███     ██  ███    ",
@@ -1323,8 +1323,8 @@ const std::vector<std::string> LOGO_USER_B = {
     "",
 };
 
-// 用户提供的额外 Logo 3
-const std::vector<std::string> LOGO_USER_C = {
+// TEXT 文字 Logo
+const std::vector<std::string> LOGO_TEXT_ART = {
     " █        ███    █████   ███████  ████████    █████   ███████  ███████",
     " █   ████   █  █   ███   ██████  █  ██████  █   ███   ██████  █  █████",
     " █   ████   █   █   ██   █████  ██   █████   █   ██   █████  ██   ████ ",
@@ -1442,12 +1442,12 @@ const std::map<std::string, std::vector<std::string>> LOGO_MAP = {
     {"slash_diamond", LOGO_SLASH_DIAMOND},
     {"underscore_script", LOGO_UNDERSCORE_SCRIPT},
     {"ascii_banner", LOGO_ASCII_BANNER},
-    {"custom_added", LOGO_CUSTOM_ADDED},
-    {"custom_two", LOGO_CUSTOM_TWO},
-    {"custom_three", LOGO_CUSTOM_THREE},
-    {"user_a", LOGO_USER_A},
-    {"user_b", LOGO_USER_B},
-    {"user_c", LOGO_USER_C},
+    {"pnana_block", LOGO_PNANA_BLOCK},
+    {"pnana_editor", LOGO_PNANA_EDITOR},
+    {"gradient_decoration", LOGO_GRADIENT_DECORATION},
+    {"editor_text", LOGO_EDITOR_TEXT},
+    {"terminal_text", LOGO_TERMINAL_TEXT},
+    {"text_art", LOGO_TEXT_ART},
 };
 
 const std::vector<LogoStyleEntry> STYLES = {
@@ -1556,12 +1556,12 @@ const std::vector<LogoStyleEntry> STYLES = {
     {"slash_diamond", "Slash Diamond"},
     {"underscore_script", "Underscore Script"},
     {"ascii_banner", "ASCII Banner"},
-    {"custom_added", "Custom Added"},
-    {"custom_two", "Custom Two"},
-    {"custom_three", "Custom Three"},
-    {"user_a", "User A"},
-    {"user_b", "User B"},
-    {"user_c", "User C"},
+    {"pnana_block", "PNANA Block"},
+    {"pnana_editor", "PNANA Editor"},
+    {"gradient_decoration", "Gradient Decoration"},
+    {"editor_text", "EDITOR Text"},
+    {"terminal_text", "TERMINAL Text"},
+    {"text_art", "TEXT Art"},
 };
 
 } // namespace
