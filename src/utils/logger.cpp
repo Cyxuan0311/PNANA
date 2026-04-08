@@ -4,7 +4,6 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <thread>
 
 namespace pnana {
 namespace utils {
@@ -53,12 +52,6 @@ std::string Logger::getTimestamp() {
     return oss.str();
 }
 
-std::string Logger::getThreadTag() {
-    std::ostringstream oss;
-    oss << std::this_thread::get_id();
-    return oss.str();
-}
-
 bool Logger::isEnabled() const {
     std::lock_guard<std::mutex> lock(log_mutex_);
     return initialized_ && log_file_.is_open();
@@ -73,8 +66,7 @@ void Logger::writeLog(const std::string& level, const std::string& message) {
     }
 
     std::string timestamp = getTimestamp();
-    log_file_ << "[" << timestamp << "] [" << level << "] [T" << getThreadTag() << "] " << message
-              << std::endl;
+    log_file_ << "[" << timestamp << "] [" << level << "] " << message << std::endl;
     log_file_.flush();
 }
 

@@ -1,9 +1,11 @@
 #include "utils/clipboard.h"
 #include "utils/logger.h"
 #include <array>
+#include <codecvt>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <locale>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -161,11 +163,47 @@ bool Clipboard::executeCommand(const std::string& command, const std::string& in
 
     // 写入输入数据
     if (!input.empty()) {
-        size_t written = fwrite(input.c_str(), 1, input.size(), pipe);
-        LOG("[CLIPBOARD] executeCommand: wrote " + std::to_string(written) + " bytes");
-        if (written != input.size()) {
-            LOG_ERROR("[CLIPBOARD] executeCommand: failed to write all data (wrote " +
-                      std::to_string(written) + " of " + std::to_string(input.size()) + ")");
+        // Special handling for WSL clip.exe: it expects UTF-16LE input.
+        if (command.find("clip.exe") != std::string::npos) {
+            try {
+                std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+                std::u16string u16 = convert.from_bytes(input);
+                // write as little-endian UTF-16 bytes
+                std::string le;
+                le.reserve(u16.size() * 2);
+                for (char16_t ch : u16) {
+                    char low = static_cast<char>(ch & 0xFF);
+                    char high = static_cast<char>((ch >> 8) & 0xFF);
+                    le.push_back(low);
+                    le.push_back(high);
+                }
+                size_t written = fwrite(le.data(), 1, le.size(), pipe);
+                LOG("[CLIPBOARD] executeCommand: wrote " + std::to_string(written) +
+                    " bytes (UTF-16LE for clip.exe)");
+                if (written != le.size()) {
+                    LOG_ERROR("[CLIPBOARD] executeCommand: failed to write all data to clip.exe");
+                }
+            } catch (const std::exception& e) {
+                LOG_ERROR(
+                    std::string("[CLIPBOARD] executeCommand: UTF-8->UTF-16 conversion failed: ") +
+                    e.what());
+                // fallback to writing raw bytes
+                size_t written = fwrite(input.c_str(), 1, input.size(), pipe);
+                LOG("[CLIPBOARD] executeCommand: wrote " + std::to_string(written) +
+                    " bytes (fallback)");
+                if (written != input.size()) {
+                    LOG_ERROR("[CLIPBOARD] executeCommand: failed to write all data (wrote " +
+                              std::to_string(written) + " of " + std::to_string(input.size()) +
+                              ")");
+                }
+            }
+        } else {
+            size_t written = fwrite(input.c_str(), 1, input.size(), pipe);
+            LOG("[CLIPBOARD] executeCommand: wrote " + std::to_string(written) + " bytes");
+            if (written != input.size()) {
+                LOG_ERROR("[CLIPBOARD] executeCommand: failed to write all data (wrote " +
+                          std::to_string(written) + " of " + std::to_string(input.size()) + ")");
+            }
         }
         fflush(pipe); // 确保数据被写入
     }

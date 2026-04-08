@@ -33,9 +33,6 @@ class Logger {
     // 关闭日志
     void close();
 
-    // 调试：线程与时间戳标签
-    std::string getThreadTag();
-
   private:
     Logger() : initialized_(false) {}
     ~Logger();
