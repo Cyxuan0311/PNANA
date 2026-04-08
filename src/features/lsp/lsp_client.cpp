@@ -136,12 +136,21 @@ void LspClient::didOpen(const std::string& uri, const std::string& language_id,
     }
 
     try {
-        document_versions_[uri] = version;
+        auto it = document_versions_.find(uri);
+        if (it != document_versions_.end()) {
+            // 已打开文档不应重复 didOpen，改为 didChange 保持版本单调递增
+            int next_version = std::max(it->second + 1, version);
+            didChange(uri, content, next_version);
+            return;
+        }
+
+        int open_version = std::max(1, version);
+        document_versions_[uri] = open_version;
 
         jsonrpccxx::json params;
         params["textDocument"]["uri"] = uri;
         params["textDocument"]["languageId"] = language_id;
-        params["textDocument"]["version"] = version;
+        params["textDocument"]["version"] = open_version;
         params["textDocument"]["text"] = content;
 
         jsonrpccxx::named_parameter named_params;

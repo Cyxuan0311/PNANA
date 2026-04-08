@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace pnana {
@@ -58,11 +59,59 @@ class LspFormatter {
                                      const std::string& original_content);
 
     /**
+     * 将文件扩展名规范化为无点号小写格式
+     */
+    std::string normalizeExtension(const std::string& extension) const;
+
+    /**
+     * 根据文件信息推断 LSP language id
+     */
+    std::string detectLanguageIdForLsp(const std::string& file_path) const;
+
+    /**
+     * 运行通用命令行格式化器（stdin -> stdout）
+     */
+    std::string runFormatterCommand(const std::string& command, const std::string& original_content,
+                                    const std::string& formatter_name,
+                                    const std::string& file_path);
+
+    /**
      * 尝试使用clang-format格式化C/C++文件
      * @param file_path 文件路径
      * @return 格式化后的内容，失败返回空字符串
      */
-    std::string tryClangFormat(const std::string& file_path);
+    std::string tryClangFormat(const std::string& file_path, const std::string& original_content);
+
+    /**
+     * 尝试使用black格式化Python文件
+     */
+    std::string tryBlackFormat(const std::string& file_path, const std::string& original_content);
+
+    /**
+     * 尝试使用prettier格式化Web相关文件
+     */
+    std::string tryPrettierFormat(const std::string& file_path,
+                                  const std::string& original_content);
+
+    /**
+     * 尝试使用gofmt格式化Go文件
+     */
+    std::string tryGoFmt(const std::string& file_path, const std::string& original_content);
+
+    /**
+     * 尝试使用rustfmt格式化Rust文件
+     */
+    std::string tryRustFmt(const std::string& file_path, const std::string& original_content);
+
+    /**
+     * 尝试使用shfmt格式化Shell文件
+     */
+    std::string tryShFmt(const std::string& file_path, const std::string& original_content);
+
+    /**
+     * 检查工具是否可用（进程内缓存）
+     */
+    bool isToolAvailable(const std::string& tool_name);
 
     /**
      * 获取文件显示名称（仅文件名部分）
@@ -89,6 +138,7 @@ class LspFormatter {
 
   private:
     LspServerManager* lsp_manager_;
+    std::unordered_map<std::string, bool> tool_availability_cache_;
 };
 
 } // namespace features

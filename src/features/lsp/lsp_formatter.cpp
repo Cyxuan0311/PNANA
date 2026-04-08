@@ -95,6 +95,8 @@ bool LspFormatter::isFileTypeSupported(const std::string& file_type) const {
 }
 
 bool LspFormatter::formatFile(const std::string& file_path) {
+    const auto format_start = std::chrono::steady_clock::now();
+
     std::string original_content;
 
     // Test basic file operations
@@ -130,21 +132,31 @@ bool LspFormatter::formatFile(const std::string& file_path) {
             if (out_file.is_open()) {
                 out_file.write(fallback_result.c_str(), fallback_result.length());
                 out_file.close();
+                const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - format_start);
+                (void)elapsed_ms;
                 return true;
             } else {
                 LOG_ERROR("Failed to write fallback formatted content");
             }
         }
+        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - format_start);
+        LOG_WARNING("[FormatFlow] formatFile failed(no-client), elapsed_ms=" +
+                    std::to_string(elapsed_ms.count()));
         return false;
     }
 
     // Ensure client is initialized and connected
     if (!lsp_client->isConnected()) {
+        LOG_DEBUG("[FormatFlow] client not connected, initializing...");
         try {
             std::string root_path = std::filesystem::current_path().string();
 
             // Initialize LSP client (blocking until complete or fail)
             bool init_success = lsp_manager_->initializeClientForFile(file_path, root_path);
+            LOG_DEBUG(std::string("[FormatFlow] initializeClientForFile result=") +
+                      (init_success ? "true" : "false"));
 
             if (!init_success) {
                 LOG_ERROR("LSP client initialization failed for file: " + file_path +
@@ -195,6 +207,7 @@ bool LspFormatter::formatFile(const std::string& file_path) {
             }
 
             LOG("LspFormatter: LSP client is now connected and ready");
+            LOG_DEBUG("[FormatFlow] client connected after init wait");
         } catch (const std::exception& e) {
             LOG_ERROR("LSP client initialization exception: " + std::string(e.what()) +
                       ", trying fallback");
@@ -230,15 +243,15 @@ bool LspFormatter::formatFile(const std::string& file_path) {
 
         // 转换为 URI (使用正确的URL编码)
         std::string uri = filepathToUri(file_path);
+        LOG_DEBUG("[FormatFlow] uri=" + uri);
 
         // 确保文件已在 LSP 服务器中打开
-        std::string file_type = utils::FileTypeDetector::detectFileType(
-            file_path, fs::path(file_path).extension().string());
-        LOG("LspFormatter: Detected file type: " + file_type + " for " + file_path);
+        std::string language_id = detectLanguageIdForLsp(file_path);
+        LOG("LspFormatter: Detected LSP language id: " + language_id + " for " + file_path);
 
         // 发送didOpen通知
         try {
-            lsp_client->didOpen(uri, file_type, original_content);
+            lsp_client->didOpen(uri, language_id, original_content);
             LOG("LspFormatter: Sent didOpen to LSP server");
         } catch (const std::exception& e) {
             LOG_WARNING("LspFormatter: Failed to send didOpen: " + std::string(e.what()));
@@ -252,8 +265,14 @@ bool LspFormatter::formatFile(const std::string& file_path) {
             formatted_content = lsp_client->formatDocument(uri, original_content);
             LOG("LspFormatter: Received formatted content, length: " +
                 std::to_string(formatted_content.length()));
+            LOG_DEBUG("[FormatFlow] formatDocument completed, output_bytes=" +
+                      std::to_string(formatted_content.size()));
         } catch (const std::exception& e) {
             LOG_ERROR("LspFormatter: formatDocument failed: " + std::string(e.what()));
+            const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - format_start);
+            LOG_ERROR("[FormatFlow] formatFile failed at formatDocument, elapsed_ms=" +
+                      std::to_string(elapsed_ms.count()));
             return false;
         }
 
@@ -274,6 +293,10 @@ bool LspFormatter::formatFile(const std::string& file_path) {
 
         if (formatted_content == original_content) {
             LOG("LspFormatter: File already properly formatted, no changes needed");
+            const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - format_start);
+            LOG_DEBUG("[FormatFlow] formatFile no-op, elapsed_ms=" +
+                      std::to_string(elapsed_ms.count()));
             return true;
         }
 
@@ -302,6 +325,10 @@ bool LspFormatter::formatFile(const std::string& file_path) {
         }
 
         LOG("Successfully formatted file: " + file_path);
+        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - format_start);
+        LOG_DEBUG("[FormatFlow] formatFile success(lsp), elapsed_ms=" +
+                  std::to_string(elapsed_ms.count()));
         return true;
 
     } catch (const std::exception& e) {
@@ -311,84 +338,240 @@ bool LspFormatter::formatFile(const std::string& file_path) {
 }
 
 bool LspFormatter::formatFiles(const std::vector<std::string>& file_paths) {
+    const auto batch_start = std::chrono::steady_clock::now();
+    LOG_DEBUG("[FormatFlow] formatFiles start, count=" + std::to_string(file_paths.size()));
+
     if (!lsp_manager_) {
         LOG_ERROR("LSP manager not available");
         return false;
     }
 
     bool all_success = true;
+    size_t success_count = 0;
+    size_t failed_count = 0;
     for (const auto& file_path : file_paths) {
+        LOG_DEBUG("[FormatFlow] formatFiles item begin: " + file_path);
         if (!formatFile(file_path)) {
             all_success = false;
+            failed_count++;
+            LOG_WARNING("[FormatFlow] formatFiles item failed: " + file_path);
+        } else {
+            success_count++;
+            LOG_DEBUG("[FormatFlow] formatFiles item success: " + file_path);
         }
     }
+
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - batch_start);
+    LOG_DEBUG("[FormatFlow] formatFiles end, success=" + std::to_string(success_count) +
+              ", failed=" + std::to_string(failed_count) +
+              ", elapsed_ms=" + std::to_string(elapsed_ms.count()));
 
     return all_success;
 }
 
 std::string LspFormatter::tryCommandLineFormat(const std::string& file_path,
-                                               const std::string& /* original_content */) {
-    // 检测文件类型并尝试相应的命令行格式化工具
-    std::string extension = fs::path(file_path).extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+                                               const std::string& original_content) {
+    const std::string extension = normalizeExtension(fs::path(file_path).extension().string());
+    LOG_DEBUG("[FormatFlow] tryCommandLineFormat: ext='" + extension + "', file='" + file_path +
+              "'");
 
-    // 对于C/C++文件，尝试clang-format
-    if (extension == ".cpp" || extension == ".hpp" || extension == ".cc" || extension == ".h") {
-        return tryClangFormat(file_path);
+    if (extension == "c" || extension == "cpp" || extension == "cxx" || extension == "cc" ||
+        extension == "h" || extension == "hpp" || extension == "hxx" || extension == "hh") {
+        return tryClangFormat(file_path, original_content);
     }
 
-    // 对于其他文件类型，可以在这里添加更多的命令行工具支持
-    // 比如Python的black, JavaScript的prettier等
+    if (extension == "py" || extension == "pyw" || extension == "pyi") {
+        return tryBlackFormat(file_path, original_content);
+    }
 
-    return ""; // 没有可用的命令行工具
+    if (extension == "js" || extension == "jsx" || extension == "mjs" || extension == "cjs" ||
+        extension == "ts" || extension == "tsx" || extension == "json" || extension == "jsonc" ||
+        extension == "css" || extension == "scss" || extension == "sass" || extension == "md" ||
+        extension == "markdown") {
+        return tryPrettierFormat(file_path, original_content);
+    }
+
+    if (extension == "go") {
+        return tryGoFmt(file_path, original_content);
+    }
+
+    if (extension == "rs") {
+        return tryRustFmt(file_path, original_content);
+    }
+
+    if (extension == "sh" || extension == "bash" || extension == "zsh" || extension == "shell") {
+        return tryShFmt(file_path, original_content);
+    }
+
+    LOG_DEBUG("[FormatFlow] no command-line fallback registered for extension='" + extension + "'");
+    return "";
 }
 
-std::string LspFormatter::tryClangFormat(const std::string& file_path) {
-    // 检查clang-format是否可用
-    int result = system("which clang-format > /dev/null 2>&1");
-    if (result != 0) {
-        LOG("LspFormatter: clang-format not found, skipping command line fallback");
+std::string LspFormatter::normalizeExtension(const std::string& extension) const {
+    std::string normalized = extension;
+    if (!normalized.empty() && normalized.front() == '.') {
+        normalized.erase(0, 1);
+    }
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::tolower);
+    return normalized;
+}
+
+std::string LspFormatter::detectLanguageIdForLsp(const std::string& file_path) const {
+    const std::string filename = fs::path(file_path).filename().string();
+    const std::string extension = normalizeExtension(fs::path(file_path).extension().string());
+    const std::string detected = utils::FileTypeDetector::detectFileType(filename, extension);
+
+    if (detected == "cpp" || detected == "cxx" || detected == "cc" || detected == "hpp" ||
+        detected == "hxx" || detected == "hh") {
+        return "cpp";
+    }
+    if (detected == "c") {
+        return "c";
+    }
+    if (detected == "python" || detected == "py") {
+        return "python";
+    }
+    if (detected == "javascript" || detected == "js") {
+        return "javascript";
+    }
+    if (detected == "typescript" || detected == "ts") {
+        return "typescript";
+    }
+
+    return detected;
+}
+
+std::string LspFormatter::runFormatterCommand(const std::string& command,
+                                              const std::string& original_content,
+                                              const std::string& formatter_name,
+                                              const std::string& file_path) {
+    const auto fallback_start = std::chrono::steady_clock::now();
+    LOG_DEBUG("[FormatFlow] runFormatterCommand start, formatter='" + formatter_name + "', file='" +
+              file_path + "'");
+
+    FILE* pipe = popen(command.c_str(), "r");
+    if (!pipe) {
+        LOG_ERROR("[FormatFlow] failed to run formatter='" + formatter_name + "'");
         return "";
     }
 
-    try {
-        // 使用clang-format格式化文件
-        std::string command = "clang-format \"" + file_path + "\"";
-        LOG("LspFormatter: Running command line formatter: " + command);
+    std::string formatted_content;
+    char buffer[4096];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        formatted_content += buffer;
+    }
 
-        // 执行命令并捕获输出
-        FILE* pipe = popen(command.c_str(), "r");
-        if (!pipe) {
-            LOG_ERROR("LspFormatter: Failed to run clang-format command");
-            return "";
-        }
-
-        std::string formatted_content;
-        char buffer[4096];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            formatted_content += buffer;
-        }
-
-        int status = pclose(pipe);
-        if (status != 0) {
-            LOG_WARNING("LspFormatter: clang-format command failed with status: " +
-                        std::to_string(status));
-            return "";
-        }
-
-        if (formatted_content.empty()) {
-            LOG_WARNING("LspFormatter: clang-format returned empty content");
-            return "";
-        }
-
-        LOG("LspFormatter: clang-format completed successfully, output length: " +
-            std::to_string(formatted_content.length()));
-        return formatted_content;
-
-    } catch (const std::exception& e) {
-        LOG_ERROR("LspFormatter: Exception in clang-format: " + std::string(e.what()));
+    int status = pclose(pipe);
+    if (status != 0) {
+        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - fallback_start);
+        LOG_WARNING("[FormatFlow] formatter failed, formatter='" + formatter_name + "', status=" +
+                    std::to_string(status) + ", elapsed_ms=" + std::to_string(elapsed_ms.count()));
         return "";
     }
+
+    if (formatted_content.empty()) {
+        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - fallback_start);
+        LOG_WARNING("[FormatFlow] formatter returned empty output, formatter='" + formatter_name +
+                    "', elapsed_ms=" + std::to_string(elapsed_ms.count()));
+        return "";
+    }
+
+    if (formatted_content == original_content) {
+        LOG_DEBUG("[FormatFlow] formatter no-op output, formatter='" + formatter_name + "'");
+    }
+
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - fallback_start);
+    LOG_DEBUG("[FormatFlow] formatter success, formatter='" + formatter_name +
+              "', output_bytes=" + std::to_string(formatted_content.size()) +
+              ", elapsed_ms=" + std::to_string(elapsed_ms.count()));
+    return formatted_content;
+}
+
+std::string LspFormatter::tryClangFormat(const std::string& file_path,
+                                         const std::string& original_content) {
+    if (!isToolAvailable("clang-format")) {
+        LOG_WARNING("[FormatFlow] tryClangFormat unavailable: clang-format not found");
+        return "";
+    }
+
+    std::string command = "clang-format \"" + file_path + "\"";
+    return runFormatterCommand(command, original_content, "clang-format", file_path);
+}
+
+std::string LspFormatter::tryBlackFormat(const std::string& file_path,
+                                         const std::string& original_content) {
+    if (!isToolAvailable("black")) {
+        LOG_WARNING("[FormatFlow] tryBlackFormat unavailable: black not found");
+        return "";
+    }
+
+    std::string command = "black --quiet - < \"" + file_path + "\"";
+    return runFormatterCommand(command, original_content, "black", file_path);
+}
+
+std::string LspFormatter::tryPrettierFormat(const std::string& file_path,
+                                            const std::string& original_content) {
+    if (!isToolAvailable("prettier")) {
+        LOG_WARNING("[FormatFlow] tryPrettierFormat unavailable: prettier not found");
+        return "";
+    }
+
+    std::string command = "prettier --stdin-filepath \"" + file_path + "\" < \"" + file_path + "\"";
+    return runFormatterCommand(command, original_content, "prettier", file_path);
+}
+
+std::string LspFormatter::tryGoFmt(const std::string& file_path,
+                                   const std::string& original_content) {
+    if (!isToolAvailable("gofmt")) {
+        LOG_WARNING("[FormatFlow] tryGoFmt unavailable: gofmt not found");
+        return "";
+    }
+
+    std::string command = "gofmt \"" + file_path + "\"";
+    return runFormatterCommand(command, original_content, "gofmt", file_path);
+}
+
+std::string LspFormatter::tryRustFmt(const std::string& file_path,
+                                     const std::string& original_content) {
+    if (!isToolAvailable("rustfmt")) {
+        LOG_WARNING("[FormatFlow] tryRustFmt unavailable: rustfmt not found");
+        return "";
+    }
+
+    std::string command = "rustfmt --emit stdout \"" + file_path + "\"";
+    return runFormatterCommand(command, original_content, "rustfmt", file_path);
+}
+
+std::string LspFormatter::tryShFmt(const std::string& file_path,
+                                   const std::string& original_content) {
+    if (!isToolAvailable("shfmt")) {
+        LOG_WARNING("[FormatFlow] tryShFmt unavailable: shfmt not found");
+        return "";
+    }
+
+    std::string command = "shfmt \"" + file_path + "\"";
+    return runFormatterCommand(command, original_content, "shfmt", file_path);
+}
+
+bool LspFormatter::isToolAvailable(const std::string& tool_name) {
+    const auto it = tool_availability_cache_.find(tool_name);
+    if (it != tool_availability_cache_.end()) {
+        LOG_DEBUG("[FormatFlow] tool cache hit: " + tool_name + "=" +
+                  (it->second ? std::string("true") : std::string("false")));
+        return it->second;
+    }
+
+    const std::string command = "which " + tool_name + " > /dev/null 2>&1";
+    const bool available = (system(command.c_str()) == 0);
+    tool_availability_cache_[tool_name] = available;
+
+    LOG_DEBUG("[FormatFlow] tool cache miss: " + tool_name + " -> " +
+              (available ? std::string("available") : std::string("missing")));
+    return available;
 }
 
 std::string LspFormatter::getFileDisplayName(const std::string& file_path) const {
