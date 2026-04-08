@@ -6,6 +6,7 @@
 #include "utils/file_type_color_mapper.h"
 #include <ftxui/dom/elements.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace pnana {
@@ -30,6 +31,12 @@ class FileBrowserView {
     Theme& theme_;
     utils::FileTypeColorMapper color_mapper_;
     size_t scroll_offset_; // 当前滚动偏移量（显示的第一个项目的索引）
+
+    // SSH 远程状态栏元数据缓存：path -> "size|perm"
+    mutable std::unordered_map<std::string, std::pair<std::string, std::string>> remote_stat_cache_;
+
+    std::pair<std::string, std::string> getRemoteSizeAndPermission(
+        const features::FileBrowser& browser, const features::FileItem& item) const;
 
     // UI 辅助方法
     std::string getFileIcon(const features::FileItem& item) const;

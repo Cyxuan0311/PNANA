@@ -95,6 +95,10 @@ class FilePicker {
     std::string remote_base_path_;                              // 当前远程路径
     std::unordered_map<std::string, bool> remote_is_dir_cache_; // 远程 item -> is_dir 缓存
 
+    // 记忆上次浏览路径（避免每次重新打开都回到初始路径）
+    std::string last_local_path_;
+    std::string last_remote_path_;
+
     // 辅助方法
     void loadDirectory();
     void navigateUp();
@@ -111,6 +115,7 @@ class FilePicker {
     void updatePathFromInput(); // 从路径输入更新当前路径
     std::string resolvePath(const std::string& input_path) const; // 解析路径（支持相对路径）
     void completePath();                                          // Tab 键路径补全
+    void rememberCurrentPath();                                   // 记忆当前浏览路径
 
     // 缓存管理
     FileItemMetadata getItemMetadata(const std::string& item_path, const std::string& item_name);

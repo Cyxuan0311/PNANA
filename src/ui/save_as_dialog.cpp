@@ -1,6 +1,62 @@
 #include "ui/save_as_dialog.h"
 #include "ui/icons.h"
+#include <filesystem>
 #include <ftxui/dom/elements.hpp>
+
+using namespace ftxui;
+
+// Helper: try complete path similar to editor logic
+static bool try_complete_path(const std::string& input, const std::string& base_dir,
+                              std::string& out) {
+    try {
+        size_t pos = input.find_last_of("/\\");
+        std::string base_dir_str = base_dir;
+        std::string prefix;
+        if (pos == std::string::npos) {
+            prefix = input;
+        } else {
+            std::string dir_part = input.substr(0, pos + 1);
+            prefix = input.substr(pos + 1);
+            std::filesystem::path p(dir_part);
+            if (p.is_absolute())
+                base_dir_str = p.string();
+            else
+                base_dir_str = (std::filesystem::path(base_dir) / p).string();
+        }
+
+        std::filesystem::path base(base_dir_str);
+        if (!std::filesystem::exists(base) || !std::filesystem::is_directory(base))
+            return false;
+
+        std::vector<std::string> matches;
+        for (auto& entry : std::filesystem::directory_iterator(base)) {
+            std::string name = entry.path().filename().string();
+            if (name.rfind(prefix, 0) == 0) {
+                if (entry.is_directory())
+                    name += '/';
+                matches.push_back(name);
+            }
+        }
+        if (matches.empty())
+            return false;
+
+        std::string common = matches[0];
+        for (size_t i = 1; i < matches.size(); ++i) {
+            size_t j = 0;
+            while (j < common.size() && j < matches[i].size() && common[j] == matches[i][j])
+                ++j;
+            common = common.substr(0, j);
+        }
+
+        if (pos == std::string::npos)
+            out = common;
+        else
+            out = input.substr(0, pos + 1) + common;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
 
 using namespace ftxui;
 
@@ -78,12 +134,91 @@ Element SaveAsDialog::render() {
               text("Esc") | color(colors.function) | bold, text(": Cancel")}) |
         dim);
 
+    // 补全提示
+    dialog_content.push_back(
+        hbox({text("  "), text("Tab") | color(colors.function) | bold, text(": Path completion")}) |
+        dim);
+
     // 根据是否为未命名文件调整对话框大小
     int dialog_height = is_untitled ? 13 : 12;
 
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 65) |
            size(HEIGHT, EQUAL, dialog_height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
+}
+
+bool SaveAsDialog::handleInput(ftxui::Event event) {
+    // Escape -> cancel
+    if (event == ftxui::Event::Escape) {
+        if (on_cancel_)
+            on_cancel_();
+        return true;
+    }
+
+    // Return -> confirm (resolve relative paths against current_directory_)
+    if (event == ftxui::Event::Return) {
+        std::string input = getInput();
+        if (input.empty())
+            return true;
+
+        // SSH path: pass through
+        if (input.rfind("ssh://", 0) == 0) {
+            if (on_confirm_)
+                on_confirm_(input);
+            return true;
+        }
+
+        std::filesystem::path path(input);
+        bool has_sep =
+            (input.find('/') != std::string::npos || input.find('\\') != std::string::npos);
+        if (has_sep && !path.is_absolute()) {
+            path = std::filesystem::path(current_directory_) / path;
+        } else if (!has_sep) {
+            path = std::filesystem::path(current_directory_) / input;
+        }
+
+        if (on_confirm_)
+            on_confirm_(path.string());
+        return true;
+    }
+
+    // Tab completion
+    if (event == ftxui::Event::Tab) {
+        std::string input = getInput();
+        if (input.rfind("ssh://", 0) == 0)
+            return true;
+        std::string out;
+        if (try_complete_path(input, current_directory_, out)) {
+            setInput(out);
+        }
+        return true;
+    }
+
+    // Backspace
+    if (event == ftxui::Event::Backspace) {
+        std::string input = getInput();
+        if (!input.empty()) {
+            input.pop_back();
+            setInput(input);
+        }
+        return true;
+    }
+
+    // Character input
+    if (event.is_character()) {
+        std::string ch = event.character();
+        if (ch.length() == 1) {
+            char c = ch[0];
+            if (c >= 32 && c < 127) {
+                std::string input = getInput();
+                input += c;
+                setInput(input);
+            }
+        }
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace ui

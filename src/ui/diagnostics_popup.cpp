@@ -312,8 +312,12 @@ bool DiagnosticsPopup::handleInput(Event event) {
     }
 
     // 处理 Ctrl+P (复制选中的诊断信息)
-    if (event == Event::Special({27, 80, 0}) ||                  // Ctrl+P
-        (event.is_character() && event.character() == "\x10")) { // Ctrl+P 的另一种表示
+    // 说明：不同终端下 Ctrl+P 可能表现为 character(0x10)、input()=="\x10" 或特殊序列
+    const bool is_ctrl_p_char = event.is_character() && event.character() == "\x10";
+    const bool is_ctrl_p_input = (event.input() == "\x10");
+    const bool is_ctrl_p_special = (event == Event::Special({27, 80, 0}));
+
+    if (is_ctrl_p_char || is_ctrl_p_input || is_ctrl_p_special) {
         // 这里我们需要一个回调来处理复制操作
         // 由于 DiagnosticsPopup 没有直接访问 Editor 的权限，我们通过回调处理
         if (copy_callback_) {

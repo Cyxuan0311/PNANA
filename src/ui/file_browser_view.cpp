@@ -9,6 +9,7 @@
 #include <cctype>
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
+#include <sstream>
 
 using namespace ftxui;
 
@@ -225,18 +226,23 @@ Element FileBrowserView::renderFileInfoBar(const features::FileBrowser& browser)
                bgcolor(colors.selection);
     }
 
-    // 使用工具类获取文件大小和权限
-    auto size_info = utils::getFileSize(item->path);
-    auto perm_info = utils::getFilePermission(item->path);
+    std::string size_text = "Unknown";
+    std::string perm_text = "---------";
 
-    // 构建状态栏元素 - 使用下划线和粗体效果，不同部分使用不同颜色
-    Elements elements = {text(" "),
-                         text(size_info.formatted_size) | color(colors.keyword) | bold | underlined,
-                         text("  "),
-                         text(perm_info.type) | color(colors.foreground) | bold | underlined,
-                         text(perm_info.owner) | color(colors.function) | bold | underlined,
-                         text(perm_info.group) | color(colors.keyword) | bold | underlined,
-                         text(perm_info.others) | color(colors.comment) | bold | underlined,
+    if (browser.isRemoteMode()) {
+        auto remote_info = getRemoteSizeAndPermission(browser, *item);
+        size_text = remote_info.first;
+        perm_text = remote_info.second;
+    } else {
+        auto size_info = utils::getFileSize(item->path);
+        auto perm_info = utils::getFilePermission(item->path);
+        size_text = size_info.formatted_size;
+        perm_text = perm_info.full_string;
+    }
+
+    // 构建状态栏元素 - SSH 和本地统一展示完整权限字符串
+    Elements elements = {text(" "), text(size_text) | color(colors.keyword) | bold | underlined,
+                         text("  "), text(perm_text) | color(colors.foreground) | bold | underlined,
                          filler()};
 
     return hbox(elements) | bgcolor(colors.background);
@@ -379,6 +385,25 @@ std::string FileBrowserView::truncateMiddle(const std::string& str, size_t max_l
     size_t right_len = max_length - 3 - left_len;
 
     return str.substr(0, left_len) + "..." + str.substr(str.length() - right_len);
+}
+
+std::pair<std::string, std::string> FileBrowserView::getRemoteSizeAndPermission(
+    const features::FileBrowser& browser, const features::FileItem& item) const {
+    auto cache_it = remote_stat_cache_.find(item.path);
+    if (cache_it != remote_stat_cache_.end()) {
+        return cache_it->second;
+    }
+
+    std::string size_display = item.is_directory ? "Folder" : "Unknown";
+    std::string perm_display = item.is_directory ? "drwxr-xr-x" : "---------";
+
+    if (browser.getRemoteFileStat(item.path, size_display, perm_display)) {
+        remote_stat_cache_[item.path] = {size_display, perm_display};
+        return {size_display, perm_display};
+    }
+
+    remote_stat_cache_[item.path] = {size_display, perm_display};
+    return {size_display, perm_display};
 }
 
 } // namespace ui

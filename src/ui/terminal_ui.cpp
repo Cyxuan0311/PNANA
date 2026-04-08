@@ -57,9 +57,8 @@ Element renderTerminal(features::Terminal& terminal, int height,
 #ifdef BUILD_LIBVTERM_SUPPORT
     if (terminal.useLibVTermPath()) {
         auto snap = terminal.getSessionSnapshot(terminal_height);
-        auto elem = features::terminal::renderScreenSnapshot(snap, terminal_height,
-                                                             colors.foreground, colors.background);
-        return elem;
+        return features::terminal::renderScreenSnapshot(snap, terminal_height, colors.foreground,
+                                                        colors.background);
     }
 #endif
 
@@ -129,8 +128,9 @@ Element renderTerminal(features::Terminal& terminal, int height,
         }
     }
 
-    return vbox(output_lines) | flex | size(HEIGHT, EQUAL, terminal_height) |
-           bgcolor(colors.background);
+    auto out = vbox(output_lines) | flex | size(HEIGHT, EQUAL, terminal_height) |
+               bgcolor(colors.background);
+    return out;
 }
 
 #ifdef BUILD_LIBVTERM_SUPPORT

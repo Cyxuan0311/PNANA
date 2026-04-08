@@ -26,6 +26,10 @@ LogoMenu::LogoMenu(Theme& theme) : theme_(theme), selected_index_(0), search_cur
 
 void LogoMenu::setCurrentStyle(const std::string& style_id) {
     current_style_id_ = style_id;
+
+    // 每次打开菜单都刷新，确保自定义 logo 可见
+    styles_ = features::LogoManager::getAvailableStyles();
+
     size_t style_index = 0;
     for (size_t i = 0; i < styles_.size(); ++i) {
         if (styles_[i].id == style_id) {

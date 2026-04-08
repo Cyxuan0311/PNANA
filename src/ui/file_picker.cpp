@@ -33,7 +33,8 @@ FilePicker::FilePicker(Theme& theme)
     : theme_(theme), visible_(false), picker_type_(FilePickerType::BOTH), selected_index_(0),
       show_filter_(false), focus_in_search_(false), show_path_input_(false),
       type_filter_active_(false), current_type_filter_(FilePickerType::BOTH), icon_mapper_(),
-      color_mapper_(theme), cached_path_(""), remote_base_path_("") {}
+      color_mapper_(theme), cached_path_(""), remote_base_path_(""), last_local_path_(""),
+      last_remote_path_("") {}
 
 void FilePicker::setRemoteLoader(RemoteListDir fn, const std::string& initial_path) {
     remote_list_dir_ = std::move(fn);
@@ -53,16 +54,20 @@ void FilePicker::show(const std::string& start_path, FilePickerType type,
     picker_type_ = type;
 
     if (remote_list_dir_) {
-        // 远程模式：若调用方传入有效路径（以 / 开头）则与文件列表一致，否则用预设的
-        // remote_base_path_
-        current_path_ = (!start_path.empty() && start_path[0] == '/')
-                            ? start_path
-                            : (remote_base_path_.empty() ? "/" : remote_base_path_);
+        // 远程模式优先级：显式 start_path > 上次浏览路径 > remote_base_path_ > /
+        if (!start_path.empty() && start_path[0] == '/') {
+            current_path_ = start_path;
+        } else if (!last_remote_path_.empty()) {
+            current_path_ = last_remote_path_;
+        } else {
+            current_path_ = remote_base_path_.empty() ? "/" : remote_base_path_;
+        }
     } else {
-        current_path_ = start_path;
+        // 本地模式优先级：上次浏览路径 > 调用方 start_path > 当前工作目录
+        std::string target_path = !last_local_path_.empty() ? last_local_path_ : start_path;
         try {
-            if (fs::exists(current_path_) && fs::is_directory(current_path_)) {
-                current_path_ = fs::canonical(current_path_).string();
+            if (!target_path.empty() && fs::exists(target_path) && fs::is_directory(target_path)) {
+                current_path_ = fs::canonical(target_path).string();
             } else {
                 current_path_ = fs::current_path().string();
             }
@@ -368,6 +373,7 @@ Element FilePicker::render() {
 }
 
 void FilePicker::reset() {
+    rememberCurrentPath();
     visible_ = false;
     items_.clear();
     selected_index_ = 0;
@@ -599,6 +605,7 @@ void FilePicker::selectItem() {
         if (picker_type_ == FilePickerType::FOLDER) {
             if (on_select_)
                 on_select_(selected);
+            rememberCurrentPath();
             visible_ = false;
             return;
         }
@@ -610,6 +617,7 @@ void FilePicker::selectItem() {
 
     if (on_select_)
         on_select_(selected);
+    rememberCurrentPath();
     visible_ = false;
 }
 
@@ -617,7 +625,19 @@ void FilePicker::cancel() {
     if (on_cancel_) {
         on_cancel_();
     }
+    rememberCurrentPath();
     visible_ = false;
+}
+
+void FilePicker::rememberCurrentPath() {
+    if (current_path_.empty())
+        return;
+
+    if (remote_list_dir_) {
+        last_remote_path_ = current_path_;
+    } else {
+        last_local_path_ = current_path_;
+    }
 }
 
 bool FilePicker::isDirectory(const std::string& path) const {
