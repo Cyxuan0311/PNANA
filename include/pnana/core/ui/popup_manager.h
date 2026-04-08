@@ -57,6 +57,11 @@ struct PopupSpec {
 
     // 标题装饰器配置
     WidgetSpec::TitleDecorators window_title_decorators;
+
+    // 样式 token（支持 Lua 侧 set_style 动态覆盖）
+    // 例如：popup.fg, popup.bg, popup.border, popup.selection_bg, popup.help_fg,
+    //      title.color, title.bold, title.inverted, title.dim, title.underlined
+    std::map<std::string, std::string> style_tokens;
 };
 
 class PopupManager {

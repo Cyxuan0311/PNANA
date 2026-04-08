@@ -380,6 +380,11 @@ bool PopupManager::updatePopup(PopupHandle handle, const PopupSpec& patch) {
         }
     }
 
+    // 样式 token 增量覆盖
+    for (const auto& [k, v] : patch.style_tokens) {
+        it->second.spec.style_tokens[k] = v;
+    }
+
     rebuildFocusChain(it->second);
     return true;
 }
@@ -944,6 +949,27 @@ Element PopupManager::renderPopupLayer(const PopupState& state, int screen_w, in
             help_fg = c.helpbar_fg;
         }
 
+        auto get_style = [&](const std::string& key) -> std::string {
+            auto it = state.spec.style_tokens.find(key);
+            return it == state.spec.style_tokens.end() ? std::string("") : it->second;
+        };
+
+        if (!get_style("popup.fg").empty()) {
+            fg = parseColor(get_style("popup.fg"));
+        }
+        if (!get_style("popup.bg").empty()) {
+            bg = parseColor(get_style("popup.bg"));
+        }
+        if (!get_style("popup.border").empty()) {
+            border_color = parseColor(get_style("popup.border"));
+        }
+        if (!get_style("popup.selection_bg").empty()) {
+            selection_bg = parseColor(get_style("popup.selection_bg"));
+        }
+        if (!get_style("popup.help_fg").empty()) {
+            help_fg = parseColor(get_style("popup.help_fg"));
+        }
+
         Elements left_rows;
         for (size_t i = 0; i < state.spec.component_left_lines.size(); i++) {
             const auto& line = state.spec.component_left_lines[i];
@@ -1066,38 +1092,50 @@ Element PopupManager::renderPopupLayer(const PopupState& state, int screen_w, in
                 size(HEIGHT, EQUAL, help_h));
         }
 
-        // 渲染标题（支持装饰器配置）
+        // 渲染标题（支持装饰器 + style token）
         Element title_elem = text(" " + state.spec.title + " ");
-        if (state.spec.window_title_decorators.bold) {
+
+        bool title_bold = state.spec.window_title_decorators.bold;
+        bool title_inverted = state.spec.window_title_decorators.inverted;
+        bool title_dim = state.spec.window_title_decorators.dim;
+        bool title_underlined = state.spec.window_title_decorators.underlined;
+        std::string title_color = state.spec.window_title_decorators.color;
+
+        auto bool_style_true = [&](const std::string& key) {
+            auto it = state.spec.style_tokens.find(key);
+            return it != state.spec.style_tokens.end() &&
+                   (it->second == "true" || it->second == "1" || it->second == "yes");
+        };
+        auto style_value = [&](const std::string& key) -> std::string {
+            auto it = state.spec.style_tokens.find(key);
+            return it == state.spec.style_tokens.end() ? std::string("") : it->second;
+        };
+
+        if (bool_style_true("title.bold"))
+            title_bold = true;
+        if (bool_style_true("title.inverted"))
+            title_inverted = true;
+        if (bool_style_true("title.dim"))
+            title_dim = true;
+        if (bool_style_true("title.underlined"))
+            title_underlined = true;
+        if (!style_value("title.color").empty())
+            title_color = style_value("title.color");
+
+        if (title_bold) {
             title_elem = title_elem | bold;
         }
-        if (state.spec.window_title_decorators.inverted) {
+        if (title_inverted) {
             title_elem = title_elem | inverted;
         }
-        if (state.spec.window_title_decorators.dim) {
+        if (title_dim) {
             title_elem = title_elem | dim;
         }
-        if (state.spec.window_title_decorators.underlined) {
+        if (title_underlined) {
             title_elem = title_elem | underlined;
         }
-        if (!state.spec.window_title_decorators.color.empty()) {
-            const std::string& color_name = state.spec.window_title_decorators.color;
-            if (color_name == "black")
-                title_elem = title_elem | color(Color::Black);
-            else if (color_name == "red")
-                title_elem = title_elem | color(Color::Red);
-            else if (color_name == "green")
-                title_elem = title_elem | color(Color::Green);
-            else if (color_name == "yellow")
-                title_elem = title_elem | color(Color::Yellow);
-            else if (color_name == "blue")
-                title_elem = title_elem | color(Color::Blue);
-            else if (color_name == "magenta")
-                title_elem = title_elem | color(Color::Magenta);
-            else if (color_name == "cyan")
-                title_elem = title_elem | color(Color::Cyan);
-            else if (color_name == "white")
-                title_elem = title_elem | color(Color::White);
+        if (!title_color.empty()) {
+            title_elem = title_elem | color(parseColor(title_color));
         }
         return window(title_elem, vbox(std::move(layout_rows)) | bgcolor(bg) | yframe) |
                size(WIDTH, EQUAL, rect.width) | size(HEIGHT, EQUAL, rect.height) |
@@ -1134,6 +1172,10 @@ bool PopupManager::handleInput(Event event) {
             event_name = "arrow_up";
         } else if (event == Event::ArrowDown) {
             event_name = "arrow_down";
+        } else if (event == Event::ArrowLeft) {
+            event_name = "arrow_left";
+        } else if (event == Event::ArrowRight) {
+            event_name = "arrow_right";
         } else if (event == Event::PageUp) {
             event_name = "pageup";
         } else if (event == Event::PageDown) {
