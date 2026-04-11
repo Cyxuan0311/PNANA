@@ -106,6 +106,12 @@ class Theme {
     static ThemeColors Palenight();               // Material Palenight
     static ThemeColors OceanicNext();             // Oceanic Next
     static ThemeColors Kanagawa();                // Kanagawa
+    static ThemeColors KanagawaLight();           // Kanagawa Light - 明亮浅色版本
+    static ThemeColors KanagawaSakura();          // Kanagawa Sakura - 樱花粉色版本
+    static ThemeColors KanagawaMidnight();        // Kanagawa Midnight - 深蓝午夜版本
+    static ThemeColors KanagawaFuji();            // Kanagawa Fuji - 富士山冷色调版本
+    static ThemeColors KanagawaWave();            // Kanagawa Wave - 波浪蓝绿版本
+    static ThemeColors KanagawaOni();             // Kanagawa Oni - 鬼深紫版本
     static ThemeColors TomorrowNight();           // Tomorrow Night
     static ThemeColors TomorrowNightBlue();       // Tomorrow Night Blue
     static ThemeColors Cobalt();                  // Cobalt

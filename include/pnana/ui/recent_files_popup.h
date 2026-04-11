@@ -3,6 +3,7 @@
 
 #include "features/recent_files_manager.h"
 #include "ui/theme.h"
+#include "ui/toast.h"
 #include "utils/file_type_icon_mapper.h"
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -48,6 +49,11 @@ class RecentFilesPopup {
     // 设置文件夹打开回调
     void setFolderOpenCallback(std::function<void(const std::string&)> callback);
 
+    // 设置 Toast 实例指针
+    void setToast(Toast* toast) {
+        toast_ = toast;
+    }
+
   private:
     // Tab 类型枚举
     enum class TabType { FILES, FOLDERS };
@@ -64,6 +70,9 @@ class RecentFilesPopup {
 
     // 文件夹打开回调
     std::function<void(const std::string&)> folder_open_callback_;
+
+    // Toast 实例指针
+    Toast* toast_ = nullptr;
 
     // 渲染各个组件
     ftxui::Element renderTitle() const;

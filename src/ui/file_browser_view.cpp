@@ -17,7 +17,7 @@ namespace pnana {
 namespace ui {
 
 FileBrowserView::FileBrowserView(Theme& theme)
-    : theme_(theme), color_mapper_(theme), scroll_offset_(0) {}
+    : theme_(theme), color_mapper_(theme), scroll_offset_(0), show_tree_style_(true) {}
 
 // 滚动控制方法
 void FileBrowserView::scrollTo(size_t index) {
@@ -44,6 +44,11 @@ void FileBrowserView::scrollToBottom() {
     // 这个方法需要在渲染时根据实际项目数量来设置
     // 这里先设置一个大的值，在渲染时会调整
     scroll_offset_ = SIZE_MAX / 2; // 很大的值
+}
+
+// 配置设置方法
+void FileBrowserView::setShowTreeStyle(bool show) {
+    show_tree_style_ = show;
 }
 
 Element FileBrowserView::render(const features::FileBrowser& browser, int height) {
@@ -261,17 +266,29 @@ Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t i
     }
     Color item_color = color_mapper_.getFileColor(item->name, item->is_directory);
 
-    // 构建树形结构连接线
-    std::string tree_prefix = buildTreePrefix(item, index, flat_items);
-
-    // 展开/折叠图标和连接线
-    std::string expand_prefix = buildExpandPrefix(item, index, flat_items);
+    // 构建前缀（根据配置决定是否显示树形样式）
+    std::string tree_prefix = "";
+    std::string expand_prefix = "";
     std::string expand_icon = "";
 
-    if (item->is_directory) {
-        expand_icon = item->expanded ? "▼" : "▶";
+    if (show_tree_style_) {
+        // 完整树形模式
+        tree_prefix = buildTreePrefix(item, index, flat_items);
+        expand_prefix = buildExpandPrefix(item, index, flat_items);
+        if (item->is_directory) {
+            expand_icon = item->expanded ? "▼" : "▶";
+        } else {
+            expand_icon = " ";
+        }
     } else {
-        expand_icon = " ";
+        // 简洁模式：只保留必要的缩进，但保留展开图标（使用更简洁的符号）
+        tree_prefix = buildSpacePrefix(item);
+        if (item->is_directory) {
+            // 简洁模式使用 > 和 v 表示展开/折叠
+            expand_icon = item->expanded ? "v " : "> ";
+        } else {
+            expand_icon = "";
+        }
     }
 
     std::string display_name = item->name;
@@ -281,15 +298,25 @@ Element FileBrowserView::renderFileItem(const features::FileItem* item, size_t i
     bool is_multi_selected = browser.isSelected(index) && index != selected_index;
 
     // 构建行元素
-    Elements row_elements = {text(" "),
-                             text(tree_prefix) | color(colors.comment),
-                             text(expand_prefix) | color(colors.comment),
-                             text(expand_icon) | color(item_color),
-                             text(" "),
-                             text(selection_marker) | color(colors.keyword),
-                             text(icon) | color(item_color),
-                             text(" "),
-                             text(display_name) | color(item_color)};
+    Elements row_elements = {text(" ")}; // 起始空格
+
+    // 根据是否显示树形样式调整布局
+    if (show_tree_style_) {
+        // 完整树形模式：保留所有元素
+        row_elements.insert(row_elements.end(), {text(tree_prefix) | color(colors.comment),
+                                                 text(expand_prefix) | color(colors.comment),
+                                                 text(expand_icon) | color(item_color), text(" ")});
+    } else {
+        // 简洁模式：缩进空格 + 展开图标（如果有）
+        row_elements.push_back(text(tree_prefix));
+        if (!expand_icon.empty()) {
+            row_elements.push_back(text(expand_icon) | color(item_color));
+        }
+    }
+
+    row_elements.insert(row_elements.end(), {text(selection_marker) | color(colors.keyword),
+                                             text(icon) | color(item_color), text(" "),
+                                             text(display_name) | color(item_color)});
 
     auto item_text = hbox(row_elements);
 
@@ -351,6 +378,16 @@ std::string FileBrowserView::buildExpandPrefix(
     }
 
     return has_sibling ? "├─" : "└─";
+}
+
+std::string FileBrowserView::buildSpacePrefix(const features::FileItem* item) const {
+    // 使用空格代替树形连接线，保持缩进结构
+    std::string prefix = "";
+    // 每个深度级别使用 2 个空格（简洁模式下更清晰的层级）
+    for (int d = 0; d < item->depth; ++d) {
+        prefix += "  ";
+    }
+    return prefix;
 }
 
 std::string FileBrowserView::getFileIcon(const features::FileItem& item) const {

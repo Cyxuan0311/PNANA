@@ -1,5 +1,6 @@
 #include "ui/plugin_manager_dialog.h"
 #include "ui/icons.h"
+#include "ui/toast.h"
 #include "utils/logger.h"
 #include <algorithm>
 
@@ -200,15 +201,27 @@ void PluginManagerDialog::togglePlugin(size_t index) {
         return;
 
     const auto& plugin = plugins_[index];
+    std::string plugin_name = plugin.name;
+    if (!plugin.version.empty()) {
+        plugin_name += " v" + plugin.version;
+    }
 
     if (plugin.loaded) {
         // 禁用插件
         if (plugin_manager_->disablePlugin(plugin.name)) {
+            // 显示 Toast 提示
+            if (toast_) {
+                toast_->showInfo("Disabled plugin: " + plugin_name, 1500);
+            }
             refreshPlugins();
         }
     } else {
         // 启用插件
         if (plugin_manager_->enablePlugin(plugin.name)) {
+            // 显示 Toast 提示
+            if (toast_) {
+                toast_->showSuccess("Enabled plugin: " + plugin_name, 1500);
+            }
             refreshPlugins();
         }
     }

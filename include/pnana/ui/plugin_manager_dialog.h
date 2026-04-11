@@ -3,6 +3,7 @@
 
 #include "plugins/plugin_manager.h"
 #include "ui/theme.h"
+#include "ui/toast.h"
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <string>
@@ -39,6 +40,11 @@ class PluginManagerDialog {
     // 设置插件管理器（用于延迟初始化）
     void setPluginManager(plugins::PluginManager* plugin_manager);
 
+    // 设置 Toast 实例指针
+    void setToast(Toast* toast) {
+        toast_ = toast;
+    }
+
   private:
     Theme& theme_;
     plugins::PluginManager* plugin_manager_;
@@ -46,6 +52,9 @@ class PluginManagerDialog {
 
     std::vector<plugins::PluginInfo> plugins_;
     size_t selected_index_;
+
+    // Toast 实例指针
+    Toast* toast_ = nullptr;
 
     // 渲染插件列表
     ftxui::Element renderPluginList();

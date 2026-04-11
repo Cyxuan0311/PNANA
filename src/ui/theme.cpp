@@ -2015,6 +2015,264 @@ ThemeColors Theme::Kanagawa() {
     return colors;
 }
 
+ThemeColors Theme::KanagawaLight() {
+    ThemeColors colors;
+    // Kanagawa Light: 明亮版本，柔和的浅色背景
+    colors.background = Color::RGB(243, 244, 231);   // #F3F4E7 springWhite
+    colors.foreground = Color::RGB(72, 71, 61);      // #48473D sumiInk1
+    colors.current_line = Color::RGB(220, 222, 212); // #DCDED4 waveGray1
+    colors.selection = Color::RGB(209, 213, 201);    // #D1D5C9 waveGray2
+    colors.line_number = Color::RGB(163, 162, 152);  // #A3A298 fujiGrayLight
+    colors.line_number_current = Color::RGB(72, 71, 61);
+
+    colors.statusbar_bg = Color::RGB(220, 222, 212);
+    colors.statusbar_fg = Color::RGB(72, 71, 61);
+
+    colors.menubar_bg = Color::RGB(243, 244, 231);
+    colors.menubar_fg = Color::RGB(72, 71, 61);
+
+    colors.helpbar_bg = Color::RGB(220, 222, 212);
+    colors.helpbar_fg = Color::RGB(114, 113, 105);
+    colors.helpbar_key = Color::RGB(67, 128, 174); // #4380AE waveBlue
+
+    // Kanagawa Light 语法：深紫关键词/春绿字符串/蓝函数/橙黄数字
+    colors.keyword = Color::RGB(92, 70, 140);        // #5C468C oniVioletDark
+    colors.string = Color::RGB(78, 120, 57);         // #4E7839 springGreenDark
+    colors.comment = Color::RGB(114, 113, 105);      // #727169 fujiGray
+    colors.number = Color::RGB(179, 121, 43);        // #B3792B autumnYellowDark
+    colors.function = Color::RGB(57, 95, 156);       // #395F9C crystalBlueDark
+    colors.type = Color::RGB(67, 128, 174);          // #4380AE springBlue
+    colors.operator_color = Color::RGB(57, 103, 91); // #39675B waveAquaDark
+
+    colors.error = Color::RGB(192, 32, 32);    // #C02020 samuraiRedDark
+    colors.warning = Color::RGB(204, 120, 10); // #CC780A roninYellowDark
+    colors.info = Color::RGB(57, 95, 156);     // #395F9C crystalBlueDark
+    colors.success = Color::RGB(78, 120, 57);  // #4E7839 springGreenDark
+
+    colors.dialog_bg = Color::RGB(220, 222, 212);
+    colors.dialog_fg = Color::RGB(72, 71, 61);
+    colors.dialog_title_bg = Color::RGB(209, 213, 201);
+    colors.dialog_title_fg = Color::RGB(72, 71, 61);
+    colors.dialog_border = Color::RGB(163, 162, 152);
+
+    return colors;
+}
+
+ThemeColors Theme::KanagawaSakura() {
+    ThemeColors colors;
+    // Kanagawa Sakura: 樱花主题，粉色系变体
+    colors.background = Color::RGB(29, 29, 37);     // #1D1D25 sakuraInk
+    colors.foreground = Color::RGB(225, 220, 191);  // #E1DCBF sakuraWhite
+    colors.current_line = Color::RGB(45, 40, 55);   // #2D2837 sakuraPurple1
+    colors.selection = Color::RGB(60, 50, 70);      // #3C3246 sakuraPurple2
+    colors.line_number = Color::RGB(120, 115, 110); // #78736E sakuraGray
+    colors.line_number_current = Color::RGB(240, 180, 200);
+
+    colors.statusbar_bg = Color::RGB(36, 36, 46);
+    colors.statusbar_fg = Color::RGB(225, 220, 191);
+
+    colors.menubar_bg = Color::RGB(29, 29, 37);
+    colors.menubar_fg = Color::RGB(225, 220, 191);
+
+    colors.helpbar_bg = Color::RGB(36, 36, 46);
+    colors.helpbar_fg = Color::RGB(120, 115, 110);
+    colors.helpbar_key = Color::RGB(240, 180, 200); // #F0B4C8 sakuraPink
+
+    // Sakura 语法：粉紫关键词/嫩绿字符串/淡蓝函数/橙黄数字
+    colors.keyword = Color::RGB(180, 140, 200);        // #B48CC8 sakuraViolet
+    colors.string = Color::RGB(160, 200, 120);         // #A0C878 sakuraGreen
+    colors.comment = Color::RGB(120, 115, 110);        // #78736E sakuraGray
+    colors.number = Color::RGB(240, 180, 100);         // #F0B464 sakuraOrange
+    colors.function = Color::RGB(140, 180, 220);       // #8CB4DC sakuraBlue
+    colors.type = Color::RGB(240, 180, 200);           // #F0B4C8 sakuraPink
+    colors.operator_color = Color::RGB(130, 180, 170); // #82B4AA sakuraAqua
+
+    colors.error = Color::RGB(240, 100, 120);   // #F06478 sakuraRed
+    colors.warning = Color::RGB(255, 170, 80);  // #FFAA50 sakuraAmber
+    colors.info = Color::RGB(140, 180, 220);    // #8CB4DC sakuraBlue
+    colors.success = Color::RGB(130, 180, 140); // #82B48C sakuraMint
+
+    colors.dialog_bg = Color::RGB(45, 40, 55);
+    colors.dialog_fg = Color::RGB(225, 220, 191);
+    colors.dialog_title_bg = Color::RGB(60, 50, 70);
+    colors.dialog_title_fg = Color::RGB(225, 220, 191);
+    colors.dialog_border = Color::RGB(120, 115, 110);
+
+    return colors;
+}
+
+ThemeColors Theme::KanagawaMidnight() {
+    ThemeColors colors;
+    // Kanagawa Midnight: 深蓝午夜版本
+    colors.background = Color::RGB(15, 15, 25);    // #0F0F19 midnightInk
+    colors.foreground = Color::RGB(215, 210, 181); // #D7D2B5 midnightWhite
+    colors.current_line = Color::RGB(25, 30, 50);  // #191E32 midnightBlue1
+    colors.selection = Color::RGB(35, 45, 70);     // #232D46 midnightBlue2
+    colors.line_number = Color::RGB(95, 95, 105);  // #5F5F69 midnightGray
+    colors.line_number_current = Color::RGB(120, 160, 200);
+
+    colors.statusbar_bg = Color::RGB(20, 25, 40);
+    colors.statusbar_fg = Color::RGB(215, 210, 181);
+
+    colors.menubar_bg = Color::RGB(15, 15, 25);
+    colors.menubar_fg = Color::RGB(215, 210, 181);
+
+    colors.helpbar_bg = Color::RGB(20, 25, 40);
+    colors.helpbar_fg = Color::RGB(95, 95, 105);
+    colors.helpbar_key = Color::RGB(100, 150, 200); // #6496C8 midnightAzure
+
+    // Midnight 语法：蓝紫关键词/青绿字符串/亮蓝函数/金黄数字
+    colors.keyword = Color::RGB(130, 110, 180);        // #826EB4 midnightViolet
+    colors.string = Color::RGB(130, 170, 100);         // #82AA64 midnightGreen
+    colors.comment = Color::RGB(95, 95, 105);          // #5F5F69 midnightGray
+    colors.number = Color::RGB(220, 160, 80);          // #DCA050 midnightGold
+    colors.function = Color::RGB(100, 140, 200);       // #648CC8 midnightBlue
+    colors.type = Color::RGB(120, 160, 200);           // #78A0C8 midnightSky
+    colors.operator_color = Color::RGB(100, 150, 140); // #64968C midnightTeal
+
+    colors.error = Color::RGB(220, 60, 60);     // #DC3C3C midnightRed
+    colors.warning = Color::RGB(240, 140, 60);  // #F08C3C midnightOrange
+    colors.info = Color::RGB(100, 140, 200);    // #648CC8 midnightBlue
+    colors.success = Color::RGB(110, 150, 100); // #6E9664 midnightOlive
+
+    colors.dialog_bg = Color::RGB(25, 30, 50);
+    colors.dialog_fg = Color::RGB(215, 210, 181);
+    colors.dialog_title_bg = Color::RGB(35, 45, 70);
+    colors.dialog_title_fg = Color::RGB(215, 210, 181);
+    colors.dialog_border = Color::RGB(95, 95, 105);
+
+    return colors;
+}
+
+ThemeColors Theme::KanagawaFuji() {
+    ThemeColors colors;
+    // Kanagawa Fuji: 富士山主题，冷色调
+    colors.background = Color::RGB(20, 22, 30);     // #14161E fujiInk
+    colors.foreground = Color::RGB(218, 213, 184);  // #DAD5B8 fujiWhite
+    colors.current_line = Color::RGB(30, 38, 55);   // #1E2637 fujiBlue1
+    colors.selection = Color::RGB(40, 55, 75);      // #28374B fujiBlue2
+    colors.line_number = Color::RGB(105, 110, 115); // #696E73 fujiMist
+    colors.line_number_current = Color::RGB(180, 200, 220);
+
+    colors.statusbar_bg = Color::RGB(28, 33, 45);
+    colors.statusbar_fg = Color::RGB(218, 213, 184);
+
+    colors.menubar_bg = Color::RGB(20, 22, 30);
+    colors.menubar_fg = Color::RGB(218, 213, 184);
+
+    colors.helpbar_bg = Color::RGB(28, 33, 45);
+    colors.helpbar_fg = Color::RGB(105, 110, 115);
+    colors.helpbar_key = Color::RGB(140, 180, 210); // #8CB4D2 fujiIce
+
+    // Fuji 语法：冰紫关键词/雪青字符串/霜蓝函数/冰黄数字
+    colors.keyword = Color::RGB(140, 130, 185);        // #8C82B9 fujiLavender
+    colors.string = Color::RGB(145, 185, 165);         // #91B9A5 fujiMint
+    colors.comment = Color::RGB(105, 110, 115);        // #696E73 fujiMist
+    colors.number = Color::RGB(210, 170, 120);         // #D2AA78 fujiSand
+    colors.function = Color::RGB(120, 160, 200);       // #78A0C8 fujiFrost
+    colors.type = Color::RGB(140, 180, 210);           // #8CB4D2 fujiIce
+    colors.operator_color = Color::RGB(115, 165, 155); // #73A59B fujiSpring
+
+    colors.error = Color::RGB(210, 80, 90);     // #D2505A fujiCrimson
+    colors.warning = Color::RGB(235, 150, 70);  // #EB9646 fujiAmber
+    colors.info = Color::RGB(120, 160, 200);    // #78A0C8 fujiFrost
+    colors.success = Color::RGB(125, 170, 145); // #7DAA91 fujiJade
+
+    colors.dialog_bg = Color::RGB(30, 38, 55);
+    colors.dialog_fg = Color::RGB(218, 213, 184);
+    colors.dialog_title_bg = Color::RGB(40, 55, 75);
+    colors.dialog_title_fg = Color::RGB(218, 213, 184);
+    colors.dialog_border = Color::RGB(105, 110, 115);
+
+    return colors;
+}
+
+ThemeColors Theme::KanagawaWave() {
+    ThemeColors colors;
+    // Kanagawa Wave: 波浪主题，强调蓝绿色调
+    colors.background = Color::RGB(18, 26, 32);     // #121A20 waveInk
+    colors.foreground = Color::RGB(216, 217, 188);  // #D8D9BC waveWhite
+    colors.current_line = Color::RGB(28, 42, 55);   // #1C2A37 waveBlue1
+    colors.selection = Color::RGB(38, 58, 72);      // #263A48 waveBlue2
+    colors.line_number = Color::RGB(100, 115, 120); // #647378 waveGray
+    colors.line_number_current = Color::RGB(130, 185, 205);
+
+    colors.statusbar_bg = Color::RGB(25, 38, 48);
+    colors.statusbar_fg = Color::RGB(216, 217, 188);
+
+    colors.menubar_bg = Color::RGB(18, 26, 32);
+    colors.menubar_fg = Color::RGB(216, 217, 188);
+
+    colors.helpbar_bg = Color::RGB(25, 38, 48);
+    colors.helpbar_fg = Color::RGB(100, 115, 120);
+    colors.helpbar_key = Color::RGB(130, 185, 205); // #82B9CD waveCyan
+
+    // Wave 语法：海紫关键词/海藻绿字符串/海浪蓝函数/贝壳黄数字
+    colors.keyword = Color::RGB(135, 125, 180);        // #877DB4 wavePurple
+    colors.string = Color::RGB(140, 180, 150);         // #8CB496 waveSeaGreen
+    colors.comment = Color::RGB(100, 115, 120);        // #647378 waveGray
+    colors.number = Color::RGB(215, 165, 100);         // #D7A564 waveShell
+    colors.function = Color::RGB(110, 155, 195);       // #6E9BC3 waveSurf
+    colors.type = Color::RGB(130, 185, 205);           // #82B9CD waveCyan
+    colors.operator_color = Color::RGB(110, 165, 155); // #6EA59B waveAqua
+
+    colors.error = Color::RGB(215, 70, 80);     // #D74650 waveCoral
+    colors.warning = Color::RGB(235, 145, 65);  // #EB9141 waveAmber
+    colors.info = Color::RGB(110, 155, 195);    // #6E9BC3 waveSurf
+    colors.success = Color::RGB(120, 165, 135); // #78A587 waveKelp
+
+    colors.dialog_bg = Color::RGB(28, 42, 55);
+    colors.dialog_fg = Color::RGB(216, 217, 188);
+    colors.dialog_title_bg = Color::RGB(38, 58, 72);
+    colors.dialog_title_fg = Color::RGB(216, 217, 188);
+    colors.dialog_border = Color::RGB(100, 115, 120);
+
+    return colors;
+}
+
+ThemeColors Theme::KanagawaOni() {
+    ThemeColors colors;
+    // Kanagawa Oni: 鬼主题，深紫色调，更加激进
+    colors.background = Color::RGB(22, 20, 30);     // #16141E oniInk
+    colors.foreground = Color::RGB(222, 217, 188);  // #DED9BC oniWhite
+    colors.current_line = Color::RGB(38, 32, 52);   // #262034 oniPurple1
+    colors.selection = Color::RGB(52, 42, 68);      // #342A44 oniPurple2
+    colors.line_number = Color::RGB(110, 105, 115); // #6E6973 oniGray
+    colors.line_number_current = Color::RGB(180, 140, 200);
+
+    colors.statusbar_bg = Color::RGB(32, 28, 45);
+    colors.statusbar_fg = Color::RGB(222, 217, 188);
+
+    colors.menubar_bg = Color::RGB(22, 20, 30);
+    colors.menubar_fg = Color::RGB(222, 217, 188);
+
+    colors.helpbar_bg = Color::RGB(32, 28, 45);
+    colors.helpbar_fg = Color::RGB(110, 105, 115);
+    colors.helpbar_key = Color::RGB(160, 120, 190); // #A078BE oniViolet
+
+    // Oni 语法：鬼紫关键词/冥绿字符串/幽灵蓝函数/魔黄数字
+    colors.keyword = Color::RGB(160, 120, 200);        // #A078C8 oniViolet
+    colors.string = Color::RGB(145, 185, 115);         // #91B973 oniShadow
+    colors.comment = Color::RGB(110, 105, 115);        // #6E6973 oniGray
+    colors.number = Color::RGB(230, 160, 90);          // #E6A05A oniGold
+    colors.function = Color::RGB(130, 150, 210);       // #8296D2 oniSpirit
+    colors.type = Color::RGB(160, 120, 200);           // #A078C8 oniViolet
+    colors.operator_color = Color::RGB(125, 170, 160); // #7DAAA0 oniMystic
+
+    colors.error = Color::RGB(230, 50, 70);     // #E63246 oniBlood
+    colors.warning = Color::RGB(245, 155, 55);  // #F59B37 oniFire
+    colors.info = Color::RGB(130, 150, 210);    // #8296D2 oniSpirit
+    colors.success = Color::RGB(125, 170, 140); // #7DAA8C oniJade
+
+    colors.dialog_bg = Color::RGB(38, 32, 52);
+    colors.dialog_fg = Color::RGB(222, 217, 188);
+    colors.dialog_title_bg = Color::RGB(52, 42, 68);
+    colors.dialog_title_fg = Color::RGB(222, 217, 188);
+    colors.dialog_border = Color::RGB(110, 105, 115);
+
+    return colors;
+}
+
 ThemeColors Theme::TomorrowNight() {
     ThemeColors colors;
     // Modernized Tomorrow Night: neutral dark with soft warm accents
@@ -6846,6 +7104,18 @@ void Theme::setTheme(const std::string& name) {
         colors_ = OceanicNext();
     } else if (name == "kanagawa") {
         colors_ = Kanagawa();
+    } else if (name == "kanagawa-light") {
+        colors_ = KanagawaLight();
+    } else if (name == "kanagawa-sakura") {
+        colors_ = KanagawaSakura();
+    } else if (name == "kanagawa-midnight") {
+        colors_ = KanagawaMidnight();
+    } else if (name == "kanagawa-fuji") {
+        colors_ = KanagawaFuji();
+    } else if (name == "kanagawa-wave") {
+        colors_ = KanagawaWave();
+    } else if (name == "kanagawa-oni") {
+        colors_ = KanagawaOni();
     } else if (name == "tomorrow-night") {
         colors_ = TomorrowNight();
     } else if (name == "tomorrow-night-blue") {
@@ -7237,6 +7507,12 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "palenight",
             "oceanic-next",
             "kanagawa",
+            "kanagawa-light",
+            "kanagawa-sakura",
+            "kanagawa-midnight",
+            "kanagawa-fuji",
+            "kanagawa-wave",
+            "kanagawa-oni",
             "tomorrow-night",
             "tomorrow-night-blue",
             "cobalt",
@@ -7411,6 +7687,24 @@ std::vector<Color> Theme::getGradientColors() const {
          {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
           &ThemeColors::keyword, &ThemeColors::success}},
         {"kanagawa",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa-light",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa-sakura",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa-midnight",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa-fuji",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa-wave",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
+          &ThemeColors::keyword, &ThemeColors::success}},
+        {"kanagawa-oni",
          {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
           &ThemeColors::keyword, &ThemeColors::success}},
         {"rose-pine",

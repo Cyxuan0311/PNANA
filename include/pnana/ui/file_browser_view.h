@@ -27,10 +27,14 @@ class FileBrowserView {
     void scrollToTop();
     void scrollToBottom();
 
+    // 配置设置
+    void setShowTreeStyle(bool show);
+
   private:
     Theme& theme_;
     utils::FileTypeColorMapper color_mapper_;
     size_t scroll_offset_; // 当前滚动偏移量（显示的第一个项目的索引）
+    bool show_tree_style_ = true; // 是否显示树形样式（图标 + 连接线），false 时使用空格代替
 
     // SSH 远程状态栏元数据缓存：path -> "size|perm"
     mutable std::unordered_map<std::string, std::pair<std::string, std::string>> remote_stat_cache_;
@@ -57,6 +61,7 @@ class FileBrowserView {
                                 const std::vector<features::FileItem*>& flat_items) const;
     std::string buildExpandPrefix(const features::FileItem* item, size_t index,
                                   const std::vector<features::FileItem*>& flat_items) const;
+    std::string buildSpacePrefix(const features::FileItem* item) const; // 使用空格代替树形连接线
 };
 
 } // namespace ui

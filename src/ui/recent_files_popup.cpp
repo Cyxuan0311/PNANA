@@ -1,5 +1,6 @@
 #include "ui/recent_files_popup.h"
 #include "ui/icons.h"
+#include "ui/toast.h"
 #include <algorithm>
 #include <filesystem>
 #include <ftxui/component/event.hpp>
@@ -85,11 +86,28 @@ bool RecentFilesPopup::handleInput(ftxui::Event event) {
         auto current_items = getCurrentTabItems();
         if (selected_index_ < current_items.size()) {
             const auto& selected_project = current_items[selected_index_];
+            // 从路径中提取文件名/文件夹名
+            std::string project_name;
+            try {
+                std::filesystem::path path(selected_project.path);
+                project_name = path.filename().string();
+            } catch (...) {
+                project_name = selected_project.path;
+            }
+
             // 根据项目类型调用不同的回调
             if (selected_project.type == features::ProjectType::FILE && file_open_callback_) {
+                // 显示 Toast 提示
+                if (toast_) {
+                    toast_->showInfo("Opening file: " + project_name, 1500);
+                }
                 file_open_callback_(selected_project.path);
             } else if (selected_project.type == features::ProjectType::FOLDER &&
                        folder_open_callback_) {
+                // 显示 Toast 提示
+                if (toast_) {
+                    toast_->showSuccess("Opening folder: " + project_name, 1500);
+                }
                 folder_open_callback_(selected_project.path);
             }
         }
