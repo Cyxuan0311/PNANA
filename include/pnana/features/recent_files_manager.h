@@ -27,7 +27,13 @@ struct ProjectItem {
 // 最近文件管理器（现在支持文件和文件夹）
 class RecentFilesManager {
   public:
-    static constexpr size_t MAX_RECENT_FILES = 8;
+    // 默认最大数量限制（可通过配置文件覆盖）
+    static constexpr size_t DEFAULT_MAX_RECENT_FILES = 8;
+    static constexpr size_t DEFAULT_MAX_RECENT_FOLDERS = 4;
+
+    // 当前最大数量限制（可通过配置文件动态设置）
+    size_t max_recent_files = DEFAULT_MAX_RECENT_FILES;
+    size_t max_recent_folders = DEFAULT_MAX_RECENT_FOLDERS;
 
     RecentFilesManager();
 

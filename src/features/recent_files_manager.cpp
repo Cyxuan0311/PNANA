@@ -24,9 +24,21 @@ void RecentFilesManager::addFile(const std::string& filepath) {
     // 添加到队列前端
     recent_projects_.push_front(item);
 
-    // 保持最大数量限制
-    if (recent_projects_.size() > MAX_RECENT_FILES) {
-        recent_projects_.pop_back();
+    // 保持最大数量限制（只计算文件数量）
+    size_t file_count = 0;
+    for (const auto& proj : recent_projects_) {
+        if (proj.type == ProjectType::FILE) {
+            file_count++;
+        }
+    }
+    if (file_count > max_recent_files) {
+        // 从后端删除最旧的文件
+        for (auto it = recent_projects_.rbegin(); it != recent_projects_.rend(); ++it) {
+            if (it->type == ProjectType::FILE) {
+                recent_projects_.erase(std::next(it).base());
+                break;
+            }
+        }
     }
 
     // 保存到文件
@@ -46,9 +58,21 @@ void RecentFilesManager::addFolder(const std::string& folderpath) {
     // 添加到队列前端
     recent_projects_.push_front(item);
 
-    // 保持最大数量限制
-    if (recent_projects_.size() > MAX_RECENT_FILES) {
-        recent_projects_.pop_back();
+    // 保持最大数量限制（只计算文件夹数量）
+    size_t folder_count = 0;
+    for (const auto& proj : recent_projects_) {
+        if (proj.type == ProjectType::FOLDER) {
+            folder_count++;
+        }
+    }
+    if (folder_count > max_recent_folders) {
+        // 从后端删除最旧的文件夹
+        for (auto it = recent_projects_.rbegin(); it != recent_projects_.rend(); ++it) {
+            if (it->type == ProjectType::FOLDER) {
+                recent_projects_.erase(std::next(it).base());
+                break;
+            }
+        }
     }
 
     // 保存到文件
@@ -188,8 +212,9 @@ void RecentFilesManager::loadRecentFiles() {
                 }
             }
 
-            // 限制数量
-            if (recent_projects_.size() >= MAX_RECENT_FILES) {
+            // 限制数量（使用默认最大值之和作为上限）
+            if (recent_projects_.size() >=
+                (DEFAULT_MAX_RECENT_FILES + DEFAULT_MAX_RECENT_FOLDERS)) {
                 break;
             }
         }
