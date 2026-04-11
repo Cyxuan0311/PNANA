@@ -40,6 +40,10 @@ struct DisplayConfig {
     // Tab 栏配置
     bool show_tab_close_indicator = true; // 是否在 tab 上显示关闭符号（×）
 
+    // 文件浏览器配置
+    bool file_browser_show_tree_style = true; // 是否显示树形结构样式（展开图标▼/▶和连接线│/├─/└─）
+                                              // false 时使用空格代替，保持缩进但更简洁
+
     // 面板布局配置
     // file_browser_side: "left" 或 "right"，控制文件列表相对于代码区的位置
     // ai_panel_side: "left" 或 "right"，控制 AI 弹窗相对于代码区的位置
@@ -161,6 +165,10 @@ struct UIConfig {
     int toast_max_width = 50;            // 默认最大宽度
     bool toast_show_icon = true;         // 默认是否显示图标
     bool toast_bold_text = false;        // 默认是否粗体文本
+
+    // 最近项目数量限制
+    int max_recent_files = 8;   // 最近打开的文件最大数量
+    int max_recent_folders = 4; // 最近打开的文件夹最大数量
 };
 
 // 自定义 Logo 配置

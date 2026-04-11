@@ -108,6 +108,12 @@ Editor::Editor()
     // 加载配置文件（使用默认路径）
     loadConfig();
 
+    // 应用文件浏览器 UI 配置
+    {
+        const auto& display_cfg = config_manager_.getConfig().display;
+        file_browser_.setFileBrowserViewConfig(display_cfg.file_browser_show_tree_style);
+    }
+
     // 根据配置设置 AI 面板位置（左/右）
     if (overlay_manager_) {
         const auto& display_cfg = config_manager_.getConfig().display;
@@ -161,6 +167,8 @@ Editor::Editor()
             setStatusMessage("Failed to open directory: " + folderpath);
         }
     });
+    // 设置 Toast 指针，用于显示操作提示
+    recent_files_popup_.setToast(&toast_);
 
     // 初始化 FZF 模糊文件查找弹窗
     fzf_popup_.setFileOpenCallback([this](const std::string& filepath) {
@@ -220,12 +228,14 @@ Editor::Editor()
         Document* doc = getCurrentDocument();
         if (!doc || doc->getFilePath().empty()) {
             setStatusMessage("No current file to rollback");
+            toast_.showError("No current file to rollback");
             return;
         }
 
         std::vector<std::string> lines;
         if (!file_history_manager_.restoreVersion(doc->getFilePath(), version, lines)) {
             setStatusMessage("Rollback failed: cannot restore selected version");
+            toast_.showError("Rollback failed: cannot restore selected version");
             return;
         }
 
@@ -240,9 +250,12 @@ Editor::Editor()
         history_timeline_popup_.close();
         if (saved) {
             setStatusMessage("Rollback done: restored to version v" + std::to_string(version));
+            toast_.showSuccess("Rollback done: restored to version v" + std::to_string(version));
         } else {
             setStatusMessage("Rollback applied in buffer (save failed), version v" +
                              std::to_string(version));
+            toast_.showWarning("Rollback applied in buffer (save failed), version v" +
+                               std::to_string(version));
         }
     });
 
@@ -643,6 +656,12 @@ void Editor::loadConfig(const std::string& config_path) {
         pnana::ui::Toast::setDefaultShowIcon(config.ui.toast_show_icon);
         pnana::ui::Toast::setDefaultBoldText(config.ui.toast_bold_text);
     }
+
+    // 应用最近项目数量限制
+    recent_files_manager_.max_recent_files =
+        static_cast<size_t>(std::max(1, config.ui.max_recent_files));
+    recent_files_manager_.max_recent_folders =
+        static_cast<size_t>(std::max(1, config.ui.max_recent_folders));
 
     // 应用 history 保留配置
     {
@@ -1417,11 +1436,18 @@ void Editor::openExtractDialog() {
                                 setStatusMessage("Extracted " + archive.name + " to " +
                                                  full_extract_path);
                                 file_browser_.refresh(); // 刷新文件浏览器
+                                // 显示成功 Toast 提示
+                                toast_.showSuccess(
+                                    "Extracted " + archive.name + " to " + full_extract_path, 2500);
                             } else {
                                 setStatusMessage("Failed to extract " + archive.name +
                                                  (error_msg.empty() ? "" : ": " + error_msg));
+                                // 显示失败 Toast 提示
+                                toast_.showError("Failed to extract " + archive.name +
+                                                     (error_msg.empty() ? "" : ": " + error_msg),
+                                                 3000);
                             }
-                            // 触发UI更新
+                            // 触发 UI 更新
                             screen_.PostEvent(ftxui::Event::Custom);
                         });
                 },
@@ -2840,6 +2866,8 @@ void Editor::initializePlugins() {
     } else {
         // 设置插件管理对话框的插件管理器指针
         plugin_manager_dialog_.setPluginManager(plugin_manager_.get());
+        // 设置 Toast 指针，用于显示操作提示
+        plugin_manager_dialog_.setToast(&toast_);
     }
     plugin_manager_initialized_ = true;
 }
