@@ -33,7 +33,6 @@ local CONFIG = {
     debug = true, -- 启用调试日志
     min_search_interval_ms = 100,  -- 两次搜索之间的最小间隔，防止阻塞 UI
     virtual_scroll_enabled = true,  -- 启用虚拟滚动优化
-    preview_throttle_ms = 60,       -- 导航时预览刷新节流
 }
 
 -- ============================================================================
@@ -135,9 +134,6 @@ local state = {
     request_seq = 0,
     last_applied_request = 0,
     debounce_timer = nil,
-    preview_timer = nil,
-    last_nav_ms = 0,
-    style_applied = false,
 }
 
 -- ============================================================================
@@ -254,46 +250,65 @@ local function update_visible_results()
     state.selected_in_view = state.selected - start_offset
 end
 
---- 处理结果（已在解析阶段截断）
-local function process_results(parsed_results, total_parsed)
+--- 处理大量结果的智能截断
+local function process_results(parsed_results)
+    local total = #parsed_results
+    
+    -- 如果启用虚拟滚动，存储所有结果
+    if CONFIG.virtual_scroll_enabled and total <= CONFIG.max_results then
+        state.all_results = parsed_results
+        update_visible_results()
+        return
+    end
+    
+    -- 超过最大限制时截断
+    if total > CONFIG.max_results then
+        state.all_results = {}
+        for i = 1, CONFIG.max_results do
+            state.all_results[i] = parsed_results[i]
+        end
+        state.total_matches = CONFIG.max_results
+        update_visible_results()
+        vim.api.set_status_message(string.format("fg-live-grep: Showing first %d of %d results", 
+                                                  CONFIG.max_results, total))
+        return
+    end
+    
+    -- 正常情况
     state.all_results = parsed_results
     update_visible_results()
-
-    if total_parsed and total_parsed > CONFIG.max_results then
-        vim.api.set_status_message(string.format("fg-live-grep: Showing first %d of %d results",
-            CONFIG.max_results, total_parsed))
-    end
 end
 
 -- ============================================================================
 -- 数据解析
 -- ============================================================================
 
---- 解析 rg vimgrep 输出（解析阶段提前截断）
+--- 解析 rg vimgrep 输出
 local function parse_rg_vimgrep(lines)
-    if not lines then
-        return {}, 0
+    if not lines then 
+        return {} 
     end
 
     local items = {}
-    local total_parsed = 0
-
-    for _, line in ipairs(lines) do
+    local parsed_count = 0
+    local failed_count = 0
+    
+    for i, line in ipairs(lines) do
         local fpath, l, c, text = line:match("^(.-):(%d+):(%d+):(.*)$")
         if fpath and l then
-            total_parsed = total_parsed + 1
-            if #items < CONFIG.max_results then
-                table.insert(items, {
-                    file = fpath,
-                    line = tonumber(l),
-                    col = tonumber(c),
-                    text = text or "",
-                })
-            end
+            table.insert(items, {
+                file = fpath,
+                line = tonumber(l),
+                col = tonumber(c),
+                text = text or "",
+            })
+            parsed_count = parsed_count + 1
+        else
+            failed_count = failed_count + 1
         end
     end
-
-    return items, total_parsed
+    
+    return items
 end
 
 -- ============================================================================
@@ -325,168 +340,159 @@ local function get_pool_stats()
     return string_pool.hits .. "/" .. (string_pool.hits + string_pool.misses)
 end
 
---- 获取图标（轻量缓存）
-local icon_cache = {}
-local function get_icon(name)
-    if icon_cache[name] ~= nil then
-        return icon_cache[name]
+--- 构建组件视图数据（优化版）
+local function build_view_data()
+    local t_start = now_ms()
+    
+    local function get_icon(name)
+        if vim.icon and vim.icon.get then
+            local icon = vim.icon.get(name)
+            return icon or ""
+        end
+        return ""
     end
-    local icon = ""
-    if vim.icon and vim.icon.get then
-        icon = vim.icon.get(name) or ""
-    end
-    icon_cache[name] = icon
-    return icon
-end
-
---- 构建输入与标题
-local function build_header_data()
+    
+    -- 获取各种图标
+    local search_icon = get_icon("SEARCH")
     local file_icon = get_icon("FILE_TEXT")
     local preview_icon = get_icon("CODE")
+    
+    local t_preview_start = now_ms()
+    -- 使用可见结果中的选中项
+    local selected_item = state.visible_results[state.selected_in_view]
+    local preview_lines = selected_item and read_preview(selected_item.file, selected_item.line, CONFIG.preview_context) or {"(no selection)"}
+    local t_preview_end = now_ms()
 
-    local results_title = file_icon .. " Results"
-    if state.total_matches > 0 then
-        results_title = string.format("%s %d/%d", results_title, state.selected, state.total_matches)
-    end
+    -- 虚拟滚动已经处理好 visible_results，直接使用
+    local t_calc_start = now_ms()
+    local t_calc_end = now_ms()
 
-    return {
-        input_line = "❯ " .. state.query .. "█",
-        left_title = results_title,
-        right_title = preview_icon .. " Preview",
-        help_lines = {
-            "↑/↓: move  PgUp/PgDn: scroll  Enter: open  Type: query  Esc: close",
-            string.format("cwd: %s  status: %s  total: %d  showing: %d  cache: %d",
-                state.cwd, state.loading and "searching..." or "idle",
-                state.total_matches, #state.visible_results, #file_cache.lru),
-        },
-    }
-end
-
---- 构建左侧结果列表
-local function build_left_panel_data()
+    -- 预分配 table 大小
+    local t_left_start = now_ms()
     local left_lines = {}
     local left_line_colors = {}
     local cached_spaces = string.rep(" ", CONFIG.results_width)
-
+    
     for i = 1, CONFIG.list_height do
         local item = state.visible_results[i]
         if item then
+            -- 使用相对索引
             local marker = (i == state.selected_in_view) and ">>" or "  "
             local line_str = string.format("%s %s:%d:%d %s", marker, item.file, item.line, item.col, item.text)
             table.insert(left_lines, pad_right(line_str, CONFIG.results_width))
-
+            
+            -- 为每行添加颜色配置
             if i == state.selected_in_view then
-                table.insert(left_line_colors, { fg = "#F8F8F2", bg = "#44475A", bold = true })
+                -- 选中行：白色前景 + 深色背景 + 粗体
+                table.insert(left_line_colors, {
+                    fg = "#F8F8F2",      -- 白色前景
+                    bg = "#44475A",      -- 选中背景（深色）
+                    bold = true,
+                })
             else
-                table.insert(left_line_colors, { fg = "#6272A4", dim = true })
+                -- 普通行：蓝色前景
+                table.insert(left_line_colors, {
+                    fg = "#6272A4",      -- 蓝色前景
+                    dim = true,
+                })
             end
         else
             table.insert(left_lines, cached_spaces)
             table.insert(left_line_colors, {})
         end
     end
+    local t_left_end = now_ms()
 
-    return left_lines, left_line_colors
-end
-
---- 构建右侧预览
-local function build_right_panel_data()
-    local selected_item = state.visible_results[state.selected_in_view]
-    local preview_lines = selected_item
-        and read_preview(selected_item.file, selected_item.line, CONFIG.preview_context)
-        or {"(no selection)"}
-
+    -- 预分配 table 大小
+    local t_right_start = now_ms()
     local right_lines = {}
     local right_line_colors = {}
     local max_lines = math.max(CONFIG.list_height, #preview_lines)
-
+    
     for i = 1, max_lines do
         local line = preview_lines[i] or ""
         table.insert(right_lines, pad_right(line, CONFIG.preview_width))
+        
+        -- 为预览行添加颜色配置
         if line:find("►") then
-            table.insert(right_line_colors, { fg = "#50FA7B", bold = true })
+            -- 当前行标记：绿色前景 + 粗体
+            table.insert(right_line_colors, {
+                fg = "#50FA7B",      -- 绿色
+                bold = true,
+            })
         else
-            table.insert(right_line_colors, { fg = "#F8F8F2", dim = true })
+            -- 普通预览行：默认前景 + 淡化
+            table.insert(right_line_colors, {
+                fg = "#F8F8F2",      -- 默认前景
+                dim = true,
+            })
         end
     end
-
-    return right_lines, right_line_colors
+    local t_right_end = now_ms()
+    
+    local t_total = now_ms() - t_start
+    
+    -- 使用获取到的图标构建标题
+    local results_title = file_icon .. " Results"
+    if state.total_matches > 0 then
+        results_title = string.format("%s %d/%d", results_title, state.selected, state.total_matches)
+    end
+    local preview_title = preview_icon .. " Preview"
+    
+    return {
+        input_line = "❯ " .. state.query .. "█",  -- 使用 U+276F: 装饰性右指括号
+        left_title = results_title,
+        right_title = preview_title,
+        left_lines = left_lines,
+        right_lines = right_lines,
+        left_line_colors = left_line_colors,      -- 新增：左侧列表颜色配置
+        right_line_colors = right_line_colors,    -- 新增：右侧预览颜色配置
+        help_lines = {
+            "↑/↓: move  PgUp/PgDn: scroll  Enter: open  Type: query  Esc: close",
+            string.format("cwd: %s  status: %s  total: %d  showing: %d  cache: %d", 
+                state.cwd, state.loading and "searching..." or "idle", 
+                state.total_matches, #state.visible_results, #file_cache.lru),
+        },
+    }
 end
 
---- 主题 token（通过 vim.ui.set_style 动态注入）
-local FG_STYLE_TOKENS = {
-    ["popup.fg"] = "#E6EDF3",
-    ["popup.bg"] = "#0D1117",
-    ["popup.border"] = "#58A6FF",
-    ["popup.selection_bg"] = "#1F6FEB",
-    ["popup.help_fg"] = "#8B949E",
-    ["title.color"] = "#79C0FF",
-    ["title.bold"] = true,
-    ["title.inverted"] = false,
-    ["title.dim"] = false,
-    ["title.underlined"] = false,
-}
-
-local function apply_window_style_tokens()
-    if not state.win_id then
-        return
+--- 使用 DSL 构建窗口组件
+local function build_window_spec()
+    local view = build_view_data()
+    
+    local function get_icon(name)
+        if vim.icon and vim.icon.get then
+            local icon = vim.icon.get(name)
+            return icon or ""
+        end
+        return ""
     end
-
-    local ok = vim.ui.set_style(state.win_id, FG_STYLE_TOKENS)
-    if ok then
-        state.style_applied = true
-    end
-end
-
---- 构建窗口 spec（可分层）
-local function build_window_spec(mode)
-    mode = mode or "full"
+    local search_icon = get_icon("SEARCH")
 
     local spec = {
         type = "window",
-        window_title = get_icon("SEARCH") .. " FG Live Grep",
+        window_title = search_icon .. " FG Live Grep",
         window_title_decorators = {
             bold = true,
-            inverted = true,
-            color = "cyan",
+            inverted = true,  -- 反白效果
+            color = "cyan",   -- 青色文字
         },
         min_width = CONFIG.window_width,
         min_height = CONFIG.window_height,
+        component_input_line = view.input_line,
+        component_left_title = view.left_title,
+        component_right_title = view.right_title,
+        component_left_lines = view.left_lines,
+        component_right_lines = view.right_lines,
+        component_left_line_colors = view.left_line_colors,      -- 新增：传递左侧颜色配置
+        component_right_line_colors = view.right_line_colors,    -- 新增：传递右侧颜色配置
+        component_help_lines = view.help_lines,
         decorators = {
             {name = "border", value = "double"},
             {name = "border_color", value = "blue"},
         },
     }
-
-    local header = build_header_data()
-    spec.component_input_line = header.input_line
-    spec.component_left_title = header.left_title
-    spec.component_right_title = header.right_title
-    spec.component_help_lines = header.help_lines
-
-    if mode == "input" then
-        return spec
-    end
-
-    local left_lines, left_colors = build_left_panel_data()
-    spec.component_left_lines = left_lines
-    spec.component_left_line_colors = left_colors
-
-    if mode == "left" then
-        return spec
-    end
-
-    if mode == "selection" then
-        local right_lines, right_colors = build_right_panel_data()
-        spec.component_right_lines = right_lines
-        spec.component_right_line_colors = right_colors
-        return spec
-    end
-
-    local right_lines, right_colors = build_right_panel_data()
-    spec.component_right_lines = right_lines
-    spec.component_right_line_colors = right_colors
-
+    
     return spec
 end
 
@@ -494,42 +500,42 @@ end
 -- 搜索逻辑
 -- ============================================================================
 
---- 更新窗口显示（分层更新）
-local function update_window(mode, reason)
+--- 更新窗口显示
+local function update_window(reason)
     local t_start = now_ms()
-
-    if not state.win_id then
-        return
+    
+    if not state.win_id then 
+        return 
     end
-
-    local spec = build_window_spec(mode)
-    vim.ui.update_component_window(state.win_id, spec)
-
-    -- 首次更新后再兜底应用一次 token，避免窗口初开时样式未生效
-    if not state.style_applied then
-        apply_window_style_tokens()
-    end
-
+    
+    local t_build_start = now_ms()
+    local spec = build_window_spec()
+    local t_build_end = now_ms()
+    
+    local t_update_start = now_ms()
+    local ok = vim.ui.update_component_window(state.win_id, spec)
+    local t_update_end = now_ms()
+    
     local t_total = now_ms() - t_start
 end
 
 --- 执行搜索（异步版本）
 local function run_search(request_id, query)
     local t_start = now_ms()
-
+    
     if not query or query == "" then
-        state.all_results = {}
         state.visible_results = {}
         state.total_matches = 0
         state.selected = 1
-        state.scroll_offset = 0
         state.loading = false
-        update_window("full", "empty_query")
+        update_window("empty_query")
         return
     end
 
     state.loading = true
-    update_window("input", "search_loading")
+    local t_update1 = now_ms()
+    update_window("search_loading")
+    local t_update2 = now_ms()
 
     local argv = {
         "rg", "--vimgrep", "--smart-case", "--no-heading",
@@ -562,19 +568,23 @@ local function run_search(request_id, query)
             state.total_matches = 0
             state.scroll_offset = 0
             vim.api.set_status_message("fg-live-grep error: " .. tostring(err or "unknown"))
-            update_window("full", "search_error")
+            update_window("search_error")
             return
         end
 
-        local parsed, total_parsed = parse_rg_vimgrep(lines)
-
-        process_results(parsed, total_parsed)
-
-        state.total_matches = total_parsed or #state.all_results
+        local t_parse_start = now_ms()
+        local parsed = parse_rg_vimgrep(lines)
+        local t_parse_end = now_ms()
+        
+        -- 使用新的虚拟滚动处理函数
+        process_results(parsed)
+        
+        state.total_matches = #state.all_results
         state.selected = math.max(1, math.min(state.selected, math.max(1, #state.all_results)))
-        update_visible_results()
-
-        update_window("full", "search_done")
+        
+        local t_update_start = now_ms()
+        update_window("search_done")
+        local t_update_end = now_ms()
         
         local t_total = now_ms() - t_callback_start
         
@@ -593,27 +603,31 @@ end
 --- 延迟搜索 (防抖) - 当 debounce_ms=0 时立即执行
 local function schedule_search_debounced(query)
     local t_start = now_ms()
-
+    
     state.query = query or ""
     state.request_seq = state.request_seq + 1
     local request_id = state.request_seq
-
-    -- 输入变化：只更新输入行 + loading 状态
-    update_window("input", "query_changed")
+    local t_seq_end = now_ms()
 
     if state.debounce_timer then
+        local t_cancel_start = now_ms()
         vim.defer_cancel(state.debounce_timer)
         state.debounce_timer = nil
+        local t_cancel_end = now_ms()
     end
 
+    -- 当 debounce_ms=0 时，立即执行搜索
     if CONFIG.debounce_ms == 0 then
         run_search(request_id, state.query)
     else
+        local t_defer_start = now_ms()
         state.debounce_timer = vim.defer_fn(function()
+            local t2 = now_ms()
             run_search(request_id, state.query)
         end, CONFIG.debounce_ms)
+        local t_defer_end = now_ms()
     end
-
+    
     local t_total = now_ms() - t_start
 end
 
@@ -623,7 +637,7 @@ end
 
 --- 打开选中的结果
 local function open_selected_result()
-    local item = state.all_results[state.selected]
+    local item = state.visible_results[state.selected]
     if not item then
         vim.api.set_status_message("fg-live-grep: no selection")
         return
@@ -638,34 +652,16 @@ local function open_selected_result()
     vim.api.set_status_message(string.format("fg-live-grep: %s:%d:%d", item.file, item.line, item.col))
 end
 
---- 轻量预览节流：导航时先更新高亮，稍后再刷预览
-local function schedule_selection_refresh()
-    state.last_nav_ms = now_ms()
-
-    if state.preview_timer then
-        vim.defer_cancel(state.preview_timer)
-        state.preview_timer = nil
-    end
-
-    state.preview_timer = vim.defer_fn(function()
-        local idle_ms = now_ms() - state.last_nav_ms
-        if idle_ms >= CONFIG.preview_throttle_ms then
-            update_window("selection", "selection_idle_refresh")
-            state.preview_timer = nil
-        end
-    end, CONFIG.preview_throttle_ms)
-end
-
 --- 窗口事件处理
 local function on_window_event(event_name, payload)
     local t1 = now_ms()
-
+    
     if event_name == "arrow_down" then
         if #state.all_results > 0 then
             state.selected = math.min(#state.all_results, state.selected + 1)
+            -- 重新计算可见子集
             update_visible_results()
-            update_window("left", "arrow_down_highlight")
-            schedule_selection_refresh()
+            update_window("arrow_down")
         end
         return true
     end
@@ -673,9 +669,9 @@ local function on_window_event(event_name, payload)
     if event_name == "arrow_up" then
         if #state.all_results > 0 then
             state.selected = math.max(1, state.selected - 1)
+            -- 重新计算可见子集
             update_visible_results()
-            update_window("left", "arrow_up_highlight")
-            schedule_selection_refresh()
+            update_window("arrow_up")
         end
         return true
     end
@@ -687,8 +683,7 @@ local function on_window_event(event_name, payload)
             state.selected = math.min(#state.all_results, state.selected + CONFIG.list_height)
             if state.selected ~= old_selected then
                 update_visible_results()
-                update_window("left", "pagedown_highlight")
-                schedule_selection_refresh()
+                update_window("pagedown")
                 vim.api.set_status_message(string.format("fg-live-grep: %d/%d", state.selected, state.total_matches))
             end
         end
@@ -702,8 +697,7 @@ local function on_window_event(event_name, payload)
             state.selected = math.max(1, state.selected - CONFIG.list_height)
             if state.selected ~= old_selected then
                 update_visible_results()
-                update_window("left", "pageup_highlight")
-                schedule_selection_refresh()
+                update_window("pageup")
                 vim.api.set_status_message(string.format("fg-live-grep: %d/%d", state.selected, state.total_matches))
             end
         end
@@ -750,7 +744,6 @@ local function on_window_event(event_name, payload)
         if state.win_id then
             vim.ui.close_window(state.win_id)
             state.win_id = nil
-            state.style_applied = false
             local t2 = now_ms()
         end
         return true
@@ -771,21 +764,19 @@ end
 
 --- 确保窗口存在
 local function ensure_window()
-    if state.win_id then
-        return
+    if state.win_id then 
+        return 
     end
 
     local t1 = now_ms()
     local spec = build_window_spec()
     local t2 = now_ms()
-
+    
     spec.on_event = on_window_event
-
+    
     state.win_id = vim.ui.open_component_window(spec)
-    state.style_applied = false
-    apply_window_style_tokens()
-
     local t3 = now_ms()
+    
 end
 
 -- ============================================================================
@@ -810,7 +801,6 @@ vim.api.create_user_command("FgLiveGrepClose", function()
     if state.win_id then
         vim.ui.close_window(state.win_id)
         state.win_id = nil
-        state.style_applied = false
     end
 end, { desc = "Close fg live grep window", force = true })
 
