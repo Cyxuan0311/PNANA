@@ -753,9 +753,19 @@ bool FileBrowser::copyFileOrDirectory(const std::string& source, const std::stri
     }
 }
 
+// 文件浏览器 UI 配置（静态变量，在 render 之前设置）
+static bool g_show_tree_style = true;
+
+// 设置文件浏览器 UI 配置
+void FileBrowser::setFileBrowserViewConfig(bool show_tree_style) {
+    g_show_tree_style = show_tree_style;
+}
+
 // 为了保持向后兼容，保留 render 方法，但使用 FileBrowserView
 ftxui::Element FileBrowser::render(int height) {
     static ui::FileBrowserView view(theme_);
+    // 每次渲染前应用最新配置
+    view.setShowTreeStyle(g_show_tree_style);
     return view.render(*this, height);
 }
 

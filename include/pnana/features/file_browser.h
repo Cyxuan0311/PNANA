@@ -129,6 +129,9 @@ class FileBrowser {
         return show_hidden_;
     }
 
+    // 文件浏览器 UI 配置
+    void setFileBrowserViewConfig(bool show_tree_style);
+
     // 文件操作
     bool renameSelected(const std::string& new_name);
     bool deleteSelected();
