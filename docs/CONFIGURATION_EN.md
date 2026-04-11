@@ -59,6 +59,7 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `show_helpbar` | boolean | `true` | showing buttom help bar (true or false) |
 | `logo_gradient` | boolean | `true` | Use gradient colors for welcome screen Logo |
 | `show_tab_close_indicator` | boolean | `true` | Show close indicator (×) on tabs; shows × when unmodified, ● when modified |
+| `file_browser_show_tree_style` | boolean | `true` | Show tree structure style (expand icons ▼/▶ and connectors │/├─/└─). When `false`, uses spaces for indentation without tree characters for a cleaner look |
 | `file_browser_side` | string | `"left"` | Position of file list panel relative to code area: `"left"` or `"right"` |
 | `ai_panel_side` | string | `"right"` | Position of AI assistant side panel relative to code area: `"left"` or `"right"` |
 | `terminal_side` | string | `"bottom"` | Position of integrated terminal relative to code area: `"bottom"` (default) or `"top"` |
@@ -176,6 +177,8 @@ Custom logo effect examples:
 | `toast_max_width` | number | `50` | Maximum Toast width in characters |
 | `toast_show_icon` | boolean | `true` | Whether to show type icon (success/info/warning/error) |
 | `toast_bold_text` | boolean | `false` | Whether to render Toast text in bold |
+| `max_recent_files` | number | `8` | Maximum number of recently opened files to remember |
+| `max_recent_folders` | number | `4` | Maximum number of recently opened folders to remember |
 
 ---
 
@@ -365,6 +368,7 @@ Example:
     "logo_gradient": true,
     "logo_style": "default",
     "show_tab_close_indicator": true,
+    "file_browser_show_tree_style": true,
     "file_browser_side": "left",
     "ai_panel_side": "right",
     "terminal_side": "bottom",
@@ -394,7 +398,9 @@ Example:
     "toast_duration_ms": 3000,
     "toast_max_width": 50,
     "toast_show_icon": true,
-    "toast_bold_text": false
+    "toast_bold_text": false,
+    "max_recent_files": 8,
+    "max_recent_folders": 4
   },
   "lsp": { "enabled": true, "completion_popup_enabled": true, "servers": [] }
 }

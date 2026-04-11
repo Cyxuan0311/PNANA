@@ -22,6 +22,7 @@
     "logo_gradient": true,
     "logo_style": "block",
     "show_tab_close_indicator": true,
+    "file_browser_show_tree_style": true,
     "file_browser_side": "left",
     "ai_panel_side": "right",
     "terminal_side": "bottom",

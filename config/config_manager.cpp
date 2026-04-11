@@ -271,6 +271,10 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         config_.display.show_tab_close_indicator =
             extractBool("show_tab_close_indicator", display_pos, display_end, true);
 
+        // 文件浏览器配置
+        config_.display.file_browser_show_tree_style =
+            extractBool("file_browser_show_tree_style", display_pos, display_end, true);
+
         // 面板布局：文件列表和 AI 面板左右位置，可选 "left"/"right"
         std::string fb_side = extractStr("file_browser_side", display_pos, display_end);
         if (fb_side == "left" || fb_side == "right") {
@@ -749,6 +753,12 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
                 extractBool("toast_show_icon", ui_pos, ui_end, config_.ui.toast_show_icon);
             config_.ui.toast_bold_text =
                 extractBool("toast_bold_text", ui_pos, ui_end, config_.ui.toast_bold_text);
+
+            // 解析最近项目数量限制
+            config_.ui.max_recent_files =
+                extractInt("max_recent_files", ui_pos, ui_end, config_.ui.max_recent_files);
+            config_.ui.max_recent_folders =
+                extractInt("max_recent_folders", ui_pos, ui_end, config_.ui.max_recent_folders);
         }
     }
 
@@ -787,6 +797,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"logo_style\": \"" << config_.display.logo_style << "\",\n";
     oss << "    \"show_tab_close_indicator\": "
         << (config_.display.show_tab_close_indicator ? "true" : "false") << ",\n";
+    oss << "    \"file_browser_show_tree_style\": "
+        << (config_.display.file_browser_show_tree_style ? "true" : "false") << ",\n";
     oss << "    \"file_browser_side\": \"" << config_.display.file_browser_side << "\",\n";
     oss << "    \"ai_panel_side\": \"" << config_.display.ai_panel_side << "\",\n";
     oss << "    \"terminal_side\": \"" << config_.display.terminal_side << "\",\n";
@@ -922,12 +934,16 @@ std::string ConfigManager::generateJSON() const {
            "outline\",\n";
     oss << "    \"_comment_toast_duration\": \"toast_duration_ms: 0 means stay until "
            "replaced/hidden\",\n";
+    oss << "    \"_comment_recent_projects\": \"max_recent_files/folders: limits for recently "
+           "opened files/folders\",\n";
     oss << "    \"toast_enabled\": " << (config_.ui.toast_enabled ? "true" : "false") << ",\n";
     oss << "    \"toast_style\": \"" << config_.ui.toast_style << "\",\n";
     oss << "    \"toast_duration_ms\": " << config_.ui.toast_duration_ms << ",\n";
     oss << "    \"toast_max_width\": " << config_.ui.toast_max_width << ",\n";
     oss << "    \"toast_show_icon\": " << (config_.ui.toast_show_icon ? "true" : "false") << ",\n";
-    oss << "    \"toast_bold_text\": " << (config_.ui.toast_bold_text ? "true" : "false") << "\n";
+    oss << "    \"toast_bold_text\": " << (config_.ui.toast_bold_text ? "true" : "false") << ",\n";
+    oss << "    \"max_recent_files\": " << config_.ui.max_recent_files << ",\n";
+    oss << "    \"max_recent_folders\": " << config_.ui.max_recent_folders << "\n";
     oss << "  }\n";
     oss << "}\n";
     return oss.str();
