@@ -25,11 +25,12 @@ import "C"
 import (
 	"bytes"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 	"unsafe"
 
 	"golang.org/x/crypto/ssh"
+	"github.com/pkg/sftp"
 )
 
 // SSH操作配置
@@ -76,103 +77,122 @@ func setResultSuccess(result *C.SSHResult_C, content string) {
 	result.content = C.CString(content)
 }
 
-// 读取远程文件
+// 读取远程文件（使用 SFTP）
 func readRemoteFile(client *ssh.Client, remotePath string) (string, error) {
-	session, err := client.NewSession()
+	// 创建 SFTP 客户端
+	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
-		return "", fmt.Errorf("failed to create session: %v", err)
+		return "", fmt.Errorf("failed to create SFTP client: %v", err)
 	}
-	defer session.Close()
-
-	var stdout bytes.Buffer
-	session.Stdout = &stdout
-	cmd := fmt.Sprintf("cat %s", remotePath)
-	err = session.Run(cmd)
+	defer sftpClient.Close()
+	
+	// 打开远程文件
+	remoteFile, err := sftpClient.Open(remotePath)
 	if err != nil {
+		return "", fmt.Errorf("failed to open remote file: %v", err)
+	}
+	defer remoteFile.Close()
+	
+	// 获取文件大小
+	fileInfo, err := remoteFile.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to get file stat: %v", err)
+	}
+	
+	fileSize := fileInfo.Size()
+	
+	// 读取文件内容
+	data := make([]byte, fileSize)
+	n, err := io.ReadFull(remoteFile, data)
+	if err != nil && err != io.EOF {
 		return "", fmt.Errorf("failed to read file: %v", err)
 	}
-
-	return stdout.String(), nil
+	
+	return string(data[:n]), nil
 }
 
-// 写入远程文件
+// 写入远程文件（使用 SFTP）
 func writeRemoteFile(client *ssh.Client, remotePath string, content string) error {
-	session, err := client.NewSession()
+	// 创建 SFTP 客户端
+	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
-		return fmt.Errorf("failed to create session: %v", err)
+		return fmt.Errorf("failed to create SFTP client: %v", err)
 	}
-	defer session.Close()
-
-	// 使用 base64 编码内容以避免特殊字符问题
-	encodedContent := base64Encode(content)
-
-	// 写入文件（使用 base64 解码）
-	cmd := fmt.Sprintf("echo '%s' | base64 -d > %s", encodedContent, remotePath)
-	err = session.Run(cmd)
+	defer sftpClient.Close()
+	
+	// 创建远程文件
+	remoteFile, err := sftpClient.Create(remotePath)
 	if err != nil {
-		// 如果 base64 命令失败，使用 heredoc 方式（需要转义）
-		escapedContent := escapeShellString(content)
-		// 使用随机分隔符避免内容冲突
-		delimiter := fmt.Sprintf("PNANA_EOF_%d", os.Getpid())
-		cmd = fmt.Sprintf("cat > %s << '%s'\n%s\n%s", remotePath, delimiter, escapedContent, delimiter)
-		err = session.Run(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to write file: %v", err)
-		}
+		return fmt.Errorf("failed to create remote file: %v", err)
 	}
-
+	defer remoteFile.Close()
+	
+	// 写入数据
+	_, err = remoteFile.Write([]byte(content))
+	if err != nil {
+		return fmt.Errorf("failed to write data: %v", err)
+	}
+	
 	return nil
 }
 
-// 上传文件到远程
+// 上传文件到远程（使用 SFTP）
 func uploadFileToRemote(client *ssh.Client, remotePath string, localData []byte) error {
-	// 使用 base64 编码上传文件内容
-	encodedContent := base64Encode(string(localData))
-	cmd := fmt.Sprintf("echo '%s' | base64 -d > '%s'", encodedContent, remotePath)
-
-	session, err := client.NewSession()
+	// 创建 SFTP 客户端
+	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
-		return fmt.Errorf("failed to create session: %v", err)
+		return fmt.Errorf("failed to create SFTP client: %v", err)
 	}
-	err = session.Run(cmd)
-	session.Close()
-
+	defer sftpClient.Close()
+	
+	// 创建远程文件
+	remoteFile, err := sftpClient.Create(remotePath)
 	if err != nil {
-		// 如果 base64 命令失败，使用 heredoc 方式（必须新建 session，每个 session 只能 Run 一次）
-		escapedContent := escapeShellString(string(localData))
-		delimiter := fmt.Sprintf("PNANA_UPLOAD_EOF_%d", os.Getpid())
-		cmd = fmt.Sprintf("cat > '%s' << '%s'\n%s\n%s", remotePath, delimiter, escapedContent, delimiter)
-		session2, err2 := client.NewSession()
-		if err2 != nil {
-			return fmt.Errorf("failed to create session: %v", err2)
-		}
-		defer session2.Close()
-		err2 = session2.Run(cmd)
-		if err2 != nil {
-			return fmt.Errorf("failed to upload file: %v", err2)
-		}
+		return fmt.Errorf("failed to create remote file: %v", err)
 	}
-
+	defer remoteFile.Close()
+	
+	// 写入数据
+	_, err = remoteFile.Write(localData)
+	if err != nil {
+		return fmt.Errorf("failed to write data: %v", err)
+	}
+	
 	return nil
 }
 
-// 从远程下载文件
+// 从远程下载文件（使用 SFTP）
 func downloadFileFromRemote(client *ssh.Client, remotePath string) ([]byte, error) {
-	session, err := client.NewSession()
+	// 创建 SFTP 客户端
+	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %v", err)
+		return nil, fmt.Errorf("failed to create SFTP client: %v", err)
 	}
-	defer session.Close()
-
-	// 读取远程文件
-	var stdout bytes.Buffer
-	session.Stdout = &stdout
-	err = session.Run(fmt.Sprintf("cat '%s'", remotePath))
+	defer sftpClient.Close()
+	
+	// 打开远程文件
+	remoteFile, err := sftpClient.Open(remotePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read remote file: %v", err)
+		return nil, fmt.Errorf("failed to open remote file: %v", err)
 	}
-
-	return stdout.Bytes(), nil
+	defer remoteFile.Close()
+	
+	// 获取文件大小
+	fileInfo, err := remoteFile.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file stat: %v", err)
+	}
+	
+	fileSize := fileInfo.Size()
+	
+	// 读取文件内容
+	data := make([]byte, fileSize)
+	n, err := io.ReadFull(remoteFile, data)
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+	
+	return data[:n], nil
 }
 
 // 列出远程目录，返回格式每行: "d\tname" 或 "f\tname"（d=目录 f=文件），不含 . 和 ..
