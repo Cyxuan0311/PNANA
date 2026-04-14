@@ -18,8 +18,20 @@ namespace pnana {
 namespace features {
 namespace ssh {
 
-// SSH异步操作类型
-enum class SSHTaskType { READ_FILE, WRITE_FILE, UPLOAD_FILE, DOWNLOAD_FILE };
+// SSH 异步操作类型
+enum class SSHTaskType {
+    READ_FILE,
+    WRITE_FILE,
+    UPLOAD_FILE,
+    DOWNLOAD_FILE,
+    LIST_DIR,
+    GET_PATH_TYPE,
+    MKDIR,
+    REMOVE_FILE,
+    REMOVE_DIR,
+    RENAME,
+    RUN_COMMAND
+};
 
 // SSH异步任务状态
 enum class SSHTaskStatus { PENDING, RUNNING, COMPLETED, FAILED, CANCELLED };
@@ -64,14 +76,26 @@ class SSHTask {
 
     // 获取进度信息（可选）
     std::string getProgress() const {
-        std::lock_guard<std::mutex> lock(result_mutex_);
+        std::lock_guard<std::mutex> lock(progress_mutex_);
         return progress_;
     }
 
     // 设置进度信息
     void setProgress(const std::string& progress) {
-        std::lock_guard<std::mutex> lock(result_mutex_);
+        std::lock_guard<std::mutex> lock(progress_mutex_);
         progress_ = progress;
+    }
+
+    // 获取进度百分比（0-100）
+    int getProgressPercent() const {
+        std::lock_guard<std::mutex> lock(progress_mutex_);
+        return progress_percent_;
+    }
+
+    // 设置进度百分比
+    void setProgressPercent(int percent) {
+        std::lock_guard<std::mutex> lock(progress_mutex_);
+        progress_percent_ = percent;
     }
 
   private:
@@ -84,7 +108,9 @@ class SSHTask {
     std::atomic<SSHTaskStatus> status_;
     mutable std::mutex result_mutex_;
     SSHTaskResult result_;
+    mutable std::mutex progress_mutex_;
     std::string progress_;
+    int progress_percent_ = 0;
 
     std::atomic<bool> cancelled_;
 

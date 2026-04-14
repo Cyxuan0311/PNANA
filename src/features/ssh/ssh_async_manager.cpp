@@ -1,5 +1,5 @@
 #include "features/ssh/ssh_async_manager.h"
-#include "features/ssh/ssh_client.h"
+#include "features/ssh/ssh_client_native.h"
 #include <chrono>
 #include <condition_variable>
 #include <queue>
@@ -24,47 +24,100 @@ SSHTask::~SSHTask() {}
 
 void SSHTask::execute() {
     status_.store(SSHTaskStatus::RUNNING);
+    setProgressPercent(0);
 
-    const char* typeStr = "?";
-    switch (type_) {
-        case SSHTaskType::READ_FILE:
-            typeStr = "READ_FILE";
-            break;
-        case SSHTaskType::WRITE_FILE:
-            typeStr = "WRITE_FILE";
-            break;
-        case SSHTaskType::UPLOAD_FILE:
-            typeStr = "UPLOAD_FILE";
-            break;
-        case SSHTaskType::DOWNLOAD_FILE:
-            typeStr = "DOWNLOAD_FILE";
-            break;
-    }
     if (cancelled_.load()) {
         status_.store(SSHTaskStatus::CANCELLED);
         return;
     }
 
-    Client ssh_client;
-    Result result;
+    SSHClientNative ssh_client;
+    SSHResult result;
+
+    // 转换配置
+    ssh::SSHConfig native_config;
+    native_config.host = config_.host;
+    native_config.user = config_.user;
+    native_config.password = config_.password;
+    native_config.key_path = config_.key_path;
+    native_config.port = config_.port;
+    native_config.remote_path = config_.remote_path;
 
     switch (type_) {
-        case SSHTaskType::READ_FILE:
-            setProgress("Reading file from " + config_.host + "...");
-            result = ssh_client.readFile(config_);
+        case SSHTaskType::READ_FILE: {
+            setProgress("正在从 " + config_.host + " 读取文件...");
+            result = ssh_client.readFile(native_config);
+            setProgressPercent(100);
             break;
-        case SSHTaskType::WRITE_FILE:
-            setProgress("Writing file to " + config_.host + "...");
-            result = ssh_client.writeFile(config_, param1_);
+        }
+        case SSHTaskType::WRITE_FILE: {
+            setProgress("正在写入文件到 " + config_.host + "...");
+            result = ssh_client.writeFile(native_config, param1_);
+            setProgressPercent(100);
             break;
-        case SSHTaskType::UPLOAD_FILE:
-            setProgress("Uploading file to " + config_.host + "...");
-            result = ssh_client.uploadFile(config_, param1_, param2_);
+        }
+        case SSHTaskType::UPLOAD_FILE: {
+            setProgress("正在上传文件到 " + config_.host + "...");
+            result = ssh_client.uploadFile(
+                native_config, param1_, param2_, [this](size_t transferred, size_t total) {
+                    int percent = static_cast<int>((transferred * 100) / total);
+                    setProgressPercent(percent);
+                    setProgress("上传中：" + std::to_string(percent) + "%");
+                });
             break;
-        case SSHTaskType::DOWNLOAD_FILE:
-            setProgress("Downloading file from " + config_.host + "...");
-            result = ssh_client.downloadFile(config_, param1_, param2_);
+        }
+        case SSHTaskType::DOWNLOAD_FILE: {
+            setProgress("正在从 " + config_.host + " 下载文件...");
+            result = ssh_client.downloadFile(
+                native_config, param1_, param2_, [this](size_t transferred, size_t total) {
+                    int percent = static_cast<int>((transferred * 100) / total);
+                    setProgressPercent(percent);
+                    setProgress("下载中：" + std::to_string(percent) + "%");
+                });
             break;
+        }
+        case SSHTaskType::LIST_DIR: {
+            setProgress("正在列出目录...");
+            result = ssh_client.listDir(native_config);
+            setProgressPercent(100);
+            break;
+        }
+        case SSHTaskType::GET_PATH_TYPE: {
+            setProgress("正在获取路径类型...");
+            result = ssh_client.getPathType(native_config);
+            setProgressPercent(100);
+            break;
+        }
+        case SSHTaskType::MKDIR: {
+            setProgress("正在创建目录...");
+            result = ssh_client.mkdir(native_config, param1_);
+            setProgressPercent(100);
+            break;
+        }
+        case SSHTaskType::REMOVE_FILE: {
+            setProgress("正在删除文件...");
+            result = ssh_client.removeFile(native_config, param1_);
+            setProgressPercent(100);
+            break;
+        }
+        case SSHTaskType::REMOVE_DIR: {
+            setProgress("正在删除目录...");
+            result = ssh_client.removeDir(native_config, param1_);
+            setProgressPercent(100);
+            break;
+        }
+        case SSHTaskType::RENAME: {
+            setProgress("正在重命名...");
+            result = ssh_client.rename(native_config, param1_, param2_);
+            setProgressPercent(100);
+            break;
+        }
+        case SSHTaskType::RUN_COMMAND: {
+            setProgress("正在执行命令...");
+            result = ssh_client.runCommand(native_config, param1_, param2_);
+            setProgressPercent(100);
+            break;
+        }
     }
 
     if (cancelled_.load()) {

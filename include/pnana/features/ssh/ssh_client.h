@@ -30,7 +30,7 @@ struct RemoteDirEntry {
     bool is_directory;
 };
 
-// SSH 客户端接口（通过 CGO 调用 Go 代码）
+// SSH 客户端接口（支持原生 libssh2 和系统命令备用实现）
 class Client {
   public:
     Client();
@@ -60,9 +60,6 @@ class Client {
     // stderr
     Result runCommand(const ui::SSHConfig& config, const std::string& working_dir,
                       const std::string& command);
-
-  private:
-    void* go_client_; // Go 客户端句柄（如果需要）
 };
 
 // 解析 listDir 返回的 content 为条目列表

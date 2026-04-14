@@ -1,6 +1,16 @@
 #include "features/ssh/ssh_client.h"
-#include "features/ssh/ssh_client_cgo.h"
 #include "ui/ssh_dialog.h"
+
+#ifdef BUILD_CPP_SSH_MODULE
+#include "features/ssh/ssh_client_native.h"
+#elif defined(BUILD_GO_SSH_MODULE)
+// 使用 Go CGO 接口
+#include "features/ssh/ssh_client_cgo.h"
+#else
+// NONE 模式下也需要这些类型定义
+#include "features/ssh/ssh_client_cgo.h"
+#endif
+
 #include <array>
 #include <cstdlib>
 #include <cstring>
@@ -11,8 +21,8 @@
 #include <unistd.h>
 #include <vector>
 
-// 如果 Go 模块不可用，定义备用结构体和函数
-#ifndef BUILD_GO_SSH_MODULE
+// 备用实现（当原生 SSH 和 Go 模块都不可用时使用系统命令）
+#if !defined(BUILD_CPP_SSH_MODULE) && !defined(BUILD_GO_SSH_MODULE)
 
 // 辅助函数：检查命令是否存在
 static bool commandExists(const char* cmd) {
@@ -145,7 +155,10 @@ static std::string executeCommandWithError(const std::string& command) {
     return result;
 }
 
-// 备用函数实现（使用系统命令）
+#endif // !defined(BUILD_CPP_SSH_MODULE) && !defined(BUILD_GO_SSH_MODULE)
+
+// Go CGO 接口函数（仅在没有 Go 模块时使用 C++ 备用实现）
+#if !defined(BUILD_CPP_SSH_MODULE) && !defined(BUILD_GO_SSH_MODULE)
 extern "C" {
 SSHResult_C* ConnectAndReadFile(SSHConfig_C* config) {
     using namespace pnana::features::ssh;
@@ -533,32 +546,59 @@ SSHResult_C* ConnectAndRunCommand(SSHConfig_C* config, const char* command) {
     return result;
 }
 
+// FreeSSHResult 实现（后备版本，当 CPP 和 GO 都不可用时使用）
 void FreeSSHResult(SSHResult_C* result) {
-    if (result) {
-        if (result->content) {
-            free(result->content);
-        }
-        if (result->error) {
-            free(result->error);
-        }
-        free(result);
+    if (!result)
+        return;
+
+    if (result->content) {
+        free(result->content);
+        result->content = nullptr;
     }
+    if (result->error) {
+        free(result->error);
+        result->error = nullptr;
+    }
+    free(result);
 }
-}
-#endif
+
+} // extern "C"
+
+#endif // !defined(BUILD_CPP_SSH_MODULE) && !defined(BUILD_GO_SSH_MODULE)
 
 namespace pnana {
 namespace features {
 namespace ssh {
 
-Client::Client() : go_client_(nullptr) {}
+Client::Client() {}
 
 Client::~Client() {}
 
 Result Client::readFile(const ui::SSHConfig& config) {
+#ifdef BUILD_CPP_SSH_MODULE
+    // 使用原生 libssh2 实现
+    SSHClientNative native_client;
+
+    // 转换配置
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = config.remote_path;
+
+    SSHResult result = native_client.readFile(native_config);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
+    // 使用 Go CGO 接口
     Result result;
 
-    // 将 C++ 配置转换为 C 配置（需要分配内存，因为 Go 会释放）
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
     c_config.user = strdup(config.user.c_str());
@@ -567,10 +607,8 @@ Result Client::readFile(const ui::SSHConfig& config) {
     c_config.port = config.port;
     c_config.remote_path = strdup(config.remote_path.c_str());
 
-    // 调用 Go 模块
     SSHResult_C* c_result = ConnectAndReadFile(&c_config);
 
-    // 释放临时分配的字符串
     free(c_config.host);
     free(c_config.user);
     free(c_config.password);
@@ -578,11 +616,10 @@ Result Client::readFile(const ui::SSHConfig& config) {
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call Go SSH module";
+        result.error = "Failed to execute SSH command";
         return result;
     }
 
-    // 转换结果
     result.success = (c_result->success != 0);
     if (c_result->content) {
         result.content = std::string(c_result->content);
@@ -591,16 +628,68 @@ Result Client::readFile(const ui::SSHConfig& config) {
         result.error = std::string(c_result->error);
     }
 
-    // 释放 Go 模块分配的内存
     FreeSSHResult(c_result);
-
     return result;
+#else
+    // 使用系统命令备用实现（当 CPP 和 GO 都不可用时）
+    // 后备实现在 #if !defined(BUILD_CPP_SSH_MODULE) && !defined(BUILD_GO_SSH_MODULE) 块中定义
+    Result result;
+
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(config.remote_path.c_str());
+
+    SSHResult_C* c_result = ConnectAndReadFile(&c_config);
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+
+    result.success = (c_result->success != 0);
+    if (c_result->content) {
+        result.content = std::string(c_result->content);
+    }
+    if (c_result->error) {
+        result.error = std::string(c_result->error);
+    }
+
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 Result Client::writeFile(const ui::SSHConfig& config, const std::string& content) {
-    Result result;
+#ifdef BUILD_CPP_SSH_MODULE
+    SSHClientNative native_client;
 
-    // 将 C++ 配置转换为 C 配置（需要分配内存，因为 Go 会释放）
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = config.remote_path;
+
+    SSHResult result = native_client.writeFile(native_config, content);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
+    Result result;
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
     c_config.user = strdup(config.user.c_str());
@@ -609,10 +698,8 @@ Result Client::writeFile(const ui::SSHConfig& config, const std::string& content
     c_config.port = config.port;
     c_config.remote_path = strdup(config.remote_path.c_str());
 
-    // 调用 Go 模块
     SSHResult_C* c_result = ConnectAndWriteFile(&c_config, content.c_str());
 
-    // 释放临时分配的字符串
     free(c_config.host);
     free(c_config.user);
     free(c_config.password);
@@ -620,11 +707,10 @@ Result Client::writeFile(const ui::SSHConfig& config, const std::string& content
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call Go SSH module";
+        result.error = "Failed to execute SSH command";
         return result;
     }
 
-    // 转换结果
     result.success = (c_result->success != 0);
     if (c_result->content) {
         result.content = std::string(c_result->content);
@@ -633,17 +719,67 @@ Result Client::writeFile(const ui::SSHConfig& config, const std::string& content
         result.error = std::string(c_result->error);
     }
 
-    // 释放 Go 模块分配的内存
     FreeSSHResult(c_result);
-
     return result;
+#else
+    // 使用系统命令备用实现
+    Result result;
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(config.remote_path.c_str());
+
+    SSHResult_C* c_result = ConnectAndWriteFile(&c_config, content.c_str());
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+
+    result.success = (c_result->success != 0);
+    if (c_result->content) {
+        result.content = std::string(c_result->content);
+    }
+    if (c_result->error) {
+        result.error = std::string(c_result->error);
+    }
+
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 Result Client::uploadFile(const ui::SSHConfig& config, const std::string& localPath,
                           const std::string& remotePath) {
-    Result result;
+#ifdef BUILD_CPP_SSH_MODULE
+    SSHClientNative native_client;
 
-    // 将 C++ 配置转换为 C 配置（需要分配内存，因为 Go 会释放）
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = remotePath;
+
+    SSHResult result = native_client.uploadFile(native_config, localPath, remotePath);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
+    Result result;
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
     c_config.user = strdup(config.user.c_str());
@@ -652,10 +788,8 @@ Result Client::uploadFile(const ui::SSHConfig& config, const std::string& localP
     c_config.port = config.port;
     c_config.remote_path = strdup(config.remote_path.c_str());
 
-    // 调用 Go 模块
     SSHResult_C* c_result = UploadFile(&c_config, localPath.c_str(), remotePath.c_str());
 
-    // 释放临时分配的字符串
     free(c_config.host);
     free(c_config.user);
     free(c_config.password);
@@ -663,11 +797,10 @@ Result Client::uploadFile(const ui::SSHConfig& config, const std::string& localP
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call Go SSH module";
+        result.error = "Failed to execute SSH command";
         return result;
     }
 
-    // 转换结果
     result.success = (c_result->success != 0);
     if (c_result->content) {
         result.content = std::string(c_result->content);
@@ -676,17 +809,67 @@ Result Client::uploadFile(const ui::SSHConfig& config, const std::string& localP
         result.error = std::string(c_result->error);
     }
 
-    // 释放 Go 模块分配的内存
     FreeSSHResult(c_result);
-
     return result;
+#else
+    // 使用系统命令备用实现
+    Result result;
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(remotePath.c_str());
+
+    SSHResult_C* c_result = UploadFile(&c_config, localPath.c_str(), remotePath.c_str());
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+
+    result.success = (c_result->success != 0);
+    if (c_result->content) {
+        result.content = std::string(c_result->content);
+    }
+    if (c_result->error) {
+        result.error = std::string(c_result->error);
+    }
+
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 Result Client::downloadFile(const ui::SSHConfig& config, const std::string& remotePath,
                             const std::string& localPath) {
-    Result result;
+#ifdef BUILD_CPP_SSH_MODULE
+    SSHClientNative native_client;
 
-    // 将 C++ 配置转换为 C 配置（需要分配内存，因为 Go 会释放）
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = remotePath;
+
+    SSHResult result = native_client.downloadFile(native_config, remotePath, localPath);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
+    Result result;
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
     c_config.user = strdup(config.user.c_str());
@@ -695,10 +878,8 @@ Result Client::downloadFile(const ui::SSHConfig& config, const std::string& remo
     c_config.port = config.port;
     c_config.remote_path = strdup(config.remote_path.c_str());
 
-    // 调用 Go 模块
     SSHResult_C* c_result = DownloadFile(&c_config, remotePath.c_str(), localPath.c_str());
 
-    // 释放临时分配的字符串
     free(c_config.host);
     free(c_config.user);
     free(c_config.password);
@@ -706,11 +887,10 @@ Result Client::downloadFile(const ui::SSHConfig& config, const std::string& remo
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call Go SSH module";
+        result.error = "Failed to execute SSH command";
         return result;
     }
 
-    // 转换结果
     result.success = (c_result->success != 0);
     if (c_result->content) {
         result.content = std::string(c_result->content);
@@ -719,13 +899,65 @@ Result Client::downloadFile(const ui::SSHConfig& config, const std::string& remo
         result.error = std::string(c_result->error);
     }
 
-    // 释放 Go 模块分配的内存
     FreeSSHResult(c_result);
-
     return result;
+#else
+    // 使用系统命令备用实现
+    Result result;
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(config.remote_path.c_str());
+
+    SSHResult_C* c_result = DownloadFile(&c_config, remotePath.c_str(), localPath.c_str());
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+
+    result.success = (c_result->success != 0);
+    if (c_result->content) {
+        result.content = std::string(c_result->content);
+    }
+    if (c_result->error) {
+        result.error = std::string(c_result->error);
+    }
+
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 Result Client::listDir(const ui::SSHConfig& config) {
+#ifdef BUILD_CPP_SSH_MODULE
+    SSHClientNative native_client;
+
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = config.remote_path;
+
+    SSHResult result = native_client.listDir(native_config);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
     Result result;
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
@@ -744,7 +976,7 @@ Result Client::listDir(const ui::SSHConfig& config) {
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call SSH listDir";
+        result.error = "Failed to execute SSH command";
         return result;
     }
     result.success = (c_result->success != 0);
@@ -754,9 +986,59 @@ Result Client::listDir(const ui::SSHConfig& config) {
         result.error = std::string(c_result->error);
     FreeSSHResult(c_result);
     return result;
+#else
+    // 使用系统命令备用实现
+    Result result;
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(config.remote_path.c_str());
+
+    SSHResult_C* c_result = ConnectAndListDir(&c_config);
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+    result.success = (c_result->success != 0);
+    if (c_result->content)
+        result.content = std::string(c_result->content);
+    if (c_result->error)
+        result.error = std::string(c_result->error);
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 Result Client::getPathType(const ui::SSHConfig& config) {
+#ifdef BUILD_CPP_SSH_MODULE
+    SSHClientNative native_client;
+
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = config.remote_path;
+
+    SSHResult result = native_client.getPathType(native_config);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
     Result result;
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
@@ -775,7 +1057,7 @@ Result Client::getPathType(const ui::SSHConfig& config) {
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call SSH getPathType";
+        result.error = "Failed to execute SSH command";
         return result;
     }
     result.success = (c_result->success != 0);
@@ -785,10 +1067,60 @@ Result Client::getPathType(const ui::SSHConfig& config) {
         result.error = std::string(c_result->error);
     FreeSSHResult(c_result);
     return result;
+#else
+    // 使用系统命令备用实现
+    Result result;
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(config.remote_path.c_str());
+
+    SSHResult_C* c_result = ConnectAndGetPathType(&c_config);
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+    result.success = (c_result->success != 0);
+    if (c_result->content)
+        result.content = std::string(c_result->content);
+    if (c_result->error)
+        result.error = std::string(c_result->error);
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 Result Client::runCommand(const ui::SSHConfig& config, const std::string& working_dir,
                           const std::string& command) {
+#ifdef BUILD_CPP_SSH_MODULE
+    SSHClientNative native_client;
+
+    ssh::SSHConfig native_config;
+    native_config.host = config.host;
+    native_config.user = config.user;
+    native_config.password = config.password;
+    native_config.key_path = config.key_path;
+    native_config.port = config.port;
+    native_config.remote_path = working_dir.empty() ? "." : working_dir;
+
+    SSHResult result = native_client.runCommand(native_config, command, working_dir);
+
+    Result cpp_result;
+    cpp_result.success = result.success;
+    cpp_result.content = result.content;
+    cpp_result.error = result.error;
+    return cpp_result;
+#elif defined(BUILD_GO_SSH_MODULE)
     Result result;
     SSHConfig_C c_config;
     c_config.host = strdup(config.host.c_str());
@@ -807,7 +1139,7 @@ Result Client::runCommand(const ui::SSHConfig& config, const std::string& workin
     free(c_config.remote_path);
 
     if (!c_result) {
-        result.error = "Failed to call SSH runCommand";
+        result.error = "Failed to execute SSH command";
         return result;
     }
     result.success = (c_result->success != 0);
@@ -817,6 +1149,37 @@ Result Client::runCommand(const ui::SSHConfig& config, const std::string& workin
         result.error = std::string(c_result->error);
     FreeSSHResult(c_result);
     return result;
+#else
+    // 使用系统命令备用实现
+    Result result;
+    SSHConfig_C c_config;
+    c_config.host = strdup(config.host.c_str());
+    c_config.user = strdup(config.user.c_str());
+    c_config.password = strdup(config.password.c_str());
+    c_config.key_path = strdup(config.key_path.c_str());
+    c_config.port = config.port;
+    c_config.remote_path = strdup(working_dir.empty() ? "." : working_dir.c_str());
+
+    SSHResult_C* c_result = ConnectAndRunCommand(&c_config, command.c_str());
+
+    free(c_config.host);
+    free(c_config.user);
+    free(c_config.password);
+    free(c_config.key_path);
+    free(c_config.remote_path);
+
+    if (!c_result) {
+        result.error = "Failed to execute SSH command";
+        return result;
+    }
+    result.success = (c_result->success != 0);
+    if (c_result->content)
+        result.content = std::string(c_result->content);
+    if (c_result->error)
+        result.error = std::string(c_result->error);
+    FreeSSHResult(c_result);
+    return result;
+#endif
 }
 
 std::vector<RemoteDirEntry> parseListDirContent(const std::string& content) {
