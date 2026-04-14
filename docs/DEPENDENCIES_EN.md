@@ -95,7 +95,7 @@ Falls back to built-in highlighter when disabled.
 **Fedora/RHEL** `sudo dnf install lua-devel`  
 **macOS** `brew install lua`
 
-### Go SSH Module (-DBUILD_GO=ON)
+### Go SSH Module (-DBUILD_SSH_MODE=GO)
 
 **Dependencies**: Go compiler
 
@@ -103,7 +103,17 @@ Falls back to built-in highlighter when disabled.
 **Fedora/RHEL** `sudo dnf install golang`  
 **macOS** `brew install go`
 
-Falls back to system SSH commands when disabled.
+### C++ SSH Module (-DBUILD_SSH_MODE=CPP)
+
+**Dependencies**: libssh2 development library
+
+**Ubuntu/Debian** `sudo apt install libssh2-1-dev`  
+**Fedora/RHEL** `sudo dnf install libssh2-devel`  
+**macOS** `brew install libssh2`
+
+### No SSH (-DBUILD_SSH_MODE=NONE, default)
+
+No extra dependencies required, uses system SSH commands as fallback.
 
 ### AI Client (-DBUILD_AI_CLIENT=ON)
 
@@ -141,7 +151,9 @@ These are included in the source tree; no separate installation:
 ./build.sh BUILD_IMAGE_PREVIEW=ON             # Image preview
 ./build.sh BUILD_TREE_SITTER=ON               # Tree-sitter
 ./build.sh BUILD_LUA=ON                       # Lua plugins
-./build.sh BUILD_GO=ON                        # Go SSH
+./build.sh BUILD_SSH_MODE=GO                  # Go SSH module
+./build.sh BUILD_SSH_MODE=CPP                 # C++ SSH module (libssh2)
+./build.sh BUILD_SSH_MODE=NONE                # No SSH (default)
 ./build.sh BUILD_AI_CLIENT=ON                 # AI client
 ./build.sh --clean BUILD_LUA=ON               # Clean then build
 ./build.sh --clean --install BUILD_AI_CLIENT=ON  # Build and install
@@ -157,7 +169,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake .. -DBUILD_IMAGE_PREVIEW=ON \
         -DBUILD_TREE_SITTER=ON \
         -DBUILD_LUA=ON \
-        -DBUILD_GO=ON \
+        -DBUILD_SSH_MODE=GO \
         -DBUILD_AI_CLIENT=ON
 
 make -j$(nproc)
@@ -167,10 +179,10 @@ make -j$(nproc)
 
 | Option | Default | Depends On | Feature |
 |--------|---------|------------|---------|
-| `BUILD_IMAGE_PREVIEW` | OFF | FFmpeg | Image preview |
+| `BUILD_IMAGE_PREVIEW` | OFF | Chafa | Image preview |
 | `BUILD_TREE_SITTER` | OFF | Tree-sitter | Syntax highlighting |
 | `BUILD_LUA` | OFF | Lua 5.3/5.4 | Lua plugins |
-| `BUILD_GO` | OFF | Go | SSH module |
+| `BUILD_SSH_MODE` | NONE | Go/libssh2 | SSH module (GO/CPP/NONE) |
 | `BUILD_AI_CLIENT` | OFF | libcurl | AI client |
 
 LSP is determined by bundled nlohmann/json and jsonrpccxx; there is no separate option.
@@ -187,9 +199,10 @@ LSP is determined by bundled nlohmann/json and jsonrpccxx; there is no separate 
 | Clang | 5.0 | Required |
 | FTXUI | Latest | Required |
 | Tree-sitter | 0.20+ | Optional (-DBUILD_TREE_SITTER=ON) |
-| FFmpeg | 4.0 | Optional (-DBUILD_IMAGE_PREVIEW=ON) |
+| Chafa | 1.12+ | Optional (-DBUILD_IMAGE_PREVIEW=ON) |
 | Lua | 5.3 / 5.4 | Optional (-DBUILD_LUA=ON) |
-| Go | 1.21+ | Optional (-DBUILD_GO=ON) |
+| Go | 1.21+ | Optional (-DBUILD_SSH_MODE=GO) |
+| libssh2 | 1.9+ | Optional (-DBUILD_SSH_MODE=CPP) |
 | libcurl | Latest | Optional (-DBUILD_AI_CLIENT=ON) |
 | iconv | - | Optional (auto-detected) |
 | nlohmann/json | 3.x | Bundled (third-party) |

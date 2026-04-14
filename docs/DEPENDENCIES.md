@@ -97,7 +97,7 @@ git submodule update --init --recursive  # 初始化子模块
 **Fedora/RHEL** `sudo dnf install lua-devel`  
 **macOS** `brew install lua`
 
-### Go SSH 模块（-DBUILD_GO=ON）
+### Go SSH 模块（-DBUILD_SSH_MODE=GO）
 
 **依赖**：Go 编译器
 
@@ -105,7 +105,17 @@ git submodule update --init --recursive  # 初始化子模块
 **Fedora/RHEL** `sudo dnf install golang`  
 **macOS** `brew install go`
 
-未启用时 SSH 使用系统命令作为后备。
+### C++ SSH 模块（-DBUILD_SSH_MODE=CPP）
+
+**依赖**：libssh2 开发库
+
+**Ubuntu/Debian** `sudo apt install libssh2-1-dev`  
+**Fedora/RHEL** `sudo dnf install libssh2-devel`  
+**macOS** `brew install libssh2`
+
+### 不启用 SSH（-DBUILD_SSH_MODE=NONE，默认）
+
+无需额外依赖，使用系统 SSH 命令作为后备。
 
 ### libvterm 终端模拟（-DBUILD_LIBVTERM=ON）
 
@@ -154,7 +164,9 @@ git submodule update --init --recursive  # 初始化子模块
 ./build.sh BUILD_IMAGE_PREVIEW=ON             # 图片预览（Chafa）
 ./build.sh BUILD_TREE_SITTER=ON               # Tree-sitter
 ./build.sh BUILD_LUA=ON                       # Lua 插件
-./build.sh BUILD_GO=ON                        # Go SSH
+./build.sh BUILD_SSH_MODE=GO                  # Go SSH 模块
+./build.sh BUILD_SSH_MODE=CPP                 # C++ SSH 模块（基于 libssh2）
+./build.sh BUILD_SSH_MODE=NONE                # 不启用 SSH（默认）
 ./build.sh BUILD_LIBVTERM=ON                  # libvterm 终端模拟
 ./build.sh BUILD_AI_CLIENT=ON                 # AI 客户端
 ./build.sh --clean BUILD_LUA=ON               # 清理后编译
@@ -171,7 +183,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake .. -DBUILD_IMAGE_PREVIEW=ON \
         -DBUILD_TREE_SITTER=ON \
         -DBUILD_LUA=ON \
-        -DBUILD_GO=ON \
+        -DBUILD_SSH_MODE=GO \
         -DBUILD_LIBVTERM=ON \
         -DBUILD_AI_CLIENT=ON
 
@@ -185,7 +197,7 @@ make -j$(nproc)
 | `BUILD_IMAGE_PREVIEW` | OFF | Chafa | 图片预览 |
 | `BUILD_TREE_SITTER` | OFF | Tree-sitter | 语法高亮 |
 | `BUILD_LUA` | OFF | Lua 5.3/5.4 | Lua 插件 |
-| `BUILD_GO` | OFF | Go | SSH 模块 |
+| `BUILD_SSH_MODE` | NONE | Go/libssh2 | SSH 模块（GO/CPP/NONE） |
 | `BUILD_LIBVTERM` | OFF | libvterm | 终端模拟 |
 | `BUILD_AI_CLIENT` | OFF | libcurl | AI 客户端 |
 
@@ -205,7 +217,8 @@ LSP 由内置 nlohmann/json 与 jsonrpccxx 决定，无单独选项。
 | Chafa | 1.12+ | 可选（-DBUILD_IMAGE_PREVIEW=ON） |
 | Tree-sitter | 0.20+ | 可选（-DBUILD_TREE_SITTER=ON） |
 | Lua | 5.3 / 5.4 | 可选（-DBUILD_LUA=ON） |
-| Go | 1.21+ | 可选（-DBUILD_GO=ON） |
+| Go | 1.21+ | 可选（-DBUILD_SSH_MODE=GO） |
+| libssh2 | 1.9+ | 可选（-DBUILD_SSH_MODE=CPP） |
 | libvterm | 0.3+ | 可选（-DBUILD_LIBVTERM=ON） |
 | libcurl | 最新 | 可选（-DBUILD_AI_CLIENT=ON） |
 | iconv | - | 可选（自动检测） |

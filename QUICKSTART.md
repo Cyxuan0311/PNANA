@@ -144,13 +144,25 @@ cmake -DBUILD_LUA=ON ..
 make -j$(nproc)
 ```
 
-### SSH支持 (Go) / SSH Support (Go)
+### SSH 支持 / SSH Support
+
+#### Go 实现 / Go Implementation
 ```bash
 # 安装依赖 / Install dependencies
 sudo apt install -y golang-go
 
 # 编译时启用 / Enable during compilation
-cmake -DBUILD_GO=ON ..
+cmake -DBUILD_SSH_MODE=GO ..
+make -j$(nproc)
+```
+
+#### C++ 实现 / C++ Implementation
+```bash
+# 安装依赖 / Install dependencies
+sudo apt install -y libssh2-1-dev
+
+# 编译时启用 / Enable during compilation
+cmake -DBUILD_SSH_MODE=CPP ..
 make -j$(nproc)
 ```
 
@@ -182,7 +194,7 @@ cmake \
   -DBUILD_IMAGE_PREVIEW=ON \
   -DBUILD_TREE_SITTER=ON \
   -DBUILD_LUA=ON \
-  -DBUILD_GO=ON \
+  -DBUILD_SSH_MODE=CPP \
   -DBUILD_LIBVTERM=ON \
   -DBUILD_AI_CLIENT=ON \
   ..
