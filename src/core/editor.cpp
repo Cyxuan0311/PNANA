@@ -968,6 +968,38 @@ void Editor::toggleHelp() {
 }
 
 void Editor::toggleMarkdownPreview() {
+    // 检查当前文件是否为 Markdown 文件
+    Document* doc = getCurrentDocument();
+    if (!doc) {
+        setStatusMessage("No file open - Cannot preview Markdown");
+        return;
+    }
+
+    std::string file_path = doc->getFilePath();
+    bool is_markdown = false;
+
+    // 检查文件扩展名
+    if (!file_path.empty()) {
+        std::string ext = "";
+        size_t dot_pos = file_path.rfind('.');
+        if (dot_pos != std::string::npos) {
+            ext = file_path.substr(dot_pos);
+            // 转换为小写
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            // 检查是否为 Markdown 扩展名
+            is_markdown = (ext == ".md" || ext == ".markdown" || ext == ".mkd" || ext == ".mdown");
+        }
+    }
+
+    // 如果不是 Markdown 文件，提示用户
+    if (!is_markdown) {
+        setStatusMessage("Not a Markdown file - Preview only supports .md/.markdown files");
+        markdown_preview_enabled_ = false;
+        force_ui_update_ = true;
+        last_render_source_ = "toggleMarkdownPreview";
+        return;
+    }
+
     // Toggle lightweight preview flag and request UI update
     markdown_preview_enabled_ = !markdown_preview_enabled_;
     if (markdown_preview_enabled_) {

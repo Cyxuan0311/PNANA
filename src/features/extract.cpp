@@ -1,10 +1,14 @@
 #include "features/extract.h"
 #include "utils/archive_validator.h"
+#include "utils/logger.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <mutex>
+#include <queue>
 #include <sstream>
 #include <thread>
 
@@ -12,6 +16,175 @@ namespace fs = std::filesystem;
 
 namespace pnana {
 namespace features {
+
+// 线程安全的目录队列（使用无锁设计减少竞争）
+class DirectoryQueue {
+  public:
+    void push(const fs::directory_entry& entry) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.push(entry);
+        cv_.notify_one();
+    }
+
+    bool pop(fs::directory_entry& entry, bool& done) {
+        std::unique_lock<std::mutex> lock(mutex_);
+
+        // 等待有任务或完成标志
+        cv_.wait(lock, [this, &done] {
+            return !queue_.empty() || done;
+        });
+
+        if (queue_.empty()) {
+            return false;
+        }
+
+        entry = queue_.front();
+        queue_.pop();
+        return true;
+    }
+
+    bool empty() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.empty();
+    }
+
+    size_t size() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.size();
+    }
+
+  private:
+    std::queue<fs::directory_entry> queue_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+};
+
+// 多线程递归扫描目录中的压缩文件
+static void scanArchiveFilesParallel(const std::string& directory,
+                                     std::vector<ArchiveFile>& archives) {
+    try {
+        if (!fs::exists(directory) || !fs::is_directory(directory)) {
+            return;
+        }
+
+        // 获取硬件并发数
+        unsigned int num_threads = std::thread::hardware_concurrency();
+        if (num_threads == 0) {
+            num_threads = 4; // 默认值
+        }
+
+        std::mutex archives_mutex;
+        DirectoryQueue dir_queue;
+
+        // 性能指标
+        std::atomic<size_t> processed_entries{0};
+        std::atomic<size_t> found_archives{0};
+        std::atomic<size_t> processed_dirs{0};
+        std::atomic<bool> all_roots_processed{false};
+
+        // 首先收集所有子目录
+        std::vector<fs::directory_entry> root_entries;
+
+        try {
+            for (const auto& entry : fs::directory_iterator(directory)) {
+                root_entries.push_back(entry);
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("scanArchiveFilesParallel - Failed to iterate directory: " +
+                      std::string(e.what()));
+            return;
+        }
+
+        // 将根目录条目分配到队列
+        for (const auto& entry : root_entries) {
+            dir_queue.push(entry);
+        }
+
+        // 跳过这些目录（常见的大型依赖目录）
+        static const std::vector<std::string> skip_dirs = {
+            ".git", "node_modules", "__pycache__", ".cache", "build", "dist",  "target", "vendor",
+            "bin",  "obj",          ".vscode",     ".idea",  "venv",  ".venv", "env",    ".env"};
+
+        auto shouldSkipDirectory = [](const std::string& dirname) -> bool {
+            std::string name = fs::path(dirname).filename().string();
+            for (const auto& skip : skip_dirs) {
+                if (name == skip) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // 创建工作线程
+        auto worker = [&]() {
+            fs::directory_entry entry;
+            while (true) {
+                bool done = all_roots_processed.load() && dir_queue.empty();
+
+                if (!dir_queue.pop(entry, done)) {
+                    if (all_roots_processed.load() && dir_queue.empty()) {
+                        break; // 所有任务完成
+                    }
+                    continue;
+                }
+
+                try {
+                    processed_entries++;
+
+                    if (entry.is_regular_file()) {
+                        std::string filepath = entry.path().string();
+                        if (ExtractManager::isArchiveFile(filepath)) {
+                            std::string name = entry.path().filename().string();
+                            std::string type = ExtractManager::getArchiveType(filepath);
+
+                            std::lock_guard<std::mutex> lock(archives_mutex);
+                            archives.emplace_back(name, filepath, type);
+                            found_archives++;
+                        }
+                    } else if (entry.is_directory()) {
+                        // 跳过常见的大型目录
+                        if (shouldSkipDirectory(entry.path().string())) {
+                            continue;
+                        }
+
+                        processed_dirs++;
+                        // 将子目录添加到队列
+                        try {
+                            for (const auto& sub_entry : fs::directory_iterator(entry.path())) {
+                                dir_queue.push(sub_entry);
+                            }
+                        } catch (const std::exception&) {
+                            // 忽略无法访问的子目录
+                        }
+                    }
+                } catch (const std::exception&) {
+                    // 忽略单个文件的处理错误
+                }
+            }
+        };
+
+        // 启动线程池
+        std::vector<std::thread> threads;
+        for (unsigned int i = 0; i < num_threads; ++i) {
+            threads.emplace_back(worker);
+        }
+
+        // 等待所有根目录处理完成
+        all_roots_processed.store(true);
+
+        // 等待所有线程完成
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        // 记录最终结果
+        LOG_METRIC("total_archives_found", found_archives.load(), "directory=" + directory);
+        LOG_METRIC("total_archives_in_vector", archives.size(), "directory=" + directory);
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("scanArchiveFilesParallel - Exception: " + std::string(e.what()));
+    }
+}
 
 ExtractManager::ExtractManager() : extracting_(false), cancel_requested_(false) {}
 
@@ -27,26 +200,23 @@ std::vector<ArchiveFile> ExtractManager::scanArchiveFiles(const std::string& dir
 
     try {
         if (!fs::exists(directory) || !fs::is_directory(directory)) {
+            LOG_WARNING("scanArchiveFiles - Directory does not exist: " + directory);
             return archives;
         }
 
-        for (const auto& entry : fs::directory_iterator(directory)) {
-            if (entry.is_regular_file()) {
-                std::string filepath = entry.path().string();
-                if (isArchiveFile(filepath)) {
-                    std::string name = entry.path().filename().string();
-                    std::string type = getArchiveType(filepath);
-                    archives.emplace_back(name, filepath, type);
-                }
-            }
-        }
+        // 使用多线程并行扫描
+        scanArchiveFilesParallel(directory, archives);
 
         // 按名称排序
         std::sort(archives.begin(), archives.end(), [](const ArchiveFile& a, const ArchiveFile& b) {
             return a.name < b.name;
         });
-    } catch (const std::exception&) {
-        // 忽略错误，返回空列表
+
+        LOG_INFO("scanArchiveFiles - Found " + std::to_string(archives.size()) + " archives in " +
+                 directory);
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("scanArchiveFiles - Exception: " + std::string(e.what()));
     }
 
     return archives;

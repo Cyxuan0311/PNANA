@@ -8,6 +8,44 @@ namespace pnana {
 namespace core {
 namespace ui {
 
+// 创建 tmux 风格的分屏线：激活侧高亮
+// is_vertical: true 为竖直分屏线，false 为横向分屏线
+// left_or_top_active: 左侧/上方区域是否激活
+// right_or_bottom_active: 右侧/下方区域是否激活
+// separator_default: 默认颜色
+// separator_active: 激活侧高亮色
+static Element createTmuxStyleSeparator(bool is_vertical, bool left_or_top_active,
+                                        bool right_or_bottom_active,
+                                        const ftxui::Color& separator_default,
+                                        const ftxui::Color& separator_active) {
+    if (is_vertical) {
+        // 竖直分屏线：上半部分和下半部分根据激活状态设置颜色
+        // 获取屏幕高度（这里使用一个合理的默认值，实际高度由 FTXUI 布局决定）
+        int height = 30; // 默认高度，会被布局自动调整
+        Elements line_chars;
+        int half_h = height / 2;
+
+        for (int i = 0; i < height; ++i) {
+            bool use_active = (i < half_h) ? left_or_top_active : right_or_bottom_active;
+            line_chars.push_back(text("│") |
+                                 color(use_active ? separator_active : separator_default));
+        }
+        return vbox(line_chars) | size(WIDTH, EQUAL, 1);
+    } else {
+        // 横向分屏线：左半部分和右半部分根据激活状态设置颜色
+        int width = 80; // 默认宽度，会被布局自动调整
+        Elements line_chars;
+        int half_w = width / 2;
+
+        for (int i = 0; i < width; ++i) {
+            bool use_active = (i < half_w) ? left_or_top_active : right_or_bottom_active;
+            line_chars.push_back(text("─") |
+                                 color(use_active ? separator_active : separator_default));
+        }
+        return hbox(line_chars) | size(HEIGHT, EQUAL, 1);
+    }
+}
+
 UIRouter::UIRouter() : initialized_(false) {
     initializeRegionRenderers();
     initialized_ = true;
@@ -55,25 +93,30 @@ Element UIRouter::renderMainContent(Editor* editor) {
 
     Element editor_content;
 
-    // 如果markdown预览激活，使用分屏布局
+    // 如果 markdown 预览激活，使用分屏布局
     if (editor->isMarkdownPreviewActive()) {
         Element code_area = editor->renderEditor();
         bool is_code_active = (current_region == EditorRegion::CODE_AREA);
-        code_area = border_manager_.applyBorder(code_area, EditorRegion::CODE_AREA, is_code_active,
-                                                editor->getTheme());
 
         Element preview_area = editor->renderMarkdownPreview();
         bool is_preview_active =
             (current_region == EditorRegion::CODE_AREA); // 预览区域也属于代码区域
-        preview_area = border_manager_.applyBorder(preview_area, EditorRegion::CODE_AREA,
-                                                   is_preview_active, editor->getTheme());
 
-        // 强制左右均分宽度（包括边框），确保代码区与预览区等宽
+        // 强制左右均分宽度（不包括边框），确保代码区与预览区等宽
         int screen_width = editor->getScreenWidth();
         int half_width = std::max(10, (screen_width - 1) / 2); // 留出 1 列给分隔符
 
-        editor_content = hbox({code_area | size(WIDTH, EQUAL, half_width), separator(),
+        // 使用 tmux 风格的分屏线：激活侧高亮
+        const auto& tc = editor->getTheme().getColors();
+        Element separator_line = createTmuxStyleSeparator(true, is_code_active, is_preview_active,
+                                                          tc.dialog_border, tc.line_number_current);
+
+        // 先将两个区域合并，然后再应用单个边框
+        editor_content = hbox({code_area | size(WIDTH, EQUAL, half_width), separator_line,
                                preview_area | size(WIDTH, EQUAL, half_width)});
+        editor_content =
+            border_manager_.applyBorder(editor_content, EditorRegion::CODE_AREA,
+                                        is_code_active || is_preview_active, editor->getTheme());
     }
     // 如果文件浏览器打开，使用左右分栏布局，位置由 display.file_browser_side 配置决定
     else if (editor->isFileBrowserVisible()) {

@@ -2,12 +2,17 @@
 #include "ui/icons.h"
 #include "utils/file_info_utils.h"
 #include "utils/file_type_detector.h"
+#include "utils/logger.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <condition_variable>
 #include <fstream>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <mutex>
+#include <queue>
 #include <sstream>
 #include <thread>
 #include <tuple>
@@ -39,6 +44,148 @@ static bool shouldIgnoreDir(const std::string& name) {
     return false;
 }
 
+// 多线程扫描优化
+static const size_t FZF_NUM_THREADS = std::thread::hardware_concurrency();
+
+// 线程安全的文件结果收集器
+class FileResultCollector {
+  public:
+    void addFile(const std::string& path, const std::string& display_path) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        results_.emplace_back(path, display_path);
+    }
+
+    std::vector<std::pair<std::string, std::string>> getResults() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return std::move(results_);
+    }
+
+    void incrementTotalEntries() {
+        total_entries_++;
+    }
+    void incrementTotalDirs() {
+        total_dirs_++;
+    }
+    void incrementTotalFiles() {
+        total_files_++;
+    }
+    void incrementIgnoredDirs() {
+        ignored_dirs_++;
+    }
+    void incrementIgnoredEntries() {
+        ignored_entries_++;
+    }
+
+    size_t getTotalEntries() const {
+        return total_entries_.load();
+    }
+    size_t getTotalDirs() const {
+        return total_dirs_.load();
+    }
+    size_t getTotalFiles() const {
+        return total_files_.load();
+    }
+    size_t getIgnoredDirs() const {
+        return ignored_dirs_.load();
+    }
+    size_t getIgnoredEntries() const {
+        return ignored_entries_.load();
+    }
+
+  private:
+    std::vector<std::pair<std::string, std::string>> results_;
+    std::mutex mutex_;
+    std::atomic<size_t> total_entries_{0};
+    std::atomic<size_t> total_dirs_{0};
+    std::atomic<size_t> total_files_{0};
+    std::atomic<size_t> ignored_dirs_{0};
+    std::atomic<size_t> ignored_entries_{0};
+};
+
+// 工作线程函数：处理目录队列
+static void fzfWorkerThread(const std::filesystem::path& root,
+                            std::queue<std::filesystem::directory_entry>& dir_queue,
+                            std::mutex& queue_mutex, std::condition_variable& queue_cv,
+                            std::atomic<bool>& all_roots_processed, FileResultCollector& collector,
+                            int /*thread_id*/) {
+    while (true) {
+        std::filesystem::directory_entry entry;
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+
+            // 等待有任务或完成标志
+            queue_cv.wait(lock, [&] {
+                return !dir_queue.empty() || all_roots_processed.load();
+            });
+
+            if (dir_queue.empty()) {
+                if (all_roots_processed.load()) {
+                    return; // 所有任务完成
+                }
+                continue;
+            }
+
+            entry = std::move(dir_queue.front());
+            dir_queue.pop();
+        }
+
+        try {
+            collector.incrementTotalEntries();
+
+            if (entry.is_directory()) {
+                collector.incrementTotalDirs();
+                std::string dir_name = entry.path().filename().string();
+
+                if (shouldIgnoreDir(dir_name)) {
+                    collector.incrementIgnoredDirs();
+                    continue;
+                }
+
+                // 将子目录加入队列
+                try {
+                    for (const auto& sub_entry : std::filesystem::directory_iterator(
+                             entry.path(),
+                             std::filesystem::directory_options::skip_permission_denied)) {
+                        {
+                            std::lock_guard<std::mutex> lock(queue_mutex);
+                            dir_queue.push(sub_entry);
+                        }
+                        queue_cv.notify_one();
+                    }
+                } catch (...) {
+                    // 忽略无法访问的目录
+                }
+            } else if (entry.is_regular_file()) {
+                collector.incrementTotalFiles();
+
+                std::string path_str = entry.path().string();
+                std::filesystem::path rel_path = std::filesystem::relative(entry.path(), root);
+
+                // 检查路径组件是否有需要忽略的目录
+                bool ignored = false;
+                for (const auto& comp : rel_path) {
+                    if (shouldIgnoreDir(comp.string())) {
+                        ignored = true;
+                        collector.incrementIgnoredEntries();
+                        break;
+                    }
+                }
+
+                if (!ignored) {
+                    std::string display_path =
+                        rel_path.empty() ? std::filesystem::path(path_str).filename().string()
+                                         : rel_path.string();
+                    collector.addFile(path_str, display_path);
+                }
+            } else {
+                collector.incrementIgnoredEntries();
+            }
+        } catch (const std::exception& e) {
+            // 忽略异常
+        }
+    }
+}
+
 FzfPopup::FzfPopup(Theme& theme)
     : theme_(theme), is_open_(false), is_loading_(false), input_(""), cursor_pos_(0),
       root_directory_("."), selected_index_(0), scroll_offset_(0), list_display_count_(18),
@@ -46,70 +193,93 @@ FzfPopup::FzfPopup(Theme& theme)
     syntax_highlighter_ = std::make_unique<features::SyntaxHighlighter>(theme_);
 }
 
-// 静态函数：在后台线程中收集文件，返回 (文件列表, 预计算显示路径, 规范根路径)
-// 扫描时已计算 rel_path 做 ignore 判断，复用为 display_path，避免 filterFiles 中重复调用 relative()
+// 静态函数：在后台线程中收集文件，返回 (文件列表，预计算显示路径，规范根路径)
+// 使用多线程并行扫描加速
 static std::tuple<std::vector<std::string>, std::vector<std::string>, std::string>
 collectFilesToVector(const std::string& root_directory) {
-    std::vector<std::pair<std::string, std::string>> result; // (path, display_path)
+    LOG_TIMING_START("fzf_collectFiles");
+
     std::string canonical_root;
+    FileResultCollector collector;
+
     try {
         std::filesystem::path root(root_directory);
         if (!std::filesystem::exists(root) || !std::filesystem::is_directory(root)) {
+            LOG_WARNING("fzf_popup - Root directory does not exist: " + root_directory);
             root = std::filesystem::current_path();
         }
+
         canonical_root = std::filesystem::canonical(root).string();
 
-        auto iter = std::filesystem::recursive_directory_iterator(
-            root, std::filesystem::directory_options::skip_permission_denied);
+        LOG_DEBUG("fzf_collectFiles - Scanning directory: " + root_directory);
+        LOG_DEBUG("fzf_collectFiles - Using " + std::to_string(FZF_NUM_THREADS) + " threads");
 
-        for (; iter != std::filesystem::recursive_directory_iterator(); ++iter) {
-            const auto& entry = *iter;
-            try {
-                if (entry.is_directory()) {
-                    std::string dir_name = entry.path().filename().string();
-                    if (shouldIgnoreDir(dir_name)) {
-                        iter.disable_recursion_pending();
-                        continue;
-                    }
-                    continue;
-                }
-                if (!entry.is_regular_file())
-                    continue;
-                std::string path_str = entry.path().string();
-                std::filesystem::path rel_path = std::filesystem::relative(entry.path(), root);
-                bool ignored = false;
-                for (const auto& comp : rel_path) {
-                    if (shouldIgnoreDir(comp.string())) {
-                        ignored = true;
-                        break;
-                    }
-                }
-                if (ignored)
-                    continue;
-                std::string display_path = rel_path.empty()
-                                               ? std::filesystem::path(path_str).filename().string()
-                                               : rel_path.string();
-                result.push_back({path_str, std::move(display_path)});
-            } catch (...) {
-                continue;
+        // 目录队列和同步原语
+        std::queue<std::filesystem::directory_entry> dir_queue;
+        std::mutex queue_mutex;
+        std::condition_variable queue_cv;
+        std::atomic<bool> all_roots_processed{false};
+
+        // 初始化：将根目录的子目录加入队列
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex);
+            for (const auto& entry : std::filesystem::directory_iterator(
+                     root, std::filesystem::directory_options::skip_permission_denied)) {
+                dir_queue.push(entry);
             }
         }
 
-        std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+        // 创建工作线程
+        std::vector<std::thread> threads;
+        for (size_t i = 0; i < FZF_NUM_THREADS; ++i) {
+            threads.emplace_back(fzfWorkerThread, std::ref(root), std::ref(dir_queue),
+                                 std::ref(queue_mutex), std::ref(queue_cv),
+                                 std::ref(all_roots_processed), std::ref(collector),
+                                 static_cast<int>(i));
+        }
+
+        // 标记根目录处理完成
+        all_roots_processed.store(true);
+        queue_cv.notify_all();
+
+        // 等待所有工作线程完成
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        // 记录性能指标
+        LOG_METRIC("fzf_total_entries", collector.getTotalEntries(), "root=" + root_directory);
+        LOG_METRIC("fzf_total_dirs", collector.getTotalDirs(), "root=" + root_directory);
+        LOG_METRIC("fzf_total_files", collector.getTotalFiles(), "root=" + root_directory);
+        LOG_METRIC("fzf_ignored_dirs", collector.getIgnoredDirs(), "root=" + root_directory);
+        LOG_METRIC("fzf_ignored_entries", collector.getIgnoredEntries(), "root=" + root_directory);
+
+        auto results = collector.getResults();
+        LOG_METRIC("fzf_collected_files", results.size(), "root=" + root_directory);
+
+        // 排序阶段
+        LOG_TIMING_START("fzf_sort");
+        std::sort(results.begin(), results.end(), [](const auto& a, const auto& b) {
             return a.first < b.first;
         });
+        LOG_TIMING_END("fzf_sort", "count=" + std::to_string(results.size()));
 
         std::vector<std::string> files;
         std::vector<std::string> display_paths;
-        files.reserve(result.size());
-        display_paths.reserve(result.size());
-        for (auto& p : result) {
+        files.reserve(results.size());
+        display_paths.reserve(results.size());
+        for (auto& p : results) {
             files.push_back(std::move(p.first));
             display_paths.push_back(std::move(p.second));
         }
 
+        LOG_TIMING_END("fzf_collectFiles",
+                       "root=" + root_directory + ", files=" + std::to_string(files.size()));
+
         return {std::move(files), std::move(display_paths), std::move(canonical_root)};
-    } catch (...) {
+    } catch (const std::exception& e) {
+        LOG_ERROR("fzf_collectFiles - Exception: " + std::string(e.what()));
+        LOG_TIMING_END("fzf_collectFiles", "error");
         return {{}, {}, {}};
     }
 }
