@@ -54,6 +54,61 @@ ThemeColors Theme::Monokai() {
     return colors;
 }
 
+ThemeColors Theme::Orange() {
+    ThemeColors colors;
+    // Orange: 橙黄色系渐变，所有语法高亮色集中在橙 - 黄窄色域
+    // 灵感来源：黄昏天空、琥珀色渐变、金色暖阳、蜂蜜流动
+    // 设计说明：基础 UI 保持 Monokai 经典色，语法高亮色在橙黄区间细腻过渡
+    colors.background = Color::RGB(39, 40, 34);    // #272822 经典 Monokai 背景
+    colors.foreground = Color::RGB(248, 248, 242); // #f8f8f2 经典前景色
+    colors.current_line = Color::RGB(55, 56, 48);  // #373831 当前行背景
+    colors.selection = Color::RGB(73, 72, 62);     // #49483e 选择区
+    colors.line_number = Color::RGB(117, 113, 94); // #75715e 行号
+    colors.line_number_current = Color::RGB(248, 248, 242);
+
+    colors.statusbar_bg = Color::RGB(36, 37, 31);
+    colors.statusbar_fg = Color::RGB(248, 248, 242);
+
+    colors.menubar_bg = Color::RGB(30, 31, 28);
+    colors.menubar_fg = Color::RGB(248, 248, 242);
+
+    colors.helpbar_bg = Color::RGB(36, 37, 31);
+    colors.helpbar_fg = Color::RGB(117, 113, 94);
+    colors.helpbar_key = Color::RGB(166, 226, 46);
+
+    // 语法高亮色块渐变带：深橙→橙→橙黄→黄→浅黄（RGB 细腻过渡，色域集中在 20-60 区间）
+    // 色块 1：深橙红（关键词）- 渐变起点，暖色调
+    colors.keyword = Color::RGB(255, 135, 45); // #ff872d 深橙红
+    // 色块 2：橙色（操作符）- 向标准橙过渡
+    colors.operator_color = Color::RGB(255, 145, 50); // #ff9132 标准橙
+    // 色块 3：橙红（错误）- 强调色
+    colors.error = Color::RGB(255, 155, 55); // #ff9b37 亮橙红
+    // 色块 4：橙黄（警告）- 橙向黄过渡
+    colors.warning = Color::RGB(255, 165, 60); // #ffa53c 橙黄
+    // 色块 5：金橙（数字）- 接近中点
+    colors.number = Color::RGB(255, 175, 65); // #ffaf41 金橙色
+    // 色块 6：金橙黄（成功）- 继续向黄过渡
+    colors.success = Color::RGB(245, 185, 70); // #f5b946 金橙黄
+    // 色块 7：橙黄（函数）- 渐变中点
+    colors.function = Color::RGB(240, 195, 80); // #f0c350 橙黄
+    // 色块 8：黄橙（信息）- 黄色调增强
+    colors.info = Color::RGB(235, 205, 90); // #ebcd5a 黄橙色
+    // 色块 9：金黄色（类型）- 接近纯黄
+    colors.type = Color::RGB(230, 215, 100); // #e6d764 金黄色
+    // 色块 10：暖黄（字符串）- 渐变终点，柔和黄
+    colors.string = Color::RGB(225, 220, 110); // #e1dc6e 暖黄色
+    // 注释保持独立灰色，不参与渐变
+    colors.comment = Color::RGB(117, 113, 94); // #75715e 经典灰
+
+    colors.dialog_bg = Color::RGB(49, 50, 44);
+    colors.dialog_fg = Color::RGB(248, 248, 242);
+    colors.dialog_title_bg = Color::RGB(39, 40, 34);
+    colors.dialog_title_fg = Color::RGB(248, 248, 242);
+    colors.dialog_border = Color::RGB(117, 113, 94);
+
+    return colors;
+}
+
 ThemeColors Theme::MonokaiDark() {
     ThemeColors colors;
     // Monokai Dark: 更深的暗色版本，增强对比度
@@ -7018,6 +7073,8 @@ void Theme::setTheme(const std::string& name) {
         colors_ = MonokaiNeon();
     } else if (name == "monokai-pastel") {
         colors_ = MonokaiPastel();
+    } else if (name == "orange") {
+        colors_ = Orange();
     } else if (name == "solarized-dark") {
         colors_ = SolarizedDark();
     } else if (name == "solarized-light") {
@@ -7454,6 +7511,7 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "monokai-light",
             "monokai-neon",
             "monokai-pastel",
+            "orange",
             "dracula-soft",
             "dracula-light",
             "dracula-neon",

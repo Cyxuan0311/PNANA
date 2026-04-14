@@ -58,11 +58,12 @@ class Theme {
     Theme();
 
     // 预设主题
-    static ThemeColors Monokai();        // Monokai Pro - 经典Monokai主题
-    static ThemeColors MonokaiDark();    // Monokai Dark - 更深的暗色版本，增强对比度
-    static ThemeColors MonokaiLight();   // Monokai Light - 浅色版本，适合明亮环境
-    static ThemeColors MonokaiNeon();    // Monokai Neon - 霓虹版本，增强发光效果
-    static ThemeColors MonokaiPastel();  // Monokai Pastel - 粉彩版本，柔和的马卡龙色系
+    static ThemeColors Monokai();       // Monokai Pro - 经典 Monokai 主题
+    static ThemeColors MonokaiDark();   // Monokai Dark - 更深的暗色版本，增强对比度
+    static ThemeColors MonokaiLight();  // Monokai Light - 浅色版本，适合明亮环境
+    static ThemeColors MonokaiNeon();   // Monokai Neon - 霓虹版本，增强发光效果
+    static ThemeColors MonokaiPastel(); // Monokai Pastel - 粉彩版本，柔和的马卡龙色系
+    static ThemeColors Orange(); // Orange - 橙黄色系渐变主题，放在 Monokai 系列之后
     static ThemeColors SolarizedDark();  // Solarized Dark
     static ThemeColors SolarizedLight(); // Solarized Light
     static ThemeColors OneDark();        // One Dark
