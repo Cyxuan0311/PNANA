@@ -1,7 +1,9 @@
 #ifndef PNANA_UTILS_LOGGER_H
 #define PNANA_UTILS_LOGGER_H
 
+#include <chrono>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -30,6 +32,12 @@ class Logger {
     void logWarning(const std::string& message);
     void logDebug(const std::string& message);
 
+    // 性能埋点功能
+    void startTiming(const std::string& label);
+    void endTiming(const std::string& label, const std::string& context = "");
+    void recordMetric(const std::string& metric_name, long long value,
+                      const std::string& context = "");
+
     // 关闭日志
     void close();
 
@@ -43,6 +51,10 @@ class Logger {
     mutable std::mutex log_mutex_;
     bool initialized_;
 
+    // 性能埋点相关
+    std::map<std::string, std::chrono::steady_clock::time_point> timing_points_;
+    std::mutex timing_mutex_;
+
     void writeLog(const std::string& level, const std::string& message);
     std::string getTimestamp();
 };
@@ -53,6 +65,12 @@ class Logger {
 #define LOG_ERROR(msg) pnana::utils::Logger::getInstance().logError(msg)
 #define LOG_WARNING(msg) pnana::utils::Logger::getInstance().logWarning(msg)
 #define LOG_DEBUG(msg) pnana::utils::Logger::getInstance().logDebug(msg)
+
+// 性能埋点宏
+#define LOG_TIMING_START(label) pnana::utils::Logger::getInstance().startTiming(label)
+#define LOG_TIMING_END(label, context) pnana::utils::Logger::getInstance().endTiming(label, context)
+#define LOG_METRIC(name, value, context)                                                           \
+    pnana::utils::Logger::getInstance().recordMetric(name, value, context)
 
 } // namespace utils
 } // namespace pnana

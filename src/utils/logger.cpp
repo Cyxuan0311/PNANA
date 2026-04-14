@@ -86,5 +86,44 @@ void Logger::logDebug(const std::string& message) {
     writeLog("DEBUG", message);
 }
 
+void Logger::startTiming(const std::string& label) {
+    std::lock_guard<std::mutex> lock(timing_mutex_);
+    timing_points_[label] = std::chrono::steady_clock::now();
+}
+
+void Logger::endTiming(const std::string& label, const std::string& context) {
+    std::lock_guard<std::mutex> lock(timing_mutex_);
+
+    auto it = timing_points_.find(label);
+    if (it == timing_points_.end()) {
+        return; // 没有找到对应的开始点
+    }
+
+    auto end_time = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - it->second);
+
+    std::ostringstream oss;
+    oss << "TIMING [" << label << "]: " << duration.count() << "ms";
+    if (!context.empty()) {
+        oss << " - " << context;
+    }
+
+    timing_points_.erase(it);
+
+    // 使用 INFO 级别记录性能数据
+    writeLog("INFO", oss.str());
+}
+
+void Logger::recordMetric(const std::string& metric_name, long long value,
+                          const std::string& context) {
+    std::ostringstream oss;
+    oss << "METRIC [" << metric_name << "]: " << value;
+    if (!context.empty()) {
+        oss << " - " << context;
+    }
+
+    writeLog("INFO", oss.str());
+}
+
 } // namespace utils
 } // namespace pnana
