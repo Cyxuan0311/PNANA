@@ -12,9 +12,131 @@ permissions:
   security-events: write
 
 jobs:
-  # 1️⃣ 构建 PNANA
-  build:
-    name: Build PNANA on ${{ matrix.os }}
+  # 1️⃣ 构建 PNANA - C++ SSH 实现
+  build-cpp:
+    name: Build PNANA (C++ SSH) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        compiler: [gcc, clang]
+        build_type: [Release]
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - os: ubuntu-latest
+            compiler: clang
+            cc: clang
+            cxx: clang++
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            build-essential \
+            pkg-config \
+            nlohmann-json3-dev \
+            liblua5.4-dev \
+            libtree-sitter-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            libswscale-dev \
+            libavutil-dev \
+            libncurses-dev \
+            libtinfo-dev \
+            git \
+            ccache \
+            curl \
+            libcurl4-openssl-dev \
+            libvterm-dev \
+            libchafa-dev \
+            libglib2.0-dev \
+            libssh2-1-dev
+
+      - name: Build and install FTXUI
+        run: |
+          git clone --depth 1 --branch main \
+            https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_ENABLE_INSTALL=ON
+          make -j$(nproc)
+          sudo make install
+          cd ../..
+          rm -rf FTXUI
+
+      - name: Setup environment
+        run: |
+          echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
+          echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
+          echo "CMAKE_GENERATOR=Ninja" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-cpp
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_PREFIX_PATH=/usr/local \
+            -DBUILD_TESTING=ON \
+            -DBUILD_IMAGE_PREVIEW=ON \
+            -DBUILD_TREE_SITTER=ON \
+            -DBUILD_LUA=ON \
+            -DBUILD_SSH_MODE=CPP \
+            -DBUILD_LIBVTERM=ON
+
+      - name: Build
+        run: |
+          cd build
+          ninja -j$(nproc) -v
+
+      - name: Show ccache stats
+        run: ccache -s
+
+      - name: Test
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: matrix.build_type == 'Release'
+        with:
+          name: pnana-cpp-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
+          path: |
+            build/pnana
+            build/compile_commands.json
+          retention-days: 30
+
+  # 2️⃣ 构建 PNANA - Go SSH 实现
+  build-go:
+    name: Build PNANA (Go SSH) on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -91,7 +213,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ${{ runner.os }}-ccache
+          key: ${{ runner.os }}-ccache-go
 
       - name: Configure CMake
         run: |
@@ -108,7 +230,7 @@ jobs:
             -DBUILD_IMAGE_PREVIEW=ON \
             -DBUILD_TREE_SITTER=ON \
             -DBUILD_LUA=ON \
-            -DBUILD_GO=ON \
+            -DBUILD_SSH_MODE=GO \
             -DBUILD_LIBVTERM=ON
 
       - name: Build
@@ -128,7 +250,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.build_type == 'Release'
         with:
-          name: pnana-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
+          name: pnana-go-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
           path: |
             build/pnana
             build/compile_commands.json

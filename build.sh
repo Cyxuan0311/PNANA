@@ -50,7 +50,7 @@ check_dependencies() {
     
     # 检查 Go (可选，用于 SSH 模块)
     if ! command -v go &> /dev/null; then
-        print_warning "Go is not installed. SSH module will use system commands instead."
+        print_warning "Go is not installed. Go SSH module will be unavailable."
     fi
     
     if [ ${#missing_deps[@]} -ne 0 ]; then
@@ -98,11 +98,6 @@ configure_cmake() {
         print_info "  - Lua plugin system: ENABLED"
     fi
     
-    if [ "$BUILD_GO" = "ON" ]; then
-        cmake_args+=(-DBUILD_GO=ON)
-        print_info "  - Go SSH module: ENABLED"
-    fi
-    
     if [ "$BUILD_AI_CLIENT" = "ON" ]; then
         cmake_args+=(-DBUILD_AI_CLIENT=ON)
         print_info "  - AI client support: ENABLED"
@@ -111,6 +106,12 @@ configure_cmake() {
     if [ "$BUILD_LIBVTERM" = "ON" ]; then
         cmake_args+=(-DBUILD_LIBVTERM=ON)
         print_info "  - libvterm terminal emulation: ENABLED"
+    fi
+    
+    # SSH 模式处理（交互式确认）
+    if [ "$BUILD_SSH_MODE" != "" ]; then
+        cmake_args+=(-DBUILD_SSH_MODE="${BUILD_SSH_MODE}")
+        print_info "  - SSH mode: ${BUILD_SSH_MODE}"
     fi
     
     cmake .. "${cmake_args[@]}"
@@ -174,20 +175,59 @@ show_help() {
     echo "  BUILD_IMAGE_PREVIEW=ON    Enable image preview support (requires chafa)"
     echo "  BUILD_TREE_SITTER=ON      Enable Tree-sitter syntax highlighting"
     echo "  BUILD_LUA=ON              Enable Lua plugin system"
-    echo "  BUILD_GO=ON              Enable Go SSH module"
+    echo "  BUILD_SSH_MODE=GO|CPP|NONE  Select SSH implementation (GO/Cpp/NONE, default: NONE)"
     echo "  BUILD_AI_CLIENT=ON       Enable AI client support (requires libcurl)"
     echo "  BUILD_LIBVTERM=ON        Enable libvterm terminal emulation"
     echo ""
     echo "Examples:"
-    echo "  $0                                    # Build the project"
-    echo "  $0 --clean                            # Clean and build"
-    echo "  $0 --install                          # Build and install"
-    echo "  $0 BUILD_IMAGE_PREVIEW=ON             # Build with image preview"
-    echo "  $0 BUILD_LUA=ON BUILD_GO=ON           # Build with Lua and Go support"
-    echo "  $0 --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
-    echo "  $0 --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
-    echo "  $0 BUILD_LIBVTERM=ON                    # Build with libvterm support"
-    echo "  $0 --all                                # Build with all optional features enabled"
+    echo "  \$0                                    # Build the project"
+    echo "  \$0 --clean                            # Clean and build"
+    echo "  \$0 --install                          # Build and install"
+    echo "  \$0 BUILD_IMAGE_PREVIEW=ON             # Build with image preview"
+    echo "  \$0 BUILD_LUA=ON BUILD_SSH_MODE=CPP    # Build with Lua and C++ SSH"
+    echo "  \$0 BUILD_SSH_MODE=GO                  # Build with Go SSH module"
+    echo "  \$0 --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
+    echo "  \$0 --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
+    echo "  \$0 BUILD_LIBVTERM=ON                    # Build with libvterm support"
+    echo "  \$0 --all                                # Build with all optional features enabled (interactive SSH mode selection)"
+}
+
+# 交互式选择 SSH 模式
+interactive_ssh_mode_selection() {
+    echo ""
+    print_info "=== SSH Implementation Selection ==="
+    echo "Please choose SSH implementation mode:"
+    echo "  1) GO    - Use Go SSH module (requires Go compiler)"
+    echo "  2) CPP   - Use C++ native SSH (requires libssh2)"
+    echo "  3) NONE  - No SSH support (default)"
+    echo ""
+    
+    while true; do
+        read -p "Enter your choice (1/2/3 or GO/CPP/NONE): " ssh_choice
+        
+        case $ssh_choice in
+            1|GO|go)
+                BUILD_SSH_MODE="GO"
+                print_info "Selected: Go SSH module"
+                break
+                ;;
+            2|CPP|cpp)
+                BUILD_SSH_MODE="CPP"
+                print_info "Selected: C++ native SSH"
+                break
+                ;;
+            3|NONE|none)
+                BUILD_SSH_MODE="NONE"
+                print_info "Selected: No SSH support"
+                break
+                ;;
+            *)
+                print_warning "Invalid choice. Please enter 1, 2, 3, GO, CPP, or NONE."
+                ;;
+        esac
+    done
+    
+    echo ""
 }
 
 # 主函数
@@ -200,14 +240,14 @@ main() {
     BUILD_IMAGE_PREVIEW=""
     BUILD_TREE_SITTER=""
     BUILD_LUA=""
-    BUILD_GO=""
+    BUILD_SSH_MODE=""
     BUILD_AI_CLIENT=""
     BUILD_LIBVTERM=""
     # 标记每个选项是否由用户显式设置（用于 --all 后允许显式覆盖）
     BUILD_IMAGE_PREVIEW_SET=false
     BUILD_TREE_SITTER_SET=false
     BUILD_LUA_SET=false
-    BUILD_GO_SET=false
+    BUILD_SSH_MODE_SET=false
     BUILD_AI_CLIENT_SET=false
     BUILD_LIBVTERM_SET=false
     
@@ -245,9 +285,9 @@ main() {
                 BUILD_LUA_SET=true
                 shift
                 ;;
-            BUILD_GO=*)
-                BUILD_GO="${1#*=}"
-                BUILD_GO_SET=true
+            BUILD_SSH_MODE=*)
+                BUILD_SSH_MODE="${1#*=}"
+                BUILD_SSH_MODE_SET=true
                 shift
                 ;;
             BUILD_AI_CLIENT=*)
@@ -274,9 +314,15 @@ main() {
         if [ "$BUILD_IMAGE_PREVIEW_SET" = false ]; then BUILD_IMAGE_PREVIEW="ON"; fi
         if [ "$BUILD_TREE_SITTER_SET" = false ]; then BUILD_TREE_SITTER="ON"; fi
         if [ "$BUILD_LUA_SET" = false ]; then BUILD_LUA="ON"; fi
-        if [ "$BUILD_GO_SET" = false ]; then BUILD_GO="ON"; fi
         if [ "$BUILD_AI_CLIENT_SET" = false ]; then BUILD_AI_CLIENT="ON"; fi
         if [ "$BUILD_LIBVTERM_SET" = false ]; then BUILD_LIBVTERM="ON"; fi
+        
+        # 交互式选择 SSH 模式（如果用户未显式指定）
+        if [ "$BUILD_SSH_MODE_SET" = false ]; then
+            interactive_ssh_mode_selection
+        else
+            print_info "SSH mode specified by user: ${BUILD_SSH_MODE}"
+        fi
     fi
     
     print_info "Starting build process..."
