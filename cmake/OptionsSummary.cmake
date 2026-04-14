@@ -10,7 +10,7 @@ function(generate_options_summary)
         "BUILD_LUA"
         "BUILD_ICONV_SUPPORT"
         "BUILD_TREE_SITTER"
-        "BUILD_GO"
+        "BUILD_SSH_MODE"
         "NLOHMANN_JSON_FOUND"
     )
     
@@ -23,7 +23,7 @@ function(generate_options_summary)
         "Lua Plugins"
         "Iconv Support"
         "Tree-sitter"
-        "Go SSH Module"
+        "SSH Mode"
         "nlohmann/json"
     )
     

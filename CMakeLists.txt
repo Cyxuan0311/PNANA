@@ -78,16 +78,82 @@ option(BUILD_TREE_SITTER "Enable Tree-sitter syntax highlighting" OFF)
 # Lua插件系统支持（手动启用）
 option(BUILD_LUA "Enable Lua plugin system" OFF)
 
-# Go SSH模块支持（手动启用）
-option(BUILD_GO "Enable Go SSH module" OFF)
+# SSH 支持配置（三选一：GO、CPP、NONE）
+# BUILD_SSH_MODE 可选值：
+#   - "GO"   : 使用 Go 实现的 SSH 模块
+#   - "CPP"  : 使用 C++ 原生实现的 SSH 模块（基于 libssh2）
+#   - "NONE" : 不启用 SSH 功能（默认）
+set(BUILD_SSH_MODE "NONE" CACHE STRING "SSH implementation mode: GO, CPP, or NONE")
+set_property(CACHE BUILD_SSH_MODE PROPERTY STRINGS "GO" "CPP" "NONE")
 
 # libvterm 终端模拟支持（手动启用，参考 Lua 插件模式）
 option(BUILD_LIBVTERM "Enable libvterm for full terminal emulation" OFF)
 
 # 默认关闭，需系统安装 libvterm 开发包后手动开启
 
-# AI客户端支持（手动启用）
+# AI 客户端支持（手动启用）
 option(BUILD_AI_CLIENT "Enable AI client support" OFF)
+
+# 配置 SSH 支持
+if(BUILD_SSH_MODE STREQUAL "GO")
+    message(STATUS "SSH mode: GO - checking for Go compiler...")
+    
+    find_program(GO_EXECUTABLE go)
+    if(NOT GO_EXECUTABLE)
+        message(FATAL_ERROR "✗ Go compiler not found but BUILD_SSH_MODE is set to GO")
+        message(STATUS "  Please install Go (golang) using your system package manager or from https://go.dev/dl/")
+        message(STATUS "  After installing, reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_SSH_MODE=GO ..")
+    else()
+        set(BUILD_GO_MODULE ON)
+        set(BUILD_SSH_SUPPORT ON)
+        message(STATUS "✓ Found Go: ${GO_EXECUTABLE}")
+        message(STATUS "  SSH implementation: Go module")
+    endif()
+    
+    set(BUILD_GO ON)
+elseif(BUILD_SSH_MODE STREQUAL "CPP")
+    message(STATUS "SSH mode: CPP - checking for libssh2...")
+    
+    # 使用独立的 CMake 脚本查找 libssh2
+    include(${CMAKE_SOURCE_DIR}/cmake/FindLibSSH2.cmake)
+    
+    if(LIBSSH2_FOUND)
+        set(BUILD_SSH_SUPPORT ON)
+        set(BUILD_CPP_SSH_MODULE ON)
+        message(STATUS "✓ libssh2 found - native SSH support enabled")
+        message(STATUS "  Libraries: ${LIBSSH2_LIBRARIES}")
+        if(NOT "${LIBSSH2_INCLUDE_DIRS}" STREQUAL "")
+            message(STATUS "  Include dirs: ${LIBSSH2_INCLUDE_DIRS}")
+        else()
+            message(STATUS "  Include dirs: (standard system paths)")
+        endif()
+        if(NOT "${LIBSSH2_LIBRARY_DIRS}" STREQUAL "")
+            message(STATUS "  Library dirs: ${LIBSSH2_LIBRARY_DIRS}")
+        endif()
+        if(LIBSSH2_VERSION)
+            message(STATUS "  Version: ${LIBSSH2_VERSION}")
+        endif()
+        message(STATUS "  SSH implementation: C++ native (libssh2)")
+    else()
+        set(BUILD_SSH_SUPPORT OFF)
+        set(BUILD_CPP_SSH_MODULE OFF)
+        message(FATAL_ERROR "✗ libssh2 not found but BUILD_SSH_MODE is set to CPP\n"
+                            "  Please install libssh2 development package:\n"
+                            "  - Debian/Ubuntu: apt-get install libssh2-1-dev\n"
+                            "  - Fedora/RHEL: dnf install libssh2-devel\n"
+                            "  - Arch: pacman -S libssh2\n"
+                            "  - macOS: brew install libssh2\n"
+                            "  Then reconfigure: rm -rf build && mkdir build && cd build && cmake -DBUILD_SSH_MODE=CPP ..")
+    endif()
+    
+    set(BUILD_GO OFF)
+else()
+    set(BUILD_SSH_SUPPORT OFF)
+    set(BUILD_GO_MODULE OFF)
+    set(BUILD_GO OFF)
+    message(STATUS "SSH mode: NONE - SSH functionality disabled")
+    message(STATUS "  Use -DBUILD_SSH_MODE=GO or -DBUILD_SSH_MODE=CPP to enable SSH support")
+endif()
 
 if(BUILD_IMAGE_PREVIEW)
     message(STATUS "Image preview support enabled - checking for Chafa...")
@@ -498,6 +564,9 @@ set(SOURCES
     $<$<BOOL:${BUILD_AI_CLIENT_SUPPORT}>:src/features/ai_client/ai_client.cpp>
     $<$<BOOL:${BUILD_AI_CLIENT_SUPPORT}>:src/features/ai_client/assistant_system_prompt.cpp>
     src/features/ssh/ssh_client.cpp
+    $<$<BOOL:${BUILD_CPP_SSH_MODULE}>:src/features/ssh/ssh_connection.cpp>
+    $<$<BOOL:${BUILD_CPP_SSH_MODULE}>:src/features/ssh/ssh_pool.cpp>
+    $<$<BOOL:${BUILD_CPP_SSH_MODULE}>:src/features/ssh/ssh_client_native.cpp>
     src/core/editor_ssh.cpp
     src/core/editor_lsp.cpp
     # 新的输入处理模块（解耦优化）
@@ -656,6 +725,10 @@ set(HEADERS
     include/pnana/features/ai_config/ai_config.h
     include/pnana/features/ssh/ssh_client.h
     include/pnana/features/ssh/ssh_client_cgo.h
+    include/pnana/features/ssh/ssh_connection.h
+    include/pnana/features/ssh/ssh_pool.h
+    include/pnana/features/ssh/ssh_client_native.h
+    include/pnana/features/ssh/ssh_async_manager.h
     # 插件系统头文件
     include/pnana/plugins/lua_engine.h
     include/pnana/plugins/plugin_manager.h
@@ -752,12 +825,27 @@ else()
     message(STATUS "Go SSH module will not be built. SSH functionality may be limited.")
 endif()
 
-# 链接FTXUI库
+# 链接 FTXUI 库
 target_link_libraries(pnana
     PRIVATE ftxui::screen
     PRIVATE ftxui::dom
     PRIVATE ftxui::component
 )
+
+# 链接 libssh2（如果使用 C++ 原生 SSH 实现）
+if(BUILD_CPP_SSH_MODULE)
+    if(LIBSSH2_FOUND)
+        target_link_libraries(pnana PRIVATE ${LIBSSH2_LIBRARIES})
+        target_include_directories(pnana PRIVATE ${LIBSSH2_INCLUDE_DIRS})
+        target_compile_options(pnana PRIVATE ${LIBSSH2_CFLAGS_OTHER})
+        target_compile_definitions(pnana PRIVATE BUILD_CPP_SSH_MODULE)
+        message(STATUS "C++ SSH implementation configured with libssh2")
+    elseif(LibSSH2_FOUND)
+        target_link_libraries(pnana PRIVATE LibSSH2::libssh2)
+        target_compile_definitions(pnana PRIVATE BUILD_CPP_SSH_MODULE)
+        message(STATUS "C++ SSH implementation configured with libssh2 (find_package)")
+    endif()
+endif()
 
 # 检查并配置原子操作支持
 check_and_configure_atomic(pnana)
