@@ -54,8 +54,6 @@ FTXUI (Functional Terminal User Interface) 为必需库，用于终端 UI。
 
 **验证**：`pkg-config --modversion ftxui`
 
-**注意**：如果系统未安装 FTXUI，项目会使用 `third-party/ftxui/` 中的内置版本。
-
 ---
 
 ## 可选功能与依赖
