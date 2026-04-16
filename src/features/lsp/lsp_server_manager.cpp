@@ -138,20 +138,35 @@ void LspServerManager::initializeAll(const std::string& /* root_path */) {
 }
 
 void LspServerManager::shutdownAll() {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
+    // 注意：此方法通常在析构函数中调用，此时不应有其他线程访问
+    // 因此不需要加锁，直接操作即可
 
+    // 先复制一份客户端列表，避免在迭代过程中 map 被修改
+    std::vector<std::pair<std::string, std::unique_ptr<LspClient>>> clients_to_shutdown;
     for (auto& [language_id, client] : clients_) {
         if (client && initialized_[language_id]) {
-            try {
-                client->shutdown();
-            } catch (...) {
-                // 忽略关闭时的错误
-            }
+            clients_to_shutdown.emplace_back(language_id, std::move(client));
         }
     }
 
+    // 清空原始 map
     clients_.clear();
     initialized_.clear();
+
+    // 逐个关闭客户端
+    for (auto& [language_id, client] : clients_to_shutdown) {
+        try {
+            if (client && client->isConnected()) {
+                client->shutdown();
+            }
+        } catch (const std::system_error& e) {
+            // 忽略 system_error（通常是 mutex 或线程相关错误）
+            LOG("LSP shutdown error for " + language_id + ": " + e.what());
+        } catch (...) {
+            // 忽略其他错误
+            LOG("LSP shutdown error for " + language_id);
+        }
+    }
 }
 
 bool LspServerManager::hasServerForFile(const std::string& filepath) const {

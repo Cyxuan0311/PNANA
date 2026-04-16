@@ -184,6 +184,9 @@ class LspClient {
 
     // 解析 JSON 字符串
     jsonrpccxx::json parseJson(const std::string& json_str);
+
+    // 防止重复 shutdown 的标志
+    std::atomic<bool> shutdown_called_{false};
 };
 
 } // namespace features

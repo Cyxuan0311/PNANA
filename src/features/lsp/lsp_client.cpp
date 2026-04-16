@@ -105,6 +105,12 @@ bool LspClient::initialize(const std::string& root_path, const nlohmann::json* i
 }
 
 void LspClient::shutdown() {
+    // 防止重复 shutdown
+    bool expected = false;
+    if (!shutdown_called_.compare_exchange_strong(expected, true)) {
+        return; // 已经在 shutdown 中
+    }
+
     // 先停止通知监听线程，避免在发送 exit 通知后读取 EOF 错误
     connector_->stopNotificationListener();
 
