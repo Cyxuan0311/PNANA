@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <regex>
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -53,7 +54,7 @@ AssemblyAnalyzer::AnalysisResult AssemblyAnalyzer::analyzeFile(const std::string
     try {
         std::ifstream file(filepath);
         if (!file.is_open()) {
-            return {Architecture::GENERIC, Compiler::UNKNOWN, 0.0f, "无法打开文件"};
+            return {Architecture::GENERIC, Compiler::UNKNOWN, 0.0f, "Cannot open file"};
         }
 
         std::string content;
@@ -68,7 +69,7 @@ AssemblyAnalyzer::AnalysisResult AssemblyAnalyzer::analyzeFile(const std::string
         return analyzeContent(content);
     } catch (const std::exception& e) {
         return {Architecture::GENERIC, Compiler::UNKNOWN, 0.0f,
-                std::string("分析失败: ") + e.what()};
+                std::string("Analysis failed: ") + e.what()};
     }
 }
 
@@ -79,7 +80,7 @@ AssemblyAnalyzer::AnalysisResult AssemblyAnalyzer::analyzeContent(const std::str
     auto lines = preprocessLines(content, 100);
 
     if (lines.empty()) {
-        result.details = "文件为空或无有效内容";
+        result.details = "File is empty or contains no valid content";
         return result;
     }
 
@@ -416,12 +417,12 @@ void AssemblyAnalyzer::calculateConfidence(AnalysisResult& result) {
 
     if (result.arch != Architecture::GENERIC) {
         confidence += 0.5f; // 架构检测成功加0.5
-        details += "检测到" + getArchitectureName(result.arch) + "架构; ";
+        details += "Detected " + getArchitectureName(result.arch) + " architecture; ";
     }
 
     if (result.compiler != Compiler::UNKNOWN) {
         confidence += 0.3f; // 编译器检测成功加0.3
-        details += "检测到" + getCompilerName(result.compiler) + "编译器; ";
+        details += "Detected " + getCompilerName(result.compiler) + " compiler; ";
     }
 
     // 如果置信度太低，降级到通用类型
@@ -429,7 +430,7 @@ void AssemblyAnalyzer::calculateConfidence(AnalysisResult& result) {
         result.arch = Architecture::GENERIC;
         result.compiler = Compiler::UNKNOWN;
         confidence = 0.1f;
-        details = "置信度不足，使用通用汇编类型";
+        details = "Low confidence, using generic assembly type";
     }
 
     result.confidence = std::min(confidence, 1.0f);
