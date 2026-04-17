@@ -219,7 +219,7 @@ jobs:
             -DBUILD_IMAGE_PREVIEW=OFF
             -DBUILD_TREE_SITTER=OFF
             -DBUILD_LUA=OFF
-            -DBUILD_GO=OFF
+            -DBUILD_SSH_MODE=NONE
             -DBUILD_LIBVTERM=OFF
           )
           
