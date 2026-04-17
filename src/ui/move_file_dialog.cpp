@@ -13,6 +13,58 @@ static inline Decorator borderWithColor(Color border_color) {
     };
 }
 
+static bool try_complete_path(const std::string& input, const std::string& base_dir,
+                              std::string& out) {
+    try {
+        size_t pos = input.find_last_of("/\\");
+        std::string base_dir_str = base_dir;
+        std::string prefix;
+        if (pos == std::string::npos) {
+            prefix = input;
+        } else {
+            std::string dir_part = input.substr(0, pos + 1);
+            prefix = input.substr(pos + 1);
+            fs::path p(dir_part);
+            if (p.is_absolute())
+                base_dir_str = p.string();
+            else
+                base_dir_str = (fs::path(base_dir) / p).string();
+        }
+
+        fs::path base(base_dir_str);
+        if (!fs::exists(base) || !fs::is_directory(base))
+            return false;
+
+        std::vector<std::string> matches;
+        for (auto& entry : fs::directory_iterator(base)) {
+            std::string name = entry.path().filename().string();
+            if (name.rfind(prefix, 0) == 0) {
+                if (entry.is_directory())
+                    name += '/';
+                matches.push_back(name);
+            }
+        }
+        if (matches.empty())
+            return false;
+
+        std::string common = matches[0];
+        for (size_t i = 1; i < matches.size(); ++i) {
+            size_t j = 0;
+            while (j < common.size() && j < matches[i].size() && common[j] == matches[i][j])
+                ++j;
+            common = common.substr(0, j);
+        }
+
+        if (pos == std::string::npos)
+            out = common;
+        else
+            out = input.substr(0, pos + 1) + common;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 namespace pnana {
 namespace ui {
 
@@ -84,13 +136,57 @@ Element MoveFileDialog::render() {
               text("Esc") | color(colors.function) | bold, text(": Cancel")}) |
         dim);
 
-    // 添加快捷键提示行
-    dialog_content.push_back(hbox(
-        {text("  "), text("Tip: Enter full path or relative path from current directory") | dim}));
+    // Tab 补全提示
+    dialog_content.push_back(
+        hbox({text("  "), text("Tab") | color(colors.function) | bold, text(": Path completion")}) |
+        dim);
 
     return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 60) |
            size(HEIGHT, EQUAL, 14) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
+}
+
+bool MoveFileDialog::handleInput(Event event) {
+    if (event == Event::Escape) {
+        return true;
+    }
+
+    if (event == Event::Return) {
+        return true;
+    }
+
+    if (event == Event::Tab) {
+        std::string input = getInput();
+        std::string out;
+        if (try_complete_path(input, target_directory_, out)) {
+            setInput(out);
+        }
+        return true;
+    }
+
+    if (event == Event::Backspace) {
+        std::string input = getInput();
+        if (!input.empty()) {
+            input.pop_back();
+            setInput(input);
+        }
+        return true;
+    }
+
+    if (event.is_character()) {
+        std::string ch = event.character();
+        if (ch.length() == 1) {
+            char c = ch[0];
+            if (c >= 32 && c < 127) {
+                std::string input = getInput();
+                input += c;
+                setInput(input);
+            }
+        }
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace ui

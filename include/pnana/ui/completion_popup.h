@@ -21,8 +21,11 @@ class CompletionPopup {
     CompletionPopup();
 
     // 显示补全列表
-    void show(const std::vector<features::CompletionItem>& items, int cursor_row, int cursor_col,
-              int screen_width, int screen_height, const std::string& query = "");
+    // content_top/content_bottom 表示编辑区在屏幕中的垂直边界（含 tabbar/statusbar/helpbar 等
+    // chrome）
+    void show(const std::vector<features::CompletionItem>& items, int anchor_screen_y,
+              int anchor_screen_x, int screen_width, int screen_height, int content_top = 0,
+              int content_bottom = -1, const std::string& query = "");
 
     // 隐藏补全列表
     void hide();
@@ -48,7 +51,9 @@ class CompletionPopup {
     }
 
     // 渲染补全列表（返回元素和位置信息）
-    ftxui::Element render(const ui::Theme& theme) const;
+    // content_origin_x/content_origin_y 为编辑区在屏幕中的原点偏移
+    ftxui::Element render(const ui::Theme& theme, int content_origin_x = 0,
+                          int content_origin_y = 0) const;
 
     // 获取弹窗位置（用于定位）
     int getPopupX() const {
@@ -81,10 +86,12 @@ class CompletionPopup {
     std::string current_query_; // 当前的查询前缀，用于匹配高亮
     size_t selected_index_;
     size_t max_items_;
-    int cursor_row_;
-    int cursor_col_;
+    int anchor_screen_y_;
+    int anchor_screen_x_;
     int screen_width_;
     int screen_height_;
+    int content_top_;
+    int content_bottom_;
 
     // 弹窗位置和尺寸
     int popup_x_;

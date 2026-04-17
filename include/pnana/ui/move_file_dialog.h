@@ -2,6 +2,7 @@
 #define PNANA_UI_MOVE_FILE_DIALOG_H
 
 #include "ui/theme.h"
+#include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <string>
 
@@ -34,6 +35,9 @@ class MoveFileDialog {
 
     // 渲染对话框
     ftxui::Element render();
+
+    // 处理输入事件
+    bool handleInput(ftxui::Event event);
 
   private:
     Theme& theme_;

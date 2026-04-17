@@ -1,5 +1,6 @@
 #include "ui/completion_popup.h"
 #include "ui/icons.h"
+#include "utils/logger.h"
 #include <algorithm>
 #include <cmath>
 #include <ftxui/dom/elements.hpp>
@@ -18,14 +19,13 @@ namespace pnana {
 namespace ui {
 
 CompletionPopup::CompletionPopup()
-    : visible_(false), selected_index_(0), max_items_(12), cursor_row_(0), cursor_col_(0),
-      screen_width_(80), screen_height_(24), popup_x_(0), popup_y_(0), popup_width_(55),
-      popup_height_(14), last_items_size_(0) {}
+    : visible_(false), selected_index_(0), max_items_(12), anchor_screen_y_(0), anchor_screen_x_(0),
+      screen_width_(80), screen_height_(24), content_top_(0), content_bottom_(-1), popup_x_(0),
+      popup_y_(0), popup_width_(55), popup_height_(14), last_items_size_(0) {}
 
-void CompletionPopup::show(const std::vector<features::CompletionItem>& items, int cursor_row,
-                           int cursor_col, int screen_width, int screen_height,
-                           const std::string& query) {
-    // 无补全内容时不显示弹窗，直接隐藏并返回
+void CompletionPopup::show(const std::vector<features::CompletionItem>& items, int anchor_screen_y,
+                           int anchor_screen_x, int screen_width, int screen_height,
+                           int content_top, int content_bottom, const std::string& query) {
     if (items.empty()) {
         hide();
         return;
@@ -69,38 +69,39 @@ void CompletionPopup::show(const std::vector<features::CompletionItem>& items, i
     // 检查屏幕尺寸是否变化（需要重新计算位置）
     bool screen_changed = (screen_width_ != screen_width || screen_height_ != screen_height);
 
-    // 检查光标位置是否变化（需要重新计算位置）
-    bool cursor_changed = (cursor_row_ != cursor_row || cursor_col_ != cursor_col);
+    // 检查锚点位置是否变化（需要重新计算位置）
+    bool anchor_changed =
+        (anchor_screen_y_ != anchor_screen_y || anchor_screen_x_ != anchor_screen_x);
 
     items_ = use_items;
     current_query_ = query;
-    cursor_row_ = cursor_row;
-    cursor_col_ = cursor_col;
+    anchor_screen_y_ = anchor_screen_y;
+    anchor_screen_x_ = anchor_screen_x;
     screen_width_ = screen_width;
     screen_height_ = screen_height;
+    content_top_ = content_top;
+    content_bottom_ = content_bottom;
     selected_index_ = 0;
     visible_ = !items_.empty();
 
-    // 只在内容变化、屏幕尺寸变化、或光标位置变化时重新计算位置
-    // 这样可以减少不必要的计算，提高响应速度
-    if (visible_ && (items_changed || screen_changed || cursor_changed || !was_visible)) {
+    if (visible_ && (items_changed || screen_changed || anchor_changed || !was_visible)) {
         calculatePopupPosition();
     }
 }
 
 void CompletionPopup::updateCursorPosition(int row, int col, int screen_width, int screen_height) {
     // 增强的阈值机制，进一步减少不必要的弹窗位置更新
-    int row_diff = std::abs(row - cursor_row_);
-    int col_diff = std::abs(col - cursor_col_);
+    int row_diff = std::abs(row - anchor_screen_y_);
+    int col_diff = std::abs(col - anchor_screen_x_);
     bool screen_changed = (screen_width_ != screen_width || screen_height_ != screen_height);
 
     // 增大阈值以大幅减少抖动：
     // 行变化 >= 3，列变化 >= 8
-    // 这样可以确保只有在光标发生明显移动时才更新弹窗位置
+    // 这样可以确保只有在锚点发生明显移动时才更新弹窗位置
     bool needs_update = screen_changed || row_diff >= 3 || col_diff >= 8;
 
-    cursor_row_ = row;
-    cursor_col_ = col;
+    anchor_screen_y_ = row;
+    anchor_screen_x_ = col;
     screen_width_ = screen_width;
     screen_height_ = screen_height;
 
@@ -206,62 +207,52 @@ void CompletionPopup::calculatePopupPosition() {
     // 在光标行的下方一行优先显示；若下方空间不足则显示在上方一行。
     // 同时确保不超出屏幕边界，并尽量减少抖动（但阈值更小以提升对齐准确性）。
 
-    // 计算水平目标位置：优先在光标右侧显示
-    int desired_x = cursor_col_;
-    // 如果右侧溢出，尝试放到光标左侧（紧贴光标）
-    if (desired_x + popup_width_ > screen_width_ - 2) {
-        int left_of_cursor = cursor_col_ - popup_width_;
-        if (left_of_cursor >= 0) {
-            desired_x = left_of_cursor;
+    // 计算水平目标位置：优先在锚点右侧显示
+    int desired_x = anchor_screen_x_;
+    int right_limit = std::max(0, screen_width_ - 2);
+    if (desired_x + popup_width_ > right_limit) {
+        int left_of_anchor = anchor_screen_x_ - popup_width_;
+        if (left_of_anchor >= 0) {
+            desired_x = left_of_anchor;
         } else {
-            // 否则靠屏幕右侧摆放（并裁剪）
-            desired_x = screen_width_ - popup_width_ - 2;
-            if (desired_x < 0)
-                desired_x = 0;
+            desired_x = std::max(0, right_limit - popup_width_);
         }
     }
 
-    // 计算垂直目标位置：优先下方一行，其次上方一行
-    int cursor_screen_y = cursor_row_;
-    int desired_y_below = cursor_screen_y + 1; // 在光标下一行显示
-    int desired_y_above =
-        cursor_screen_y - popup_height_; // 在光标上一行显示（使弹窗底部紧贴光标上方）
+    // 只使用屏幕边界，不再按内容区做 clamp
+    int anchor_screen_y = std::clamp(anchor_screen_y_, 0, std::max(0, screen_height_ - 1));
+    int desired_y_below = anchor_screen_y + 4; // 临时加大间距：在锚点下方四行显示，便于验证视觉偏移
+    int desired_y_above = anchor_screen_y - popup_height_; // 在锚点上一行显示
 
-    bool can_show_below =
-        (desired_y_below >= 0) && (desired_y_below + popup_height_ <= screen_height_ - 2);
-    bool can_show_above =
-        (desired_y_above >= 0) && (desired_y_above + popup_height_ <= screen_height_ - 2);
+    bool can_show_below = (desired_y_below + popup_height_ <= screen_height_ - 1);
+    bool can_show_above = (desired_y_above >= 0);
 
     int desired_y;
+    std::string vertical_reason;
     if (can_show_below) {
         desired_y = desired_y_below;
+        vertical_reason = "below";
     } else if (can_show_above) {
         desired_y = desired_y_above;
+        vertical_reason = "above";
     } else {
-        // 两侧都不够时，选择可见区域更多的一侧并进行裁剪
-        int space_below = std::max(0, screen_height_ - (cursor_screen_y + 1) - 2);
-        int space_above = std::max(0, cursor_screen_y - 1);
+        int space_below = std::max(0, screen_height_ - (anchor_screen_y + 1));
+        int space_above = std::max(0, anchor_screen_y);
         if (space_below >= space_above) {
-            desired_y = desired_y_below;
-            if (desired_y + popup_height_ > screen_height_ - 2)
-                desired_y = screen_height_ - popup_height_ - 2;
-            if (desired_y < 0)
-                desired_y = 0;
+            desired_y = std::max(0, screen_height_ - popup_height_ - 1);
+            vertical_reason = "clamp_bottom";
         } else {
-            desired_y = desired_y_above;
-            if (desired_y < 0)
-                desired_y = 0;
+            desired_y = 0;
+            vertical_reason = "clamp_top";
         }
     }
 
-    // ========== 位置更新策略：减少抖动但保证对齐 ==========
     if (size_changed) {
         popup_x_ = desired_x;
         popup_y_ = desired_y;
         return;
     }
 
-    // 如果位置尚未初始化，立即设置
     if (popup_x_ == 0 && popup_y_ == 0) {
         popup_x_ = desired_x;
         popup_y_ = desired_y;
@@ -271,12 +262,10 @@ void CompletionPopup::calculatePopupPosition() {
     int x_diff = std::abs(desired_x - popup_x_);
     int y_diff = std::abs(desired_y - popup_y_);
 
-    // 水平方向：较小阈值（2 列），以便更精确地紧贴光标
     if (x_diff > 2) {
         popup_x_ = desired_x;
     }
 
-    // 垂直方向：当行位置发生变化时立即更新（0 行阈值）
     if (y_diff > 0) {
         popup_y_ = desired_y;
     }
@@ -290,14 +279,8 @@ void CompletionPopup::calculatePopupPosition() {
     if (popup_x_ < 0) {
         popup_x_ = 0;
     }
-    if (popup_y_ + popup_height_ > screen_height_ - 2) {
-        popup_y_ = screen_height_ - popup_height_ - 2;
-        if (popup_y_ < 0)
-            popup_y_ = 0;
-    }
-    if (popup_y_ < 0) {
-        popup_y_ = 0;
-    }
+
+    popup_y_ = std::clamp(popup_y_, 0, std::max(0, screen_height_ - popup_height_ - 1));
 }
 
 std::string CompletionPopup::getKindIcon(const std::string& kind) const {
@@ -572,7 +555,8 @@ Element CompletionPopup::renderItem(const features::CompletionItem& item, bool i
     return line1;
 }
 
-Element CompletionPopup::render(const ui::Theme& theme) const {
+Element CompletionPopup::render(const ui::Theme& theme, int content_origin_x,
+                                int content_origin_y) const {
     if (!visible_ || items_.empty()) {
         return text("");
     }
@@ -603,17 +587,20 @@ Element CompletionPopup::render(const ui::Theme& theme) const {
 
     popup = popup | size(WIDTH, EQUAL, popup_width_) | size(HEIGHT, EQUAL, popup_height_);
 
-    // 将 popup 包装成带位置偏移的元素，overlay manager 会将其叠加到主 UI 之上。
-    // 使用 popup_x_ / popup_y_ 作为相对于屏幕左上角的偏移量（以字符和行计）。
+    int relative_x = popup_x_ - content_origin_x;
+    int relative_y = popup_y_ - content_origin_y;
+    if (relative_x < 0)
+        relative_x = 0;
+    if (relative_y < 0)
+        relative_y = 0;
+
     Elements positioned_lines;
 
-    // 添加顶部空行作为 Y 偏移（使用固定高度确保占位）
-    for (int i = 0; i < popup_y_; ++i) {
+    for (int i = 0; i < relative_y; ++i) {
         positioned_lines.push_back(text("") | size(HEIGHT, EQUAL, 1));
     }
 
-    // 构建一行：左侧空格作为 X 偏移，然后是弹窗
-    std::string left_padding(popup_x_ > 0 ? static_cast<size_t>(popup_x_) : 0, ' ');
+    std::string left_padding(relative_x > 0 ? static_cast<size_t>(relative_x) : 0, ' ');
     positioned_lines.push_back(hbox({text(left_padding), popup}));
 
     return vbox(positioned_lines);
