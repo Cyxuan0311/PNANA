@@ -80,6 +80,12 @@ class SyntaxHighlighter {
         return backend_;
     }
 
+    // 获取指定语言的关键字列表
+    const std::vector<std::string>* getKeywordsForLanguage(const std::string& language) const;
+
+    // 获取指定语言的类型列表
+    const std::vector<std::string>* getTypesForLanguage(const std::string& language) const;
+
     // 检查 Tree-sitter 是否可用
     static bool isTreeSitterAvailable();
 

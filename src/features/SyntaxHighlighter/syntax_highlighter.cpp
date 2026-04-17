@@ -74,6 +74,24 @@ SyntaxHighlighter::SyntaxHighlighter(ui::Theme& theme, SyntaxHighlightBackend ba
 
 SyntaxHighlighter::~SyntaxHighlighter() = default;
 
+const std::vector<std::string>* SyntaxHighlighter::getKeywordsForLanguage(
+    const std::string& language) const {
+    auto it = keywords_.find(language);
+    if (it != keywords_.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+const std::vector<std::string>* SyntaxHighlighter::getTypesForLanguage(
+    const std::string& language) const {
+    auto it = types_.find(language);
+    if (it != types_.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
 void SyntaxHighlighter::initializeLanguages() {
     // C/C++ 关键字（扩展版）
     keywords_["cpp"] = {"auto",        "break",        "case",
