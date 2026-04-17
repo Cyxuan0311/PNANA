@@ -68,7 +68,15 @@ class LspCompletionCache {
     void invalidate(const std::string& uri);
 
     // 根据前缀过滤缓存结果
-    std::vector<CompletionItem> filterByPrefix(const CacheKey& key, const std::string& new_prefix);
+    std::vector<CompletionItem> filterByPrefix(const CacheKey& key, const std::string& new_prefix,
+                                               const std::string& context_line = "",
+                                               int cursor_col = -1);
+
+    // 获取同一 URI/行的宽松候选项，作为过滤回退使用
+    std::vector<CompletionItem> getFallbackItems(const CacheKey& key);
+
+    // 调试：将补全缓存的过滤链路打印到日志
+    static void setDebugLoggingEnabled(bool enabled);
 
     // 清除所有缓存
     void clear();
@@ -85,6 +93,8 @@ class LspCompletionCache {
 
     static constexpr size_t MAX_CACHE_SIZE = 500; // larger default
     static constexpr auto CACHE_TTL = std::chrono::minutes(5);
+
+    static inline bool debug_logging_enabled_ = false;
 
     // 清理过期缓存
     void cleanupExpired();

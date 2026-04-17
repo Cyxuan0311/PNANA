@@ -1,12 +1,83 @@
 #include "features/lsp/lsp_completion_cache.h"
 #include "utils/logger.h"
 #include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <cstdlib>
+#include <sstream>
 
 namespace pnana {
 namespace features {
 
+static bool matchesCamelCase(const std::string& pattern, const std::string& label) {
+    if (pattern.empty() || label.empty()) {
+        return false;
+    }
+
+    size_t pi = 0;
+    size_t li = 0;
+    size_t pattern_len = pattern.length();
+    size_t label_len = label.length();
+
+    while (pi < pattern_len && li < label_len) {
+        if (pattern[pi] == label[li]) {
+            pi++;
+            li++;
+        } else if (std::isupper(static_cast<unsigned char>(label[li]))) {
+            li++;
+        } else {
+            return false;
+        }
+    }
+
+    return pi == pattern_len;
+}
+
+static int camelCaseMatchScore(const std::string& pattern, const std::string& label) {
+    if (pattern.empty() || label.empty()) {
+        return 0;
+    }
+
+    size_t pi = 0;
+    size_t li = 0;
+    size_t label_len = label.length();
+    int consecutive = 0;
+    int max_consecutive = 0;
+    size_t first_match_pos = std::string::npos;
+
+    while (li < label_len) {
+        if (pi < pattern.length() && pattern[pi] == label[li]) {
+            if (first_match_pos == std::string::npos) {
+                first_match_pos = li;
+            }
+            consecutive++;
+            max_consecutive = std::max(max_consecutive, consecutive);
+            pi++;
+        } else if (std::isupper(static_cast<unsigned char>(label[li]))) {
+            consecutive = 0;
+        } else {
+            consecutive = 0;
+        }
+        li++;
+    }
+
+    if (pi != pattern.length()) {
+        return 0;
+    }
+
+    int score = 0;
+    score += max_consecutive * 15;
+    if (first_match_pos != std::string::npos) {
+        score += static_cast<int>(100 - first_match_pos);
+    }
+    return score;
+}
+
 LspCompletionCache::LspCompletionCache() {}
+
+void LspCompletionCache::setDebugLoggingEnabled(bool enabled) {
+    debug_logging_enabled_ = enabled;
+}
 
 std::optional<std::vector<CompletionItem>> LspCompletionCache::get(const CacheKey& key) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
@@ -79,25 +150,114 @@ void LspCompletionCache::invalidate(const std::string& uri) {
     }
 }
 
+static bool isContextShiftLikely(const std::string& prefix) {
+    if (prefix.empty())
+        return false;
+    char last = prefix.back();
+    return std::isspace(static_cast<unsigned char>(last)) || last == '\n' || last == '\t' ||
+           last == '(' || last == ')' || last == '{' || last == '}' || last == ';' || last == ',' ||
+           last == ':';
+}
+
+std::vector<CompletionItem> LspCompletionCache::getFallbackItems(const CacheKey& key) {
+    std::vector<CompletionItem> best;
+    int best_score = -1;
+
+    for (const auto& [cached_key, cached_value] : cache_) {
+        if (cached_key.uri != key.uri || cached_value.items.empty())
+            continue;
+
+        int score = 0;
+        if (cached_key.line == key.line)
+            score += 100;
+        score -= std::abs(cached_key.line - key.line) * 10;
+        score -= std::abs(cached_key.character - key.character);
+
+        if (!key.context_prefix.empty() && !cached_key.context_prefix.empty()) {
+            if (key.context_prefix == cached_key.context_prefix) {
+                score += 80;
+            } else if (key.context_prefix.find(cached_key.context_prefix) == 0 ||
+                       cached_key.context_prefix.find(key.context_prefix) == 0) {
+                score += 40;
+            } else {
+                score -= 60;
+            }
+        }
+
+        if (!key.trigger_character.empty() && !cached_key.trigger_character.empty()) {
+            if (key.trigger_character == cached_key.trigger_character) {
+                score += 50;
+            } else {
+                score -= 50;
+            }
+        }
+
+        if (!key.semantic_context.empty() && !cached_key.semantic_context.empty()) {
+            if (key.semantic_context == cached_key.semantic_context) {
+                score += 20;
+            } else {
+                score -= 20;
+            }
+        }
+
+        if (isContextShiftLikely(key.prefix) || isContextShiftLikely(key.context_prefix)) {
+            score -= 100;
+        }
+
+        if (score > best_score) {
+            best_score = score;
+            best = cached_value.items;
+        }
+    }
+
+    if (debug_logging_enabled_) {
+        LOG_DEBUG("[LspCompletionCache] fallback scored uri=" + key.uri +
+                  " line=" + std::to_string(key.line) + " char=" + std::to_string(key.character) +
+                  " prefix='" + key.prefix + "' context='" + key.context_prefix + "' trigger='" +
+                  key.trigger_character + "' result=" + std::to_string(best.size()) +
+                  " score=" + std::to_string(best_score));
+    }
+
+    return best_score >= 0 ? best : std::vector<CompletionItem>{};
+}
+
 std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& key,
-                                                               const std::string& new_prefix) {
+                                                               const std::string& new_prefix,
+                                                               const std::string& context_line,
+                                                               int cursor_col) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
+
+    if (debug_logging_enabled_) {
+        LOG_DEBUG("[LspCompletionCache] filter begin uri=" + key.uri +
+                  " line=" + std::to_string(key.line) + " char=" + std::to_string(key.character) +
+                  " prefix='" + new_prefix + "' cache_size=" + std::to_string(cache_.size()));
+    }
 
     (void)new_prefix;
 
     // 查找相同位置但不同前缀的缓存项
-    // 优化：允许在同一行的不同位置之间共享缓存（因为补全结果通常在同一行内是相似的）
-    // 如果找到相同 URI、行（允许 character 不同）但不同前缀的缓存，尝试过滤
+    // 弱化同一行复用：要求 character 也尽量接近，减少跨位置误复用
     int checked_count = 0;
     int found_candidates = 0;
+    int accepted_candidates = 0;
     for (const auto& [cached_key, cached_value] : cache_) {
         checked_count++;
-        // 允许在同一行的不同位置之间共享缓存
-        // 这样可以提高缓存命中率，因为同一行的补全结果通常是相似的
+        // 允许在同一行复用，但优先要求列位置足够接近，减少不稳定复用
         if (cached_key.uri == key.uri && cached_key.line == key.line &&
             !cached_value.items.empty()) {
             found_candidates++;
             (void)cached_value;
+
+            int char_distance = std::abs(cached_key.character - key.character);
+            bool close_enough = char_distance <= 6;
+            if (!close_enough) {
+                if (debug_logging_enabled_) {
+                    LOG_DEBUG("[LspCompletionCache] skip candidate line=" +
+                              std::to_string(cached_key.line) +
+                              " char_distance=" + std::to_string(char_distance));
+                }
+                continue;
+            }
 
             // 如果新前缀是旧前缀的扩展，可以过滤
             // 或者旧前缀是空（所有结果），也可以过滤
@@ -110,6 +270,13 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
             (void)new_prefix;
 
             if (can_filter) {
+                accepted_candidates++;
+                if (debug_logging_enabled_) {
+                    LOG_DEBUG("[LspCompletionCache] candidate accepted prefix='" +
+                              cached_key.prefix + "' -> new_prefix='" + new_prefix +
+                              "' items=" + std::to_string(cached_value.items.size()) +
+                              " char_distance=" + std::to_string(char_distance));
+                }
                 // 使用智能评分系统过滤和排序
                 struct ScoredItem {
                     CompletionItem item;
@@ -170,6 +337,11 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
 
                     int score = 0;
 
+                    // filterText 显式匹配加分：LSP 服务器明确指定该符号应在此前缀下出现
+                    if (!item.filterText.empty() && item.filterText == new_prefix) {
+                        score += 500;
+                    }
+
                     if (new_prefix.empty()) {
                         score = getTypePriority(item.kind) * 100;
                     } else {
@@ -218,6 +390,12 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                                      lower_normalized_prefix) {
                             score = 6000 + getTypePriority(item.kind) * 100;
                             score += (100 - static_cast<int>(label.length()));
+                        }
+                        // CamelCase 匹配：前缀中的大写字母匹配 label 中的大写字母
+                        // 例如 "ABC" 匹配 "AbstractBaseClass"
+                        else if (matchesCamelCase(new_prefix, label)) {
+                            int cc_score = camelCaseMatchScore(new_prefix, label);
+                            score = 7500 + getTypePriority(item.kind) * 100 + cc_score;
                         }
                         // 包含匹配（大小写敏感）
                         else if (label.find(new_prefix) != std::string::npos) {
@@ -294,6 +472,36 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                     scored_items.push_back({item, score});
                 }
 
+                // 上下文相关性加分
+                if (!context_line.empty()) {
+                    std::string lower_line = context_line;
+                    std::transform(lower_line.begin(), lower_line.end(), lower_line.begin(),
+                                   ::tolower);
+                    for (auto& scored : scored_items) {
+                        int ctx_score = 0;
+                        std::string lower_symbol = scored.item.label;
+                        std::transform(lower_symbol.begin(), lower_symbol.end(),
+                                       lower_symbol.begin(), ::tolower);
+                        size_t pos = 0;
+                        int occurrences = 0;
+                        while ((pos = lower_line.find(lower_symbol, pos)) != std::string::npos) {
+                            occurrences++;
+                            pos += lower_symbol.length();
+                        }
+                        ctx_score += occurrences * 15;
+                        if (cursor_col > 0) {
+                            size_t before_cursor =
+                                std::min(static_cast<size_t>(cursor_col), context_line.length());
+                            std::string before = context_line.substr(0, before_cursor);
+                            std::transform(before.begin(), before.end(), before.begin(), ::tolower);
+                            if (before.find(lower_symbol) != std::string::npos) {
+                                ctx_score += 30;
+                            }
+                        }
+                        scored.score += ctx_score;
+                    }
+                }
+
                 // 按分数排序
                 std::sort(scored_items.begin(), scored_items.end());
 
@@ -309,14 +517,55 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                     filtered.resize(30);
                 }
 
-                (void)filtered;
+                if (filtered.size() < 3) {
+                    if (debug_logging_enabled_) {
+                        LOG_DEBUG("[LspCompletionCache] filtered too small uri=" + key.uri +
+                                  " line=" + std::to_string(key.line) + " char=" +
+                                  std::to_string(key.character) + " prefix='" + new_prefix +
+                                  "' result=" + std::to_string(filtered.size()) + " -> fallback");
+                    }
+                    auto fallback = getFallbackItems(key);
+                    if (!fallback.empty()) {
+                        if (debug_logging_enabled_) {
+                            LOG_DEBUG("[LspCompletionCache] fallback used uri=" + key.uri +
+                                      " line=" + std::to_string(key.line) +
+                                      " char=" + std::to_string(key.character) +
+                                      " fallback_items=" + std::to_string(fallback.size()));
+                        }
+                        return fallback;
+                    }
+                }
+
+                if (debug_logging_enabled_) {
+                    LOG_DEBUG("[LspCompletionCache] filter success uri=" + key.uri +
+                              " line=" + std::to_string(key.line) +
+                              " char=" + std::to_string(key.character) + " prefix='" + new_prefix +
+                              "' checked=" + std::to_string(checked_count) +
+                              " candidates=" + std::to_string(found_candidates) +
+                              " accepted=" + std::to_string(accepted_candidates) +
+                              " result=" + std::to_string(filtered.size()));
+                }
                 return filtered;
             }
         }
     }
 
-    (void)checked_count;
-    (void)found_candidates;
+    if (debug_logging_enabled_) {
+        LOG_DEBUG("[LspCompletionCache] filter empty uri=" + key.uri +
+                  " line=" + std::to_string(key.line) + " char=" + std::to_string(key.character) +
+                  " prefix='" + new_prefix + "' checked=" + std::to_string(checked_count) +
+                  " candidates=" + std::to_string(found_candidates) +
+                  " accepted=" + std::to_string(accepted_candidates) + " -> fallback");
+    }
+    auto fallback = getFallbackItems(key);
+    if (!fallback.empty()) {
+        if (debug_logging_enabled_) {
+            LOG_DEBUG("[LspCompletionCache] fallback used on empty uri=" + key.uri + " line=" +
+                      std::to_string(key.line) + " char=" + std::to_string(key.character) +
+                      " fallback_items=" + std::to_string(fallback.size()));
+        }
+        return fallback;
+    }
     return {};
 }
 
