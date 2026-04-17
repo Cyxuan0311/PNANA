@@ -156,6 +156,9 @@ class Editor {
     bool saveFileAs(const std::string& filepath);
     void startSaveAs();   // 启动另存为对话框
     void startMoveFile(); // 启动移动文件对话框
+    void hideMoveFileDialog();
+    void executeMoveFile();
+    bool isMoveFileDialogVisible() const;
     bool closeFile();
     void newFile();
     void createFolder();   // 创建新文件夹
@@ -506,6 +509,8 @@ class Editor {
 
         // 图片预览状态（每个区域独立）
         std::string image_path_;
+        int image_width_ = 0;  // 原始图片宽度
+        int image_height_ = 0; // 原始图片高度
         std::vector<std::string> image_preview_lines_;
         std::vector<std::vector<features::PreviewPixel>> image_preview_pixels_;
         bool image_loaded_ = false;
@@ -574,6 +579,14 @@ class Editor {
 
     // 补全缓存（阶段2优化）
     std::unique_ptr<features::LspCompletionCache> completion_cache_;
+
+    // 符号使用频率表（用于补全排序）
+    std::unordered_map<std::string, int> symbol_frequency_;
+    std::mutex symbol_frequency_mutex_;
+    static constexpr size_t MAX_SYMBOL_FREQUENCY_ENTRIES = 500;
+
+    void recordSymbolUsage(const std::string& symbol);
+    int getSymbolFrequency(const std::string& symbol) const;
 
     // 诊断错误弹窗
     pnana::ui::DiagnosticsPopup diagnostics_popup_;
@@ -921,6 +934,9 @@ class Editor {
     std::string filepathToUri(const std::string& filepath);
     std::vector<features::CompletionItem> getDocumentBasedCompletions(Document* doc,
                                                                       const std::string& prefix);
+    std::vector<features::CompletionItem> getKeywordCompletions(const std::string& language_id,
+                                                                const std::string& prefix);
+    std::vector<features::CompletionItem> getWorkspaceCompletions(const std::string& prefix);
     void triggerCompletion();
     void handleCompletionInput(ftxui::Event event);
     void triggerCompletionResolveIfNeeded();
@@ -935,6 +951,11 @@ class Editor {
     void showCompletionPopupIfChanged(const std::vector<features::CompletionItem>& items, int row,
                                       int col, int screen_w, int screen_h,
                                       const std::string& query = "");
+    int getContentOriginX() const;
+    int getContentOriginY() const;
+    int getContentBottomY() const;
+    int getCompletionAnchorX() const;
+    int getCompletionAnchorY() const;
 
     // LSP 补全上下文分析辅助函数
     std::string getSemanticContext(const std::string& line_content, size_t cursor_pos);

@@ -167,6 +167,19 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
         return true; // 弹窗打开时独占输入
     }
 
+    // 6. 移动文件弹窗
+    if (editor->isMoveFileDialogVisible()) {
+        if (editor->move_file_dialog_.handleInput(event)) {
+            if (event == ftxui::Event::Escape) {
+                editor->hideMoveFileDialog();
+            } else if (event == ftxui::Event::Return) {
+                editor->executeMoveFile();
+            }
+            return true;
+        }
+        return true; // 弹窗打开时独占输入
+    }
+
     // TODO: 添加其他对话框的处理
 
     return false;

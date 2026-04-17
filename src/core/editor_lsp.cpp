@@ -129,6 +129,92 @@ std::vector<features::CompletionItem> Editor::getDocumentBasedCompletions(
     return items;
 }
 
+std::vector<features::CompletionItem> Editor::getKeywordCompletions(const std::string& language_id,
+                                                                    const std::string& prefix) {
+    std::vector<features::CompletionItem> items;
+    if (prefix.empty()) {
+        return items;
+    }
+
+    const auto* keywords = syntax_highlighter_.getKeywordsForLanguage(language_id);
+    if (keywords) {
+        for (const auto& kw : *keywords) {
+            if (kw.size() >= prefix.size() && kw.compare(0, prefix.size(), prefix) == 0) {
+                features::CompletionItem item;
+                item.label = kw;
+                item.kind = "keyword";
+                item.detail = "(keyword)";
+                item.filterText = kw;
+                items.push_back(item);
+            }
+        }
+    }
+
+    const auto* types = syntax_highlighter_.getTypesForLanguage(language_id);
+    if (types) {
+        for (const auto& t : *types) {
+            if (t.size() >= prefix.size() && t.compare(0, prefix.size(), prefix) == 0) {
+                features::CompletionItem item;
+                item.label = t;
+                item.kind = "class";
+                item.detail = "(type)";
+                item.filterText = t;
+                items.push_back(item);
+            }
+        }
+    }
+
+    return items;
+}
+
+std::vector<features::CompletionItem> Editor::getWorkspaceCompletions(const std::string& prefix) {
+    std::vector<features::CompletionItem> items;
+    if (prefix.empty()) {
+        return items;
+    }
+
+    std::set<std::string> seen;
+    const size_t max_docs = std::min(document_manager_.getDocumentCount(), static_cast<size_t>(10));
+    const size_t max_items = 40;
+
+    for (size_t d = 0; d < max_docs && items.size() < max_items; ++d) {
+        Document* doc = document_manager_.getDocument(d);
+        if (!doc)
+            continue;
+
+        const size_t max_lines = std::min(doc->lineCount(), static_cast<size_t>(500));
+        for (size_t i = 0; i < max_lines && items.size() < max_items; ++i) {
+            const std::string& line = doc->getLine(i);
+            for (size_t j = 0; j < line.length();) {
+                if (!(std::isalpha(static_cast<unsigned char>(line[j])) ||
+                      (line[j] == '_' && j + 1 < line.length() &&
+                       (std::isalnum(static_cast<unsigned char>(line[j + 1])) ||
+                        line[j + 1] == '_')))) {
+                    j++;
+                    continue;
+                }
+                size_t start = j;
+                while (j < line.length() &&
+                       (std::isalnum(static_cast<unsigned char>(line[j])) || line[j] == '_')) {
+                    j++;
+                }
+                std::string word = line.substr(start, j - start);
+                if (word.length() >= 1 && word.length() <= 64 && word.size() >= prefix.size() &&
+                    word.compare(0, prefix.size(), prefix) == 0 && seen.find(word) == seen.end()) {
+                    seen.insert(word);
+                    features::CompletionItem item;
+                    item.label = word;
+                    item.kind = "variable";
+                    item.detail = "(workspace)";
+                    item.filterText = word;
+                    items.push_back(item);
+                }
+            }
+        }
+    }
+    return items;
+}
+
 void Editor::initializeLsp() {
     // 创建 LSP 服务器管理器
     lsp_manager_ = std::make_unique<features::LspServerManager>();
@@ -419,7 +505,6 @@ std::string Editor::filepathToUri(const std::string& filepath) {
 
 void Editor::updateCurrentFileDiagnostics() {
     Document* doc = getCurrentDocument();
-    LOG_DEBUG("[LSP_FMT_DBG] updateCurrentFileDiagnostics doc=" + std::string(doc ? "yes" : "no"));
     if (!doc) {
         std::lock_guard<std::mutex> lock(diagnostics_mutex_);
         current_file_diagnostics_.clear();
@@ -440,7 +525,6 @@ void Editor::updateCurrentFileDiagnostics() {
     }
 
     std::string uri = filepathToUri(filepath);
-    LOG_DEBUG("[LSP_FMT_DBG] diagnostics uri='" + uri + "'");
 
     std::lock_guard<std::mutex> cache_lock(diagnostics_cache_mutex_);
     auto it = diagnostics_cache_.find(uri);
@@ -555,7 +639,6 @@ void Editor::cleanupExpiredCaches() {
 
 void Editor::updateCurrentFileFolding() {
     Document* doc = getCurrentDocument();
-    LOG_DEBUG("[LSP_FMT_DBG] updateCurrentFileFolding doc=" + std::string(doc ? "yes" : "no"));
     if (!doc) {
 #ifdef BUILD_LSP_SUPPORT
         if (folding_manager_) {
@@ -586,7 +669,6 @@ void Editor::updateCurrentFileFolding() {
         has_lsp_client = (lsp_manager_->getClientForFile(filepath) != nullptr);
     }
     if (!has_lsp_client) {
-        LOG_DEBUG("[LSP_FMT_DBG] updateCurrentFileFolding: no LSP client for file");
         doc->clearFoldingRanges();
         if (folding_manager_) {
             folding_manager_->clear();
@@ -1079,18 +1161,41 @@ void Editor::triggerCompletion() {
                 }
             }).detach();
         }
-        // 无 LSP 配置或未连接时：使用当前文档符号 + 代码片段作为补全
-        std::vector<features::CompletionItem> fallback_items =
-            getDocumentBasedCompletions(doc, prefix);
-        std::set<std::string> doc_labels;
-        for (const auto& it : fallback_items) {
-            doc_labels.insert(it.label);
+        // 无 LSP 配置或未连接时：多源合并补全（当前文档 + 工作区 + 关键字 + 代码片段）
+        std::string language_id = lsp_manager_ ? detectLanguageId(filepath) : "plaintext";
+        std::set<std::string> seen_labels;
+        std::vector<features::CompletionItem> fallback_items;
+
+        // 优先级 1：当前文档符号
+        auto doc_items = getDocumentBasedCompletions(doc, prefix);
+        for (const auto& it : doc_items) {
+            seen_labels.insert(it.label);
+            fallback_items.push_back(it);
         }
+
+        // 优先级 2：工作区文档符号（去重）
+        auto ws_items = getWorkspaceCompletions(prefix);
+        for (const auto& it : ws_items) {
+            if (seen_labels.find(it.label) == seen_labels.end()) {
+                seen_labels.insert(it.label);
+                fallback_items.push_back(it);
+            }
+        }
+
+        // 优先级 3：语言关键字和类型（去重）
+        auto kw_items = getKeywordCompletions(language_id, prefix);
+        for (const auto& it : kw_items) {
+            if (seen_labels.find(it.label) == seen_labels.end()) {
+                seen_labels.insert(it.label);
+                fallback_items.push_back(it);
+            }
+        }
+
+        // 优先级 4：代码片段（去重）
         if (snippet_manager_ && !prefix.empty()) {
-            std::string language_id = lsp_manager_ ? detectLanguageId(filepath) : "plaintext";
             auto snippets = snippet_manager_->findMatchingSnippets(prefix, language_id);
             for (const auto& s : snippets) {
-                if (doc_labels.find(s.prefix) == doc_labels.end()) {
+                if (seen_labels.find(s.prefix) == seen_labels.end()) {
                     features::CompletionItem item;
                     item.label = s.prefix;
                     item.kind = "snippet";
@@ -1099,6 +1204,7 @@ void Editor::triggerCompletion() {
                     item.isSnippet = true;
                     item.snippet_body = s.body;
                     item.snippet_placeholders = s.placeholders;
+                    seen_labels.insert(s.prefix);
                     fallback_items.push_back(item);
                 }
             }
@@ -1122,7 +1228,7 @@ void Editor::triggerCompletion() {
         completion_cache_ = std::make_unique<features::LspCompletionCache>();
     }
 
-    // 改进的缓存策略 - 基于前缀和语言ID，提高命中率
+    // 精确的缓存策略 - 基于位置、前缀和触发字符，避免错误复用
     features::LspCompletionCache::CacheKey cache_key;
     cache_key.uri = uri;
 
@@ -1130,7 +1236,7 @@ void Editor::triggerCompletion() {
     std::string line_content = doc->getLine(cursor_row_);
     std::string current_prefix = line_content.substr(0, cursor_col_);
 
-    // 找到最近的单词边界作为缓存key，避免位置依赖
+    // 找到最近的单词边界作为上下文前缀
     size_t last_space = current_prefix.find_last_of(" \t.()[]{};:,");
     if (last_space != std::string::npos && last_space < current_prefix.size() - 1) {
         cache_key.context_prefix = current_prefix.substr(last_space + 1);
@@ -1138,15 +1244,16 @@ void Editor::triggerCompletion() {
         cache_key.context_prefix = current_prefix;
     }
 
-    // 获取语言ID用于缓存区分
+    // 获取语言ID和语义上下文
     std::string language_id = detectLanguageId(filepath);
-    cache_key.semantic_context = language_id;
+    std::string semantic_ctx = getSemanticContext(line_content, cursor_col_);
+    cache_key.semantic_context = language_id + ":" + semantic_ctx;
 
-    // 简化其他字段，减少缓存粒度
-    cache_key.line = 0;      // 不基于行号
-    cache_key.character = 0; // 不基于列号
-    cache_key.trigger_character = "";
-    cache_key.prefix = "";
+    // 使用精确的位置和前缀信息作为缓存 key
+    cache_key.line = static_cast<int>(cursor_row_);
+    cache_key.character = static_cast<int>(cursor_col_);
+    cache_key.prefix = prefix;
+    cache_key.trigger_character = last_completion_trigger_;
 
     auto cached = completion_cache_->get(cache_key);
 
@@ -1164,7 +1271,7 @@ void Editor::triggerCompletion() {
     // 前缀为 1-2 字符时跳过 filterByPrefix，直接请求 LSP，否则短名称（如 a、x、pi）可能被漏掉
     std::vector<features::CompletionItem> filtered;
     if (prefix.length() >= 3) {
-        filtered = completion_cache_->filterByPrefix(cache_key, prefix);
+        filtered = completion_cache_->filterByPrefix(cache_key, prefix, line_content, cursor_col_);
     }
     if (!filtered.empty()) {
         if (filtered.size() > 50) {
@@ -1192,10 +1299,10 @@ void Editor::triggerCompletion() {
 
     lsp_async_manager_->requestCompletionAsync(
         client, uri, pos,
-        [this, cache_key, req_row, req_col, req_screen_w, req_screen_h, prefix,
-         filepath](const std::vector<features::CompletionItem>& items) {
+        [this, cache_key, req_row, req_col, req_screen_w, req_screen_h, prefix, filepath,
+         line_content](const std::vector<features::CompletionItem>& items) {
             screen_.Post([this, items, cache_key, req_row, req_col, req_screen_w, req_screen_h,
-                          prefix, filepath]() {
+                          prefix, filepath, line_content]() {
                 if (completion_cache_ && !items.empty()) {
                     completion_cache_->set(cache_key, items);
                 }
@@ -1226,31 +1333,95 @@ void Editor::triggerCompletion() {
 
                     // 排序：参考 VS Code 四类（标准库/当前文档/项目/智能补全）
                     // 1. 有 sortText 时优先按 sortText（服务器通常按 当前文档>项目>标准库）
-                    // 2. 前缀匹配 + 类型优先级
+                    // 2. 前缀匹配 + 类型优先级 + 使用频率 + 上下文相关性
+                    std::string lower_line_for_sort = line_content;
+                    std::transform(lower_line_for_sort.begin(), lower_line_for_sort.end(),
+                                   lower_line_for_sort.begin(), ::tolower);
+                    int sort_cursor_col = cursor_col_;
+
                     std::sort(
                         sorted_items.begin(), sorted_items.end(),
-                        [prefix](const features::CompletionItem& a,
-                                 const features::CompletionItem& b) {
-                            auto get_match_score = [&prefix](const features::CompletionItem& item) {
+                        [this, prefix, lower_line_for_sort, sort_cursor_col](
+                            const features::CompletionItem& a, const features::CompletionItem& b) {
+                            auto matchesCamelCase = [](const std::string& pattern,
+                                                       const std::string& label) -> bool {
+                                if (pattern.empty() || label.empty())
+                                    return false;
+                                size_t pi = 0, li = 0;
+                                while (pi < pattern.length() && li < label.length()) {
+                                    if (pattern[pi] == label[li]) {
+                                        pi++;
+                                        li++;
+                                    } else if (std::isupper(
+                                                   static_cast<unsigned char>(label[li]))) {
+                                        li++;
+                                    } else {
+                                        return false;
+                                    }
+                                }
+                                return pi == pattern.length();
+                            };
+
+                            auto getTypePriority = [](const std::string& kind) -> int {
+                                if (kind == "2" || kind == "3" || kind == "method" ||
+                                    kind == "function")
+                                    return 10;
+                                if (kind == "7" || kind == "8" || kind == "class" ||
+                                    kind == "interface")
+                                    return 8;
+                                if (kind == "5" || kind == "6" || kind == "variable" ||
+                                    kind == "property")
+                                    return 6;
+                                if (kind == "21")
+                                    return 5;
+                                if (kind == "14")
+                                    return 4;
+                                return 3;
+                            };
+
+                            auto computeScore = [this, &prefix, &matchesCamelCase, &getTypePriority,
+                                                 &lower_line_for_sort, sort_cursor_col](
+                                                    const features::CompletionItem& item) -> int {
                                 const std::string& text =
                                     !item.filterText.empty() ? item.filterText : item.label;
                                 int score = 0;
                                 if (!prefix.empty()) {
-                                    if (text.find(prefix) == 0) {
+                                    if (text == prefix) {
+                                        score += 200;
+                                    } else if (text.find(prefix) == 0) {
                                         score += 100;
+                                    } else if (matchesCamelCase(prefix, text)) {
+                                        score += 85;
                                     } else if (text.find(prefix) != std::string::npos) {
                                         score += 50;
                                     }
                                 }
-                                if (item.kind == "2" || item.kind == "3" || item.kind == "method" ||
-                                    item.kind == "function")
-                                    score += 30;
-                                else if (item.kind == "5" || item.kind == "6" ||
-                                         item.kind == "variable" || item.kind == "property")
-                                    score += 20;
-                                else if (item.kind == "7" || item.kind == "8" ||
-                                         item.kind == "class" || item.kind == "interface")
-                                    score += 40;
+                                score += getTypePriority(item.kind) * 10;
+                                int freq = getSymbolFrequency(item.label);
+                                score += std::min(freq * 10, 100);
+                                if (!lower_line_for_sort.empty()) {
+                                    std::string lower_symbol = item.label;
+                                    std::transform(lower_symbol.begin(), lower_symbol.end(),
+                                                   lower_symbol.begin(), ::tolower);
+                                    size_t pos = 0;
+                                    int occurrences = 0;
+                                    while ((pos = lower_line_for_sort.find(lower_symbol, pos)) !=
+                                           std::string::npos) {
+                                        occurrences++;
+                                        pos += lower_symbol.length();
+                                    }
+                                    score += occurrences * 15;
+                                    if (sort_cursor_col > 0) {
+                                        size_t before_cursor = std::min(
+                                            sort_cursor_col,
+                                            static_cast<int>(lower_line_for_sort.length()));
+                                        std::string before =
+                                            lower_line_for_sort.substr(0, before_cursor);
+                                        if (before.find(lower_symbol) != std::string::npos) {
+                                            score += 30;
+                                        }
+                                    }
+                                }
                                 return score;
                             };
                             if (!a.sortText.empty() && !b.sortText.empty()) {
@@ -1260,7 +1431,7 @@ void Editor::triggerCompletion() {
                                 return true;
                             else if (!b.sortText.empty())
                                 return false;
-                            int sa = get_match_score(a), sb = get_match_score(b);
+                            int sa = computeScore(a), sb = computeScore(b);
                             if (sa != sb)
                                 return sa > sb;
                             return a.label < b.label;
@@ -1273,22 +1444,40 @@ void Editor::triggerCompletion() {
                     showCompletionPopupIfChanged(limited, req_row, req_col, req_screen_w,
                                                  req_screen_h, prefix);
                 } else {
-                    // LSP 返回空时，回退到文档符号+片段（rust-analyzer 对关键字如 const/static
-                    // 可能不补全）
+                    // LSP 返回空时，回退到多源合并补全（当前文档 + 工作区 + 关键字 + 代码片段）
                     Document* doc = getCurrentDocument();
                     std::vector<features::CompletionItem> fallback_items;
                     if (doc && doc->getFilePath() == filepath) {
-                        fallback_items = getDocumentBasedCompletions(doc, prefix);
-                        if (snippet_manager_ && !prefix.empty()) {
-                            std::string language_id = detectLanguageId(filepath);
-                            std::set<std::string> doc_labels;
-                            for (const auto& it : fallback_items) {
-                                doc_labels.insert(it.label);
+                        std::string language_id = detectLanguageId(filepath);
+                        std::set<std::string> seen_labels;
+
+                        auto doc_items = getDocumentBasedCompletions(doc, prefix);
+                        for (const auto& it : doc_items) {
+                            seen_labels.insert(it.label);
+                            fallback_items.push_back(it);
+                        }
+
+                        auto ws_items = getWorkspaceCompletions(prefix);
+                        for (const auto& it : ws_items) {
+                            if (seen_labels.find(it.label) == seen_labels.end()) {
+                                seen_labels.insert(it.label);
+                                fallback_items.push_back(it);
                             }
+                        }
+
+                        auto kw_items = getKeywordCompletions(language_id, prefix);
+                        for (const auto& it : kw_items) {
+                            if (seen_labels.find(it.label) == seen_labels.end()) {
+                                seen_labels.insert(it.label);
+                                fallback_items.push_back(it);
+                            }
+                        }
+
+                        if (snippet_manager_ && !prefix.empty()) {
                             auto snippets =
                                 snippet_manager_->findMatchingSnippets(prefix, language_id);
                             for (const auto& s : snippets) {
-                                if (doc_labels.find(s.prefix) == doc_labels.end()) {
+                                if (seen_labels.find(s.prefix) == seen_labels.end()) {
                                     features::CompletionItem item;
                                     item.label = s.prefix;
                                     item.kind = "snippet";
@@ -1297,6 +1486,7 @@ void Editor::triggerCompletion() {
                                     item.isSnippet = true;
                                     item.snippet_body = s.body;
                                     item.snippet_placeholders = s.placeholders;
+                                    seen_labels.insert(s.prefix);
                                     fallback_items.push_back(item);
                                 }
                             }
@@ -1440,6 +1630,10 @@ void Editor::applyCompletion() {
     std::string text = completion_popup_.applySelected();
     completion_popup_.hide();
 
+    if (!text.empty()) {
+        recordSymbolUsage(text);
+    }
+
     if (text.empty()) {
         return;
     }
@@ -1473,6 +1667,33 @@ void Editor::applyCompletion() {
     cursor_col_ = word_start + text.length();
 
     updateLspDocument();
+}
+
+void Editor::recordSymbolUsage(const std::string& symbol) {
+    if (symbol.empty()) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(symbol_frequency_mutex_);
+    if (symbol_frequency_.size() >= MAX_SYMBOL_FREQUENCY_ENTRIES) {
+        // LRU: 移除频率最低的项
+        auto min_it = symbol_frequency_.begin();
+        for (auto it = symbol_frequency_.begin(); it != symbol_frequency_.end(); ++it) {
+            if (it->second < min_it->second) {
+                min_it = it;
+            }
+        }
+        symbol_frequency_.erase(min_it);
+    }
+    symbol_frequency_[symbol]++;
+}
+
+int Editor::getSymbolFrequency(const std::string& symbol) const {
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(symbol_frequency_mutex_));
+    auto it = symbol_frequency_.find(symbol);
+    if (it != symbol_frequency_.end()) {
+        return it->second;
+    }
+    return 0;
 }
 
 void Editor::startSnippetSession(std::vector<SnippetPlaceholderRange> ranges) {
@@ -1544,10 +1765,13 @@ ftxui::Element Editor::renderCompletionPopup() {
         return ftxui::text("");
     }
 
-    completion_popup_.updateCursorPosition(cursor_row_, cursor_col_, screen_.dimx(),
-                                           screen_.dimy());
+    int anchor_y = getCompletionAnchorY();
+    int anchor_x = getCompletionAnchorX();
+    int origin_x = getContentOriginX();
+    int origin_y = getContentOriginY();
+    completion_popup_.updateCursorPosition(anchor_y, anchor_x, screen_.dimx(), screen_.dimy());
 
-    return completion_popup_.render(theme_);
+    return completion_popup_.render(theme_, origin_x, origin_y);
 }
 
 // Helper to avoid showing completion popup repeatedly and causing flicker.
@@ -1582,8 +1806,13 @@ void Editor::showCompletionPopupIfChanged(const std::vector<features::Completion
     last_popup_row_ = row;
     last_popup_col_ = col;
 
-    completion_popup_.show(items, static_cast<size_t>(row), static_cast<size_t>(col), screen_w,
-                           screen_h, query);
+    int anchor_screen_y = getCompletionAnchorY();
+    int anchor_screen_x = getCompletionAnchorX();
+    int content_top = getContentOriginY();
+    int content_bottom = getContentBottomY();
+    completion_popup_.show(items, static_cast<size_t>(anchor_screen_y),
+                           static_cast<size_t>(anchor_screen_x), screen_w, screen_h, content_top,
+                           content_bottom, query);
 
     // 首次显示或切换后，为选中项触发 resolve 以获取 detail/documentation
     triggerCompletionResolveIfNeeded();

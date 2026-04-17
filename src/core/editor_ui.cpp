@@ -165,6 +165,42 @@ static size_t getLineNumberWidthForLineCount(size_t line_count) {
     return digits < 2 ? 2 : digits;
 }
 
+int Editor::getContentOriginX() const {
+    return 0;
+}
+
+int Editor::getContentOriginY() const {
+    int origin = 0;
+    origin += 1; // tabbar
+    origin += 1; // separator
+    return origin;
+}
+
+int Editor::getContentBottomY() const {
+    int screen_height = screen_.dimy();
+    int reserved_height = 0;
+    reserved_height += 1; // tabbar
+    reserved_height += 1; // separator
+    reserved_height += 1; // statusbar
+    if (mode_ == EditorMode::SEARCH || mode_ == EditorMode::REPLACE) {
+        reserved_height += 1; // input box
+    }
+    if (show_helpbar_) {
+        reserved_height += 1; // helpbar
+    }
+    return std::max(0, screen_height - reserved_height);
+}
+
+int Editor::getCompletionAnchorX() const {
+    // 补全弹窗锚点直接使用编辑区左侧坐标系内的光标列
+    return cursor_col_;
+}
+
+int Editor::getCompletionAnchorY() const {
+    // 当前编辑区起始于 tabbar+separator 之后
+    return getContentOriginY() + static_cast<int>(cursor_row_);
+}
+
 // UI渲染
 Element Editor::renderUI() {
     // PTY 有新输出时强制刷新（由 on_output_added_ 原子标记，主线程在此消费）
@@ -282,6 +318,10 @@ Element Editor::renderUILegacy() {
     if (show_helpbar_) {
         reserved_height += 1; // helpbar
     }
+    LOG_DEBUG("[EditorUI] layout screen_h=" + std::to_string(screen_height) + " reserved=" +
+              std::to_string(reserved_height) + " mode=" + std::to_string(static_cast<int>(mode_)) +
+              " helpbar=" + std::string(show_helpbar_ ? "1" : "0") +
+              " terminal=" + std::string(terminal_.isVisible() ? "1" : "0"));
     int main_available = std::max(3, screen_height - reserved_height);
     if (terminal_.isVisible()) {
         int terminal_height = terminal_height_;
@@ -957,15 +997,19 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
 
         // 重新加载图片预览
         if (need_reload) {
-            image_preview_.loadImage(image_path, preview_width, preview_height);
+            // 使用临时对象加载图片，避免污染全局的 image_preview_
+            features::ImagePreview temp_preview;
+            temp_preview.loadImage(image_path, preview_width, preview_height);
 
             // 保存到区域状态
             if (region_index < region_states_.size()) {
                 auto& region_state = region_states_[region_index];
                 region_state.image_path_ = image_path;
-                region_state.image_preview_lines_ = image_preview_.getPreviewLines();
-                region_state.image_preview_pixels_ = image_preview_.getPreviewPixels();
-                region_state.image_loaded_ = image_preview_.isLoaded();
+                region_state.image_width_ = temp_preview.getImageWidth();
+                region_state.image_height_ = temp_preview.getImageHeight();
+                region_state.image_preview_lines_ = temp_preview.getPreviewLines();
+                region_state.image_preview_pixels_ = temp_preview.getPreviewPixels();
+                region_state.image_loaded_ = temp_preview.isLoaded();
                 region_state.image_render_width_ = preview_width;
                 region_state.image_render_height_ = preview_height;
             }
@@ -975,10 +1019,13 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
         if (region_index < region_states_.size()) {
             auto& region_state = region_states_[region_index];
             if (region_state.image_loaded_) {
-                // 临时设置 image_preview_ 的数据用于渲染
-                image_preview_.setPreviewData(region_state.image_preview_lines_,
-                                              region_state.image_preview_pixels_);
-                auto result = image_preview_.render() | size(HEIGHT, EQUAL, region.height) |
+                // 创建临时的 ImagePreview 对象用于渲染，避免影响全局的 image_preview_
+                features::ImagePreview temp_preview;
+                temp_preview.setPreviewData(
+                    region_state.image_preview_lines_, region_state.image_preview_pixels_,
+                    region_state.image_path_, region_state.image_width_, region_state.image_height_,
+                    region_state.image_render_width_, region_state.image_render_height_);
+                auto result = temp_preview.render() | size(HEIGHT, EQUAL, region.height) |
                               size(WIDTH, EQUAL, region.width);
                 return result;
             }

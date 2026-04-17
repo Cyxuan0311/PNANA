@@ -52,7 +52,6 @@ void Editor::insertChar(char ch) {
     // 触发代码补全（参考 VS Code：标准库/当前文档/项目/智能补全）
     if (lsp_enabled_ && lsp_manager_) {
         if (std::isalnum(ch) || ch == '_' || ch == '.' || ch == ':' || ch == '-' || ch == '>') {
-            // 成员访问符 . : -> 立即触发（智能补全：变量.方法、类型::静态成员）
             bool is_member_trigger = (ch == '.' || ch == ':');
             if (is_member_trigger) {
                 last_completion_trigger_ = std::string(1, ch);
@@ -62,7 +61,6 @@ void Editor::insertChar(char ch) {
             } else {
                 completion_trigger_delay_++;
                 if (completion_trigger_delay_ >= 1) {
-                    last_completion_trigger_.clear();
                     completion_trigger_delay_ = 0;
                     syncLspAfterEdit(false);
                     triggerCompletion();
@@ -71,6 +69,7 @@ void Editor::insertChar(char ch) {
         } else if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '(' || ch == '[' || ch == '{') {
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
+            last_completion_trigger_.clear();
         } else {
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
@@ -129,7 +128,6 @@ void Editor::insertText(const std::string& text) {
             } else {
                 completion_trigger_delay_++;
                 if (completion_trigger_delay_ >= 1) {
-                    last_completion_trigger_.clear();
                     completion_trigger_delay_ = 0;
                     syncLspAfterEdit(false);
                     triggerCompletion();
@@ -138,6 +136,7 @@ void Editor::insertText(const std::string& text) {
         } else if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '(' || ch == '[' || ch == '{') {
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
+            last_completion_trigger_.clear();
         } else {
             completion_popup_.hide();
             completion_trigger_delay_ = 0;
@@ -233,6 +232,24 @@ void Editor::deleteChar() {
 #ifdef BUILD_LSP_SUPPORT
     // 普通删除走防抖同步
     syncLspAfterEdit(false);
+
+    // 在单词内删除时，触发新的补全请求以显示匹配当前前缀的补全项
+    if (lsp_enabled_ && lsp_manager_ && cursor_row_ < doc->lineCount()) {
+        const std::string& line = doc->getLine(cursor_row_);
+        if (cursor_col_ > 0 && static_cast<size_t>(cursor_col_) <= line.length()) {
+            char prev_char = line[cursor_col_ - 1];
+            if (std::isalnum(prev_char) || prev_char == '_' || prev_char == '.' ||
+                prev_char == ':') {
+                last_completion_trigger_.clear();
+                completion_trigger_delay_ = 0;
+                triggerCompletion();
+            } else {
+                completion_popup_.hide();
+            }
+        } else {
+            completion_popup_.hide();
+        }
+    }
 #endif
 }
 
@@ -355,6 +372,24 @@ void Editor::backspace() {
 #ifdef BUILD_LSP_SUPPORT
     // 退格合并/删除空行时按结构变化处理
     syncLspAfterEdit(true);
+
+    // 在单词内回退时，触发新的补全请求以显示匹配当前前缀的补全项
+    if (lsp_enabled_ && lsp_manager_ && cursor_row_ < doc->lineCount()) {
+        const std::string& line = doc->getLine(cursor_row_);
+        if (cursor_col_ > 0 && static_cast<size_t>(cursor_col_) <= line.length()) {
+            char prev_char = line[cursor_col_ - 1];
+            if (std::isalnum(prev_char) || prev_char == '_' || prev_char == '.' ||
+                prev_char == ':') {
+                last_completion_trigger_.clear();
+                completion_trigger_delay_ = 0;
+                triggerCompletion();
+            } else {
+                completion_popup_.hide();
+            }
+        } else {
+            completion_popup_.hide();
+        }
+    }
 #endif
 
     // 更新markdown预览（延迟更新以提升性能）

@@ -587,6 +587,39 @@ void Editor::startMoveFile() {
     setStatusMessage("Enter target path to move: " + file_browser_.getSelectedName());
 }
 
+void Editor::hideMoveFileDialog() {
+    show_move_file_ = false;
+    move_file_dialog_.setInput("");
+    setStatusMessage("File move cancelled");
+}
+
+void Editor::executeMoveFile() {
+    std::string input = move_file_dialog_.getInput();
+    if (input.empty()) {
+        setStatusMessage("Please enter a target path");
+        return;
+    }
+    try {
+        bool success = file_browser_.moveSelected(input);
+        if (success) {
+            show_move_file_ = false;
+            move_file_dialog_.setInput("");
+            file_browser_.refresh();
+            setStatusMessage(std::string(pnana::ui::icons::FILE_MOVE) +
+                             " Moved: " + file_browser_.getSelectedName());
+        } else {
+            setStatusMessage(std::string(pnana::ui::icons::ERROR) +
+                             " Failed to move (target may exist or path invalid)");
+        }
+    } catch (const std::exception& e) {
+        setStatusMessage(std::string(pnana::ui::icons::ERROR) + " Error: " + std::string(e.what()));
+    }
+}
+
+bool Editor::isMoveFileDialogVisible() const {
+    return show_move_file_;
+}
+
 void Editor::showFileHistoryTimeline() {
     Document* doc = getCurrentDocument();
     if (!doc || doc->getFilePath().empty()) {

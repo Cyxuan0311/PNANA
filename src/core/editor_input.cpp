@@ -289,56 +289,6 @@ void Editor::handleInput(Event event) {
         return;
     }
 
-    // 如果移动文件对话框打开，优先处理
-    if (show_move_file_) {
-        if (event == Event::Escape) {
-            show_move_file_ = false;
-            move_file_dialog_.setInput("");
-            setStatusMessage("File move cancelled");
-        } else if (event == Event::Return) {
-            std::string input = move_file_dialog_.getInput();
-            if (!input.empty()) {
-                // 移动文件/文件夹
-                try {
-                    bool success = file_browser_.moveSelected(input);
-                    if (success) {
-                        show_move_file_ = false;
-                        move_file_dialog_.setInput("");
-                        file_browser_.refresh();
-                        setStatusMessage(std::string(pnana::ui::icons::FILE_MOVE) +
-                                         " Moved: " + file_browser_.getSelectedName());
-                    } else {
-                        setStatusMessage(std::string(pnana::ui::icons::ERROR) +
-                                         " Failed to move (target may exist or path invalid)");
-                    }
-                } catch (const std::exception& e) {
-                    setStatusMessage(std::string(pnana::ui::icons::ERROR) +
-                                     " Error: " + std::string(e.what()));
-                }
-            } else {
-                setStatusMessage("Please enter a target path");
-            }
-        } else if (event == Event::Backspace) {
-            std::string input = move_file_dialog_.getInput();
-            if (!input.empty()) {
-                input.pop_back();
-                move_file_dialog_.setInput(input);
-            }
-        } else if (event.is_character()) {
-            std::string ch = event.character();
-            if (ch.length() == 1) {
-                char c = ch[0];
-                // 接受可打印ASCII字符，包括路径分隔符
-                if (c >= 32 && c < 127) {
-                    std::string input = move_file_dialog_.getInput();
-                    input += c;
-                    move_file_dialog_.setInput(input);
-                }
-            }
-        }
-        return;
-    }
-
     // 如果帮助窗口打开，优先处理（帮助面板是覆盖在其他区域之上的对话框）
     if (show_help_) {
         // 处理翻页等操作
