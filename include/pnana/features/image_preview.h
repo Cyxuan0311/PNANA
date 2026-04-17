@@ -24,6 +24,8 @@ struct CachedImageData {
     std::vector<std::vector<PreviewPixel>> preview_pixels;
     int render_width;
     int render_height;
+    int original_width;  // 原始图片宽度
+    int original_height; // 原始图片高度
     std::chrono::steady_clock::time_point last_access;
     size_t access_count = 0;
 };
@@ -88,7 +90,9 @@ class ImagePreview {
 
     // 设置预览数据（用于分屏模式，从区域状态恢复）
     void setPreviewData(const std::vector<std::string>& lines,
-                        const std::vector<std::vector<PreviewPixel>>& pixels);
+                        const std::vector<std::vector<PreviewPixel>>& pixels,
+                        const std::string& image_path = "", int image_width = 0,
+                        int image_height = 0, int render_width = 0, int render_height = 0);
 
     // 缓存管理
     static void clearCache();

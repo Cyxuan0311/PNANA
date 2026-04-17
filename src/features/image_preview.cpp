@@ -85,6 +85,11 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
                 render_height_ = cache_it->second.render_height;
                 loaded_ = !preview_pixels_.empty();
 
+                // 恢复图片元数据
+                image_path_ = filepath;
+                image_width_ = cache_it->second.original_width;
+                image_height_ = cache_it->second.original_height;
+
                 // 更新访问时间和计数
                 cache_it->second.last_access = now;
                 cache_it->second.access_count++;
@@ -181,6 +186,8 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
         cached_data.preview_pixels = preview_pixels_;
         cached_data.render_width = render_width_;
         cached_data.render_height = render_height_;
+        cached_data.original_width = image_width_;
+        cached_data.original_height = image_height_;
         cached_data.last_access = std::chrono::steady_clock::now();
         cached_data.access_count = 1;
 
@@ -339,9 +346,16 @@ void ImagePreview::clear() {
 }
 
 void ImagePreview::setPreviewData(const std::vector<std::string>& lines,
-                                  const std::vector<std::vector<PreviewPixel>>& pixels) {
+                                  const std::vector<std::vector<PreviewPixel>>& pixels,
+                                  const std::string& image_path, int image_width, int image_height,
+                                  int render_width, int render_height) {
     preview_lines_ = lines;
     preview_pixels_ = pixels;
+    image_path_ = image_path;
+    image_width_ = image_width;
+    image_height_ = image_height;
+    render_width_ = render_width;
+    render_height_ = render_height;
     loaded_ = !pixels.empty();
 }
 
