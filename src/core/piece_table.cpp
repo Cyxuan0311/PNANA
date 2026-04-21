@@ -168,7 +168,7 @@ std::pair<std::shared_ptr<PieceTable::RBNode>, size_t> PieceTable::findNodeAndOf
 }
 
 void PieceTable::traverseInOrder(std::shared_ptr<RBNode> node,
-                                 std::function<void(const Piece&)> callback) {
+                                 std::function<void(const Piece&)> callback) const {
     if (!node || node == nil_)
         return;
 
@@ -186,36 +186,39 @@ void PieceTable::insertPiece(size_t pos, BufferType type, size_t start, size_t l
     new_node->left = nil_;
     new_node->right = nil_;
     new_node->parent = nullptr;
+    new_node->subtree_length = length;
+    new_node->subtree_newlines = countNewlines(
+        type == BufferType::ORIGINAL ? original_buffer_ : append_buffer_, start, length);
+    new_node->color = 0;
 
     if (!root_ || root_ == nil_) {
         root_ = new_node;
         root_->color = 1;
+        root_->parent = nullptr;
     } else {
-        // 找到插入位置
         auto [node, offset] = findNodeAndOffset(pos);
 
-        if (!node) {
-            // 插入到末尾
+        if (!node || node == nil_) {
             std::shared_ptr<RBNode> current = root_;
-            while (current->right && current->right != nil_) {
+            while (current->right != nil_) {
                 current = current->right;
             }
             current->right = new_node;
             new_node->parent = current;
         } else if (offset == 0 && pos == 0) {
-            // 插入到开头
             std::shared_ptr<RBNode> current = root_;
-            while (current->left && current->left != nil_) {
+            while (current->left != nil_) {
                 current = current->left;
             }
-            current->left = new_node;
-            new_node->parent = current;
+            new_node->right = current;
+            new_node->left = nil_;
+            current->parent = new_node;
+            root_ = new_node;
+            root_->color = 1;
         } else {
-            // 分割现有节点
             Piece& piece = node->piece;
 
             if (offset > 0 && offset < piece.length) {
-                // 需要分割
                 Piece right_piece(piece.buffer_type, piece.start + offset, piece.length - offset);
                 piece.length = offset;
 
@@ -228,28 +231,22 @@ void PieceTable::insertPiece(size_t pos, BufferType type, size_t start, size_t l
                     node->right->parent = right_node;
                 }
                 node->right = right_node;
-                node = right_node;
             }
 
-            // 插入新节点
             new_node->parent = node;
-            new_node->left = node->left;
-            node->left = new_node;
-
-            if (new_node->left != nil_) {
-                new_node->left->parent = new_node;
+            new_node->left = node->right;
+            if (node->right != nil_) {
+                node->right->parent = new_node;
             }
+            node->right = new_node;
         }
 
         insertFixup(new_node);
     }
 
-    updateNodeInfo(new_node);
-
-    // 更新所有祖先节点的信息
     std::shared_ptr<RBNode> current = new_node;
-    while (current && current != nil_) {
-        updateNodeInfo(current);
+    while (current && current->parent) {
+        updateNodeInfo(current->parent);
         current = current->parent;
     }
 
@@ -275,46 +272,152 @@ void PieceTable::remove(size_t pos, size_t length) {
 
     length = std::min(length, total_length_ - pos);
 
-    // 简化实现：标记要删除的片段
-    // 实际实现需要更复杂的树操作
-    auto [node, offset] = findNodeAndOffset(pos);
+    std::vector<std::shared_ptr<RBNode>> nodes_to_modify;
+    std::vector<std::pair<std::shared_ptr<RBNode>, Piece>> new_pieces;
 
-    if (!node)
+    auto [start_node, start_offset] = findNodeAndOffset(pos);
+    if (!start_node)
         return;
 
-    // 调整片段长度
-    size_t remaining = length;
+    auto leftMost = [this](std::shared_ptr<RBNode> current) {
+        while (current && current != nil_ && current->left && current->left != nil_) {
+            current = current->left;
+        }
+        return current;
+    };
 
-    while (remaining > 0 && node) {
-        if (offset < node->piece.length) {
-            size_t can_remove = std::min(remaining, node->piece.length - offset);
-            node->piece.start += offset;
-            node->piece.length -= offset + can_remove;
-            remaining -= can_remove;
-            offset = 0;
+    auto nextInOrder = [this, &leftMost](std::shared_ptr<RBNode> current) {
+        if (!current || current == nil_) {
+            return std::shared_ptr<RBNode>(nullptr);
         }
 
+        if (current->right && current->right != nil_) {
+            return leftMost(current->right);
+        }
+
+        auto child = current;
+        auto parent = current->parent;
+        while (parent && parent != nil_ && child == parent->right) {
+            child = parent;
+            parent = parent->parent;
+        }
+
+        if (!parent || parent == nil_) {
+            return std::shared_ptr<RBNode>(nullptr);
+        }
+        return parent;
+    };
+
+    size_t remaining = length;
+    size_t current_offset = start_offset;
+    std::shared_ptr<RBNode> current = start_node;
+
+    while (current && current != nil_ && remaining > 0) {
+        size_t node_remaining = current->piece.length - current_offset;
+        size_t to_remove = std::min(remaining, node_remaining);
+
+        if (current_offset == 0 && to_remove == current->piece.length) {
+            nodes_to_modify.push_back(current);
+        } else if (current_offset == 0) {
+            Piece modified = current->piece;
+            modified.start += to_remove;
+            modified.length -= to_remove;
+            new_pieces.push_back({current, modified});
+        } else if (to_remove == node_remaining) {
+            Piece modified = current->piece;
+            modified.length = current_offset;
+            new_pieces.push_back({current, modified});
+        } else {
+            Piece left_part(current->piece.buffer_type, current->piece.start, current_offset);
+            Piece right_part(current->piece.buffer_type,
+                             current->piece.start + current_offset + to_remove,
+                             current->piece.length - current_offset - to_remove);
+            new_pieces.push_back({current, left_part});
+            if (right_part.length > 0) {
+                auto right_node = std::make_shared<RBNode>(right_part);
+                right_node->left = nil_;
+                right_node->right = current->right;
+                right_node->parent = current;
+                if (current->right != nil_) {
+                    current->right->parent = right_node;
+                }
+                current->right = right_node;
+                current->piece = left_part;
+                updateNodeInfo(right_node);
+            } else {
+                Piece modified = current->piece;
+                modified.length = current_offset;
+                new_pieces.push_back({current, modified});
+            }
+        }
+
+        remaining -= to_remove;
+        current_offset = 0;
         if (remaining > 0) {
-            node = node->right != nil_ ? node->right : nullptr;
-            offset = 0;
+            current = nextInOrder(current);
+        }
+    }
+
+    for (auto& node : nodes_to_modify) {
+        if (node->parent) {
+            std::shared_ptr<RBNode> replacement = nil_;
+            if (node->left != nil_ && node->right != nil_) {
+                std::shared_ptr<RBNode> successor = leftMost(node->right);
+                if (successor->parent != node) {
+                    successor->parent->left = successor->right;
+                    if (successor->right != nil_) {
+                        successor->right->parent = successor->parent;
+                    }
+                    successor->right = node->right;
+                    successor->right->parent = successor;
+                }
+                successor->left = node->left;
+                successor->left->parent = successor;
+                successor->parent = node->parent;
+                successor->color = node->color;
+                replacement = successor;
+            } else if (node->left != nil_) {
+                replacement = node->left;
+                replacement->parent = node->parent;
+                replacement->color = node->color;
+            } else if (node->right != nil_) {
+                replacement = node->right;
+                replacement->parent = node->parent;
+                replacement->color = node->color;
+            } else {
+                replacement = nil_;
+            }
+
+            if (!node->parent) {
+                root_ = replacement;
+            } else if (node == node->parent->left) {
+                node->parent->left = replacement;
+            } else {
+                node->parent->right = replacement;
+            }
+
+            if (replacement != nil_) {
+                updateNodeInfo(replacement);
+                std::shared_ptr<RBNode> ancestor = replacement->parent;
+                while (ancestor) {
+                    updateNodeInfo(ancestor);
+                    ancestor = ancestor->parent;
+                }
+            }
+        }
+    }
+
+    for (auto& [node, piece] : new_pieces) {
+        node->piece = piece;
+        std::shared_ptr<RBNode> current = node;
+        while (current) {
+            updateNodeInfo(current);
+            current = current->parent;
         }
     }
 
     total_length_ -= length;
     lines_dirty_ = true;
-
-    // 更新树信息
-    std::shared_ptr<RBNode> current = root_;
-    while (current && current != nil_) {
-        updateNodeInfo(current);
-        if (current->left != nil_) {
-            current = current->left;
-        } else if (current->right != nil_) {
-            current = current->right;
-        } else {
-            break;
-        }
-    }
 }
 
 std::string PieceTable::getText(size_t pos, size_t length) const {
@@ -391,9 +494,7 @@ std::string PieceTable::getFullText() const {
     std::string result;
     result.reserve(total_length_);
 
-    // 使用 const_cast 来调用非 const 版本的 traverseInOrder
-    auto* non_const_this = const_cast<PieceTable*>(this);
-    non_const_this->traverseInOrder(root_, [this, &result](const Piece& piece) {
+    traverseInOrder(root_, [this, &result](const Piece& piece) {
         const std::string& buffer =
             piece.buffer_type == BufferType::ORIGINAL ? original_buffer_ : append_buffer_;
         if (piece.start < buffer.size()) {
@@ -446,9 +547,7 @@ size_t PieceTable::lineCount() const {
 void PieceTable::recomputeLineCount() const {
     line_count_ = 1;
 
-    // 使用 const_cast 来调用非 const 版本的 traverseInOrder
-    auto* non_const_this = const_cast<PieceTable*>(this);
-    non_const_this->traverseInOrder(root_, [this](const Piece& piece) {
+    traverseInOrder(root_, [this](const Piece& piece) {
         const std::string& buffer =
             piece.buffer_type == BufferType::ORIGINAL ? original_buffer_ : append_buffer_;
         for (size_t i = 0; i < piece.length && piece.start + i < buffer.size(); ++i) {
@@ -462,17 +561,40 @@ void PieceTable::recomputeLineCount() const {
 }
 
 size_t PieceTable::findLineStart(size_t line_num) const {
-    if (line_num == 0)
+    if (line_num == 0 || !root_ || root_ == nil_)
         return 0;
 
     size_t current_line = 0;
     size_t pos = 0;
+    std::shared_ptr<RBNode> current = root_;
 
-    while (current_line < line_num && pos < total_length_) {
-        if (getChar(pos) == '\n') {
-            current_line++;
+    while (current && current != nil_ && current_line < line_num) {
+        size_t left_newlines = (current->left != nil_) ? current->left->subtree_newlines : 0;
+
+        if (current_line + left_newlines >= line_num) {
+            current = current->left;
+        } else {
+            current_line += left_newlines;
+            pos += (current->left != nil_) ? current->left->subtree_length : 0;
+
+            const std::string& buffer = (current->piece.buffer_type == BufferType::ORIGINAL)
+                                            ? original_buffer_
+                                            : append_buffer_;
+
+            size_t piece_pos = 0;
+            for (size_t i = 0; i < current->piece.length && current_line < line_num; ++i) {
+                if (current->piece.start + i < buffer.size() &&
+                    buffer[current->piece.start + i] == '\n') {
+                    current_line++;
+                    if (current_line == line_num) {
+                        return pos + piece_pos + 1;
+                    }
+                }
+                piece_pos++;
+            }
+            pos += current->piece.length;
+            current = current->right;
         }
-        pos++;
     }
 
     return pos;
@@ -528,34 +650,92 @@ size_t PieceTable::positionToLineCol(size_t pos) const {
         pos = total_length_;
 
     size_t line = 0, col = 0;
-    for (size_t i = 0; i < pos && i < total_length_; ++i) {
-        if (getChar(i) == '\n') {
-            line++;
-            col = 0;
+    size_t current_pos = 0;
+    std::shared_ptr<RBNode> current = root_;
+
+    while (current && current != nil_ && current_pos < pos) {
+        size_t left_len = (current->left != nil_) ? current->left->subtree_length : 0;
+
+        if (current_pos + left_len >= pos) {
+            current = current->left;
         } else {
-            col++;
+            line += (current->left != nil_) ? current->left->subtree_newlines : 0;
+            current_pos += left_len;
+
+            const std::string& buffer = (current->piece.buffer_type == BufferType::ORIGINAL)
+                                            ? original_buffer_
+                                            : append_buffer_;
+
+            size_t take = std::min(pos - current_pos, current->piece.length);
+            for (size_t i = 0; i < take && current->piece.start + i < buffer.size(); ++i) {
+                if (buffer[current->piece.start + i] == '\n') {
+                    line++;
+                    col = 0;
+                } else {
+                    col++;
+                }
+            }
+            current_pos += take;
+            current = current->right;
         }
     }
 
-    return line * 1000000 + col;
+    return encodeLineCol(line, col);
 }
 
 size_t PieceTable::lineColToPosition(size_t line, size_t col) const {
-    size_t current_line = 0, current_col = 0, pos = 0;
+    if (!root_ || root_ == nil_)
+        return 0;
 
-    while (pos < total_length_ && current_line < line) {
-        if (getChar(pos) == '\n') {
-            current_line++;
-            current_col = 0;
+    size_t current_line = 0;
+    size_t pos = 0;
+    std::shared_ptr<RBNode> current = root_;
+
+    while (current && current != nil_ && current_line < line) {
+        size_t left_newlines = (current->left != nil_) ? current->left->subtree_newlines : 0;
+
+        if (current_line + left_newlines >= line) {
+            current = current->left;
         } else {
-            current_col++;
+            current_line += left_newlines;
+            pos += (current->left != nil_) ? current->left->subtree_length : 0;
+
+            const std::string& buffer = (current->piece.buffer_type == BufferType::ORIGINAL)
+                                            ? original_buffer_
+                                            : append_buffer_;
+
+            size_t piece_pos = 0;
+            for (size_t i = 0;
+                 i < current->piece.length && current->piece.start + i < buffer.size(); ++i) {
+                if (buffer[current->piece.start + i] == '\n') {
+                    current_line++;
+                    if (current_line >= line) {
+                        break;
+                    }
+                }
+                piece_pos++;
+            }
+            pos += piece_pos;
+            current = current->right;
         }
-        pos++;
     }
 
-    while (pos < total_length_ && current_col < col && getChar(pos) != '\n') {
-        pos++;
-        current_col++;
+    // 现在 current_line == line，向前移动 col 个字符
+    while (current && current != nil_ && col > 0) {
+        const std::string& buffer = (current->piece.buffer_type == BufferType::ORIGINAL)
+                                        ? original_buffer_
+                                        : append_buffer_;
+
+        for (size_t i = 0;
+             i < current->piece.length && current->piece.start + i < buffer.size() && col > 0;
+             ++i) {
+            if (buffer[current->piece.start + i] == '\n') {
+                break;
+            }
+            pos++;
+            col--;
+        }
+        current = current->right;
     }
 
     return pos;

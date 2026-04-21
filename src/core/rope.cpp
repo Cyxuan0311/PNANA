@@ -9,6 +9,57 @@ Rope::Rope() : line_count_(1), lines_dirty_(true) {
     root_ = std::make_shared<RopeNode>();
 }
 
+std::shared_ptr<Rope::RopeNode> Rope::rotateLeft(std::shared_ptr<RopeNode> node) {
+    std::shared_ptr<RopeNode> right = node->right;
+    node->right = right->left;
+    right->left = node;
+    node->updateLength();
+    right->updateLength();
+    return right;
+}
+
+std::shared_ptr<Rope::RopeNode> Rope::rotateRight(std::shared_ptr<RopeNode> node) {
+    std::shared_ptr<RopeNode> left = node->left;
+    node->left = left->right;
+    left->right = node;
+    node->updateLength();
+    left->updateLength();
+    return left;
+}
+
+std::shared_ptr<Rope::RopeNode> Rope::balance(std::shared_ptr<RopeNode> node) {
+    if (!node || node->isLeaf()) {
+        return node;
+    }
+
+    node->updateLength();
+
+    int bf = node->balanceFactor();
+
+    if (bf > 1) {
+        if (node->left && node->left->balanceFactor() < 0) {
+            node->left = rotateLeft(node->left);
+        }
+        return rotateRight(node);
+    }
+
+    if (bf < -1) {
+        if (node->right && node->right->balanceFactor() > 0) {
+            node->right = rotateRight(node->right);
+        }
+        return rotateLeft(node);
+    }
+
+    return node;
+}
+
+std::shared_ptr<Rope::RopeNode> Rope::findMinNode(std::shared_ptr<RopeNode> node) {
+    while (node && !node->isLeaf() && node->left) {
+        node = node->left;
+    }
+    return node;
+}
+
 std::shared_ptr<Rope::RopeNode> Rope::concatenate(std::shared_ptr<RopeNode> left,
                                                   std::shared_ptr<RopeNode> right) {
     if (!left || left->length == 0)
@@ -21,7 +72,7 @@ std::shared_ptr<Rope::RopeNode> Rope::concatenate(std::shared_ptr<RopeNode> left
     parent->right = right;
     parent->updateLength();
 
-    return parent;
+    return balance(parent);
 }
 
 std::pair<std::shared_ptr<Rope::RopeNode>, std::shared_ptr<Rope::RopeNode>> Rope::split(
@@ -47,10 +98,12 @@ std::pair<std::shared_ptr<Rope::RopeNode>, std::shared_ptr<Rope::RopeNode>> Rope
 
     if (pos <= left_len) {
         auto [ll, lr] = split(node->left, pos);
-        return {ll, concatenate(lr, node->right)};
+        auto result = concatenate(lr, node->right);
+        return {ll, result};
     } else {
         auto [rl, rr] = split(node->right, pos - left_len);
-        return {concatenate(node->left, rl), rr};
+        auto result = concatenate(node->left, rl);
+        return {result, rr};
     }
 }
 
@@ -189,11 +242,30 @@ size_t Rope::findLineStart(std::shared_ptr<RopeNode> node, size_t line_num) cons
     size_t current_line = 0;
     size_t pos = 0;
 
-    while (current_line < line_num && pos < node->length) {
-        if (charAt(node, pos) == '\n') {
-            current_line++;
+    std::shared_ptr<RopeNode> current = node;
+    while (current && current_line < line_num) {
+        if (current->isLeaf()) {
+            for (size_t i = 0; i < current->text.size() && current_line < line_num; ++i) {
+                if (current->text[i] == '\n') {
+                    current_line++;
+                    if (current_line == line_num) {
+                        return pos + i + 1;
+                    }
+                }
+            }
+            pos += current->text.size();
+            break;
         }
-        pos++;
+
+        size_t left_newlines = current->left ? current->left->newline_count : 0;
+
+        if (current_line + left_newlines >= line_num) {
+            current = current->left;
+        } else {
+            current_line += left_newlines;
+            pos += current->left ? current->left->length : 0;
+            current = current->right;
+        }
     }
 
     return pos;
@@ -311,16 +383,39 @@ size_t Rope::positionToLineCol(size_t pos) const {
         pos = root_->length;
 
     size_t line = 0, col = 0;
-    for (size_t i = 0; i < pos && i < root_->length; ++i) {
-        if (charAt(root_, i) == '\n') {
-            line++;
-            col = 0;
+    size_t current_pos = 0;
+
+    std::shared_ptr<RopeNode> current = root_;
+    while (current && current_pos < pos) {
+        if (current->isLeaf()) {
+            size_t end = std::min(pos, current_pos + current->text.size());
+            for (size_t i = current_pos; i < end; ++i) {
+                if (current->text[i - current_pos] == '\n') {
+                    line++;
+                    col = 0;
+                } else {
+                    col++;
+                }
+            }
+            current_pos += current->text.size();
+            break;
+        }
+
+        size_t left_len = current->left ? current->left->length : 0;
+
+        if (current_pos + left_len <= pos) {
+            if (current->left) {
+                line += current->left->newline_count;
+                col = 0;
+            }
+            current_pos += left_len;
+            current = current->right;
         } else {
-            col++;
+            current = current->left;
         }
     }
 
-    return line * 1000000 + col;
+    return encodeLineCol(line, col);
 }
 
 size_t Rope::lineColToPosition(size_t line, size_t col) const {

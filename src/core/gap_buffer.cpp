@@ -17,13 +17,11 @@ void GapBuffer::moveGap(size_t pos) {
     }
 
     if (pos < gap_start_) {
-        // 向左移动间隙
         size_t distance = gap_start_ - pos;
         std::memmove(&buffer_[gap_end_ - distance], &buffer_[pos], distance);
         gap_start_ -= distance;
         gap_end_ -= distance;
     } else if (pos > gap_start_) {
-        // 向右移动间隙
         size_t distance = pos - gap_start_;
         std::memmove(&buffer_[gap_start_], &buffer_[gap_end_], distance);
         gap_start_ += distance;
@@ -33,25 +31,24 @@ void GapBuffer::moveGap(size_t pos) {
 
 void GapBuffer::grow(size_t min_size) {
     size_t current_size = buffer_.size();
-    size_t new_size = std::max(current_size * 2, current_size + min_size);
-    if (new_size < 1024) {
-        new_size = 1024;
+    size_t new_gap_size = std::max(current_size + min_size, gap_size_ * 2);
+    if (new_gap_size < 1024) {
+        new_gap_size = 1024;
     }
 
+    size_t new_size = length() + new_gap_size;
     std::vector<char> new_buffer(new_size);
 
-    // 复制间隙前的数据
     std::memcpy(&new_buffer[0], &buffer_[0], gap_start_);
 
-    // 复制间隙后的数据
     size_t after_gap = current_size - gap_end_;
     if (after_gap > 0) {
-        std::memcpy(&new_buffer[new_size - after_gap], &buffer_[gap_end_], after_gap);
+        std::memcpy(&new_buffer[gap_start_ + new_gap_size], &buffer_[gap_end_], after_gap);
     }
 
     buffer_ = std::move(new_buffer);
-    gap_end_ = new_size - after_gap;
-    gap_size_ = gap_end_ - gap_start_;
+    gap_end_ = gap_start_ + new_gap_size;
+    gap_size_ = new_gap_size;
 }
 
 void GapBuffer::recomputeLineCount() const {
@@ -285,7 +282,7 @@ size_t GapBuffer::positionToLineCol(size_t pos) const {
         current_pos++;
     }
 
-    return line * 1000000 + col; // 编码为 line * 1000000 + col
+    return encodeLineCol(line, col);
 }
 
 size_t GapBuffer::lineColToPosition(size_t line, size_t col) const {
@@ -303,7 +300,6 @@ size_t GapBuffer::lineColToPosition(size_t line, size_t col) const {
         pos++;
     }
 
-    // 现在在正确的行上，移动到正确的列
     while (pos < length() && current_col < col && getChar(pos) != '\n') {
         pos++;
         current_col++;
@@ -348,15 +344,11 @@ bool GapBuffer::saveToFile(const std::string& filepath) const {
         return false;
     }
 
-    // 写入间隙前的数据
     file.write(&buffer_[0], gap_start_);
 
-    // 写入间隙后的数据
-    for (size_t i = gap_end_; i < buffer_.size(); ++i) {
-        if (buffer_[i] == '\0') {
-            break;
-        }
-        file.put(buffer_[i]);
+    size_t after_gap = buffer_.size() - gap_end_;
+    if (after_gap > 0) {
+        file.write(&buffer_[gap_end_], after_gap);
     }
 
     return file.good();

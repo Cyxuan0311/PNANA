@@ -56,6 +56,9 @@
 #include "ui/plugin_manager_dialog.h"
 #endif
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
+#ifdef BUILD_TREE_SITTER_SUPPORT
+#include "features/indent/auto_indent_engine.h"
+#endif
 #include "features/command_palette.h"
 #include "features/extract.h"
 #include "features/file_browser.h"
@@ -186,6 +189,8 @@ class Editor {
     void insertChar(char ch);
     void insertText(const std::string& text); // 支持UTF-8多字节字符（如中文）
     void insertNewline();
+    std::string computeAutoIndent(const std::vector<std::string>& lines, size_t cursor_row,
+                                  size_t cursor_col, const LanguageIndentConfig& cfg) const;
     void deleteChar();
     void backspace();
     void deleteLine();
@@ -486,6 +491,9 @@ class Editor {
     // SSH 图片预览临时本地缓存：remote_uri -> local_temp_file
     std::unordered_map<std::string, std::string> remote_image_temp_files_;
     features::SyntaxHighlighter syntax_highlighter_;
+#ifdef BUILD_TREE_SITTER_SUPPORT
+    features::AutoIndentEngine auto_indent_engine_;
+#endif
     features::CommandPalette command_palette_;
     features::RecentFilesManager recent_files_manager_;
     features::TUIConfigManager tui_config_manager_;
@@ -672,6 +680,9 @@ class Editor {
     bool show_extract_dialog_;
     bool show_extract_path_dialog_;
     bool show_extract_progress_dialog_;
+
+    // 包管理器注册表延迟初始化标志
+    bool package_manager_registry_initialized_ = false;
 
     // 选择
     bool selection_active_;
@@ -915,6 +926,7 @@ class Editor {
     bool isPackageManagerPanelVisible() const {
         return package_manager_panel_.isVisible();
     }
+    void initializePackageManagerRegistry();
 
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);

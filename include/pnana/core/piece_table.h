@@ -129,7 +129,8 @@ class PieceTable : public BufferBackend {
 
     // 遍历（public 以便 lambda 访问内部类型）
   public:
-    void traverseInOrder(std::shared_ptr<RBNode> node, std::function<void(const Piece&)> callback);
+    void traverseInOrder(std::shared_ptr<RBNode> node,
+                         std::function<void(const Piece&)> callback) const;
 
   private:
     // 辅助函数

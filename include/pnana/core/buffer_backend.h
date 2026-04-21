@@ -52,6 +52,17 @@ class BufferBackend {
     virtual size_t positionToLineCol(size_t pos) const = 0;
     virtual size_t lineColToPosition(size_t line, size_t col) const = 0;
 
+    static constexpr size_t LINE_COL_SHIFT = 32;
+    static size_t encodeLineCol(size_t line, size_t col) {
+        return (line << LINE_COL_SHIFT) | col;
+    }
+    static size_t decodeLine(size_t encoded) {
+        return encoded >> LINE_COL_SHIFT;
+    }
+    static size_t decodeCol(size_t encoded) {
+        return encoded & ((size_t(1) << LINE_COL_SHIFT) - 1);
+    }
+
     // 文件加载和保存
     virtual bool loadFromFile(const std::string& filepath) = 0;
     virtual bool saveToFile(const std::string& filepath) const = 0;

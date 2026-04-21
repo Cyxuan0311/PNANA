@@ -62,8 +62,8 @@ void SqrtDecomposition::splitBlock(size_t block_idx) {
     }
 
     Block& block = blocks_[block_idx];
-    if (block.data.size() <= block_size_) {
-        return; // 不需要分割
+    if (block.data.size() <= block_size_ * 2) {
+        return;
     }
 
     Block new_block;
@@ -169,7 +169,7 @@ void SqrtDecomposition::remove(size_t pos, size_t length) {
     const size_t end_pos = pos + length;
 
     const size_t start_block = findBlock(pos);
-    const size_t end_block = findBlock(end_pos - 1);
+    const size_t end_block = findBlock(std::min(end_pos, total_length_) > 0 ? end_pos - 1 : 0);
 
     const size_t start_block_start = blockStartOffset(start_block);
     const size_t offset_in_start = pos - start_block_start;
@@ -185,14 +185,18 @@ void SqrtDecomposition::remove(size_t pos, size_t length) {
         blocks_[start_block].data.erase(blocks_[start_block].data.begin() + offset_in_start,
                                         blocks_[start_block].data.end());
 
-        blocks_[end_block].data.erase(blocks_[end_block].data.begin(),
-                                      blocks_[end_block].data.begin() + offset_in_end);
+        if (end_block < blocks_.size() && offset_in_end < blocks_[end_block].data.size()) {
+            blocks_[end_block].data.erase(blocks_[end_block].data.begin(),
+                                          blocks_[end_block].data.begin() + offset_in_end);
+        } else if (end_block < blocks_.size()) {
+            blocks_[end_block].data.clear();
+        }
 
         if (end_block > start_block + 1) {
             blocks_.erase(blocks_.begin() + start_block + 1, blocks_.begin() + end_block);
         }
 
-        if (start_block + 1 < blocks_.size()) {
+        if (start_block + 1 < blocks_.size() && !blocks_[start_block + 1].data.empty()) {
             blocks_[start_block].data.insert(blocks_[start_block].data.end(),
                                              blocks_[start_block + 1].data.begin(),
                                              blocks_[start_block + 1].data.end());
@@ -208,6 +212,7 @@ void SqrtDecomposition::remove(size_t pos, size_t length) {
     }
 
     mergeBlocks();
+    refreshTotalsFrom(0);
 }
 
 std::string SqrtDecomposition::getText(size_t pos, size_t length) const {
@@ -219,8 +224,22 @@ std::string SqrtDecomposition::getText(size_t pos, size_t length) const {
     std::string result;
     result.reserve(length);
 
-    for (size_t i = 0; i < length; ++i) {
-        result += getChar(pos + i);
+    size_t remaining = length;
+    size_t current_pos = pos;
+
+    for (size_t i = 0; i < blocks_.size() && remaining > 0; ++i) {
+        size_t block_start = blockStartOffset(i);
+        size_t block_end = block_start + blocks_[i].data.size();
+
+        if (current_pos < block_end && current_pos >= block_start) {
+            size_t offset_in_block = current_pos - block_start;
+            size_t available = blocks_[i].data.size() - offset_in_block;
+            size_t take = std::min(remaining, available);
+
+            result.append(blocks_[i].data.data() + offset_in_block, take);
+            remaining -= take;
+            current_pos += take;
+        }
     }
 
     return result;
@@ -327,18 +346,27 @@ size_t SqrtDecomposition::positionToLineCol(size_t pos) const {
     size_t col = 0;
     size_t current_pos = 0;
 
-    while (current_pos < pos && current_pos < total_length_) {
-        char ch = getChar(current_pos);
-        if (ch == '\n') {
-            line++;
-            col = 0;
-        } else {
-            col++;
+    for (size_t i = 0; i < blocks_.size() && current_pos < pos; ++i) {
+        size_t block_start = blockStartOffset(i);
+        size_t block_end = block_start + blocks_[i].data.size();
+
+        size_t start = std::max(current_pos, block_start);
+        size_t end = std::min(pos, block_end);
+
+        for (size_t j = start - block_start; j < end - block_start && j < blocks_[i].data.size();
+             ++j) {
+            if (blocks_[i].data[j] == '\n') {
+                line++;
+                col = 0;
+            } else {
+                col++;
+            }
         }
-        current_pos++;
+
+        current_pos = block_end;
     }
 
-    return line * 1000000 + col;
+    return encodeLineCol(line, col);
 }
 
 size_t SqrtDecomposition::lineColToPosition(size_t line, size_t col) const {

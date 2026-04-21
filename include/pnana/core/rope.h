@@ -76,9 +76,11 @@ class Rope : public BufferBackend {
         std::string text;     // 仅叶子节点存储文本
         size_t length;        // 子树总长度
         size_t newline_count; // 子树中换行符数量
+        int height;           // 节点高度（用于AVL平衡）
 
-        RopeNode() : length(0), newline_count(0) {}
-        explicit RopeNode(const std::string& t) : text(t), length(t.size()), newline_count(0) {
+        RopeNode() : length(0), newline_count(0), height(1) {}
+        explicit RopeNode(const std::string& t)
+            : text(t), length(t.size()), newline_count(0), height(1) {
             for (char c : text) {
                 if (c == '\n')
                     newline_count++;
@@ -104,6 +106,15 @@ class Rope : public BufferBackend {
                 newline_count += left->newline_count;
             if (right)
                 newline_count += right->newline_count;
+            height = 1 + std::max(getHeight(left), getHeight(right));
+        }
+
+        static int getHeight(const std::shared_ptr<RopeNode>& node) {
+            return node ? node->height : 0;
+        }
+
+        int balanceFactor() const {
+            return getHeight(left) - getHeight(right);
         }
     };
 
@@ -125,6 +136,12 @@ class Rope : public BufferBackend {
     std::string substringConst(std::shared_ptr<RopeNode> node, size_t start, size_t len) const;
     void collectText(std::shared_ptr<RopeNode> node, std::string& result) const;
     size_t findLineStart(std::shared_ptr<RopeNode> node, size_t line_num) const;
+
+    // AVL平衡操作
+    std::shared_ptr<RopeNode> rotateLeft(std::shared_ptr<RopeNode> node);
+    std::shared_ptr<RopeNode> rotateRight(std::shared_ptr<RopeNode> node);
+    std::shared_ptr<RopeNode> balance(std::shared_ptr<RopeNode> node);
+    std::shared_ptr<RopeNode> findMinNode(std::shared_ptr<RopeNode> node);
 
     void recomputeLineCount() const {
         line_count_ = root_ ? (root_->newline_count + 1) : 1;
