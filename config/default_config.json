@@ -96,5 +96,13 @@
     "toast_max_width": 50,
     "toast_show_icon": true,
     "toast_bold_text": false
+  },
+  "language_indent": {
+    "cpp": {
+      "indent_size": 4,
+      "insert_spaces": true,
+      "smart_indent": true,
+      "file_extensions": [".cpp", ".cxx", ".cc", ".c++", ".hpp", ".hxx", ".hh", ".h", ".c"]
+    }
   }
 }

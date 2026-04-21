@@ -1,4 +1,5 @@
 #include "core/config_manager.h"
+#include "utils/logger.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -182,6 +183,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t animation_pos = cleaned.find("\"animation\":{");
     size_t history_pos = cleaned.find("\"history\":{");
     size_t ui_pos = cleaned.find("\"ui\":{");
+    size_t lang_indent_pos = cleaned.find("\"language_indent\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
@@ -762,6 +764,110 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 language_indent 配置
+    if (lang_indent_pos != std::string::npos) {
+        size_t lang_indent_start = lang_indent_pos + 19;
+        size_t lang_indent_end = lang_indent_start;
+        int depth = 1;
+        while (depth > 0 && lang_indent_end < cleaned.size()) {
+            char c = cleaned[lang_indent_end++];
+            if (c == '{')
+                depth++;
+            else if (c == '}')
+                depth--;
+        }
+        if (depth == 0) {
+            size_t p = lang_indent_start;
+            while (p < lang_indent_end) {
+                size_t quote_pos = cleaned.find("\"", p);
+                if (quote_pos == std::string::npos || quote_pos >= lang_indent_end)
+                    break;
+                p = quote_pos + 1;
+                size_t key_end = cleaned.find("\"", p);
+                if (key_end == std::string::npos || key_end >= lang_indent_end)
+                    break;
+                std::string lang_id = cleaned.substr(p, key_end - p);
+                p = key_end + 1;
+                size_t colon = cleaned.find(":", p);
+                if (colon == std::string::npos || colon >= lang_indent_end)
+                    break;
+                size_t brace_pos = colon + 1;
+                while (brace_pos < lang_indent_end &&
+                       (cleaned[brace_pos] == ' ' || cleaned[brace_pos] == '\t' ||
+                        cleaned[brace_pos] == '\n' || cleaned[brace_pos] == '\r')) {
+                    brace_pos++;
+                }
+                if (brace_pos >= lang_indent_end || cleaned[brace_pos] != '{') {
+                    size_t skip = colon + 1;
+                    while (skip < lang_indent_end &&
+                           (cleaned[skip] == ' ' || cleaned[skip] == '\t' ||
+                            cleaned[skip] == '\n' || cleaned[skip] == '\r')) {
+                        skip++;
+                    }
+                    if (skip < lang_indent_end && cleaned[skip] == '"') {
+                        skip++;
+                        while (skip < lang_indent_end && cleaned[skip] != '"') {
+                            if (cleaned[skip] == '\\')
+                                skip++;
+                            skip++;
+                        }
+                        if (skip < lang_indent_end)
+                            skip++;
+                    } else {
+                        while (skip < lang_indent_end && cleaned[skip] != ',' &&
+                               cleaned[skip] != '}')
+                            skip++;
+                    }
+                    if (skip < lang_indent_end && cleaned[skip] == ',')
+                        p = skip + 1;
+                    else
+                        break;
+                    continue;
+                }
+                size_t val_start = brace_pos;
+                int vdepth = 1;
+                size_t val_end = val_start + 1;
+                while (vdepth > 0 && val_end < lang_indent_end) {
+                    char c = cleaned[val_end++];
+                    if (c == '{')
+                        vdepth++;
+                    else if (c == '}')
+                        vdepth--;
+                }
+                if (vdepth != 0)
+                    break;
+
+                LanguageIndentConfig lang_cfg;
+                lang_cfg.indent_size = extractInt("indent_size", val_start, val_end, 4);
+                lang_cfg.insert_spaces = extractBool("insert_spaces", val_start, val_end, true);
+                lang_cfg.smart_indent = extractBool("smart_indent", val_start, val_end, true);
+
+                size_t ext_pos = cleaned.find("\"file_extensions\":[", val_start);
+                if (ext_pos != std::string::npos && ext_pos < val_end) {
+                    ext_pos += 18;
+                    size_t ext_end = cleaned.find("]", ext_pos);
+                    if (ext_end != std::string::npos && ext_end < val_end) {
+                        std::string ext_content = cleaned.substr(ext_pos, ext_end - ext_pos);
+                        size_t ep = 0;
+                        while ((ep = ext_content.find("\"", ep)) != std::string::npos) {
+                            ep++;
+                            size_t ee = ext_content.find("\"", ep);
+                            if (ee == std::string::npos)
+                                break;
+                            std::string ext = ext_content.substr(ep, ee - ep);
+                            if (!ext.empty())
+                                lang_cfg.file_extensions.push_back(ext);
+                            ep = ee + 1;
+                        }
+                    }
+                }
+
+                config_.language_indent[lang_id] = lang_cfg;
+                p = val_end;
+            }
+        }
+    }
+
     return true;
 }
 
@@ -944,6 +1050,28 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"toast_bold_text\": " << (config_.ui.toast_bold_text ? "true" : "false") << ",\n";
     oss << "    \"max_recent_files\": " << config_.ui.max_recent_files << ",\n";
     oss << "    \"max_recent_folders\": " << config_.ui.max_recent_folders << "\n";
+    oss << "  },\n";
+    oss << "  \"language_indent\": {\n";
+    oss << "    \"_comment\": \"Language-specific indent configuration for auto-indent module\",\n";
+    for (auto it = config_.language_indent.begin(); it != config_.language_indent.end(); ++it) {
+        const auto& lang_id = it->first;
+        const auto& lang_cfg = it->second;
+        oss << "    \"" << lang_id << "\": {\n";
+        oss << "      \"indent_size\": " << lang_cfg.indent_size << ",\n";
+        oss << "      \"insert_spaces\": " << (lang_cfg.insert_spaces ? "true" : "false") << ",\n";
+        oss << "      \"smart_indent\": " << (lang_cfg.smart_indent ? "true" : "false") << ",\n";
+        oss << "      \"file_extensions\": [";
+        for (size_t i = 0; i < lang_cfg.file_extensions.size(); ++i) {
+            oss << "\"" << lang_cfg.file_extensions[i] << "\"";
+            if (i < lang_cfg.file_extensions.size() - 1)
+                oss << ", ";
+        }
+        oss << "]\n";
+        oss << "    }";
+        if (std::next(it) != config_.language_indent.end())
+            oss << ",";
+        oss << "\n";
+    }
     oss << "  }\n";
     oss << "}\n";
     return oss.str();

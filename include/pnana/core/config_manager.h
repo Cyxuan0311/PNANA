@@ -19,6 +19,14 @@ struct EditorConfig {
     bool auto_indent = true;
 };
 
+// 语言特定缩进配置
+struct LanguageIndentConfig {
+    int indent_size = 4;
+    bool insert_spaces = true;
+    bool smart_indent = true;
+    std::vector<std::string> file_extensions; // 支持的文件后缀列表
+};
+
 // 显示配置结构
 struct DisplayConfig {
     bool show_line_numbers = true;
@@ -192,6 +200,9 @@ struct AppConfig {
 
     // Logo 配置
     std::vector<CustomLogoConfig> custom_logos; // 用户自定义 logo 列表
+
+    // 语言特定缩进配置
+    std::map<std::string, LanguageIndentConfig> language_indent;
 
     // 主题配置
     std::string current_theme = "monokai";
