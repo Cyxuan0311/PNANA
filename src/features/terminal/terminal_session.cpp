@@ -13,8 +13,8 @@ namespace terminal {
 #ifdef BUILD_LIBVTERM_SUPPORT
 
 // 过滤对老版本 libvterm 危险的序列：
-//   1. Unicode 私用区字符 U+E000–U+F8FF（Nerd Font 等图标）→ 替换为空格
-//   2. OSC/DCS/APC/PM 序列（跨 read 需要保持状态）
+//   1. OSC/DCS/APC/PM 序列（跨 read 需要保持状态）
+//   注意：不再过滤 Unicode 私用区字符 (U+E000–U+F8FF)，以支持 Powerline/Nerd Font 图标
 class VTermStreamFilter {
   public:
     explicit VTermStreamFilter(TerminalSession& owner) : owner_(owner) {}
@@ -108,12 +108,9 @@ class VTermStreamFilter {
                 cp |= (static_cast<unsigned char>(data[i + 3]) & 0x3F);
             }
 
-            if (cp >= 0xE000 && cp <= 0xF8FF) {
-                out += ' ';
-            } else {
-                for (size_t j = 0; j < seq_len; j++)
-                    out += static_cast<char>(data[i + j]);
-            }
+            // Powerline/Nerd Font 图标使用私用区字符 (U+E000–U+F8FF)，需要正常显示
+            for (size_t j = 0; j < seq_len; j++)
+                out += static_cast<char>(data[i + j]);
             i += seq_len;
         }
         return out;

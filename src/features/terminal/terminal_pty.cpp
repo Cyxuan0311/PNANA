@@ -234,7 +234,9 @@ PTYResult PTYExecutor::createInteractiveShell(const std::string& cwd) {
 #endif
             tcsetattr(STDIN_FILENO, TCSANOW, &tio);
         }
-        setenv("TERM", "xterm", 1);
+        setenv("TERM", "xterm-256color", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_ALL", "C.UTF-8", 1);
         if (chdir(cwd.c_str()) != 0) {
             _exit(1);
         }
@@ -272,7 +274,9 @@ PTYResult PTYExecutor::createInteractiveShell(const std::string& cwd) {
 #endif
             tcsetattr(STDIN_FILENO, TCSANOW, &tio);
         }
-        setenv("TERM", "xterm", 1);
+        setenv("TERM", "xterm-256color", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_ALL", "C.UTF-8", 1);
         if (chdir(cwd.c_str()) != 0) {
             _exit(1);
         }
@@ -341,7 +345,9 @@ PTYResult PTYExecutor::createInteractiveShell(const std::string& cwd) {
 #endif
             tcsetattr(STDIN_FILENO, TCSANOW, &tio);
         }
-        setenv("TERM", "xterm", 1);
+        setenv("TERM", "xterm-256color", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_ALL", "C.UTF-8", 1);
         if (chdir(cwd.c_str()) != 0) {
             _exit(1);
         }
@@ -389,7 +395,9 @@ PTYResult PTYExecutor::createInteractiveShellWithPath(const std::string& cwd,
 #endif
             tcsetattr(STDIN_FILENO, TCSANOW, &tio);
         }
-        setenv("TERM", "xterm", 1);
+        setenv("TERM", "xterm-256color", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_ALL", "C.UTF-8", 1);
         if (chdir(cwd.c_str()) != 0) {
             _exit(1);
         }
@@ -426,7 +434,9 @@ PTYResult PTYExecutor::createInteractiveShellWithPath(const std::string& cwd,
 #endif
             tcsetattr(STDIN_FILENO, TCSANOW, &tio);
         }
-        setenv("TERM", "xterm", 1);
+        setenv("TERM", "xterm-256color", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_ALL", "C.UTF-8", 1);
         if (chdir(cwd.c_str()) != 0) {
             _exit(1);
         }
@@ -495,7 +505,9 @@ PTYResult PTYExecutor::createInteractiveShellWithPath(const std::string& cwd,
 #endif
             tcsetattr(STDIN_FILENO, TCSANOW, &tio);
         }
-        setenv("TERM", "xterm", 1);
+        setenv("TERM", "xterm-256color", 1);
+        setenv("LANG", "C.UTF-8", 1);
+        setenv("LC_ALL", "C.UTF-8", 1);
         if (chdir(cwd.c_str()) != 0) {
             _exit(1);
         }
