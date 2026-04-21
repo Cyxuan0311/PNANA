@@ -47,8 +47,8 @@
 - **快速切换**: 键盘快速切换文件
 
 #### 智能编辑
-- **自动缩进**: 根据文件类型智能缩进 （计划中）
-- **括号匹配**: 自动补全括号、引号 (计划中)
+- **自动缩进**: 根据文件类型智能缩进，基于 Tree-sitter AST 解析，详见 [智能缩进文档](docs/SMART_INDENT.md)
+- **括号匹配**: 自动补全括号、引号
 - **多光标编辑**: 同时编辑多个位置（计划中）
 - **列选择**: 按住Alt进行列选择
 - **智能撤销/重做**: 无限次撤销重做
@@ -138,6 +138,7 @@ pnana --theme dracula file.txt
 
 - **[快捷键参考](docs/KEYBINDINGS.md)** - 完整的快捷键列表和使用说明
 - **[配置文档](docs/CONFIGURATION.md)** - 详细的配置选项和示例
+- **[智能缩进文档](docs/SMART_INDENT.md)** - Tree-sitter 智能缩进功能详解
 - **[插件开发指南](docs/PLUGIN_DEVELOPMENT.md)** - Lua 插件系统 API 与示例
 - **[依赖文档](docs/DEPENDENCIES.md)** - 项目依赖说明和安装指南
 - **[开发路线图](docs/ROADMAP.md)** - 版本计划和功能路线图

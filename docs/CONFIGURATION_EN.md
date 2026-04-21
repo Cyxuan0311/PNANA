@@ -10,6 +10,7 @@ This document describes pnana's configuration system and usage.
 
 - [Configuration File Location](#configuration-file-location)
 - [Configuration Options](#configuration-options)
+- [Smart Indent Configuration](#smart-indent-configuration)
 - [LSP Configuration](#lsp-configuration)
 - [History Configuration](#history-configuration)
 - [Configuration Examples](#configuration-examples)
@@ -31,7 +32,7 @@ On first run, if the configuration file does not exist, pnana will create it wit
 
 ## Configuration Options
 
-The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, `lsp`, `history`, `custom_logos`, and `ui`.
+The configuration uses a **nested JSON structure** with sections: `editor`, `display`, `files`, `search`, `themes`, `plugins`, `lsp`, `history`, `custom_logos`, `ui`, and `language_indent`.
 
 ### editor
 
@@ -179,6 +180,84 @@ Custom logo effect examples:
 | `toast_bold_text` | boolean | `false` | Whether to render Toast text in bold |
 | `max_recent_files` | number | `8` | Maximum number of recently opened files to remember |
 | `max_recent_folders` | number | `4` | Maximum number of recently opened folders to remember |
+
+---
+
+## Smart Indent Configuration
+
+The `language_indent` section configures smart indent parameters for each programming language, including indent size, space usage, smart indent enablement, and the list of supported file extensions.
+
+### language_indent (Language Indent Configuration)
+
+Each language's configuration includes the following fields:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `indent_size` | number | `4` | Number of spaces for indentation |
+| `insert_spaces` | boolean | `true` | Use spaces instead of Tab characters |
+| `smart_indent` | boolean | `true` | Enable Tree-sitter smart indent |
+| `file_extensions` | array\<string> | `[]` | List of file extensions supported by this language |
+
+Example:
+
+```json
+"language_indent": {
+  "python": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".py", ".pyw", ".pyi", ".python"]
+  },
+  "cpp": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".cpp", ".cxx", ".cc", ".c++", ".hpp", ".hxx", ".hh", ".h"]
+  },
+  "javascript": {
+    "indent_size": 2,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".js", ".jsx", ".mjs", ".cjs", ".javascript"]
+  },
+  "go": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".go"]
+  },
+  "rust": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".rs"]
+  }
+}
+```
+
+### Smart Indent Module Overview
+
+pnana's smart indent module is implemented using the **Tree-sitter** syntax parser, which automatically calculates the correct indentation level based on the code's Abstract Syntax Tree (AST).
+
+#### How It Works
+
+1. **Tree-sitter Parsing**: When you press Enter, the system parses the current file's AST using Tree-sitter
+2. **Query Matching**: Based on the language's `indents.scm` query file (if available) or hard-coded logic, it identifies code block structures
+3. **Indent Calculation**: Traverses AST nodes upward, counts indentation levels, and calculates the final indent level
+4. **Apply Indent**: Applies the calculated indentation to the new line
+
+#### Features
+
+- **Language-Specific Configuration**: Each language can customize indent size, space usage, etc.
+- **File Extension Matching**: Automatically identifies file types via the `file_extensions` list and applies corresponding language indent rules
+- **Smart Fallback**: If Tree-sitter is unavailable or parsing fails, automatically falls back to simple bracket-based indent logic
+- **Performance Optimized**: Uses range-limited queries to ensure fast response even in large files
+
+#### Configuration Priority
+
+1. **User Configuration**: `language_indent` configuration in `~/.config/pnana/config.json`
+2. **Built-in Defaults**: Hard-coded language default configurations in the code
+3. **Generic Default**: If a language is not defined in the configuration, uses the generic default (4 spaces)
 
 ---
 

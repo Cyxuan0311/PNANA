@@ -47,8 +47,8 @@ Abandoning the learning curve of traditional Vim, pnana adopts intuitive shortcu
 - **Quick Switching**: Fast file switching with keyboard 
 
 #### Smart Editing
-- **Auto Indent**: Intelligent indentation based on file type (planned)
-- **Bracket Matching**: Auto-complete brackets and quotes (planned)
+- **Auto Indent**: Intelligent indentation based on file type, powered by Tree-sitter AST parsing, see [Smart Indent Documentation](docs/SMART_INDENT_EN.md)
+- **Bracket Matching**: Auto-complete brackets and quotes 
 - **Multi-Cursor Editing**: Edit multiple positions simultaneously (planned)
 - **Column Selection**: Hold Alt for column selection
 - **Smart Undo/Redo**: Unlimited undo/redo
@@ -138,6 +138,7 @@ Detailed documentation and guides are available in the [docs](docs/) folder:
 
 - **[Keyboard Shortcuts Reference](docs/KEYBINDINGS.md)** - Complete shortcut list and usage instructions
 - **[Configuration Documentation](docs/CONFIGURATION.md)** - Detailed configuration options and examples
+- **[Smart Indent Documentation](docs/SMART_INDENT_EN.md)** - Tree-sitter smart indent feature guide
 - **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Lua plugin API & examples
 - **[Dependencies Documentation](docs/DEPENDENCIES.md)** - Project dependencies and installation guide
 - **[Development Roadmap](docs/ROADMAP.md)** - Version plans and feature roadmap

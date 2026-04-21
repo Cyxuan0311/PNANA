@@ -8,6 +8,7 @@
 
 - [配置文件位置](#配置文件位置)
 - [配置选项说明](#配置选项说明)
+- [智能缩进配置](#智能缩进配置)
 - [LSP 配置](#lsp-配置)
 - [History 配置](#history-配置)
 - [配置示例](#配置示例)
@@ -29,7 +30,7 @@ pnana 的配置文件位于：
 
 ## 配置选项说明
 
-配置文件采用**嵌套 JSON 结构**，分为 `editor`、`display`、`files`、`search`、`themes`、`plugins`、`lsp`、`history`、`custom_logos`、`ui` 等节。
+配置文件采用**嵌套 JSON 结构**，分为 `editor`、`display`、`files`、`search`、`themes`、`plugins`、`lsp`、`history`、`custom_logos`、`ui`、`language_indent` 等节。
 
 ### editor（编辑器）
 
@@ -177,6 +178,84 @@ pnana 的配置文件位于：
 | `toast_bold_text` | boolean | `false` | 是否将 Toast 文本加粗显示 |
 | `max_recent_files` | number | `8` | 最近打开的文件最大数量 |
 | `max_recent_folders` | number | `4` | 最近打开的文件夹最大数量 |
+
+---
+
+## 智能缩进配置
+
+`language_indent` 段用于配置每种编程语言的智能缩进参数，包括缩进大小、是否使用空格、是否启用智能缩进，以及该语言支持的文件后缀列表。
+
+### language_indent（语言缩进配置）
+
+每个语言的配置包含以下字段：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `indent_size` | number | `4` | 缩进空格数 |
+| `insert_spaces` | boolean | `true` | 是否使用空格代替 Tab |
+| `smart_indent` | boolean | `true` | 是否启用 Tree-sitter 智能缩进 |
+| `file_extensions` | array\<string> | `[]` | 该语言支持的文件后缀列表 |
+
+示例：
+
+```json
+"language_indent": {
+  "python": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".py", ".pyw", ".pyi", ".python"]
+  },
+  "cpp": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".cpp", ".cxx", ".cc", ".c++", ".hpp", ".hxx", ".hh", ".h"]
+  },
+  "javascript": {
+    "indent_size": 2,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".js", ".jsx", ".mjs", ".cjs", ".javascript"]
+  },
+  "go": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".go"]
+  },
+  "rust": {
+    "indent_size": 4,
+    "insert_spaces": true,
+    "smart_indent": true,
+    "file_extensions": [".rs"]
+  }
+}
+```
+
+### 智能缩进模块说明
+
+pnana 的智能缩进模块基于 **Tree-sitter** 语法解析器实现，能够根据代码的抽象语法树（AST）自动计算正确的缩进级别。
+
+#### 工作原理
+
+1. **Tree-sitter 解析**：当按下回车键时，系统会使用 Tree-sitter 解析当前文件的 AST
+2. **查询匹配**：根据语言的 `indents.scm` 查询文件（如果存在）或硬编码逻辑，识别代码块结构
+3. **缩进计算**：向上遍历 AST 节点，统计需要缩进的层级，计算最终缩进级别
+4. **应用缩进**：将计算出的缩进应用到新行
+
+#### 特性
+
+- **语言特定配置**：每种语言可以自定义缩进大小、是否使用空格等
+- **文件后缀匹配**：通过 `file_extensions` 列表自动识别文件类型并应用对应语言的缩进规则
+- **智能回退**：如果 Tree-sitter 不可用或解析失败，会自动回退到基于括号的简单缩进逻辑
+- **性能优化**：使用范围限制查询，确保即使在大型文件中也能快速响应
+
+#### 配置优先级
+
+1. **用户配置**：`~/.config/pnana/config.json` 中的 `language_indent` 配置
+2. **内置默认**：代码中硬编码的语言默认配置
+3. **通用默认**：如果语言未在配置中定义，使用通用默认值（4 空格）
 
 ---
 
