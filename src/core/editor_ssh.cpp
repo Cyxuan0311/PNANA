@@ -341,6 +341,9 @@ void Editor::handleSSHConnect(const pnana::ui::SSHConfig& config) {
         view_offset_row_ = 0;
         view_offset_col_ = 0;
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
         document_ssh_configs_[doc_index] = config;
 
         std::string parent = parentRemotePath(path);

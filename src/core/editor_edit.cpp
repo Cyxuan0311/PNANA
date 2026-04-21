@@ -1,6 +1,7 @@
 // 编辑操作相关实现
 #include "core/document.h"
 #include "core/editor.h"
+#include "features/indent/auto_indent_engine.h"
 #include "utils/clipboard.h"
 #include "utils/logger.h"
 #include "utils/text_utils.h"
@@ -158,34 +159,171 @@ void Editor::insertNewline() {
     std::string before_cursor = current_line.substr(0, cursor_col_);
     std::string after_cursor = current_line.substr(cursor_col_);
 
-    // 先执行换行操作
     doc->getLines()[cursor_row_] = before_cursor;
     doc->getLines().insert(doc->getLines().begin() + cursor_row_ + 1, after_cursor);
 
-    // 记录换行操作到撤销栈（作为一个完整的操作）
     doc->pushChange(DocumentChange(DocumentChange::Type::NEWLINE, cursor_row_, cursor_col_,
-                                   current_line,  // old_content: 完整的原行
-                                   before_cursor, // new_content: 光标前的内容
-                                   after_cursor // after_cursor: 光标后的内容（会移到新行）
-                                   ));
+                                   current_line, before_cursor, after_cursor));
 
     cursor_row_++;
     cursor_col_ = 0;
 
+    const auto& cfg = config_manager_.getConfig();
+
+    if (cfg.editor.auto_indent) {
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        bool ts_enabled = auto_indent_engine_.isTreeSitterEnabled();
+        if (ts_enabled) {
+            std::string file_type = getFileType();
+            std::string file_ext = doc->getFileExtension();
+            std::string file_ext_with_dot = file_ext.empty() ? "" : "." + file_ext;
+            auto it = cfg.language_indent.find(file_type);
+            core::LanguageIndentConfig indent_cfg;
+            if (it != cfg.language_indent.end()) {
+                indent_cfg = it->second;
+            } else {
+                bool found = false;
+                for (const auto& kv : cfg.language_indent) {
+                    for (const auto& ext : kv.second.file_extensions) {
+                        if (ext == file_ext || ext == file_ext_with_dot || ext == "." + file_type ||
+                            ext == file_type) {
+                            indent_cfg = kv.second;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found)
+                        break;
+                }
+                if (!found) {
+                    indent_cfg = auto_indent_engine_.getDefaultConfigForLanguage(file_type);
+                }
+            }
+            auto_indent_engine_.setFileType(file_type, indent_cfg);
+            std::string indent = auto_indent_engine_.computeIndentAfterNewline(
+                doc->getLines(), cursor_row_, cursor_col_);
+            if (!indent.empty()) {
+                doc->getLines()[cursor_row_] = indent + after_cursor;
+                cursor_col_ = indent.size();
+            }
+        } else
+#endif
+        {
+            std::string file_type = getFileType();
+            std::string file_ext = doc->getFileExtension();
+            std::string file_ext_with_dot = file_ext.empty() ? "" : "." + file_ext;
+            auto default_cfg = auto_indent_engine_.getDefaultConfigForLanguage(file_type);
+
+            auto it = cfg.language_indent.find(file_type);
+            if (it != cfg.language_indent.end()) {
+                default_cfg = it->second;
+            } else {
+                bool found = false;
+                for (const auto& kv : cfg.language_indent) {
+                    for (const auto& ext : kv.second.file_extensions) {
+                        if (ext == file_ext || ext == file_ext_with_dot || ext == "." + file_type ||
+                            ext == file_type) {
+                            default_cfg = kv.second;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found)
+                        break;
+                }
+            }
+
+            if (default_cfg.smart_indent) {
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                auto_indent_engine_.setIndentConfig(default_cfg);
+                auto_indent_engine_.setFileType(file_type);
+#endif
+                std::string indent =
+                    computeAutoIndent(doc->getLines(), cursor_row_, cursor_col_, default_cfg);
+                if (!indent.empty()) {
+                    doc->getLines()[cursor_row_] = indent + after_cursor;
+                    cursor_col_ = indent.size();
+                }
+            }
+        }
+    }
+
 #ifdef BUILD_LSP_SUPPORT
-    // 空行插入会影响折叠结构，强制同步以避免折叠符号滞后一拍
     syncLspAfterEdit(true);
 #endif
 
-    // 更新markdown预览（延迟更新以提升性能）
     if (isMarkdownPreviewActive()) {
         markdown_preview_needs_update_ = true;
         last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
         last_render_source_ = "edit_newline";
     }
 
-    // 调整视图偏移，确保新插入的行可见
     adjustViewOffset();
+}
+
+std::string Editor::computeAutoIndent(const std::vector<std::string>& lines, size_t cursor_row,
+                                      size_t cursor_col, const LanguageIndentConfig& cfg) const {
+    (void)cursor_col;
+
+    if (lines.empty() || cursor_row == 0 || cursor_row > lines.size()) {
+        return "";
+    }
+
+    const std::string& prev_line = lines[cursor_row - 1];
+    const std::string& current_line = lines[cursor_row];
+
+    int base_indent = 0;
+    for (char ch : prev_line) {
+        if (ch == ' ') {
+            base_indent++;
+        } else if (ch == '\t') {
+            base_indent += cfg.indent_size;
+        } else {
+            break;
+        }
+    }
+    int base_level = base_indent / cfg.indent_size;
+
+    std::string trimmed_prev = prev_line;
+    trimmed_prev.erase(0, trimmed_prev.find_first_not_of(" \t"));
+
+    std::string trimmed_current = current_line;
+    trimmed_current.erase(0, trimmed_current.find_first_not_of(" \t"));
+
+    auto ends_with_open = [](const std::string& s) {
+        if (s.empty())
+            return false;
+        char last = s.back();
+        return last == '{' || last == '(' || last == '[' || last == ':';
+    };
+
+    auto starts_with_close = [](const std::string& s) {
+        if (s.empty())
+            return false;
+        return s[0] == '}' || s[0] == ')' || s[0] == ']';
+    };
+
+    bool prev_opens = ends_with_open(trimmed_prev);
+    bool curr_closes = starts_with_close(trimmed_current);
+
+    int new_level = base_level;
+    if (curr_closes) {
+        new_level = std::max(0, base_level - 1);
+    } else if (prev_opens) {
+        new_level = base_level + 1;
+    }
+
+    if (new_level <= 0) {
+        return "";
+    }
+
+    std::string result;
+    if (cfg.insert_spaces) {
+        result = std::string(new_level * cfg.indent_size, ' ');
+    } else {
+        result = std::string(static_cast<size_t>(new_level), '\t');
+    }
+    return result;
 }
 
 void Editor::deleteChar() {
@@ -958,14 +1096,36 @@ void Editor::indentLine() {
         return;
     }
 
-    // Tab 键行为：根据配置插入空格或 Tab 字符
-    const auto& editor_config = config_manager_.getConfig().editor;
-    int tab_size = std::max(1, std::min(8, editor_config.tab_size));
-    bool insert_spaces = editor_config.insert_spaces;
+    std::string file_type = getFileType();
+    std::string file_ext = doc->getFileExtension();
+    std::string file_ext_with_dot = file_ext.empty() ? "" : "." + file_ext;
+    const auto& cfg = config_manager_.getConfig();
+
+    int tab_size = cfg.editor.tab_size;
+    bool insert_spaces = cfg.editor.insert_spaces;
+
+    auto it = cfg.language_indent.find(file_type);
+    if (it != cfg.language_indent.end()) {
+        tab_size = it->second.indent_size;
+        insert_spaces = it->second.insert_spaces;
+    } else {
+        for (const auto& kv : cfg.language_indent) {
+            for (const auto& ext : kv.second.file_extensions) {
+                if (ext == file_ext || ext == file_ext_with_dot || ext == "." + file_type ||
+                    ext == file_type) {
+                    tab_size = kv.second.indent_size;
+                    insert_spaces = kv.second.insert_spaces;
+                    goto indent_done;
+                }
+            }
+        }
+    }
+indent_done:
+
+    tab_size = std::max(1, std::min(8, tab_size));
 
     std::string& line = lines[cursor_row_];
 
-    // 检查光标是否在行首或行首空白处
     size_t first_non_space = line.find_first_not_of(" \t");
     bool at_line_start = (cursor_col_ == 0) ||
                          (first_non_space != std::string::npos && cursor_col_ <= first_non_space);
@@ -981,7 +1141,6 @@ void Editor::indentLine() {
         cursor_col_ += static_cast<size_t>(insert_spaces ? tab_size : 1);
     }
 
-    // 记录变更到撤销系统（LSP支持）
 #ifdef BUILD_LSP_SUPPORT
     if (lsp_enabled_ && document_change_tracker_) {
         document_change_tracker_->recordInsert(

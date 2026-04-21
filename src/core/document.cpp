@@ -2,6 +2,7 @@
 #include "core/buffer_factory.h"
 #include "utils/logger.h"
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -12,7 +13,14 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <thread>
 #include <unistd.h>
+#include <vector>
+
+#ifdef __linux__
+#include <fcntl.h>
+#include <sys/mman.h>
+#endif
 
 namespace pnana {
 namespace core {
@@ -76,12 +84,11 @@ void Document::autoSelectBufferBackend() {
 }
 
 bool Document::load(const std::string& filepath) {
-    auto load_t0 = std::chrono::high_resolution_clock::now();
-
     // 检查路径是否是目录
     try {
         if (std::filesystem::exists(filepath) && std::filesystem::is_directory(filepath)) {
             last_error_ = "Cannot open directory as file: " + filepath;
+            LOG_ERROR("[debug] Document::load FAILED is_directory");
             return false;
         }
     } catch (...) {
@@ -131,13 +138,6 @@ bool Document::load(const std::string& filepath) {
     file.read(&prefix[0], check_size);
     prefix.resize(static_cast<size_t>(file.gcount()));
 
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::high_resolution_clock::now() - load_t0)
-                      .count();
-        LOG("[perf] Document::load prefix_read us=" + std::to_string(us));
-    }
-
     if (!prefix.empty()) {
         size_t null_count = 0;
         size_t limit = std::min(prefix.size(), check_size);
@@ -177,38 +177,134 @@ bool Document::load(const std::string& filepath) {
 
     // 第一遍：只构建行偏移表（不存行内容），用于判断是否走懒加载
     const size_t lazy_line_threshold = 100000;
-    auto stream_t0 = std::chrono::high_resolution_clock::now();
-    const size_t chunk_size = 512 * 1024;
-    std::string buffer(chunk_size, '\0');
+    const size_t parallel_threshold = 10 * 1024 * 1024; // 10MB 以上使用并行扫描
     line_offsets_.clear();
     line_offsets_.push_back(0);
-    uint64_t offset = 0;
-    while (true) {
-        file.read(&buffer[0], chunk_size);
-        const size_t n = static_cast<size_t>(file.gcount());
-        if (n == 0)
-            break;
-        for (size_t i = 0; i < n; ++i) {
-            if (buffer[i] == '\n') {
-                line_offsets_.push_back(offset + i + 1);
+
+    bool early_exit = false;
+    size_t num_lines = 0;
+
+#ifdef __linux__
+    if (file_size > parallel_threshold && file_size < 4ULL * 1024 * 1024 * 1024) {
+        // 大文件：使用 mmap + 并行扫描
+        int fd = open(filepath.c_str(), O_RDONLY);
+        if (fd >= 0) {
+            void* mapped = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
+            if (mapped != MAP_FAILED) {
+                madvise(mapped, file_size, MADV_SEQUENTIAL);
+
+                unsigned int hw_threads = std::thread::hardware_concurrency();
+                unsigned int num_threads = std::min(hw_threads, 8u);
+                if (num_threads == 0)
+                    num_threads = 4;
+
+                size_t chunk_size = file_size / num_threads;
+                if (chunk_size == 0)
+                    chunk_size = file_size;
+
+                struct ChunkResult {
+                    std::vector<uint64_t> offsets;
+                    size_t newlines_in_chunk;
+                    bool found_threshold;
+                };
+
+                std::vector<ChunkResult> results(num_threads);
+                std::atomic<bool> threshold_reached(false);
+
+                auto scan_chunk = [&](unsigned int thread_id, size_t start, size_t end) {
+                    const char* data = static_cast<const char*>(mapped);
+                    std::vector<uint64_t> local_offsets;
+                    local_offsets.reserve(end - start > 0 ? (end - start) / 80 : 1024);
+                    size_t newline_count = 0;
+
+                    for (size_t i = start;
+                         i < end && !threshold_reached.load(std::memory_order_relaxed); ++i) {
+                        if (data[i] == '\n') {
+                            newline_count++;
+                            local_offsets.push_back(static_cast<uint64_t>(i + 1));
+                            if (newline_count > lazy_line_threshold) {
+                                threshold_reached.store(true, std::memory_order_release);
+                                break;
+                            }
+                        }
+                    }
+
+                    results[thread_id] = {std::move(local_offsets), newline_count,
+                                          threshold_reached.load()};
+                };
+
+                std::vector<std::thread> threads;
+                for (unsigned int i = 0; i < num_threads; ++i) {
+                    size_t chunk_start = i * chunk_size;
+                    size_t chunk_end = (i == num_threads - 1) ? file_size : (i + 1) * chunk_size;
+
+                    if (chunk_start >= file_size)
+                        break;
+
+                    threads.emplace_back(scan_chunk, i, chunk_start, chunk_end);
+                }
+
+                for (auto& t : threads) {
+                    if (t.joinable())
+                        t.join();
+                }
+
+                // 合并结果
+                size_t global_line_count = 0;
+                bool stop_merging = false;
+                for (unsigned int i = 0; i < num_threads && !stop_merging; ++i) {
+                    if (i >= results.size())
+                        break;
+
+                    for (uint64_t offset : results[i].offsets) {
+                        line_offsets_.push_back(static_cast<uint64_t>(i * chunk_size) + offset);
+                        global_line_count++;
+                        if (global_line_count > lazy_line_threshold) {
+                            early_exit = true;
+                            stop_merging = true;
+                            break;
+                        }
+                    }
+                }
+
+                num_lines = global_line_count;
+                munmap(mapped, file_size);
+            }
+            close(fd);
+        }
+    }
+#endif
+
+    if (num_lines == 0 && line_offsets_.size() <= 1) {
+        // 回退到串行扫描（小文件或 mmap 失败）
+        const size_t chunk_size = 512 * 1024;
+        std::string buffer(chunk_size, '\0');
+        uint64_t offset = 0;
+        while (true) {
+            file.read(&buffer[0], chunk_size);
+            const size_t n = static_cast<size_t>(file.gcount());
+            if (n == 0)
+                break;
+            for (size_t i = 0; i < n; ++i) {
+                if (buffer[i] == '\n') {
+                    line_offsets_.push_back(offset + i + 1);
+                }
+            }
+            offset += n;
+            if (line_offsets_.size() - 1 > lazy_line_threshold) {
+                early_exit = true;
+                break;
             }
         }
-        offset += n;
-    }
-    if (stream_file_size > 0 && line_offsets_.back() != static_cast<uint64_t>(stream_file_size)) {
-        line_offsets_.push_back(static_cast<uint64_t>(stream_file_size));
-    }
-    size_t num_lines = line_offsets_.empty() ? 0 : (line_offsets_.size() - 1);
-    if (num_lines == 0) {
-        line_offsets_.push_back(0);
+        num_lines = line_offsets_.size() - 1;
     }
 
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::high_resolution_clock::now() - stream_t0)
-                      .count();
-        LOG("[perf] Document::load line_offsets us=" + std::to_string(us) +
-            " lines=" + std::to_string(num_lines));
+    if (!early_exit && stream_file_size > 0 &&
+        line_offsets_.back() != static_cast<uint64_t>(stream_file_size)) {
+        line_offsets_.push_back(static_cast<uint64_t>(stream_file_size));
+    }
+    if (num_lines == 0) {
+        line_offsets_.push_back(0);
     }
 
     filepath_ = filepath;
@@ -224,12 +320,6 @@ bool Document::load(const std::string& filepath) {
         large_file_skip_original_ = true;
         line_cache_.clear();
         line_cache_lru_.clear();
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
-                                std::chrono::high_resolution_clock::now() - load_t0)
-                                .count();
-            LOG("[perf] Document::load lazy_loaded total us=" + std::to_string(total_us));
-        }
         return true;
     }
 
@@ -248,16 +338,17 @@ bool Document::load(const std::string& filepath) {
             hint = 4000000u;
         lines_.reserve(hint);
     }
-    stream_t0 = std::chrono::high_resolution_clock::now();
+    const size_t load_chunk_size = 512 * 1024;
+    std::string load_buffer(load_chunk_size, '\0');
     while (true) {
-        file.read(&buffer[0], chunk_size);
+        file.read(&load_buffer[0], load_chunk_size);
         const size_t n = static_cast<size_t>(file.gcount());
         if (n == 0)
             break;
         size_t start = 0;
         for (size_t i = 0; i < n; ++i) {
-            if (buffer[i] == '\n') {
-                carry.append(buffer.data() + start, i - start);
+            if (load_buffer[i] == '\n') {
+                carry.append(load_buffer.data() + start, i - start);
                 if (!carry.empty() && carry.back() == '\r')
                     carry.pop_back();
                 lines_.push_back(std::move(carry));
@@ -267,7 +358,7 @@ bool Document::load(const std::string& filepath) {
             }
         }
         if (start < n)
-            carry.append(buffer.data() + start, n - start);
+            carry.append(load_buffer.data() + start, n - start);
     }
     if (!carry.empty()) {
         if (carry.back() == '\r')
@@ -277,13 +368,6 @@ bool Document::load(const std::string& filepath) {
     if (lines_.empty()) {
         lines_.push_back("");
     }
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::high_resolution_clock::now() - stream_t0)
-                      .count();
-        LOG("[perf] Document::load stream_lines us=" + std::to_string(us) +
-            " lines=" + std::to_string(lines_.size()));
-    }
     const size_t large_file_line_threshold = 500000;
     if (lines_.size() > large_file_line_threshold) {
         large_file_skip_original_ = true;
@@ -291,20 +375,7 @@ bool Document::load(const std::string& filepath) {
         original_lines_.shrink_to_fit();
     } else {
         large_file_skip_original_ = false;
-        auto save_orig_t0 = std::chrono::high_resolution_clock::now();
         saveOriginalContent();
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                          std::chrono::high_resolution_clock::now() - save_orig_t0)
-                          .count();
-            LOG("[perf] Document::load saveOriginalContent us=" + std::to_string(us));
-        }
-    }
-    if (pnana::utils::Logger::getInstance().isEnabled()) {
-        auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
-                            std::chrono::high_resolution_clock::now() - load_t0)
-                            .count();
-        LOG("[perf] Document::load total us=" + std::to_string(total_us));
     }
 
     // 将加载的内容同步到缓冲区后端

@@ -700,6 +700,9 @@ void Editor::handleNormalMode(Event event) {
                 view_offset_row_ = 0;
                 view_offset_col_ = 0;
                 syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                auto_indent_engine_.setFileType(getFileType());
+#endif
                 setStatusMessage(
                     "Region: " + region_manager_.getRegionName() +
                     " | Tab: " + getCurrentDocument()->getFileName() +
@@ -774,6 +777,9 @@ void Editor::handleNormalMode(Event event) {
                             // 恢复新区域的状态
                             restoreRegionState(new_active_index);
                             syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                            auto_indent_engine_.setFileType(getFileType());
+#endif
                         }
                         setStatusMessage("Split view: Region " +
                                          std::to_string(new_active_index + 1) + "/" +
@@ -866,6 +872,9 @@ void Editor::handleNormalMode(Event event) {
                         // 恢复新区域的状态
                         restoreRegionState(new_active_index);
                         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                        auto_indent_engine_.setFileType(getFileType());
+#endif
                     }
                     setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
                                      "/" + std::to_string(split_view_manager_.getRegionCount()) +
@@ -984,6 +993,9 @@ void Editor::handleNormalMode(Event event) {
                         // 恢复新区域的状态
                         restoreRegionState(new_active_index);
                         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                        auto_indent_engine_.setFileType(getFileType());
+#endif
                     }
                     setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
                                      "/" + std::to_string(split_view_manager_.getRegionCount()) +
@@ -1027,6 +1039,9 @@ void Editor::handleNormalMode(Event event) {
                     view_offset_row_ = 0;
                     view_offset_col_ = 0;
                     syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                    auto_indent_engine_.setFileType(getFileType());
+#endif
                     setStatusMessage("Region: " + region_manager_.getRegionName() +
                                      " | Tab: " + getCurrentDocument()->getFileName());
                 }
@@ -1100,6 +1115,9 @@ void Editor::handleNormalMode(Event event) {
                         // 恢复新区域的状态
                         restoreRegionState(new_active_index);
                         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                        auto_indent_engine_.setFileType(getFileType());
+#endif
                     }
                     setStatusMessage("Split view: Region " + std::to_string(new_active_index + 1) +
                                      "/" + std::to_string(split_view_manager_.getRegionCount()) +
@@ -1146,6 +1164,9 @@ void Editor::handleNormalMode(Event event) {
                     view_offset_row_ = 0;
                     view_offset_col_ = 0;
                     syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                    auto_indent_engine_.setFileType(getFileType());
+#endif
                     setStatusMessage("Region: " + region_manager_.getRegionName() +
                                      " | Tab: " + getCurrentDocument()->getFileName());
                 }

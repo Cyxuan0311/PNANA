@@ -75,8 +75,12 @@ Editor::Editor()
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
       image_preview_(),
 #endif
-      syntax_highlighter_(theme_), command_palette_(theme_), terminal_(theme_),
-      split_view_manager_(), diagnostics_popup_(theme_),
+      syntax_highlighter_(theme_),
+#ifdef BUILD_TREE_SITTER_SUPPORT
+      auto_indent_engine_(config_manager_),
+#endif
+      command_palette_(theme_), terminal_(theme_), split_view_manager_(),
+      diagnostics_popup_(theme_),
 #ifdef BUILD_LSP_SUPPORT
       symbol_navigation_popup_(theme_), lsp_status_popup_(theme_),
 #endif
@@ -124,20 +128,8 @@ Editor::Editor()
     // 文件浏览器延迟加载：不在构造函数中加载目录，只在首次显示时才加载
     // 这样可以避免启动时扫描大目录导致的延迟
 
-    // 初始化包管理器注册表
-    {
-        auto& registry = features::package_manager::PackageManagerRegistry::getInstance();
-        registry.registerManager(std::make_shared<features::package_manager::PipManager>());
-        registry.registerManager(std::make_shared<features::package_manager::AptManager>());
-        registry.registerManager(std::make_shared<features::package_manager::CargoManager>());
-        registry.registerManager(std::make_shared<features::package_manager::GoModManager>());
-        registry.registerManager(std::make_shared<features::package_manager::NpmManager>());
-        registry.registerManager(std::make_shared<features::package_manager::YarnManager>());
-        registry.registerManager(std::make_shared<features::package_manager::CondaManager>());
-        registry.registerManager(std::make_shared<features::package_manager::PacmanManager>());
-        registry.registerManager(std::make_shared<features::package_manager::YumManager>());
-        registry.registerManager(std::make_shared<features::package_manager::BrewManager>());
-    }
+    // 包管理器注册表延迟加载：在首次打开包管理面板时才初始化
+    // 避免启动时创建 11 个包管理器实例造成的延迟
 
     // 初始化命令面板
     initializeCommandPalette();
@@ -297,6 +289,9 @@ Editor::Editor()
 
             // 切换文档时更新语法高亮，避免沿用上一个文件的语法规则
             syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+            auto_indent_engine_.setFileType(getFileType());
+#endif
 
             std::string filepath = new_doc->getFilePath();
 
@@ -1291,10 +1286,29 @@ void Editor::togglePackageManagerPanel() {
         package_manager_panel_.hide();
         setStatusMessage("Package Manager Panel closed");
     } else {
+        initializePackageManagerRegistry();
         package_manager_panel_.show();
         setStatusMessage(
             "Package Manager Panel opened - ←→: Switch Tab | R/F5: Refresh | Esc: Close");
     }
+}
+
+void Editor::initializePackageManagerRegistry() {
+    if (package_manager_registry_initialized_) {
+        return;
+    }
+    auto& registry = features::package_manager::PackageManagerRegistry::getInstance();
+    registry.registerManager(std::make_shared<features::package_manager::PipManager>());
+    registry.registerManager(std::make_shared<features::package_manager::AptManager>());
+    registry.registerManager(std::make_shared<features::package_manager::CargoManager>());
+    registry.registerManager(std::make_shared<features::package_manager::GoModManager>());
+    registry.registerManager(std::make_shared<features::package_manager::NpmManager>());
+    registry.registerManager(std::make_shared<features::package_manager::YarnManager>());
+    registry.registerManager(std::make_shared<features::package_manager::CondaManager>());
+    registry.registerManager(std::make_shared<features::package_manager::PacmanManager>());
+    registry.registerManager(std::make_shared<features::package_manager::YumManager>());
+    registry.registerManager(std::make_shared<features::package_manager::BrewManager>());
+    package_manager_registry_initialized_ = true;
 }
 
 bool Editor::handlePackageManagerPanelInput(ftxui::Event event) {
@@ -2776,6 +2790,9 @@ void Editor::focusLeftRegion() {
         }
         restoreRegionState(region_index);
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
     }
     setStatusMessage("Focus left region");
 
@@ -2819,6 +2836,9 @@ void Editor::focusRightRegion() {
         }
         restoreRegionState(region_index);
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
     }
     setStatusMessage("Focus right region");
 
@@ -2851,6 +2871,9 @@ void Editor::focusUpRegion() {
         }
         restoreRegionState(region_index);
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
     }
     setStatusMessage("Focus up region");
 
@@ -2883,6 +2906,9 @@ void Editor::focusDownRegion() {
         }
         restoreRegionState(region_index);
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
     }
     setStatusMessage("Focus down region");
 

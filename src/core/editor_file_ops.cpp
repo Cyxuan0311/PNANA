@@ -4,7 +4,6 @@
 #include "ui/icons.h"
 #include "utils/logger.h"
 #include "utils/text_analyzer.h"
-#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -84,6 +83,9 @@ bool Editor::openFile(const std::string& filepath) {
         view_offset_row_ = 0;
         view_offset_col_ = 0;
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
         recent_files_manager_.addFile(filepath);
         setStatusMessage(std::string(pnana::ui::icons::OPEN) + " Opened: " + doc->getFileName());
         return true;
@@ -120,17 +122,8 @@ bool Editor::openFile(const std::string& filepath) {
 }
 
 bool Editor::openFileInternal(const std::string& filepath) {
-    auto open_t0 = std::chrono::high_resolution_clock::now();
-
     try {
         document_manager_.openDocument(filepath);
-
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                          std::chrono::high_resolution_clock::now() - open_t0)
-                          .count();
-            LOG("[perf] openFileInternal openDocument us=" + std::to_string(us));
-        }
 
         cursor_row_ = 0;
         cursor_col_ = 0;
@@ -179,26 +172,28 @@ bool Editor::openFileInternal(const std::string& filepath) {
             if (is_large_file) {
                 syntax_highlighting_ = false;
                 syntax_highlighter_.setFileType("text");
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                auto_indent_engine_.setFileType("text");
+#endif
             } else if (has_chinese && file_type != "markdown") {
                 syntax_highlighting_ = false;
                 syntax_highlighter_.setFileType("text");
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                auto_indent_engine_.setFileType("text");
+#endif
             } else {
                 if (file_type.empty())
                     file_type = getFileType();
                 syntax_highlighter_.setFileType(file_type);
+#ifdef BUILD_TREE_SITTER_SUPPORT
+                auto_indent_engine_.setFileType(file_type);
+#endif
                 syntax_highlighting_ = true;
             }
         } catch (const std::exception& e) {
             LOG_WARNING("Syntax highlighter exception: " + std::string(e.what()));
         } catch (...) {
             LOG_WARNING("Syntax highlighter unknown exception");
-        }
-
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                          std::chrono::high_resolution_clock::now() - open_t0)
-                          .count();
-            LOG("[perf] openFileInternal after_highlight us=" + std::to_string(us));
         }
 
 #ifdef BUILD_LUA_SUPPORT
@@ -225,13 +220,6 @@ bool Editor::openFileInternal(const std::string& filepath) {
             }
         }
 #endif
-
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-                          std::chrono::high_resolution_clock::now() - open_t0)
-                          .count();
-            LOG("[perf] openFileInternal after_lsp us=" + std::to_string(us));
-        }
 
         if (doc) {
             setStatusMessage(std::string(pnana::ui::icons::OPEN) +
@@ -262,12 +250,6 @@ bool Editor::openFileInternal(const std::string& filepath) {
             }
         }
 
-        if (pnana::utils::Logger::getInstance().isEnabled()) {
-            auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
-                                std::chrono::high_resolution_clock::now() - open_t0)
-                                .count();
-            LOG("[perf] openFileInternal total us=" + std::to_string(total_us));
-        }
         return true;
     } catch (const std::exception& e) {
         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
@@ -418,6 +400,9 @@ bool Editor::saveFileAs(const std::string& filepath) {
 
         // 更新语法高亮器（文件类型可能改变）
         syntax_highlighter_.setFileType(getFileType());
+#ifdef BUILD_TREE_SITTER_SUPPORT
+        auto_indent_engine_.setFileType(getFileType());
+#endif
 
         // 刷新文件浏览器，显示新创建的文件
         file_browser_.refresh();
