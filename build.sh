@@ -86,26 +86,49 @@ configure_cmake() {
     if [ "$BUILD_IMAGE_PREVIEW" = "ON" ]; then
         cmake_args+=(-DBUILD_IMAGE_PREVIEW=ON)
         print_info "  - Image preview support: ENABLED"
+    elif [ "$BUILD_IMAGE_PREVIEW" = "OFF" ]; then
+        cmake_args+=(-DBUILD_IMAGE_PREVIEW=OFF)
+        print_info "  - Image preview support: DISABLED"
     fi
     
     if [ "$BUILD_TREE_SITTER" = "ON" ]; then
         cmake_args+=(-DBUILD_TREE_SITTER=ON)
         print_info "  - Tree-sitter syntax highlighting: ENABLED"
+    elif [ "$BUILD_TREE_SITTER" = "OFF" ]; then
+        cmake_args+=(-DBUILD_TREE_SITTER=OFF)
+        print_info "  - Tree-sitter syntax highlighting: DISABLED"
     fi
     
     if [ "$BUILD_LUA" = "ON" ]; then
         cmake_args+=(-DBUILD_LUA=ON)
         print_info "  - Lua plugin system: ENABLED"
+    elif [ "$BUILD_LUA" = "OFF" ]; then
+        cmake_args+=(-DBUILD_LUA=OFF)
+        print_info "  - Lua plugin system: DISABLED"
     fi
     
     if [ "$BUILD_AI_CLIENT" = "ON" ]; then
         cmake_args+=(-DBUILD_AI_CLIENT=ON)
         print_info "  - AI client support: ENABLED"
+    elif [ "$BUILD_AI_CLIENT" = "OFF" ]; then
+        cmake_args+=(-DBUILD_AI_CLIENT=OFF)
+        print_info "  - AI client support: DISABLED"
     fi
 
     if [ "$BUILD_LIBVTERM" = "ON" ]; then
         cmake_args+=(-DBUILD_LIBVTERM=ON)
         print_info "  - libvterm terminal emulation: ENABLED"
+    elif [ "$BUILD_LIBVTERM" = "OFF" ]; then
+        cmake_args+=(-DBUILD_LIBVTERM=OFF)
+        print_info "  - libvterm terminal emulation: DISABLED"
+    fi
+    
+    if [ "$BUILD_PERFORMANCE_TESTS" = "ON" ]; then
+        cmake_args+=(-DBUILD_PERFORMANCE_TESTS=ON)
+        print_info "  - Performance tests: ENABLED"
+    elif [ "$BUILD_PERFORMANCE_TESTS" = "OFF" ]; then
+        cmake_args+=(-DBUILD_PERFORMANCE_TESTS=OFF)
+        print_info "  - Performance tests: DISABLED"
     fi
     
     # SSH 模式处理（交互式确认）
@@ -168,8 +191,9 @@ show_help() {
     echo "Options:"
     echo "  --clean          Clean build directory before building"
     echo "  --all            Enable all CMake build options (sets all BUILD_* to ON)"
-    echo "  --install        Install the project after building"
+    echo "  -h               Interactive mode: choose which features to enable"
     echo "  --help           Show this help message"
+    echo "  --install        Install the project after building"
     echo ""
     echo "CMake Options (enable features):"
     echo "  BUILD_IMAGE_PREVIEW=ON    Enable image preview support (requires chafa)"
@@ -178,18 +202,236 @@ show_help() {
     echo "  BUILD_SSH_MODE=GO|CPP|NONE  Select SSH implementation (GO/Cpp/NONE, default: NONE)"
     echo "  BUILD_AI_CLIENT=ON       Enable AI client support (requires libcurl)"
     echo "  BUILD_LIBVTERM=ON        Enable libvterm terminal emulation"
+    echo "  BUILD_PERFORMANCE_TESTS=ON  Build performance tests"
     echo ""
     echo "Examples:"
-    echo "  \$0                                    # Build the project"
-    echo "  \$0 --clean                            # Clean and build"
-    echo "  \$0 --install                          # Build and install"
-    echo "  \$0 BUILD_IMAGE_PREVIEW=ON             # Build with image preview"
-    echo "  \$0 BUILD_LUA=ON BUILD_SSH_MODE=CPP    # Build with Lua and C++ SSH"
-    echo "  \$0 BUILD_SSH_MODE=GO                  # Build with Go SSH module"
-    echo "  \$0 --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
-    echo "  \$0 --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
-    echo "  \$0 BUILD_LIBVTERM=ON                    # Build with libvterm support"
-    echo "  \$0 --all                                # Build with all optional features enabled (interactive SSH mode selection)"
+    echo "  ./build.sh                                    # Build the project"
+    echo "  ./build.sh --clean                            # Clean and build"
+    echo "  ./build.sh -h                                 # Interactive feature selection"
+    echo "  ./build.sh --install                          # Build and install"
+    echo "  ./build.sh BUILD_IMAGE_PREVIEW=ON             # Build with image preview"
+    echo "  ./build.sh BUILD_LUA=ON BUILD_SSH_MODE=CPP    # Build with Lua and C++ SSH"
+    echo "  ./build.sh BUILD_SSH_MODE=GO                  # Build with Go SSH module"
+    echo "  ./build.sh --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
+    echo "  ./build.sh --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
+    echo "  ./build.sh BUILD_LIBVTERM=ON                    # Build with libvterm support"
+    echo "  ./build.sh --all                                # Build with all optional features enabled (interactive SSH mode selection)"
+}
+
+# 交互式选择构建选项
+interactive_feature_selection() {
+    echo ""
+    print_info "=== Interactive Feature Selection ==="
+    echo "Please choose which features to enable (y/n):"
+    echo ""
+
+    # 图片预览
+    while true; do
+        read -p "  Enable image preview support? (requires chafa) [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_IMAGE_PREVIEW="ON"
+                BUILD_IMAGE_PREVIEW_SET=true
+                print_info "  -> Image preview: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_IMAGE_PREVIEW="OFF"
+                BUILD_IMAGE_PREVIEW_SET=true
+                print_info "  -> Image preview: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_IMAGE_PREVIEW="OFF"
+                BUILD_IMAGE_PREVIEW_SET=true
+                print_info "  -> Image preview: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # Tree-sitter
+    while true; do
+        read -p "  Enable Tree-sitter syntax highlighting? [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_TREE_SITTER="ON"
+                BUILD_TREE_SITTER_SET=true
+                print_info "  -> Tree-sitter: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_TREE_SITTER="OFF"
+                BUILD_TREE_SITTER_SET=true
+                print_info "  -> Tree-sitter: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_TREE_SITTER="OFF"
+                BUILD_TREE_SITTER_SET=true
+                print_info "  -> Tree-sitter: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # Lua
+    while true; do
+        read -p "  Enable Lua plugin system? [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_LUA="ON"
+                BUILD_LUA_SET=true
+                print_info "  -> Lua plugin: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_LUA="OFF"
+                BUILD_LUA_SET=true
+                print_info "  -> Lua plugin: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_LUA="OFF"
+                BUILD_LUA_SET=true
+                print_info "  -> Lua plugin: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # AI Client
+    while true; do
+        read -p "  Enable AI client support? (requires libcurl) [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_AI_CLIENT="ON"
+                BUILD_AI_CLIENT_SET=true
+                print_info "  -> AI client: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_AI_CLIENT="OFF"
+                BUILD_AI_CLIENT_SET=true
+                print_info "  -> AI client: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_AI_CLIENT="OFF"
+                BUILD_AI_CLIENT_SET=true
+                print_info "  -> AI client: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # libvterm
+    while true; do
+        read -p "  Enable libvterm terminal emulation? [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_LIBVTERM="ON"
+                BUILD_LIBVTERM_SET=true
+                print_info "  -> libvterm: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_LIBVTERM="OFF"
+                BUILD_LIBVTERM_SET=true
+                print_info "  -> libvterm: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_LIBVTERM="OFF"
+                BUILD_LIBVTERM_SET=true
+                print_info "  -> libvterm: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # Performance tests
+    while true; do
+        read -p "  Build performance tests? [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_PERFORMANCE_TESTS="ON"
+                BUILD_PERFORMANCE_TESTS_SET=true
+                print_info "  -> Performance tests: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_PERFORMANCE_TESTS="OFF"
+                BUILD_PERFORMANCE_TESTS_SET=true
+                print_info "  -> Performance tests: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_PERFORMANCE_TESTS="OFF"
+                BUILD_PERFORMANCE_TESTS_SET=true
+                print_info "  -> Performance tests: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # SSH mode
+    echo ""
+    print_info "=== SSH Implementation Selection ==="
+    echo "Please choose SSH implementation mode:"
+    echo "  1) GO    - Use Go SSH module (requires Go compiler)"
+    echo "  2) CPP   - Use C++ native SSH (requires libssh2)"
+    echo "  3) NONE  - No SSH support (default)"
+    echo ""
+
+    while true; do
+        read -p "  Enter your choice (1/2/3 or GO/CPP/NONE) [3]: " ssh_choice
+        case $ssh_choice in
+            1|GO|go)
+                BUILD_SSH_MODE="GO"
+                BUILD_SSH_MODE_SET=true
+                print_info "  -> Selected: Go SSH module"
+                break
+                ;;
+            2|CPP|cpp)
+                BUILD_SSH_MODE="CPP"
+                BUILD_SSH_MODE_SET=true
+                print_info "  -> Selected: C++ native SSH"
+                break
+                ;;
+            3|NONE|none|"")
+                BUILD_SSH_MODE="NONE"
+                BUILD_SSH_MODE_SET=true
+                print_info "  -> Selected: No SSH support"
+                break
+                ;;
+            *)
+                print_warning "Invalid choice. Please enter 1, 2, 3, GO, CPP, or NONE."
+                ;;
+        esac
+    done
+
+    echo ""
+    print_success "Feature selection completed!"
+    echo ""
 }
 
 # 交互式选择 SSH 模式
@@ -235,6 +477,7 @@ main() {
     local clean_flag=false
     local install_flag=false
     local build_all=false
+    local interactive_mode=false
     
     # 初始化 CMake 选项变量（空表示未由用户显式设置）
     BUILD_IMAGE_PREVIEW=""
@@ -243,6 +486,7 @@ main() {
     BUILD_SSH_MODE=""
     BUILD_AI_CLIENT=""
     BUILD_LIBVTERM=""
+    BUILD_PERFORMANCE_TESTS=""
     # 标记每个选项是否由用户显式设置（用于 --all 后允许显式覆盖）
     BUILD_IMAGE_PREVIEW_SET=false
     BUILD_TREE_SITTER_SET=false
@@ -250,6 +494,7 @@ main() {
     BUILD_SSH_MODE_SET=false
     BUILD_AI_CLIENT_SET=false
     BUILD_LIBVTERM_SET=false
+    BUILD_PERFORMANCE_TESTS_SET=false
     
     # 解析命令行参数
     while [[ $# -gt 0 ]]; do
@@ -266,7 +511,11 @@ main() {
                 build_all=true
                 shift
                 ;;
-            --help|-h)
+            -h)
+                interactive_mode=true
+                shift
+                ;;
+            --help)
                 show_help
                 exit 0
                 ;;
@@ -300,6 +549,11 @@ main() {
                 BUILD_LIBVTERM_SET=true
                 shift
                 ;;
+            BUILD_PERFORMANCE_TESTS=*)
+                BUILD_PERFORMANCE_TESTS="${1#*=}"
+                BUILD_PERFORMANCE_TESTS_SET=true
+                shift
+                ;;
             *)
                 print_error "Unknown option: $1"
                 show_help
@@ -307,6 +561,11 @@ main() {
                 ;;
         esac
     done
+
+    # 如果启用了 -h，进入交互式选择模式
+    if [ "$interactive_mode" = true ]; then
+        interactive_feature_selection
+    fi
 
     # 如果启用了 --all，则将未显式设置的 BUILD_* 选项置为 ON（允许用户在命令行中显式覆盖）
     if [ "$build_all" = true ]; then
@@ -316,6 +575,7 @@ main() {
         if [ "$BUILD_LUA_SET" = false ]; then BUILD_LUA="ON"; fi
         if [ "$BUILD_AI_CLIENT_SET" = false ]; then BUILD_AI_CLIENT="ON"; fi
         if [ "$BUILD_LIBVTERM_SET" = false ]; then BUILD_LIBVTERM="ON"; fi
+        if [ "$BUILD_PERFORMANCE_TESTS_SET" = false ]; then BUILD_PERFORMANCE_TESTS="ON"; fi
         
         # 交互式选择 SSH 模式（如果用户未显式指定）
         if [ "$BUILD_SSH_MODE_SET" = false ]; then
