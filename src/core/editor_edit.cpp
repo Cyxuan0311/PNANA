@@ -206,9 +206,7 @@ void Editor::insertNewline() {
                 doc->getLines()[cursor_row_] = indent + after_cursor;
                 cursor_col_ = indent.size();
             }
-        } else
-#endif
-        {
+        } else {
             std::string file_type = getFileType();
             std::string file_ext = doc->getFileExtension();
             std::string file_ext_with_dot = file_ext.empty() ? "" : "." + file_ext;
@@ -234,10 +232,8 @@ void Editor::insertNewline() {
             }
 
             if (default_cfg.smart_indent) {
-#ifdef BUILD_TREE_SITTER_SUPPORT
                 auto_indent_engine_.setIndentConfig(default_cfg);
                 auto_indent_engine_.setFileType(file_type);
-#endif
                 std::string indent =
                     computeAutoIndent(doc->getLines(), cursor_row_, cursor_col_, default_cfg);
                 if (!indent.empty()) {
@@ -246,6 +242,7 @@ void Editor::insertNewline() {
                 }
             }
         }
+#endif
     }
 
 #ifdef BUILD_LSP_SUPPORT
