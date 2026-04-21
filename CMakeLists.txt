@@ -587,12 +587,15 @@ set(SOURCES
     src/plugins/plugin_manager.cpp
     src/plugins/lua_api.cpp
     src/plugins/lua_ui_runtime.cpp
+    # 智能缩进引擎（始终编译，包含 fallback 逻辑）
+    src/features/indent/auto_indent_engine.cpp
 )
 
 # Tree-sitter 模块（如果启用）
 if(BUILD_TREE_SITTER_SUPPORT)
     list(APPEND SOURCES
         src/features/SyntaxHighlighter/syntax_highlighter_tree_sitter.cpp
+        src/features/indent/indent_query.cpp
     )
 endif()
 
@@ -751,6 +754,8 @@ set(HEADERS
 if(BUILD_TREE_SITTER_SUPPORT)
     list(APPEND HEADERS
         include/pnana/features/SyntaxHighlighter/syntax_highlighter_tree_sitter.h
+        include/pnana/features/auto_indent_engine.h
+        include/pnana/features/indent_query.h
     )
 endif()
 
@@ -1100,6 +1105,12 @@ endif()
 
 # 构建完成提示已移除，避免CMake语法问题
 # 用户可以通过运行 './install.sh --help' 查看安装选项
+
+# 添加性能测试（默认关闭，需要 BUILD_PERFORMANCE_TESTS=ON 才编译）
+option(BUILD_PERFORMANCE_TESTS "Build performance tests" OFF)
+if(BUILD_PERFORMANCE_TESTS)
+    add_subdirectory(tests)
+endif()
 
 # ============================================================================
 # 打包配置
