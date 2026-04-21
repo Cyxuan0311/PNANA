@@ -1,6 +1,7 @@
 #include "core/config_manager.h"
 #include "core/editor.h"
 #include "features/logo_manager.h"
+#include "ui/theme.h"
 #include "utils/logger.h"
 #include <csignal>
 #include <cstdlib>
@@ -16,6 +17,7 @@ void printHelp() {
     std::cout << "  -h, --help              Show this help message\n";
     std::cout << "  -v, --version           Show version information\n";
     std::cout << "  -t, --theme THEME       Set theme (monokai, dracula, nord, etc.)\n";
+    std::cout << "      --list-themes       List all available themes\n";
     std::cout << "  -c, --config PATH       Specify custom configuration file path\n";
     std::cout << "  -r, --readonly          Open file in read-only mode\n";
     std::cout << "  -l, --log [FILE]        Enable logging (default: pnana.log)\n";
@@ -24,13 +26,14 @@ void printHelp() {
     std::cout << "  pnana file.txt               Open file.txt\n";
     std::cout << "  pnana file1 file2            Open multiple files\n";
     std::cout << "  pnana -t dracula file.txt    Open with Dracula theme\n";
+    std::cout << "  pnana --list-themes          List all available themes\n";
     std::cout << "  pnana -c ~/.config/pnana/custom.json  Use custom config file\n";
     std::cout << "  pnana -l ./pnana.log         Log to ./pnana.log\n";
     std::cout << "\nKeyboard Shortcuts:\n";
     std::cout << "  Ctrl+S    Save file\n";
     std::cout << "  Ctrl+Q    Quit\n";
-    std::cout << "  Ctrl+F    Find\n";
-    std::cout << "  Ctrl+H    Replace\n";
+    std::cout << "  Ctrl+F    Find And Replace\n";
+    // std::cout << "  Ctrl+H    Replace\n";
     std::cout << "  Ctrl+G    Go to line\n";
     std::cout << "  Ctrl+Z    Undo\n";
     std::cout << "  Ctrl+Y    Redo\n";
@@ -66,6 +69,35 @@ void printVersion(const std::string& config_path = "") {
     std::cout << GREEN << BOLD << "  Modern Terminal Text Editor" << RESET << std::endl;
     std::cout << RED << BOLD << "  Version: " << RESET << " 0.0.5 " << std::endl;
     std::cout << BLUE << "  Website: https://github.com/Cyxuan0311/PNANA.git" << RESET << std::endl;
+}
+
+void listThemes() {
+    const std::string RESET = "\033[0m";
+    const std::string BOLD = "\033[1m";
+    const std::string GREEN = "\033[32m";
+    const std::string CYAN = "\033[36m";
+    const std::string YELLOW = "\033[33m";
+
+    auto themes = pnana::ui::Theme::getAvailableThemes();
+
+    std::cout << BOLD << GREEN << "  Available Themes (" << themes.size() << " total)" << RESET
+              << std::endl;
+
+    int col = 0;
+    for (const auto& theme : themes) {
+        std::cout << "  " << CYAN << theme << RESET;
+        col++;
+        if (col % 5 == 0) {
+            std::cout << std::endl;
+        } else {
+            std::cout << "  ";
+        }
+    }
+    if (col % 5 != 0) {
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+    std::cout << YELLOW << "  Use: pnana -t <theme_name>" << RESET << std::endl;
 }
 
 // 屏蔽编辑器运行期间不应生效的 Unix 信号。
@@ -113,6 +145,9 @@ int main(int argc, char* argv[]) {
                 return 0;
             } else if (arg == "-v" || arg == "--version") {
                 printVersion(config_path);
+                return 0;
+            } else if (arg == "--list-themes") {
+                listThemes();
                 return 0;
             } else if (arg == "-t" || arg == "--theme") {
                 if (i + 1 < argc) {
