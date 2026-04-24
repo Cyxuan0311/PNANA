@@ -154,6 +154,7 @@ Element CommandPaletteUI::renderCommandList() const {
 Element CommandPaletteUI::renderHelpBar() const {
     const auto& colors = theme_.getColors();
     return hbox({text("  "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Navigate  "),
+                 text("Tab") | color(colors.helpbar_key) | bold, text(": Complete  "),
                  text("Enter") | color(colors.helpbar_key) | bold, text(": Execute  "),
                  text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;

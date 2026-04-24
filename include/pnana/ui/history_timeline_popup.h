@@ -37,6 +37,8 @@ class HistoryTimelinePopup {
     std::string file_path_;
     std::vector<features::history::VersionMeta> versions_;
     size_t selected_index_ = 0;
+    size_t scroll_offset_ = 0;
+    size_t list_display_count_ = 12;
 
     std::function<void(int)> on_preview_;
     std::function<void(int)> on_rollback_;

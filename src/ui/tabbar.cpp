@@ -73,6 +73,12 @@ Element Tabbar::renderTab(const core::DocumentManager::TabInfo& tab, size_t /*in
     content.push_back(text(" "));
     content.push_back(text(display_name));
 
+    // 如果标签被固定，添加锁图标
+    if (tab.is_pinned) {
+        content.push_back(text(" "));
+        content.push_back(text(pnana::ui::icons::LOCK) | color(colors.keyword));
+    }
+
     if (!status_symbol.empty()) {
         content.push_back(text(" "));
         content.push_back(text(status_symbol) | color(status_color));

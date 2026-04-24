@@ -41,6 +41,7 @@ void HistoryTimelinePopup::open(const std::string& file_path,
     file_path_ = file_path;
     versions_ = versions;
     selected_index_ = 0;
+    scroll_offset_ = 0;
     is_open_ = true;
 }
 
@@ -48,6 +49,7 @@ void HistoryTimelinePopup::close() {
     is_open_ = false;
     versions_.clear();
     selected_index_ = 0;
+    scroll_offset_ = 0;
 }
 
 void HistoryTimelinePopup::setOnPreview(std::function<void(int)> callback) {
@@ -87,10 +89,19 @@ Element HistoryTimelinePopup::renderVersionList() const {
         return vbox(std::move(rows));
     }
 
-    size_t max_items = std::min<size_t>(versions_.size(), 12);
-    for (size_t i = 0; i < max_items; ++i) {
-        const auto& v = versions_[i];
-        bool selected = (i == selected_index_);
+    size_t max_display = std::min(versions_.size(), list_display_count_);
+    size_t start = scroll_offset_;
+    if (versions_.size() > list_display_count_ &&
+        selected_index_ >= scroll_offset_ + list_display_count_) {
+        start = selected_index_ - list_display_count_ + 1;
+    } else if (selected_index_ < scroll_offset_) {
+        start = selected_index_;
+    }
+
+    for (size_t i = 0; i < max_display && (start + i) < versions_.size(); ++i) {
+        size_t idx = start + i;
+        const auto& v = versions_[idx];
+        bool selected = (idx == selected_index_);
 
         Element row = hbox({
             text(selected ? "► " : "  ") | color(colors.success) | bold,
