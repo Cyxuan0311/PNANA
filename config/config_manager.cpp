@@ -270,6 +270,22 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         if (!logo_style.empty()) {
             config_.display.logo_style = logo_style;
         }
+        config_.display.show_welcome_logo =
+            extractBool("show_welcome_logo", display_pos, display_end, true);
+        config_.display.welcome_logo_top_margin =
+            extractInt("welcome_logo_top_margin", display_pos, display_end, 2);
+        config_.display.welcome_screen_flex =
+            extractBool("welcome_screen_flex", display_pos, display_end, true);
+        config_.display.show_welcome_version =
+            extractBool("show_welcome_version", display_pos, display_end, true);
+        config_.display.show_welcome_start_hint =
+            extractBool("show_welcome_start_hint", display_pos, display_end, true);
+        config_.display.show_welcome_quick_start =
+            extractBool("show_welcome_quick_start", display_pos, display_end, true);
+        config_.display.show_welcome_features =
+            extractBool("show_welcome_features", display_pos, display_end, true);
+        config_.display.show_welcome_tips =
+            extractBool("show_welcome_tips", display_pos, display_end, true);
         config_.display.show_tab_close_indicator =
             extractBool("show_tab_close_indicator", display_pos, display_end, true);
 
@@ -901,6 +917,21 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"show_helpbar\": " << (config_.display.show_helpbar ? "true" : "false") << ",\n";
     oss << "    \"logo_gradient\": " << (config_.display.logo_gradient ? "true" : "false") << ",\n";
     oss << "    \"logo_style\": \"" << config_.display.logo_style << "\",\n";
+    oss << "    \"show_welcome_logo\": " << (config_.display.show_welcome_logo ? "true" : "false")
+        << ",\n";
+    oss << "    \"welcome_logo_top_margin\": " << config_.display.welcome_logo_top_margin << ",\n";
+    oss << "    \"welcome_screen_flex\": "
+        << (config_.display.welcome_screen_flex ? "true" : "false") << ",\n";
+    oss << "    \"show_welcome_version\": "
+        << (config_.display.show_welcome_version ? "true" : "false") << ",\n";
+    oss << "    \"show_welcome_start_hint\": "
+        << (config_.display.show_welcome_start_hint ? "true" : "false") << ",\n";
+    oss << "    \"show_welcome_quick_start\": "
+        << (config_.display.show_welcome_quick_start ? "true" : "false") << ",\n";
+    oss << "    \"show_welcome_features\": "
+        << (config_.display.show_welcome_features ? "true" : "false") << ",\n";
+    oss << "    \"show_welcome_tips\": " << (config_.display.show_welcome_tips ? "true" : "false")
+        << ",\n";
     oss << "    \"show_tab_close_indicator\": "
         << (config_.display.show_tab_close_indicator ? "true" : "false") << ",\n";
     oss << "    \"file_browser_show_tree_style\": "

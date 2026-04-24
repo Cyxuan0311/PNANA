@@ -45,6 +45,16 @@ struct DisplayConfig {
     bool logo_gradient = true;        // Logo 是否使用渐变颜色
     std::string logo_style = "block"; // Logo 样式：block, roman, box, unicode, script, big, diagram
 
+    // 欢迎屏幕配置
+    bool show_welcome_logo = true;   // 是否显示欢迎屏幕 Logo
+    int welcome_logo_top_margin = 2; // Logo 距离顶部的空行数
+    bool welcome_screen_flex = true; // 是否启用 flex 布局（启用时 welcome_logo_top_margin 无效）
+    bool show_welcome_version = true;     // 是否显示版本信息
+    bool show_welcome_start_hint = true;  // 是否显示"Press i to start editing"提示
+    bool show_welcome_quick_start = true; // 是否显示快速开始快捷键
+    bool show_welcome_features = true;    // 是否显示功能介绍
+    bool show_welcome_tips = true;        // 是否显示提示信息
+
     // Tab 栏配置
     bool show_tab_close_indicator = true; // 是否在 tab 上显示关闭符号（×）
 

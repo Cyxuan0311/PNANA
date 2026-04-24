@@ -59,6 +59,15 @@ The configuration uses a **nested JSON structure** with sections: `editor`, `dis
 | `cursor_smooth` | boolean | `false` | Smooth cursor effect |
 | `show_helpbar` | boolean | `true` | showing buttom help bar (true or false) |
 | `logo_gradient` | boolean | `true` | Use gradient colors for welcome screen Logo |
+| `logo_style` | string | `"default"` | Logo style: `"default"`, `"ascii"`, `"big-ascii"`, and more... |
+| `show_welcome_logo` | boolean | `true` | Show welcome screen Logo |
+| `welcome_logo_top_margin` | number | `2` | Number of empty lines above the Logo (only effective when `welcome_screen_flex` is `false`) |
+| `welcome_screen_flex` | boolean | `true` | Enable flex layout (when enabled, welcome screen is vertically centered and `welcome_logo_top_margin` has no effect) |
+| `show_welcome_version` | boolean | `true` | Show version information |
+| `show_welcome_start_hint` | boolean | `true` | Show "Press i to start editing" hint |
+| `show_welcome_quick_start` | boolean | `true` | Show quick start shortcuts (Ctrl+O/S/N/Q) |
+| `show_welcome_features` | boolean | `true` | Show features section (Ctrl+F/G/T/Z) |
+| `show_welcome_tips` | boolean | `true` | Show tips section (Tip + theme hint + bottom info bar) |
 | `show_tab_close_indicator` | boolean | `true` | Show close indicator (×) on tabs; shows × when unmodified, ● when modified |
 | `file_browser_show_tree_style` | boolean | `true` | Show tree structure style (expand icons ▼/▶ and connectors │/├─/└─). When `false`, uses spaces for indentation without tree characters for a cleaner look |
 | `file_browser_side` | string | `"left"` | Position of file list panel relative to code area: `"left"` or `"right"` |
@@ -446,6 +455,14 @@ Example:
     "show_helpbar": true,
     "logo_gradient": true,
     "logo_style": "default",
+    "show_welcome_logo": true,
+    "welcome_logo_top_margin": 2,
+    "welcome_screen_flex": true,
+    "show_welcome_version": true,
+    "show_welcome_start_hint": true,
+    "show_welcome_quick_start": true,
+    "show_welcome_features": true,
+    "show_welcome_tips": true,
     "show_tab_close_indicator": true,
     "file_browser_show_tree_style": true,
     "file_browser_side": "left",
