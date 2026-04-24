@@ -637,6 +637,14 @@ void Editor::quit() {
 
 // 标签页管理
 void Editor::closeCurrentTab() {
+    size_t current_index = document_manager_.getCurrentIndex();
+
+    // 检查当前标签是否被固定
+    if (document_manager_.isTabPinned(current_index)) {
+        setStatusMessage("Cannot close: pinned tab (press Ctrl+K to unpin first)");
+        return;
+    }
+
     if (document_manager_.closeCurrentDocument()) {
         setStatusMessage(std::string(pnana::ui::icons::CLOSE) + " Tab closed");
         cursor_row_ = 0;
@@ -740,6 +748,21 @@ void Editor::switchToTab(size_t index) {
     cursor_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
+}
+
+void Editor::toggleTabPin() {
+    size_t current_index = document_manager_.getCurrentIndex();
+    document_manager_.toggleTabPin(current_index);
+
+    bool is_pinned = document_manager_.isTabPinned(current_index);
+
+    if (is_pinned) {
+        setStatusMessage(std::string(pnana::ui::icons::LOCK) + " Tab pinned");
+    } else {
+        setStatusMessage(std::string(pnana::ui::icons::UNLOCK) + " Tab unpinned");
+    }
+
+    force_ui_update_ = true;
 }
 
 } // namespace core

@@ -19,6 +19,7 @@ size_t DocumentManager::openDocument(const std::string& filepath) {
     // 创建新文档
     auto doc = std::make_unique<Document>(filepath);
     documents_.push_back(std::move(doc));
+    pinned_tabs_.push_back(false);
     size_t new_index = documents_.size() - 1;
     switchToDocument(new_index);
     return new_index;
@@ -27,6 +28,7 @@ size_t DocumentManager::openDocument(const std::string& filepath) {
 size_t DocumentManager::createNewDocument() {
     auto doc = std::make_unique<Document>();
     documents_.push_back(std::move(doc));
+    pinned_tabs_.push_back(false);
     size_t new_index = documents_.size() - 1;
     next_untitled_number_++;
     switchToDocument(new_index);
@@ -45,6 +47,9 @@ bool DocumentManager::closeDocument(size_t index) {
     }
 
     documents_.erase(documents_.begin() + index);
+    if (index < pinned_tabs_.size()) {
+        pinned_tabs_.erase(pinned_tabs_.begin() + index);
+    }
 
     // 调整当前索引（如果文档列表不为空）
     if (!documents_.empty()) {
@@ -157,9 +162,30 @@ std::vector<DocumentManager::TabInfo> DocumentManager::getAllTabs() const {
         info.filepath = documents_[i]->getFilePath();
         info.is_modified = documents_[i]->isModified();
         info.is_current = (i == current_index_);
+        info.is_pinned = (i < pinned_tabs_.size() && pinned_tabs_[i]);
         tabs.push_back(info);
     }
     return tabs;
+}
+
+void DocumentManager::toggleTabPin(size_t index) {
+    if (index >= documents_.size()) {
+        return;
+    }
+
+    // 确保 pinned_tabs_ 有足够的空间
+    while (pinned_tabs_.size() <= index) {
+        pinned_tabs_.push_back(false);
+    }
+
+    pinned_tabs_[index] = !pinned_tabs_[index];
+}
+
+bool DocumentManager::isTabPinned(size_t index) const {
+    if (index >= documents_.size() || index >= pinned_tabs_.size()) {
+        return false;
+    }
+    return pinned_tabs_[index];
 }
 
 } // namespace core

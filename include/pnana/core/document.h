@@ -18,37 +18,43 @@ namespace core {
 
 // 文档修改记录（用于撤销/重做）
 struct DocumentChange {
-    enum class Type { INSERT, DELETE, REPLACE, NEWLINE, COMPLETION };
+    enum class Type { INSERT, DELETE, REPLACE, NEWLINE, COMPLETION, MOVE_LINE, COMMENT_TOGGLE };
+
+    struct MoveTag {};
+    static constexpr MoveTag MOVE_TAG = MoveTag{};
 
     Type type;
     size_t row;
     size_t col;
     std::string old_content;
     std::string new_content;
-    std::string after_cursor;                        // 用于 NEWLINE 类型：光标后的内容
-    std::chrono::steady_clock::time_point timestamp; // 时间戳，用于智能合并
+    std::string after_cursor;
+    std::chrono::steady_clock::time_point timestamp;
+    size_t target_row;
 
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(""),
-          timestamp(std::chrono::steady_clock::now()) {}
+          timestamp(std::chrono::steady_clock::now()), target_row(0) {}
 
-    // NEWLINE 类型的构造函数
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c,
                    const std::string& after)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(after),
-          timestamp(std::chrono::steady_clock::now()) {}
+          timestamp(std::chrono::steady_clock::now()), target_row(0) {}
 
-    // COMPLETION 类型的构造函数（添加布尔参数以避免重载冲突）
     DocumentChange(Type t, size_t r, size_t c, const std::string& replaced_text,
                    const std::string& completion_text, bool /*is_completion*/)
         : type(t), row(r), col(c), old_content(replaced_text), new_content(completion_text),
-          after_cursor(""), timestamp(std::chrono::steady_clock::now()) {}
+          after_cursor(""), timestamp(std::chrono::steady_clock::now()), target_row(0) {}
 
-    // 带时间戳的构造函数（用于合并操作）
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c,
                    const std::chrono::steady_clock::time_point& ts)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(""),
-          timestamp(ts) {}
+          timestamp(ts), target_row(0) {}
+
+    DocumentChange(Type t, size_t r, size_t target_r, const std::string& old_c,
+                   const std::string& new_c, MoveTag)
+        : type(t), row(r), col(0), old_content(old_c), new_content(new_c), after_cursor(""),
+          timestamp(std::chrono::steady_clock::now()), target_row(target_r) {}
 };
 
 // 文档类 - 管理单个文件的内容

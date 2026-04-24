@@ -748,6 +748,11 @@ class Editor {
     std::chrono::milliseconds markdown_preview_update_delay_{300}; // 300ms延迟更新
     bool markdown_preview_needs_update_ = false;
 
+    // 粘贴检测：快速连续输入时禁用自动缩进
+    std::chrono::steady_clock::time_point last_char_input_time_;
+    static constexpr auto PASTE_DETECTION_INTERVAL = std::chrono::milliseconds(50);
+    bool is_pasting_ = false;
+
     // 强制触发待处理的光标更新
     void triggerPendingCursorUpdate();
 
@@ -859,6 +864,7 @@ class Editor {
     void switchToNextTab();
     void switchToPreviousTab();
     void switchToTab(size_t index);
+    void toggleTabPin();
 
     // 帮助系统
     void toggleHelp();

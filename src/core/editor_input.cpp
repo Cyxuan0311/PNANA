@@ -537,6 +537,16 @@ void Editor::handleInput(Event event) {
             }
         }
 
+        // 标签固定操作只在代码区生效
+        if (action == KeyAction::TOGGLE_TAB_PIN) {
+            if (current_region != EditorRegion::CODE_AREA) {
+                return;
+            }
+            if (!getCurrentDocument()) {
+                return;
+            }
+        }
+
         if (action_executor_.execute(action)) {
             return;
         }
@@ -1279,6 +1289,18 @@ void Editor::handleNormalMode(Event event) {
     } else if (event == Event::Delete) {
         deleteChar();
     } else if (event == Event::Return) {
+        // 检测粘贴：快速连续输入时禁用自动缩进
+        auto now = std::chrono::steady_clock::now();
+        if (last_char_input_time_ != std::chrono::steady_clock::time_point{}) {
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - last_char_input_time_);
+            if (elapsed < PASTE_DETECTION_INTERVAL) {
+                is_pasting_ = true;
+            } else {
+                is_pasting_ = false;
+            }
+        }
+        last_char_input_time_ = now;
         insertNewline();
     }
     // 可打印字符 - 直接插入（支持UTF-8多字节字符，如中文）
@@ -1286,6 +1308,12 @@ void Editor::handleNormalMode(Event event) {
         std::string ch = event.character();
 
         if (!ch.empty()) {
+            // 处理 \r 作为换行符（Windows Terminal 粘贴时使用 \r\n，需要统一处理）
+            if (ch == "\r") {
+                insertNewline();
+                return;
+            }
+
             // 检查是否为可打印字符
             // 对于单字节字符，检查是否为ASCII可打印字符（32-126）
             // 对于多字节UTF-8字符（如中文），直接接受
@@ -1310,6 +1338,18 @@ void Editor::handleNormalMode(Event event) {
                 if (snippet_session_active_ && selection_active_) {
                     backspace(); // deletes selection and clears selection mode
                 }
+                // 检测粘贴：快速连续输入时禁用自动缩进
+                auto now = std::chrono::steady_clock::now();
+                if (last_char_input_time_ != std::chrono::steady_clock::time_point{}) {
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - last_char_input_time_);
+                    if (elapsed < PASTE_DETECTION_INTERVAL) {
+                        is_pasting_ = true;
+                    } else {
+                        is_pasting_ = false;
+                    }
+                }
+                last_char_input_time_ = now;
                 // 使用 insertText 支持多字节字符
                 insertText(ch);
             }

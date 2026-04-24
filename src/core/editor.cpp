@@ -2122,6 +2122,9 @@ void Editor::handleCommandPaletteInput(Event event) {
     } else if (event == Event::ArrowDown) {
         command_palette_.handleKeyEvent("ArrowDown");
         return;
+    } else if (event == Event::Tab) {
+        command_palette_.handleKeyEvent("Tab");
+        return;
     } else if (event == Event::Backspace) {
         std::string current_input = command_palette_.getInput();
         if (!current_input.empty()) {

@@ -60,14 +60,20 @@ class DocumentManager {
         std::string filepath;
         bool is_modified;
         bool is_current;
+        bool is_pinned;
     };
     std::vector<TabInfo> getAllTabs() const;
+
+    // 标签固定功能
+    void toggleTabPin(size_t index);
+    bool isTabPinned(size_t index) const;
 
   private:
     std::vector<std::unique_ptr<Document>> documents_;
     size_t current_index_;
     size_t next_untitled_number_; // 用于未命名文档编号
     DocumentSwitchedCallback document_switched_callback_;
+    std::vector<bool> pinned_tabs_; // 记录每个标签是否被固定
 
     void ensureAtLeastOneDocument();
 };

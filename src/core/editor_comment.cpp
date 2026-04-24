@@ -17,7 +17,6 @@ void Editor::toggleComment() {
 
     std::string file_type = getFileType();
 
-    // 确定要注释的行范围：有选择时注释选中行，否则注释当前行
     size_t start_row;
     size_t end_row;
     if (selection_active_) {
@@ -32,7 +31,14 @@ void Editor::toggleComment() {
             return;
     }
 
-    int total_col_offset = 0; // 仅单行时用于光标列偏移
+    std::string old_lines_content;
+    for (size_t r = start_row; r <= end_row; ++r) {
+        old_lines_content += lines[r];
+        if (r < end_row)
+            old_lines_content += "\n";
+    }
+
+    int total_col_offset = 0;
 
     for (size_t r = start_row; r <= end_row; ++r) {
         std::string& line = lines[r];
@@ -43,12 +49,20 @@ void Editor::toggleComment() {
         }
     }
 
-    // 单行：调整光标列
+    std::string new_lines_content;
+    for (size_t r = start_row; r <= end_row; ++r) {
+        new_lines_content += lines[r];
+        if (r < end_row)
+            new_lines_content += "\n";
+    }
+
+    doc->pushChange(DocumentChange(DocumentChange::Type::COMMENT_TOGGLE, start_row, end_row,
+                                   old_lines_content, new_lines_content, DocumentChange::MOVE_TAG));
+
     if (start_row == end_row) {
         int new_col = static_cast<int>(cursor_col_) + total_col_offset;
         cursor_col_ = (new_col >= 0) ? static_cast<size_t>(new_col) : 0;
     } else {
-        // 多行：清除选择，光标置于选区末尾
         selection_active_ = false;
     }
 

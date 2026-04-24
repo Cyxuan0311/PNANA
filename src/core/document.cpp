@@ -711,9 +711,6 @@ void Document::insertLine(size_t row) {
     }
 
     lines_.insert(lines_.begin() + row, "");
-
-    // 插入新行需要记录到撤销栈 - 使用特殊的DELETE类型表示撤销时删除这一行
-    pushChange(DocumentChange(DocumentChange::Type::DELETE, row, 0, "", ""));
 }
 
 void Document::deleteLine(size_t row) {
@@ -855,21 +852,31 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 std::string& current_line = lines_[change.row];
                 size_t line_len = current_line.length();
 
-                // 边界检查：确保插入位置有效
-                if (change.col <= line_len) {
-                    size_t insert_len = change.new_content.length();
-                    size_t max_erase = line_len - change.col;
-                    size_t erase_len = std::min(insert_len, max_erase);
+                // 如果 old_content 为空且 col 为 0，说明是整行插入（如 duplicateLine），
+                // 撤销时删除整行
+                if (change.old_content.empty() && change.col == 0) {
+                    lines_.erase(lines_.begin() + change.row);
+                    if (lines_.empty()) {
+                        lines_.push_back("");
+                    }
+                    success = true;
+                } else {
+                    // 边界检查：确保插入位置有效
+                    if (change.col <= line_len) {
+                        size_t insert_len = change.new_content.length();
+                        size_t max_erase = line_len - change.col;
+                        size_t erase_len = std::min(insert_len, max_erase);
 
-                    if (erase_len > 0) {
-                        // 验证要删除的内容是否匹配（额外的安全检查）
-                        if (current_line.substr(change.col, erase_len) ==
-                            change.new_content.substr(0, erase_len)) {
-                            current_line.erase(change.col, erase_len);
-                            success = true;
+                        if (erase_len > 0) {
+                            // 验证要删除的内容是否匹配（额外的安全检查）
+                            if (current_line.substr(change.col, erase_len) ==
+                                change.new_content.substr(0, erase_len)) {
+                                current_line.erase(change.col, erase_len);
+                                success = true;
+                            }
+                        } else {
+                            success = true; // 空操作也算成功
                         }
-                    } else {
-                        success = true; // 空操作也算成功
                     }
                 }
             }
@@ -1041,6 +1048,37 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 *out_col = change.col;
             break;
         }
+
+        case DocumentChange::Type::MOVE_LINE: {
+            size_t target = change.target_row;
+            if (change.row < lines_.size() && target < lines_.size()) {
+                std::swap(lines_[change.row], lines_[target]);
+                success = true;
+            }
+            if (out_row)
+                *out_row = target;
+            if (out_col)
+                *out_col = 0;
+            break;
+        }
+
+        case DocumentChange::Type::COMMENT_TOGGLE: {
+            std::istringstream old_stream(change.old_content);
+            std::string old_line;
+            size_t r = change.row;
+            while (std::getline(old_stream, old_line) && r < lines_.size()) {
+                if (!old_line.empty() && old_line.back() == '\r')
+                    old_line.pop_back();
+                lines_[r] = old_line;
+                r++;
+            }
+            success = true;
+            if (out_row)
+                *out_row = change.row;
+            if (out_col)
+                *out_col = 0;
+            break;
+        }
     }
 
     // 确保文档至少有一行（边界情况处理）
@@ -1072,8 +1110,15 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
     // 重新应用操作
     switch (change.type) {
         case DocumentChange::Type::INSERT:
-            if (change.row < lines_.size()) {
-                lines_[change.row].insert(change.col, change.new_content);
+            if (change.old_content.empty() && change.col == 0) {
+                // 整行插入（如 duplicateLine），重做时插入新行
+                if (change.row <= lines_.size()) {
+                    lines_.insert(lines_.begin() + change.row, change.new_content);
+                }
+            } else {
+                if (change.row < lines_.size()) {
+                    lines_[change.row].insert(change.col, change.new_content);
+                }
             }
             // 光标应该移动到插入结束的位置
             if (out_row)
@@ -1151,6 +1196,35 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             if (out_col)
                 *out_col = change.col + change.new_content.length();
             break;
+
+        case DocumentChange::Type::MOVE_LINE: {
+            size_t target = change.target_row;
+            if (change.row < lines_.size() && target < lines_.size()) {
+                std::swap(lines_[change.row], lines_[target]);
+            }
+            if (out_row)
+                *out_row = target;
+            if (out_col)
+                *out_col = 0;
+            break;
+        }
+
+        case DocumentChange::Type::COMMENT_TOGGLE: {
+            std::istringstream new_stream(change.new_content);
+            std::string new_line;
+            size_t r = change.row;
+            while (std::getline(new_stream, new_line) && r < lines_.size()) {
+                if (!new_line.empty() && new_line.back() == '\r')
+                    new_line.pop_back();
+                lines_[r] = new_line;
+                r++;
+            }
+            if (out_row)
+                *out_row = change.row;
+            if (out_col)
+                *out_col = 0;
+            break;
+        }
     }
 
     undo_stack_.push_back(change);
@@ -1187,9 +1261,12 @@ void Document::pushChange(const DocumentChange& change) {
             // 合并 INSERT 操作：连续输入字符
             if (change.type == DocumentChange::Type::INSERT &&
                 last_change.type == DocumentChange::Type::INSERT) {
+                // 整行插入（如 duplicateLine）不参与合并，保持独立撤销点
+                if (last_change.old_content.empty() && last_change.col == 0) {
+                    // 不合并，继续到下面的 push_back
+                }
                 // 严格检查：新插入位置必须正好在上次插入结束位置
-                size_t last_insert_end = last_change.col + last_change.new_content.length();
-                if (change.col == last_insert_end) {
+                else if (change.col == last_change.col + last_change.new_content.length()) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     return; // 合并完成，不创建新撤销点
