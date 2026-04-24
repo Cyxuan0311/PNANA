@@ -65,7 +65,6 @@ elseif(UNIX)
         set(ARCH_NAME "riscv64")
         
         # RISC-V 额外禁用 RPM 检查
-        set(CPACK_RPM_SPEC_MORE_DEFINE "%define __strip %{nil}")
         set(CPACK_RPM_PACKAGE_AUTOREQ OFF)
         
         message(STATUS "Packaging for RISC-V 64 architecture")
@@ -100,12 +99,12 @@ elseif(UNIX)
     set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.27, libstdc++ >= 7.3.0, ncurses >= 6.1")
     
     # ==============================================
-    # 🔥 强制禁用 RPM 自动 strip（解决交叉编译架构不识别）
+    # 🔥 强制禁用系统 brp-strip / brp-compress 等自动化处理（解决交叉编译报错）
     # ==============================================
-    set(CPACK_RPM_SPEC_MORE_DEFINE "%define __strip %{nil}")
+    set(CPACK_RPM_SPEC_MORE_DEFINE "%define __brp_strip %{nil}\n%define __brp_strip_comment %{nil}\n%define __brp_strip_static_archive %{nil}\n%define __brp_compress %{nil}\n%define __brp_elfperms %{nil}\n%define __strip %{nil}")
     set(CPACK_RPM_BUILD_SOURCE_PACKAGES OFF)
     set(CPACK_RPM_PACKAGE_DEBUG OFF)
-    message(STATUS "RPM: Automatic strip disabled for cross-arch compatibility")
+    message(STATUS "✅ RPM: 已完全禁用系统 strip 自动化脚本")
 
     # Arch Linux 包配置 (通过 TXZ)
     set(CPACK_ARCHIVE_TXZ_COMPRESSION "XZ")

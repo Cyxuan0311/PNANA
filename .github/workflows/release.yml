@@ -406,7 +406,8 @@ jobs:
           cpack -G RPM \
             -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_rpm }}" \
             -DCPACK_RPM_PACKAGE_ARCHITECTURE=${{ matrix.arch_name == 'armhf' && 'armv7hl' || matrix.arch_name }} \
-            -DCPACK_RPM_SPEC_MORE_DEFINE="%define __strip %{nil}"
+            -DCPACK_RPM_SPEC_MORE_DEFINE="%define __brp_strip %{nil}" \
+            -DCPACK_RPM_SPEC_MORE_DEFINE+="%define __brp_compress %{nil}"
           echo "Generated RPM package:"
           ls -la packages/*.rpm || ls -la *.rpm 2>/dev/null || echo "No RPM package found"
 
