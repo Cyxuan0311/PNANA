@@ -353,7 +353,6 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-${{ matrix.arch }}.cmake \
               -DCMAKE_SYSTEM_NAME=Linux \
               -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} \
-              -DCMAKE_CROSSCOMPILING=ON \
               -DBUILD_IMAGE_PREVIEW=OFF \
               -DBUILD_TREE_SITTER=OFF \
               -DBUILD_LUA=OFF \
