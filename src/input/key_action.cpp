@@ -137,6 +137,8 @@ static void initializeActionInfos() {
                                std::vector<std::string>{"alt_shift_tab", "ctrl_pageup"});
     action_infos_.emplace_back(KeyAction::FOCUS_TAB_BAR, ActionGroup::TAB_OPS, "focus_tab_bar",
                                "Focus tab bar", std::vector<std::string>{"alt_t"});
+    action_infos_.emplace_back(KeyAction::TOGGLE_TAB_PIN, ActionGroup::TAB_OPS, "toggle_tab_pin",
+                               "Toggle tab pin", std::vector<std::string>{"ctrl_k"});
 }
 
 std::vector<ActionInfo> getAllActionInfos() {

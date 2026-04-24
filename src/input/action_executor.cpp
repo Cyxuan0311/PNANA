@@ -85,6 +85,7 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::NEXT_TAB:
         case KeyAction::PREV_TAB:
         case KeyAction::FOCUS_TAB_BAR:
+        case KeyAction::TOGGLE_TAB_PIN:
             return executeTabOperation(action);
 
         case KeyAction::FOCUS_LEFT_REGION:
@@ -339,6 +340,9 @@ bool ActionExecutor::executeTabOperation(KeyAction action) {
             return true;
         case KeyAction::FOCUS_TAB_BAR:
             editor_->focusTabBar();
+            return true;
+        case KeyAction::TOGGLE_TAB_PIN:
+            editor_->toggleTabPin();
             return true;
         default:
             return false;

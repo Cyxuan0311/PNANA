@@ -110,6 +110,7 @@ void KeyBindingManager::initializeTabOperationBindings() {
     bindKey("alt_shift_tab", KeyAction::PREV_TAB);
     bindKeyAliases({"ctrl_pageup"}, KeyAction::PREV_TAB);
     bindKey("alt_t", KeyAction::FOCUS_TAB_BAR);
+    bindKey("ctrl_k", KeyAction::TOGGLE_TAB_PIN);
 }
 
 KeyAction KeyBindingManager::getAction(const ftxui::Event& event) const {
