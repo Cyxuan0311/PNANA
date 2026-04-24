@@ -419,25 +419,14 @@ jobs:
           echo "Generated TAR.GZ package:"
           ls -la packages/*.tar.gz || ls -la *.tar.gz 2>/dev/null || echo "No TAR.GZ package found"
 
-      - name: Upload DEB package
+      - name: Upload all packages
         uses: actions/upload-artifact@v4
         with:
-          name: deb-${{ matrix.arch_name }}
-          path: build/packages/${{ matrix.package_deb }}
-          retention-days: 30
-
-      - name: Upload RPM package
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpm-${{ matrix.arch_name }}
-          path: build/packages/${{ matrix.package_rpm }}
-          retention-days: 30
-
-      - name: Upload TAR.GZ package
-        uses: actions/upload-artifact@v4
-        with:
-          name: tar-${{ matrix.arch_name }}
-          path: build/packages/${{ matrix.package_tar }}
+          name: packages-${{ matrix.arch_name }}
+          path: |
+            build/packages/*.deb
+            build/packages/*.rpm
+            build/packages/*.tar.gz
           retention-days: 30
 
   create-release:
