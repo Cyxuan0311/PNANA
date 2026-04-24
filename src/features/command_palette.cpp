@@ -8,8 +8,8 @@ namespace pnana {
 namespace features {
 
 CommandPalette::CommandPalette(pnana::ui::Theme& theme)
-    : is_open_(false), input_(""), selected_index_(0), scroll_offset_(0),
-      ui_(std::make_unique<pnana::ui::CommandPaletteUI>(theme)) {}
+    : is_open_(false), input_(""), base_input_(""), tab_active_(false), selected_index_(0),
+      scroll_offset_(0), ui_(std::make_unique<pnana::ui::CommandPaletteUI>(theme)) {}
 
 void CommandPalette::registerCommand(const Command& command) {
     // 检查是否已存在相同 id 的命令
@@ -69,9 +69,11 @@ void CommandPalette::close() {
 
 void CommandPalette::handleInput(const std::string& input) {
     input_ = input;
+    base_input_ = input;
+    tab_active_ = false;
     filterCommands();
-    selected_index_ = 0; // 重置选中索引
-    scroll_offset_ = 0;  // 重置滚动偏移
+    selected_index_ = 0;
+    scroll_offset_ = 0;
 }
 
 bool CommandPalette::handleKeyEvent(const std::string& key) {
@@ -90,6 +92,9 @@ bool CommandPalette::handleKeyEvent(const std::string& key) {
         return true;
     } else if (key == "ArrowUp") {
         selectPrevious();
+        return true;
+    } else if (key == "Tab") {
+        tabComplete();
         return true;
     }
 
@@ -179,6 +184,23 @@ void CommandPalette::selectPrevious() {
         }
         updateScrollOffset();
     }
+}
+
+void CommandPalette::tabComplete() {
+    if (filtered_commands_.empty()) {
+        return;
+    }
+
+    if (!tab_active_) {
+        base_input_ = input_;
+        tab_active_ = true;
+    }
+
+    selectNext();
+
+    const auto& cmd = filtered_commands_[selected_index_];
+    input_ = cmd.name;
+    updateScrollOffset();
 }
 
 void CommandPalette::updateScrollOffset() {

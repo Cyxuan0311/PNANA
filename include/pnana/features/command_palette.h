@@ -83,6 +83,8 @@ class CommandPalette {
   private:
     bool is_open_;
     std::string input_;
+    std::string base_input_; // Tab 补全时的原始输入
+    bool tab_active_;        // Tab 补全是否已激活
     std::vector<Command> commands_;
     std::vector<Command> filtered_commands_;
     size_t selected_index_;
@@ -102,6 +104,9 @@ class CommandPalette {
 
     // 移动到上一个命令
     void selectPrevious();
+
+    // Tab 补全
+    void tabComplete();
 
     // 更新滚动偏移以确保选中的命令可见
     void updateScrollOffset();
