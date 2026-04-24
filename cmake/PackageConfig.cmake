@@ -93,6 +93,13 @@ elseif(UNIX)
     set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
     # 设置依赖
     set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.27, libstdc++ >= 7.3.0, ncurses >= 6.1")
+    
+    # 交叉编译时禁用自动 strip，因为宿主机的 strip 无法识别目标架构的二进制文件
+    if(CMAKE_CROSSCOMPILING)
+        set(CPACK_RPM_SPEC_MORE_DEFINE "%define __strip %{nil}")
+        set(CPACK_RPM_PACKAGE_DEBUG FALSE)
+        message(STATUS "Cross-compiling: RPM strip disabled")
+    endif()
 
     # Arch Linux 包配置 (通过 TXZ)
     set(CPACK_ARCHIVE_TXZ_COMPRESSION "XZ")
