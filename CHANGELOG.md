@@ -15,7 +15,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optimized release process to support multiple package formats
 - Added code quality checks and security scanning
 
-## [0.0.5 patch] - 2026-03-11 
+
+## [0.0.6] - 2026-04-24
+
+
+### Added
+
+- Add a logo configuration option in the welcome page
+- Add libvterm support for terminal emulation, users to use libvterm to emulate the terminal effect in the code area
+- Add Chafa support for image compression, users to compress images in the code area using Chafa compression algorithm,if chafa not install ,the image will use local compression algorithm
+- Some operation when user using will operate a toast to notify the user
+- Add a CPP(Libssh2) backend for users to use SSH to connect to remote servers.Now user can choose GO or CPP backend to connect to remote servers.(Attention:GO transfer speed faster than CPP transfer speed)
+- Add a history panel in command palette ,user can rollback the file content to previous previous versions
+- Add a auto indent feature,users can automatically indent the code in the code area by pressing the "Tab" key or when enter to other line [SMART_INDENT](docs/SMART_INDENT.md)
+- CMake build add multi architecture support,users can build the project for different architectures such as x86_64,arm64...
+
+### Improved
+
+- Optimize the fzf panel refresh speed, reducing the time required to refresh the file list
+- Optimize the remote connection feature, users can preview remote images in the code area after connecting
+- Optimize the remote transfer speed, users can upload and download files faster than before
+- Optimize the program startup speed, reducing the time required to start the program
+- Optimize the plugin api, improving the plugin development experience(Still in development)
+
+
+### Fixed
+
+- Fix the compile error on OpenBSD platform
+
+For detailed getting started documentation, refer to [QUICKSTART](QUICKSTART.md)
+
+
+## [0.0.6 patch] - 2026-03-11 
 
 - Fix the version display issue on the welcome page
 - Fix the segmentation fault caused by race conditions in multi-threaded resource acquisition when switching documents

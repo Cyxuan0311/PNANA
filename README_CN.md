@@ -4,7 +4,7 @@
 
 #  pnana - 现代化终端文本编辑器
 
-![pnana](https://img.shields.io/badge/pnana-v0.0.5-brightgreen)
+![pnana](https://img.shields.io/badge/pnana-v0.0.6-brightgreen)
 ![C++](https://img.shields.io/badge/C++-17-blue)
 ![FTXUI](https://img.shields.io/badge/FTXUI-Terminal%20UI-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
