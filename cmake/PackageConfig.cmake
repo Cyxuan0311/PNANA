@@ -63,6 +63,11 @@ elseif(UNIX)
         set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "riscv64")
         set(CPACK_RPM_PACKAGE_ARCHITECTURE "riscv64")
         set(ARCH_NAME "riscv64")
+        
+        # RISC-V 额外禁用 RPM 检查
+        set(CPACK_RPM_SPEC_MORE_DEFINE "%define __strip %{nil}")
+        set(CPACK_RPM_PACKAGE_AUTOREQ OFF)
+        
         message(STATUS "Packaging for RISC-V 64 architecture")
     else()
         set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
@@ -94,12 +99,13 @@ elseif(UNIX)
     # 设置依赖
     set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.27, libstdc++ >= 7.3.0, ncurses >= 6.1")
     
-    # 交叉编译时禁用自动 strip，因为宿主机的 strip 无法识别目标架构的二进制文件
-    if(CMAKE_CROSSCOMPILING)
-        set(CPACK_RPM_SPEC_MORE_DEFINE "%define __strip %{nil}")
-        set(CPACK_RPM_PACKAGE_DEBUG FALSE)
-        message(STATUS "Cross-compiling: RPM strip disabled")
-    endif()
+    # ==============================================
+    # 🔥 强制禁用 RPM 自动 strip（解决交叉编译架构不识别）
+    # ==============================================
+    set(CPACK_RPM_SPEC_MORE_DEFINE "%define __strip %{nil}")
+    set(CPACK_RPM_BUILD_SOURCE_PACKAGES OFF)
+    set(CPACK_RPM_PACKAGE_DEBUG OFF)
+    message(STATUS "RPM: Automatic strip disabled for cross-arch compatibility")
 
     # Arch Linux 包配置 (通过 TXZ)
     set(CPACK_ARCHIVE_TXZ_COMPRESSION "XZ")
