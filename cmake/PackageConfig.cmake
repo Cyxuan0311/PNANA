@@ -104,7 +104,7 @@ elseif(UNIX)
     set(CPACK_RPM_SPEC_MORE_DEFINE "%define __brp_strip %{nil}\n%define __brp_strip_comment %{nil}\n%define __brp_strip_static_archive %{nil}\n%define __brp_compress %{nil}\n%define __brp_elfperms %{nil}\n%define __strip %{nil}")
     set(CPACK_RPM_BUILD_SOURCE_PACKAGES OFF)
     set(CPACK_RPM_PACKAGE_DEBUG OFF)
-    message(STATUS "✅ RPM: 已完全禁用系统 strip 自动化脚本")
+    # message(STATUS "✅ RPM: 已完全禁用系统 strip 自动化脚本")
 
     # Arch Linux 包配置 (通过 TXZ)
     set(CPACK_ARCHIVE_TXZ_COMPRESSION "XZ")
