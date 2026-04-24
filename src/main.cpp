@@ -67,7 +67,7 @@ void printVersion(const std::string& config_path = "") {
     std::cout << std::endl;
     std::cout << std::endl;
     std::cout << GREEN << BOLD << "  Modern Terminal Text Editor" << RESET << std::endl;
-    std::cout << RED << BOLD << "  Version: " << RESET << " 0.0.5 " << std::endl;
+    std::cout << RED << BOLD << "  Version: " << RESET << " 0.0.6 " << std::endl;
     std::cout << BLUE << "  Website: https://github.com/Cyxuan0311/PNANA.git" << RESET << std::endl;
 }
 

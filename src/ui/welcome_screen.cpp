@@ -124,7 +124,7 @@ Element WelcomeScreen::render() {
                                   bold | center);
         welcome_content.push_back(
             hbox({text("Version") | color(colors.comment) | dim, text("  "),
-                  text("0.0.5") | bgcolor(colors.success) | color(colors.background) | bold}) |
+                  text("0.0.6") | bgcolor(colors.success) | color(colors.background) | bold}) |
             center);
     }
 
