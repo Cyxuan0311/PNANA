@@ -398,7 +398,7 @@ jobs:
             -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_deb }}" \
             -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=${{ matrix.arch_name }}
           echo "Generated DEB package:"
-          ls -la *.deb
+          ls -la packages/*.deb || ls -la *.deb 2>/dev/null || echo "No DEB package found"
 
       - name: Create RPM package
         run: |
@@ -407,7 +407,7 @@ jobs:
             -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_rpm }}" \
             -DCPACK_RPM_PACKAGE_ARCHITECTURE=${{ matrix.arch_name == 'armhf' && 'armv7hl' || matrix.arch_name }}
           echo "Generated RPM package:"
-          ls -la *.rpm
+          ls -la packages/*.rpm || ls -la *.rpm 2>/dev/null || echo "No RPM package found"
 
       - name: Create TAR.GZ package
         run: |
@@ -415,27 +415,27 @@ jobs:
           cpack -G TGZ \
             -DCPACK_PACKAGE_FILE_NAME="${{ matrix.package_tar }}"
           echo "Generated TAR.GZ package:"
-          ls -la *.tar.gz
+          ls -la packages/*.tar.gz || ls -la *.tar.gz 2>/dev/null || echo "No TAR.GZ package found"
 
       - name: Upload DEB package
         uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.arch_name }}
-          path: build/${{ matrix.package_deb }}
+          path: build/packages/${{ matrix.package_deb }}
           retention-days: 30
 
       - name: Upload RPM package
         uses: actions/upload-artifact@v4
         with:
           name: rpm-${{ matrix.arch_name }}
-          path: build/${{ matrix.package_rpm }}
+          path: build/packages/${{ matrix.package_rpm }}
           retention-days: 30
 
       - name: Upload TAR.GZ package
         uses: actions/upload-artifact@v4
         with:
           name: tar-${{ matrix.arch_name }}
-          path: build/${{ matrix.package_tar }}
+          path: build/packages/${{ matrix.package_tar }}
           retention-days: 30
 
   create-release:
