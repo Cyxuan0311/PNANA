@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix the compile error on OpenBSD platform
-- Fix release package issue,users can download the release package from the release page
+- Fix release package issue
 
 For detailed getting started documentation, refer to [QUICKSTART](QUICKSTART.md)
 
