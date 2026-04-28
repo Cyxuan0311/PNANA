@@ -43,6 +43,16 @@ inline bool isAsciiAlpha(unsigned char c) {
     size_t len = getUtf8CharLength(c);
     return std::min(pos + len, str.length());
 }
+
+// 创建UTF-8字符token（处理多字节字符）
+inline std::string getUtf8Char(const std::string& str, size_t pos) {
+    if (pos >= str.length())
+        return "";
+    unsigned char c = static_cast<unsigned char>(str[pos]);
+    size_t len = getUtf8CharLength(c);
+    len = std::min(len, str.length() - pos);
+    return str.substr(pos, len);
+}
 } // namespace
 
 namespace pnana {
@@ -1915,14 +1925,27 @@ std::vector<Token> SyntaxHighlighter::tokenizeCpp(const std::string& line) {
 
         // 单字符操作符
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（需要正确处理 UTF-8 多字节字符）
+        unsigned char ch = static_cast<unsigned char>(line[i]);
+        size_t char_len = 1;
+        if ((ch & 0xE0) == 0xC0) {
+            char_len = 2; // 2 字节 UTF-8
+        } else if ((ch & 0xF0) == 0xE0) {
+            char_len = 3; // 3 字节 UTF-8（中文）
+        } else if ((ch & 0xF8) == 0xF0) {
+            char_len = 4; // 4 字节 UTF-8
+        }
+        // 确保不越界
+        char_len = std::min(char_len, line.length() - i);
+        tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+        i += char_len;
     }
 
     return tokens;
@@ -2071,13 +2094,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeProto(const std::string& line) {
 
         // 单字符操作符
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -2300,14 +2329,21 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
 
         // 单字符操作符
         if (isOperator(L[i])) {
-            tokens.push_back({std::string(1, L[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(L[i]));
+            char_len = std::min(char_len, L.length() - i);
+            tokens.push_back({L.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, L[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（需要正确处理 UTF-8 多字节字符）
+        {
+            unsigned char ch = static_cast<unsigned char>(L[i]);
+            size_t char_len = getUtf8CharLength(ch);
+            char_len = std::min(char_len, L.length() - i);
+            tokens.push_back({L.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -2475,14 +2511,20 @@ std::vector<Token> SyntaxHighlighter::tokenizeJavaScript(const std::string& line
 
         // 单字符操作符
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -2537,9 +2579,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeJSON(const std::string& line) {
             continue;
         }
 
-        // 其他（括号、逗号等）
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他（括号、逗号等）（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -2663,8 +2709,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeMarkdown(const std::string& line) 
                 continue;
             } else {
                 // 没有匹配的]，作为普通字符处理
-                tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-                i++;
+                {
+                    size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+                    char_len = std::min(char_len, line.length() - i);
+                    tokens.push_back(
+                        {line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+                    i += char_len;
+                }
                 continue;
             }
         }
@@ -2690,8 +2741,12 @@ std::vector<Token> SyntaxHighlighter::tokenizeMarkdown(const std::string& line) 
 
         // 防止无限循环：如果i没有增加，强制增加1
         if (i == old_i) {
-            tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-            i++;
+            {
+                size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+                char_len = std::min(char_len, line.length() - i);
+                tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+                i += char_len;
+            }
         }
     }
 
@@ -2775,9 +2830,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeShell(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -2906,14 +2965,20 @@ std::vector<Token> SyntaxHighlighter::tokenizeLua(const std::string& line) {
 
         // 单字符操作符
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3271,13 +3336,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeCMake(const std::string& line) {
         }
 
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3383,13 +3454,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeTCL(const std::string& line) {
         }
 
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3482,13 +3559,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeFortran(const std::string& line) {
         }
 
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3602,13 +3685,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeHaskell(const std::string& line) {
         }
 
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3682,9 +3771,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeYAML(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3799,9 +3892,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeXML(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3886,9 +3983,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeCSS(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -3973,9 +4074,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeSQL(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4072,13 +4177,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeRuby(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4208,13 +4319,19 @@ std::vector<Token> SyntaxHighlighter::tokenizePHP(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4303,13 +4420,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeSwift(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4410,13 +4533,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeKotlin(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4505,13 +4634,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeScala(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4587,13 +4722,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeR(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4677,13 +4818,19 @@ std::vector<Token> SyntaxHighlighter::tokenizePerl(const std::string& line) {
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4743,9 +4890,14 @@ std::vector<Token> SyntaxHighlighter::tokenizeDockerfile(const std::string& line
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（需要正确处理 UTF-8 多字节字符）
+        {
+            unsigned char ch = static_cast<unsigned char>(line[i]);
+            size_t char_len = getUtf8CharLength(ch);
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -4949,9 +5101,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeMakefile(const std::string& line) 
             continue;
         }
 
-        // 其他字符作为运算符
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他字符作为运算符（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -5033,9 +5189,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeVim(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -5134,13 +5294,19 @@ std::vector<Token> SyntaxHighlighter::tokenizePowerShell(const std::string& line
 
         // 其他
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -5227,13 +5393,19 @@ std::vector<Token> SyntaxHighlighter::tokenizeGeneric(const std::string& line) {
 
         // 运算符
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -5382,9 +5554,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeSML(const std::string& line) {
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -5566,8 +5742,12 @@ std::vector<Token> SyntaxHighlighter::tokenizeVue(const std::string& line) {
         }
 
         // 其他字符
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -5967,14 +6147,20 @@ std::vector<Token> SyntaxHighlighter::tokenizeCSharp(const std::string& line) {
 
         // 单字符操作符
         if (isOperator(line[i])) {
-            tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-            i++;
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
             continue;
         }
 
-        // 其他
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        // 其他（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -6174,9 +6360,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeAssembly(const std::string& line) 
             continue;
         }
 
-        // 其他字符作为运算符
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他字符作为运算符（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -6567,9 +6757,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeLLVMIR(const std::string& line) {
             continue;
         }
 
-        // 其他字符作为运算符
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他字符作为运算符（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -6991,9 +7185,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeCommonLisp(const std::string& line
             continue;
         }
 
-        // 其他字符
-        tokens.push_back({std::string(1, line[i]), TokenType::OPERATOR, i, i + 1});
-        i++;
+        // 其他字符（UTF-8）
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::OPERATOR, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -7179,8 +7377,12 @@ std::vector<Token> SyntaxHighlighter::tokenizeMeson(const std::string& line) {
         }
 
         // 其他字符
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -7290,8 +7492,12 @@ std::vector<Token> SyntaxHighlighter::tokenizeTOML(const std::string& line) {
         }
 
         // 其他字符
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;
@@ -7398,8 +7604,12 @@ std::vector<Token> SyntaxHighlighter::tokenizeHTML(const std::string& line) {
         }
 
         // 其他字符
-        tokens.push_back({std::string(1, line[i]), TokenType::NORMAL, i, i + 1});
-        i++;
+        {
+            size_t char_len = getUtf8CharLength(static_cast<unsigned char>(line[i]));
+            char_len = std::min(char_len, line.length() - i);
+            tokens.push_back({line.substr(i, char_len), TokenType::NORMAL, i, i + char_len});
+            i += char_len;
+        }
     }
 
     return tokens;

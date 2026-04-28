@@ -802,7 +802,7 @@ Element GitPanel::renderCommitPanel() {
             text(pnana::ui::icons::FILE_EDIT) | color(colors.keyword),
             text(" Message") | color(colors.foreground) | bold,
             filler(),
-            text("Ctrl+Enter: newline") | color(colors.comment) | dim,
+            text("Ctrl+J: newline") | color(colors.comment) | dim,
             text("  Enter: commit") | color(colors.comment) | dim,
         });
         return vbox({title, separator(), editor_body}) | border | flex;
@@ -1817,6 +1817,8 @@ Element GitPanel::renderFooter() {
         case GitPanelMode::COMMIT: {
             Elements commit_help = {text("Commit: Enter") | color(colors.success) | bold,
                                     text(" | ") | color(colors.comment),
+                                    text("Newline: Ctrl+J") | color(colors.comment),
+                                    text(" | ") | color(colors.comment),
                                     text("Switch mode: Tab") | color(colors.comment),
                                     text(" | ") | color(colors.comment),
                                     text("Back: ESC") | color(colors.comment)};
@@ -2225,20 +2227,8 @@ bool GitPanel::handleCommitModeKey(Event event) {
         return true;
     }
 
-    auto is_ctrl_modified_return = [&]() -> bool {
-        if (!(event == Event::Return || event == Event::CtrlM)) {
-            return false;
-        }
-        std::string in = event.input();
-        std::transform(in.begin(), in.end(), in.begin(), [](unsigned char c) {
-            return std::tolower(c);
-        });
-        return in.find("ctrl") != std::string::npos;
-    };
-
-    // Ctrl+Enter: insert newline inside commit message (multi-line commit).
-    // Fall back: Ctrl+J is commonly delivered as newline on terminals.
-    if (is_ctrl_modified_return() || event == Event::CtrlJ) {
+    // Ctrl+J: insert newline inside commit message (multi-line commit).
+    if (event == Event::CtrlJ) {
         if (commit_cursor_position_ > commit_message_.length()) {
             commit_cursor_position_ = commit_message_.length();
         }
