@@ -167,9 +167,19 @@ make -j$(nproc)
 ```
 
 ### 终端模拟 (libvterm) / Terminal Emulation (libvterm)
+> **注意**：目前仅 bzr726 版本经过完整验证，其他版本可能存在兼容性问题，强烈建议安装此版本。
+> **Note**: Only bzr726 version has been fully verified. Other versions may have compatibility issues. It is strongly recommended to install this version.
 ```bash
-# 安装依赖 / Install dependencies
-sudo apt install -y libvterm-dev
+# 下载并安装 libvterm (bzr726 版本) / Download and install libvterm (bzr726 version)
+cd ~
+rm -rf ~/libvterm_bzr726    # 删掉旧的残留目录
+bzr branch -r 726 https://code.launchpad.net/~libvterm/libvterm/trunk libvterm_bzr726
+cd libvterm_bzr726
+
+# 编译安装 / Compile and install
+make
+sudo make install
+sudo ldconfig
 
 # 编译时启用 / Enable during compilation
 cmake -DBUILD_LIBVTERM=ON ..
