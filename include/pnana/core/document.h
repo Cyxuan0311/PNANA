@@ -7,6 +7,8 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
+#include <list>
 #include <memory>
 #include <set>
 #include <string>
@@ -15,6 +17,9 @@
 
 namespace pnana {
 namespace core {
+
+// 行尾类型（提前定义，供 DocumentChange 使用）
+enum class LineEnding { LF, CRLF, CR };
 
 // 文档修改记录（用于撤销/重做）
 struct DocumentChange {
@@ -31,30 +36,47 @@ struct DocumentChange {
     std::string after_cursor;
     std::chrono::steady_clock::time_point timestamp;
     size_t target_row;
+    std::vector<std::string> restored_lines;
+    LineEnding line_ending;
+    size_t content_size;
 
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(""),
-          timestamp(std::chrono::steady_clock::now()), target_row(0) {}
+          timestamp(std::chrono::steady_clock::now()), target_row(0), line_ending(LineEnding::LF),
+          content_size(0) {
+        content_size = old_content.size() + new_content.size();
+    }
 
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c,
                    const std::string& after)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(after),
-          timestamp(std::chrono::steady_clock::now()), target_row(0) {}
+          timestamp(std::chrono::steady_clock::now()), target_row(0), line_ending(LineEnding::LF),
+          content_size(0) {
+        content_size = old_content.size() + new_content.size();
+    }
 
     DocumentChange(Type t, size_t r, size_t c, const std::string& replaced_text,
                    const std::string& completion_text, bool /*is_completion*/)
         : type(t), row(r), col(c), old_content(replaced_text), new_content(completion_text),
-          after_cursor(""), timestamp(std::chrono::steady_clock::now()), target_row(0) {}
+          after_cursor(""), timestamp(std::chrono::steady_clock::now()), target_row(0),
+          line_ending(LineEnding::LF), content_size(0) {
+        content_size = old_content.size() + new_content.size();
+    }
 
     DocumentChange(Type t, size_t r, size_t c, const std::string& old_c, const std::string& new_c,
                    const std::chrono::steady_clock::time_point& ts)
         : type(t), row(r), col(c), old_content(old_c), new_content(new_c), after_cursor(""),
-          timestamp(ts), target_row(0) {}
+          timestamp(ts), target_row(0), line_ending(LineEnding::LF), content_size(0) {
+        content_size = old_content.size() + new_content.size();
+    }
 
     DocumentChange(Type t, size_t r, size_t target_r, const std::string& old_c,
                    const std::string& new_c, MoveTag)
         : type(t), row(r), col(0), old_content(old_c), new_content(new_c), after_cursor(""),
-          timestamp(std::chrono::steady_clock::now()), target_row(target_r) {}
+          timestamp(std::chrono::steady_clock::now()), target_row(target_r),
+          line_ending(LineEnding::LF), content_size(0) {
+        content_size = old_content.size() + new_content.size();
+    }
 };
 
 // 文档类 - 管理单个文件的内容
@@ -101,6 +123,7 @@ class Document {
               DocumentChange::Type* out_type = nullptr);
     bool redo(size_t* out_row = nullptr, size_t* out_col = nullptr);
     void pushChange(const DocumentChange& change);
+    void pushChangeInternal(const DocumentChange& change);
     void clearHistory();
 
     // 选择和剪贴板
@@ -141,7 +164,6 @@ class Document {
     }
 
     // 行尾类型
-    enum class LineEnding { LF, CRLF, CR };
     LineEnding getLineEnding() const {
         return line_ending_;
     }
@@ -201,6 +223,11 @@ class Document {
     std::deque<DocumentChange> undo_stack_;
     std::deque<DocumentChange> redo_stack_;
     static constexpr size_t MAX_UNDO_STACK = 1000;
+    static constexpr size_t MAX_UNDO_MEMORY_BYTES = 50 * 1024 * 1024; // 50MB
+    static constexpr size_t MAX_CHANGE_CONTENT_SIZE = 1024 * 1024;    // 1MB per change
+    size_t current_undo_memory_ = 0;
+
+    void trimUndoStack();
 
     // 剪贴板
     std::string clipboard_;
@@ -214,12 +241,16 @@ class Document {
     // 大文件不保存 original 快照，仅用 modified_ 判断是否修改（节省 saveOriginalContent
     // 耗时与内存）
     bool large_file_skip_original_ = false;
+    uint64_t original_file_hash_ = 0;
+    std::filesystem::file_time_type original_file_mtime_;
 
     // 懒加载大文件：只建行偏移表，按需读行；首次编辑或 getLines() 时 materialize
     bool lazy_loaded_ = false;
+    bool can_undo_ = true;
     std::vector<uint64_t> line_offsets_; // line_offsets_[i] = 第 i 行起始字节偏移，size = 行数+1
     mutable std::unordered_map<size_t, std::string> line_cache_;
-    mutable std::deque<size_t> line_cache_lru_;
+    mutable std::list<size_t> line_cache_lru_;
+    mutable std::unordered_map<size_t, std::list<size_t>::iterator> line_cache_lru_index_;
     static constexpr size_t LINE_CACHE_MAX = 4096;
     void materialize(); // 将懒加载文档全部读入 lines_，并关闭懒加载
     std::string loadLineFromFile(size_t row) const;
@@ -235,6 +266,8 @@ class Document {
     std::string applyLineEnding(const std::string& line) const;
     void saveOriginalContent();           // 保存当前内容作为原始内容
     bool isContentSameAsOriginal() const; // 检查当前内容是否与原始内容相同
+    uint64_t computeFileHash(const std::string& filepath) const;
+    void syncToBufferBackend();
 };
 
 } // namespace core

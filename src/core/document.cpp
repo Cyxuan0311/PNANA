@@ -368,6 +368,7 @@ bool Document::load(const std::string& filepath) {
     if (lines_.empty()) {
         lines_.push_back("");
     }
+
     const size_t large_file_line_threshold = 500000;
     if (lines_.size() > large_file_line_threshold) {
         large_file_skip_original_ = true;
@@ -377,6 +378,10 @@ bool Document::load(const std::string& filepath) {
         large_file_skip_original_ = false;
         saveOriginalContent();
     }
+
+    // 关键修复：加载文件时清空撤销历史
+    // 防止撤销栈中包含之前编辑会话的旧操作
+    clearHistory();
 
     // 将加载的内容同步到缓冲区后端
     if (buffer_backend_) {
@@ -489,6 +494,13 @@ bool Document::saveAs(const std::string& filepath) {
     modified_ = false;
     if (!large_file_skip_original_) {
         saveOriginalContent();
+    } else {
+        original_file_hash_ = computeFileHash(filepath_);
+        try {
+            original_file_mtime_ = std::filesystem::last_write_time(filepath_);
+        } catch (...) {
+            original_file_mtime_ = std::filesystem::file_time_type::min();
+        }
     }
     clearHistory(); // 清除撤销历史，因为已经保存了
     last_error_.clear();
@@ -519,13 +531,13 @@ const std::string& Document::getLine(size_t row) const {
         }
         auto it = line_cache_.find(row);
         if (it != line_cache_.end()) {
-            for (auto itlru = line_cache_lru_.begin(); itlru != line_cache_lru_.end(); ++itlru) {
-                if (*itlru == row) {
-                    line_cache_lru_.erase(itlru);
-                    break;
-                }
+            auto it_idx = line_cache_lru_index_.find(row);
+            if (it_idx != line_cache_lru_index_.end()) {
+                line_cache_lru_.erase(it_idx->second);
+                line_cache_lru_index_.erase(it_idx);
             }
             line_cache_lru_.push_front(row);
+            line_cache_lru_index_[row] = line_cache_lru_.begin();
             return it->second;
         }
         std::string line = loadLineFromFile(row);
@@ -533,8 +545,10 @@ const std::string& Document::getLine(size_t row) const {
             size_t evict = line_cache_lru_.back();
             line_cache_lru_.pop_back();
             line_cache_.erase(evict);
+            line_cache_lru_index_.erase(evict);
         }
         line_cache_lru_.push_front(row);
+        line_cache_lru_index_[row] = line_cache_lru_.begin();
         line_cache_[row] = std::move(line);
         return line_cache_[row];
     }
@@ -600,6 +614,7 @@ void Document::materialize() {
             line_offsets_.clear();
             line_cache_.clear();
             line_cache_lru_.clear();
+            line_cache_lru_index_.clear();
         }
         return;
     }
@@ -609,6 +624,7 @@ void Document::materialize() {
         line_offsets_.clear();
         line_cache_.clear();
         line_cache_lru_.clear();
+        line_cache_lru_index_.clear();
         lines_.clear();
         lines_.push_back("");
         return;
@@ -640,7 +656,10 @@ void Document::materialize() {
     line_offsets_.shrink_to_fit();
     line_cache_.clear();
     line_cache_lru_.clear();
+    line_cache_lru_index_.clear();
     lazy_loaded_ = false;
+    can_undo_ = true;
+    clearHistory();
 }
 
 std::string Document::loadLineFromFile(size_t row) const {
@@ -779,6 +798,12 @@ void Document::deleteRange(size_t start_row, size_t start_col, size_t end_row, s
         return;
     }
 
+    size_t lines_before = lines_.size();
+    LOG_DEBUG("[DELETE_RANGE] start_row=" + std::to_string(start_row) +
+              " start_col=" + std::to_string(start_col) + " end_row=" + std::to_string(end_row) +
+              " end_col=" + std::to_string(end_col) +
+              " lines_before=" + std::to_string(lines_before));
+
     // Clamp columns
     std::string old_content;
 
@@ -817,7 +842,28 @@ void Document::deleteRange(size_t start_row, size_t start_col, size_t end_row, s
     lines_.erase(lines_.begin() + start_row, lines_.begin() + end_row + 1);
     lines_.insert(lines_.begin() + start_row, new_first);
 
-    pushChange(DocumentChange(DocumentChange::Type::DELETE, start_row, sc, old_content, ""));
+    DocumentChange change(DocumentChange::Type::DELETE, start_row, sc, old_content, "");
+    change.restored_lines.clear();
+
+    std::istringstream iss(old_content);
+    std::string line;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        change.restored_lines.push_back(line);
+    }
+    if (!old_content.empty() && (old_content.back() == '\n' || old_content.back() == '\r')) {
+        change.restored_lines.push_back("");
+    }
+
+    size_t lines_after = lines_.size();
+    LOG_DEBUG("[DELETE_RANGE] END: lines_after=" + std::to_string(lines_after) +
+              " lines_removed=" + std::to_string(lines_before - lines_after) +
+              " restored_lines_count=" + std::to_string(change.restored_lines.size()) +
+              " old_content_len=" + std::to_string(old_content.length()));
+
+    pushChange(change);
 }
 
 void Document::replaceLine(size_t row, const std::string& content) {
@@ -839,6 +885,9 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         return false;
     }
 
+    size_t lines_before = lines_.size();
+    size_t undo_stack_size_before = undo_stack_.size();
+
     DocumentChange change = undo_stack_.back();
     undo_stack_.pop_back();
 
@@ -852,31 +901,44 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 std::string& current_line = lines_[change.row];
                 size_t line_len = current_line.length();
 
-                // 如果 old_content 为空且 col 为 0，说明是整行插入（如 duplicateLine），
-                // 撤销时删除整行
-                if (change.old_content.empty() && change.col == 0) {
+                // 只有当 new_content 等于整行内容时，才认为是整行插入（如 duplicateLine）
+                // 否则只是普通的行内插入，应该只删除插入的文本
+                // 关键修复：增加额外条件避免误判在新行开头插入的情况
+                // duplicateLine 的特征：old_content 为空，col=0，new_content 等于整行，
+                // 且该行之前的内容应该为空（因为是新创建的行）
+                bool is_whole_line_insert =
+                    (change.old_content.empty() && change.col == 0 &&
+                     current_line == change.new_content && change.new_content.length() > 0);
+
+                // 额外检查：如果 new_content 只有一个字符，需要确认这真的是整行插入
+                // 而不是在新行开头插入单个字符
+                if (is_whole_line_insert && change.new_content.length() == 1) {
+                    // 单字符整行插入很少见，更可能是普通插入
+                    // 除非有明确的标识（如 restored_lines 中有内容）
+                    is_whole_line_insert = false;
+                }
+
+                if (is_whole_line_insert) {
+                    // 整行插入：撤销时删除整行
                     lines_.erase(lines_.begin() + change.row);
                     if (lines_.empty()) {
                         lines_.push_back("");
                     }
                     success = true;
                 } else {
-                    // 边界检查：确保插入位置有效
-                    if (change.col <= line_len) {
-                        size_t insert_len = change.new_content.length();
-                        size_t max_erase = line_len - change.col;
-                        size_t erase_len = std::min(insert_len, max_erase);
+                    size_t insert_len = change.new_content.length();
+                    size_t max_erase = line_len - change.col;
+                    size_t erase_len = std::min(insert_len, max_erase);
 
-                        if (erase_len > 0) {
-                            // 验证要删除的内容是否匹配（额外的安全检查）
-                            if (current_line.substr(change.col, erase_len) ==
-                                change.new_content.substr(0, erase_len)) {
-                                current_line.erase(change.col, erase_len);
-                                success = true;
-                            }
-                        } else {
-                            success = true; // 空操作也算成功
+                    if (erase_len > 0) {
+                        // 验证要删除的内容是否匹配（额外的安全检查）
+                        if (current_line.substr(change.col, erase_len) ==
+                            change.new_content.substr(0, erase_len)) {
+                            current_line.erase(change.col, erase_len);
+                            success = true;
                         }
+                    } else {
+                        success = true; // 空操作也算成功
                     }
                 }
             }
@@ -901,59 +963,48 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 break;
             }
 
-            // 检查是否是多行删除（包含换行符）
             if (change.old_content.find('\n') != std::string::npos) {
-                // 多行删除的撤销：需要重新构建多行内容
                 std::vector<std::string> restored_lines;
-                std::istringstream iss(change.old_content);
-                std::string line;
-
-                while (std::getline(iss, line)) {
-                    // 处理行尾的\r字符
-                    if (!line.empty() && line.back() == '\r') {
-                        line.pop_back();
+                if (!change.restored_lines.empty()) {
+                    restored_lines = change.restored_lines;
+                } else {
+                    std::istringstream iss(change.old_content);
+                    std::string line;
+                    while (std::getline(iss, line)) {
+                        if (!line.empty() && line.back() == '\r') {
+                            line.pop_back();
+                        }
+                        restored_lines.push_back(line);
                     }
-                    restored_lines.push_back(line);
-                }
-
-                // 如果原始内容以换行符结尾，需要添加空行
-                if (!change.old_content.empty() &&
-                    (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
-                    restored_lines.push_back("");
+                    if (!change.old_content.empty() &&
+                        (change.old_content.back() == '\n' || change.old_content.back() == '\r')) {
+                        restored_lines.push_back("");
+                    }
                 }
 
                 if (!restored_lines.empty()) {
-                    // 保存插入位置之后的内容
                     std::string remaining_part = current_line.substr(change.col);
-
-                    // 第一行：当前行前半部分 + 恢复的第一行
                     current_line = current_line.substr(0, change.col) + restored_lines[0];
 
-                    // 如果有多行内容需要插入
                     if (restored_lines.size() > 1) {
-                        // 插入中间行
                         for (size_t i = 1; i < restored_lines.size() - 1; ++i) {
                             lines_.insert(lines_.begin() + change.row + i, restored_lines[i]);
                         }
 
-                        // 最后一行：恢复内容 + 原始的后半部分
                         std::string last_line = restored_lines.back() + remaining_part;
                         lines_.insert(lines_.begin() + change.row + restored_lines.size() - 1,
                                       last_line);
                     } else {
-                        // 只有一行，直接追加剩余内容
                         current_line += remaining_part;
                     }
 
                     success = true;
                 }
             } else {
-                // 单行删除的撤销：直接在指定位置插入内容
                 current_line.insert(change.col, change.old_content);
                 success = true;
             }
 
-            // 撤销后的光标位置：回到删除开始的位置
             if (out_row)
                 *out_row = change.row;
             if (out_col) {
@@ -982,33 +1033,17 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
 
         case DocumentChange::Type::NEWLINE: {
             // 撤销换行操作：合并两行，恢复原始行
-            size_t target_row = change.row;
-
-            // 查找正确的行（通过内容匹配）
-            bool found_target = false;
-            if (target_row < lines_.size() && lines_[target_row] == change.new_content) {
-                found_target = true;
-            } else {
-                // 尝试查找包含新行第一部分内容的行
-                for (size_t i = 0; i < lines_.size(); ++i) {
-                    if (lines_[i] == change.new_content && i + 1 < lines_.size()) {
-                        target_row = i;
-                        found_target = true;
-                        break;
-                    }
-                }
-            }
-
-            if (found_target && target_row + 1 < lines_.size()) {
-                // 合并两行：第一行 + 换行符 + 第二行
-                lines_[target_row] = change.old_content;
-                lines_.erase(lines_.begin() + target_row + 1);
+            // 由于撤销是逆序执行，change.row 始终准确，不需要内容匹配
+            if (change.row < lines_.size() && change.row + 1 < lines_.size()) {
+                // 直接恢复原始完整行，删除分裂出的第二行
+                lines_[change.row] = change.old_content;
+                lines_.erase(lines_.begin() + change.row + 1);
                 success = true;
             }
 
             // 撤销后的光标位置：回到换行前的位置
             if (out_row)
-                *out_row = target_row;
+                *out_row = change.row;
             if (out_col)
                 *out_col = change.col;
             break;
@@ -1063,14 +1098,21 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         }
 
         case DocumentChange::Type::COMMENT_TOGGLE: {
-            std::istringstream old_stream(change.old_content);
-            std::string old_line;
-            size_t r = change.row;
-            while (std::getline(old_stream, old_line) && r < lines_.size()) {
-                if (!old_line.empty() && old_line.back() == '\r')
-                    old_line.pop_back();
-                lines_[r] = old_line;
-                r++;
+            if (!change.restored_lines.empty()) {
+                for (size_t i = 0;
+                     i < change.restored_lines.size() && (change.row + i) < lines_.size(); ++i) {
+                    lines_[change.row + i] = change.restored_lines[i];
+                }
+            } else {
+                std::istringstream old_stream(change.old_content);
+                std::string old_line;
+                size_t r = change.row;
+                while (std::getline(old_stream, old_line) && r < lines_.size()) {
+                    if (!old_line.empty() && old_line.back() == '\r')
+                        old_line.pop_back();
+                    lines_[r] = old_line;
+                    r++;
+                }
             }
             success = true;
             if (out_row)
@@ -1086,6 +1128,8 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         lines_.push_back("");
     }
 
+    bool is_same = isContentSameAsOriginal();
+
     // 将操作移到重做栈（用于重做功能）
     redo_stack_.push_back(change);
 
@@ -1093,34 +1137,46 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         *out_type = change.type;
     }
 
-    // 改进的修改状态标记逻辑：使用 original_lines_ 进行精确比较
-    modified_ = !isContentSameAsOriginal();
+    // 修复：仅通过 isContentSameAsOriginal() 自然判定 modified_ 状态
+    // 移除强制还原 original_lines_ 的危险逻辑
+    modified_ = !is_same;
 
     return success;
 }
 
 bool Document::redo(size_t* out_row, size_t* out_col) {
     if (redo_stack_.empty()) {
+        LOG_DEBUG("[REDO] redo_stack is empty, cannot redo");
         return false;
     }
+
+    size_t lines_before = lines_.size();
+    size_t redo_stack_size_before = redo_stack_.size();
 
     DocumentChange change = redo_stack_.back();
     redo_stack_.pop_back();
 
-    // 重新应用操作
+    LOG_DEBUG("[REDO] START: type=" + std::to_string(static_cast<int>(change.type)) +
+              " row=" + std::to_string(change.row) + " col=" + std::to_string(change.col) +
+              " lines_before=" + std::to_string(lines_before) +
+              " redo_stack_size=" + std::to_string(redo_stack_size_before));
+
+    bool success = false;
+
     switch (change.type) {
         case DocumentChange::Type::INSERT:
             if (change.old_content.empty() && change.col == 0) {
-                // 整行插入（如 duplicateLine），重做时插入新行
                 if (change.row <= lines_.size()) {
                     lines_.insert(lines_.begin() + change.row, change.new_content);
+                    success = true;
                 }
             } else {
                 if (change.row < lines_.size()) {
-                    lines_[change.row].insert(change.col, change.new_content);
+                    size_t col = std::min(change.col, lines_[change.row].length());
+                    lines_[change.row].insert(col, change.new_content);
+                    success = true;
                 }
             }
-            // 光标应该移动到插入结束的位置
             if (out_row)
                 *out_row = change.row;
             if (out_col)
@@ -1129,9 +1185,14 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
 
         case DocumentChange::Type::DELETE:
             if (change.row < lines_.size()) {
-                lines_[change.row].erase(change.col, change.old_content.length());
+                size_t col = std::min(change.col, lines_[change.row].length());
+                size_t len =
+                    std::min(change.old_content.length(), lines_[change.row].length() - col);
+                if (len > 0) {
+                    lines_[change.row].erase(col, len);
+                    success = true;
+                }
             }
-            // 光标应该保持在删除开始的位置（与 undo 保持一致）
             if (out_row)
                 *out_row = change.row;
             if (out_col)
@@ -1141,8 +1202,8 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
         case DocumentChange::Type::REPLACE:
             if (change.row < lines_.size()) {
                 lines_[change.row] = change.new_content;
+                success = true;
             }
-            // 光标应该移动到替换结束的位置，但保持在合理的列位置
             if (out_row)
                 *out_row = change.row;
             if (out_col)
@@ -1151,16 +1212,13 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             break;
 
         case DocumentChange::Type::NEWLINE:
-            // 重做换行：分割当前行，插入新行
             if (change.row < lines_.size()) {
-                // 设置当前行为 before_cursor
                 lines_[change.row] = change.new_content;
-                // 插入新行并设置 after_cursor
                 if (change.row + 1 <= lines_.size()) {
                     lines_.insert(lines_.begin() + change.row + 1, change.after_cursor);
                 }
+                success = true;
             }
-            // 光标应该移动到新行的开始
             if (out_row)
                 *out_row = change.row + 1;
             if (out_col)
@@ -1168,29 +1226,25 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             break;
 
         case DocumentChange::Type::COMPLETION:
-            // 重做补全：重新应用补全文本替换
             if (change.row < lines_.size()) {
                 std::string& current_line = lines_[change.row];
-                size_t replace_start = change.col;
+                size_t replace_start = std::min(change.col, current_line.length());
 
-                // 优先精确匹配：如果指定位置正好是原始文本，直接替换
-                if (replace_start <= current_line.length()) {
-                    const std::string& expected_old = change.old_content;
-                    if (replace_start + expected_old.length() <= current_line.length() &&
-                        current_line.substr(replace_start, expected_old.length()) == expected_old) {
-                        current_line.replace(replace_start, expected_old.length(),
+                if (replace_start + change.old_content.length() <= current_line.length() &&
+                    current_line.substr(replace_start, change.old_content.length()) ==
+                        change.old_content) {
+                    current_line.replace(replace_start, change.old_content.length(),
+                                         change.new_content);
+                    success = true;
+                } else {
+                    size_t found = current_line.find(change.old_content, replace_start);
+                    if (found != std::string::npos) {
+                        current_line.replace(found, change.old_content.length(),
                                              change.new_content);
-                    } else {
-                        // 查找第一次出现的位置并替换
-                        size_t found = current_line.find(expected_old, replace_start);
-                        if (found != std::string::npos) {
-                            current_line.replace(found, expected_old.length(), change.new_content);
-                        }
-                        // 如果找不到，说明文档已被修改，重做失败但不报错
+                        success = true;
                     }
                 }
             }
-            // 光标应该移动到补全文本的末尾（VSCode 行为）
             if (out_row)
                 *out_row = change.row;
             if (out_col)
@@ -1201,6 +1255,7 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
             size_t target = change.target_row;
             if (change.row < lines_.size() && target < lines_.size()) {
                 std::swap(lines_[change.row], lines_[target]);
+                success = true;
             }
             if (out_row)
                 *out_row = target;
@@ -1210,14 +1265,23 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
         }
 
         case DocumentChange::Type::COMMENT_TOGGLE: {
-            std::istringstream new_stream(change.new_content);
-            std::string new_line;
-            size_t r = change.row;
-            while (std::getline(new_stream, new_line) && r < lines_.size()) {
-                if (!new_line.empty() && new_line.back() == '\r')
-                    new_line.pop_back();
-                lines_[r] = new_line;
-                r++;
+            if (!change.restored_lines.empty()) {
+                for (size_t i = 0;
+                     i < change.restored_lines.size() && (change.row + i) < lines_.size(); ++i) {
+                    lines_[change.row + i] = change.restored_lines[i];
+                }
+                success = true;
+            } else {
+                std::istringstream new_stream(change.new_content);
+                std::string new_line;
+                size_t r = change.row;
+                while (std::getline(new_stream, new_line) && r < lines_.size()) {
+                    if (!new_line.empty() && new_line.back() == '\r')
+                        new_line.pop_back();
+                    lines_[r] = new_line;
+                    r++;
+                }
+                success = true;
             }
             if (out_row)
                 *out_row = change.row;
@@ -1227,72 +1291,116 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
         }
     }
 
-    undo_stack_.push_back(change);
+    if (lines_.empty()) {
+        lines_.push_back("");
+    }
 
-    // 改进的修改状态标记逻辑：使用 original_lines_ 进行精确比较
-    modified_ = !isContentSameAsOriginal();
+    size_t lines_after = lines_.size();
+    bool is_same = isContentSameAsOriginal();
 
-    return true;
+    LOG_DEBUG("[REDO] END: success=" + std::to_string(success) +
+              " lines_after=" + std::to_string(lines_after) + " lines_diff=" +
+              std::to_string(static_cast<int>(lines_after) - static_cast<int>(lines_before)) +
+              " is_same_as_original=" + std::to_string(is_same) +
+              " modified=" + std::to_string(!is_same));
+
+    if (success) {
+        undo_stack_.push_back(change);
+    } else {
+        redo_stack_.push_back(change);
+    }
+
+    modified_ = !is_same;
+    syncToBufferBackend();
+
+    return success;
 }
 
 void Document::pushChange(const DocumentChange& change) {
-    // 降低合并阈值到 300ms，避免慢速打字时意外合并
+    if (lazy_loaded_) {
+        can_undo_ = false;
+        return;
+    }
+
+    can_undo_ = true;
+
+    if (change.content_size > MAX_CHANGE_CONTENT_SIZE) {
+        DocumentChange safe_change = change;
+        if (safe_change.old_content.size() > MAX_CHANGE_CONTENT_SIZE) {
+            safe_change.old_content = safe_change.old_content.substr(0, MAX_CHANGE_CONTENT_SIZE);
+            safe_change.old_content += "\n...[truncated]";
+        }
+        if (safe_change.new_content.size() > MAX_CHANGE_CONTENT_SIZE) {
+            safe_change.new_content = safe_change.new_content.substr(0, MAX_CHANGE_CONTENT_SIZE);
+            safe_change.new_content += "\n...[truncated]";
+        }
+        safe_change.content_size = safe_change.old_content.size() + safe_change.new_content.size();
+        pushChangeInternal(safe_change);
+        return;
+    }
+
+    pushChangeInternal(change);
+}
+
+void Document::pushChangeInternal(const DocumentChange& change) {
     constexpr auto MERGE_THRESHOLD = std::chrono::milliseconds(300);
 
     if (change.type == DocumentChange::Type::COMPLETION ||
         change.type == DocumentChange::Type::REPLACE ||
         change.type == DocumentChange::Type::NEWLINE) {
         undo_stack_.push_back(change);
-        if (undo_stack_.size() > MAX_UNDO_STACK) {
-            undo_stack_.pop_front();
+        trimUndoStack();
+        if (!undo_stack_.empty()) {
+            redo_stack_.clear();
         }
-        redo_stack_.clear(); // 新的修改清除重做栈
         modified_ = !isContentSameAsOriginal();
+        syncToBufferBackend();
         return;
     }
 
-    // 尝试合并连续的 INSERT 或 DELETE 操作
     if (!undo_stack_.empty()) {
         DocumentChange& last_change = undo_stack_.back();
         auto time_diff = change.timestamp - last_change.timestamp;
 
-        // 更严格的合并条件：时间阈值内 + 同行 + 同类型 + 位置连续
-        if (time_diff < MERGE_THRESHOLD && change.row == last_change.row) {
-            // 合并 INSERT 操作：连续输入字符
+        if (time_diff < MERGE_THRESHOLD && change.row == last_change.row &&
+            change.type == last_change.type) {
             if (change.type == DocumentChange::Type::INSERT &&
                 last_change.type == DocumentChange::Type::INSERT) {
-                // 整行插入（如 duplicateLine）不参与合并，保持独立撤销点
                 if (last_change.old_content.empty() && last_change.col == 0) {
-                    // 不合并，继续到下面的 push_back
-                }
-                // 严格检查：新插入位置必须正好在上次插入结束位置
-                else if (change.col == last_change.col + last_change.new_content.length()) {
+                    // 不合并
+                } else if (change.col == last_change.col + last_change.new_content.length()) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
-                    return; // 合并完成，不创建新撤销点
-                }
-                // 同一位置的连续插入（快速输入场景）
-                else if (change.col == last_change.col && change.new_content.length() == 1) {
+                    last_change.content_size =
+                        last_change.old_content.size() + last_change.new_content.size();
+                    syncToBufferBackend();
+                    return;
+                } else if (change.col == last_change.col && change.new_content.length() == 1) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
+                    last_change.content_size =
+                        last_change.old_content.size() + last_change.new_content.size();
+                    syncToBufferBackend();
                     return;
                 }
             }
 
-            // 合并 DELETE 操作：连续删除字符
             else if (change.type == DocumentChange::Type::DELETE &&
                      last_change.type == DocumentChange::Type::DELETE) {
-                // 向后删除（Delete 键）：严格检查在同一位置连续删除
                 if (change.col == last_change.col) {
                     last_change.old_content += change.old_content;
                     last_change.timestamp = change.timestamp;
+                    last_change.content_size =
+                        last_change.old_content.size() + last_change.new_content.size();
+                    syncToBufferBackend();
                     return;
-                }
-                // 向前删除（Backspace 键）：严格检查位置连续
-                else if (change.col + change.old_content.length() == last_change.col) {
+                } else if (change.col + change.old_content.length() == last_change.col) {
                     last_change.old_content = change.old_content + last_change.old_content;
-                    last_change.col = change.col; // 更新删除起始位置
+                    last_change.col = change.col;
                     last_change.timestamp = change.timestamp;
+                    last_change.content_size =
+                        last_change.old_content.size() + last_change.new_content.size();
+                    syncToBufferBackend();
                     return;
                 }
             }
@@ -1300,16 +1408,71 @@ void Document::pushChange(const DocumentChange& change) {
     }
 
     undo_stack_.push_back(change);
-    if (undo_stack_.size() > MAX_UNDO_STACK) {
-        undo_stack_.pop_front();
+    trimUndoStack();
+    if (!undo_stack_.empty()) {
+        redo_stack_.clear();
     }
-    redo_stack_.clear(); // 新的修改清除重做栈
     modified_ = !isContentSameAsOriginal();
+    syncToBufferBackend();
 }
 
 void Document::clearHistory() {
     undo_stack_.clear();
     redo_stack_.clear();
+    current_undo_memory_ = 0;
+}
+
+void Document::trimUndoStack() {
+    while (undo_stack_.size() > MAX_UNDO_STACK) {
+        const auto& front = undo_stack_.front();
+        current_undo_memory_ -= (front.old_content.size() + front.new_content.size());
+        undo_stack_.pop_front();
+    }
+
+    size_t total_memory = 0;
+    for (const auto& change : undo_stack_) {
+        total_memory += change.old_content.size() + change.new_content.size();
+    }
+    current_undo_memory_ = total_memory;
+
+    while (current_undo_memory_ > MAX_UNDO_MEMORY_BYTES && undo_stack_.size() > 10) {
+        const auto& front = undo_stack_.front();
+        current_undo_memory_ -= (front.old_content.size() + front.new_content.size());
+        undo_stack_.pop_front();
+    }
+}
+
+void Document::syncToBufferBackend() {
+    if (!buffer_backend_) {
+        return;
+    }
+    buffer_backend_->clear();
+    std::string content;
+    for (size_t i = 0; i < lines_.size(); ++i) {
+        content += lines_[i];
+        if (i < lines_.size() - 1) {
+            content += "\n";
+        }
+    }
+    buffer_backend_->insert(0, content);
+}
+
+uint64_t Document::computeFileHash(const std::string& filepath) const {
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) {
+        return 0;
+    }
+    uint64_t hash = 0;
+    char buffer[8192];
+    while (file.read(buffer, sizeof(buffer))) {
+        for (std::streamsize i = 0; i < file.gcount(); ++i) {
+            hash = hash * 31 + static_cast<uint64_t>(static_cast<unsigned char>(buffer[i]));
+        }
+    }
+    for (std::streamsize i = 0; i < file.gcount(); ++i) {
+        hash = hash * 31 + static_cast<uint64_t>(static_cast<unsigned char>(buffer[i]));
+    }
+    return hash;
 }
 
 std::string Document::getSelection(size_t start_row, size_t start_col, size_t end_row,
@@ -1371,11 +1534,11 @@ void Document::saveOriginalContent() {
 }
 
 bool Document::isContentSameAsOriginal() const {
-    // 大文件未保存 original 快照时，仅用 modified_ 判断
     if (large_file_skip_original_) {
-        return !modified_;
+        uint64_t current_hash = computeFileHash(filepath_);
+        bool same = (current_hash == original_file_hash_ && current_hash != 0);
+        return same;
     }
-    // 比较当前内容与原始内容是否完全相同
     if (lines_.size() != original_lines_.size()) {
         return false;
     }

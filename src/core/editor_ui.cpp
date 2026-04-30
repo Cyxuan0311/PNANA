@@ -1950,13 +1950,13 @@ Element Editor::renderStatusbar() {
     // 获取行尾类型
     std::string line_ending;
     switch (doc->getLineEnding()) {
-        case Document::LineEnding::LF:
+        case LineEnding::LF:
             line_ending = "LF";
             break;
-        case Document::LineEnding::CRLF:
+        case LineEnding::CRLF:
             line_ending = "CRLF";
             break;
-        case Document::LineEnding::CR:
+        case LineEnding::CR:
             line_ending = "CR";
             break;
     }
