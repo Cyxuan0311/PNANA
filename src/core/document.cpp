@@ -882,6 +882,7 @@ void Document::replaceLine(size_t row, const std::string& content) {
 
 bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_type) {
     if (undo_stack_.empty()) {
+        LOG_DEBUG("[UNDO] undo_stack is empty, cannot undo");
         return false;
     }
 
@@ -890,6 +891,13 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
 
     DocumentChange change = undo_stack_.back();
     undo_stack_.pop_back();
+
+    LOG_DEBUG("[UNDO] START: type=" + std::to_string(static_cast<int>(change.type)) +
+              " row=" + std::to_string(change.row) + " col=" + std::to_string(change.col) +
+              " lines_before=" + std::to_string(lines_before) +
+              " undo_stack_size=" + std::to_string(undo_stack_size_before) +
+              " old_content_len=" + std::to_string(change.old_content.length()) +
+              " new_content_len=" + std::to_string(change.new_content.length()));
 
     // VSCode 风格的撤销逻辑：原子性操作，直接应用反向操作
     // 每个撤销点都是完整的、不可分割的操作
@@ -901,46 +909,70 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                 std::string& current_line = lines_[change.row];
                 size_t line_len = current_line.length();
 
-                // 只有当 new_content 等于整行内容时，才认为是整行插入（如 duplicateLine）
-                // 否则只是普通的行内插入，应该只删除插入的文本
-                // 关键修复：增加额外条件避免误判在新行开头插入的情况
-                // duplicateLine 的特征：old_content 为空，col=0，new_content 等于整行，
-                // 且该行之前的内容应该为空（因为是新创建的行）
-                bool is_whole_line_insert =
-                    (change.old_content.empty() && change.col == 0 &&
-                     current_line == change.new_content && change.new_content.length() > 0);
+                LOG_DEBUG("[UNDO-INSERT] START: row=" + std::to_string(change.row) + " col=" +
+                          std::to_string(change.col) + " line_len=" + std::to_string(line_len) +
+                          " new_content_len=" + std::to_string(change.new_content.length()) +
+                          " current_line=[" + current_line + "]");
 
-                // 额外检查：如果 new_content 只有一个字符，需要确认这真的是整行插入
-                // 而不是在新行开头插入单个字符
-                if (is_whole_line_insert && change.new_content.length() == 1) {
-                    // 单字符整行插入很少见，更可能是普通插入
-                    // 除非有明确的标识（如 restored_lines 中有内容）
-                    is_whole_line_insert = false;
+                // 撤销插入操作：删除之前插入的内容
+                // 关键修复：避免误判在新行开头插入的情况
+                // 只有当明确是整行插入（如 duplicateLine）时才删除整行
+                // 判断条件更严格：old_content 为空，col=0，new_content 等于整行，
+                // 且 new_content 长度大于 1（排除单字符插入）
+                // 且 new_content 不是纯空白（排除空格/制表符插入）
+                bool is_whole_line_insert = false;
+                if (change.old_content.empty() && change.col == 0 &&
+                    current_line == change.new_content && change.new_content.length() > 1) {
+                    // 检查是否不是纯空白
+                    bool has_non_whitespace = false;
+                    for (char c : change.new_content) {
+                        if (c != ' ' && c != '\t') {
+                            has_non_whitespace = true;
+                            break;
+                        }
+                    }
+                    is_whole_line_insert = has_non_whitespace;
                 }
+
+                LOG_DEBUG("[UNDO-INSERT] is_whole_line_insert=" +
+                          std::to_string(is_whole_line_insert));
 
                 if (is_whole_line_insert) {
                     // 整行插入：撤销时删除整行
+                    LOG_DEBUG("[UNDO-INSERT] whole_line_insert_removed row=" +
+                              std::to_string(change.row));
                     lines_.erase(lines_.begin() + change.row);
                     if (lines_.empty()) {
                         lines_.push_back("");
                     }
                     success = true;
                 } else {
-                    size_t insert_len = change.new_content.length();
-                    size_t max_erase = line_len - change.col;
-                    size_t erase_len = std::min(insert_len, max_erase);
+                    // 行内插入：只删除插入的文本
+                    if (change.col <= line_len) {
+                        size_t insert_len = change.new_content.length();
+                        size_t max_erase = line_len - change.col;
+                        size_t erase_len = std::min(insert_len, max_erase);
 
-                    if (erase_len > 0) {
-                        // 验证要删除的内容是否匹配（额外的安全检查）
-                        if (current_line.substr(change.col, erase_len) ==
-                            change.new_content.substr(0, erase_len)) {
-                            current_line.erase(change.col, erase_len);
-                            success = true;
+                        LOG_DEBUG(
+                            "[UNDO-INSERT] inline_text_remove: col=" + std::to_string(change.col) +
+                            " insert_len=" + std::to_string(insert_len) +
+                            " erase_len=" + std::to_string(erase_len));
+
+                        if (erase_len > 0) {
+                            // 验证要删除的内容是否匹配（额外的安全检查）
+                            if (current_line.substr(change.col, erase_len) ==
+                                change.new_content.substr(0, erase_len)) {
+                                current_line.erase(change.col, erase_len);
+                                success = true;
+                            }
+                        } else {
+                            success = true; // 空操作也算成功
                         }
-                    } else {
-                        success = true; // 空操作也算成功
                     }
                 }
+
+                LOG_DEBUG("[UNDO-INSERT] END: success=" + std::to_string(success) +
+                          " line_after=[" + lines_[change.row] + "]");
             }
 
             // 撤销后的光标位置：回到插入开始的位置
@@ -1034,11 +1066,29 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         case DocumentChange::Type::NEWLINE: {
             // 撤销换行操作：合并两行，恢复原始行
             // 由于撤销是逆序执行，change.row 始终准确，不需要内容匹配
+            LOG_DEBUG("[UNDO-NEWLINE] START: row=" + std::to_string(change.row) +
+                      " lines_size=" + std::to_string(lines_.size()) +
+                      " old_content_len=" + std::to_string(change.old_content.length()) +
+                      " old_content=[" + change.old_content + "]");
+
             if (change.row < lines_.size() && change.row + 1 < lines_.size()) {
+                std::string line_before = lines_[change.row];
+                std::string line_after = lines_[change.row + 1];
+
+                LOG_DEBUG("[UNDO-NEWLINE] Before merge: line[" + std::to_string(change.row) +
+                          "]=[" + line_before + "] line[" + std::to_string(change.row + 1) + "]=[" +
+                          line_after + "]");
+
                 // 直接恢复原始完整行，删除分裂出的第二行
                 lines_[change.row] = change.old_content;
                 lines_.erase(lines_.begin() + change.row + 1);
                 success = true;
+
+                LOG_DEBUG("[UNDO-NEWLINE] After merge: line[" + std::to_string(change.row) + "]=[" +
+                          lines_[change.row] + "] lines_size=" + std::to_string(lines_.size()));
+            } else {
+                LOG_DEBUG("[UNDO-NEWLINE] FAILED: row=" + std::to_string(change.row) +
+                          " lines_size=" + std::to_string(lines_.size()));
             }
 
             // 撤销后的光标位置：回到换行前的位置
@@ -1128,7 +1178,14 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
         lines_.push_back("");
     }
 
+    size_t lines_after = lines_.size();
     bool is_same = isContentSameAsOriginal();
+
+    LOG_DEBUG("[UNDO] END: success=" + std::to_string(success) +
+              " lines_after=" + std::to_string(lines_after) + " lines_diff=" +
+              std::to_string(static_cast<int>(lines_after) - static_cast<int>(lines_before)) +
+              " is_same_as_original=" + std::to_string(is_same) + " modified=" +
+              std::to_string(!is_same) + " redo_stack_size=" + std::to_string(redo_stack_.size()));
 
     // 将操作移到重做栈（用于重做功能）
     redo_stack_.push_back(change);
@@ -1540,13 +1597,18 @@ bool Document::isContentSameAsOriginal() const {
         return same;
     }
     if (lines_.size() != original_lines_.size()) {
+        LOG_DEBUG("[IS_SAME_ORIGINAL] size_mismatch: lines_size=" + std::to_string(lines_.size()) +
+                  " original_size=" + std::to_string(original_lines_.size()));
         return false;
     }
     for (size_t i = 0; i < lines_.size(); ++i) {
         if (lines_[i] != original_lines_[i]) {
+            LOG_DEBUG("[IS_SAME_ORIGINAL] content_mismatch at line " + std::to_string(i) +
+                      " current=[" + lines_[i] + "] original=[" + original_lines_[i] + "]");
             return false;
         }
     }
+    LOG_DEBUG("[IS_SAME_ORIGINAL] all_lines_match, returning true");
     return true;
 }
 
