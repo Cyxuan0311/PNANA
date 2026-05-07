@@ -71,17 +71,21 @@ static void updateGitInfo() {
     updateGitInfoAsync();
 }
 
-// 将制表符按 tab_size 展开为空格，用于正确显示缩进（如 Go 等用 tab 缩进的文件）
 static std::string expandTabsForDisplay(const std::string& s, int tab_size) {
     if (tab_size <= 0)
         tab_size = 4;
     std::string out;
-    out.reserve(s.size() * 2); // 粗略预留
+    out.reserve(s.size() * 2);
+    size_t col = 0;
     for (char c : s) {
-        if (c == '\t')
-            out.append(static_cast<size_t>(tab_size), ' ');
-        else
+        if (c == '\t') {
+            size_t spaces = static_cast<size_t>(tab_size) - (col % static_cast<size_t>(tab_size));
+            out.append(spaces, ' ');
+            col += spaces;
+        } else {
             out.push_back(c);
+            col += 1;
+        }
     }
     return out;
 }
@@ -744,7 +748,7 @@ Element Editor::renderEditor() {
 
         // 计算代码区的实际可用尺寸
         int code_area_width = screen_.dimx();
-        int code_area_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
+        int code_area_height = screen_.dimy() - 7; // 减去标签栏、状态栏等6行 + 边框1行
 
         // 如果文件浏览器打开，减去文件浏览器的宽度
         if (file_browser_.isVisible()) {
@@ -805,8 +809,8 @@ Element Editor::renderEditor() {
     Elements lines;
 
     // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
-    // 6行
-    int screen_height = screen_.dimy() - 6;
+    // 6行，再减去边框(2) = 8行
+    int screen_height = screen_.dimy() - 7;
 
     // 获取可见行（考虑折叠状态）
     std::vector<size_t> visible_lines = doc->getVisibleLines();
@@ -898,7 +902,7 @@ Element Editor::renderEditor() {
 
 Element Editor::renderSplitEditor() {
     int screen_width = screen_.dimx();
-    int screen_height = screen_.dimy() - 6; // 减去标签栏、状态栏等
+    int screen_height = screen_.dimy() - 7; // 减去标签栏、状态栏等6行 + 边框2行
 
     // 检查是否有分屏，如果没有则回退到单视图
     if (!split_view_manager_.hasSplits()) {
@@ -1189,6 +1193,45 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
         content = "";
     }
 
+    std::string original_content = content;
+    size_t visible_cursor_col = cursor_col_;
+    int tab_size = std::max(1, std::min(8, config_manager_.getConfig().editor.tab_size));
+
+    if (view_offset_col_ > 0) {
+        std::string display_content = expandTabsForDisplay(content, tab_size);
+        if (view_offset_col_ < display_content.length()) {
+            content = display_content.substr(view_offset_col_);
+        } else {
+            content = "";
+        }
+        if (is_current) {
+            size_t display_cursor = rawColToDisplayCol(original_content, cursor_col_, tab_size);
+            if (display_cursor >= view_offset_col_) {
+                visible_cursor_col = display_cursor - view_offset_col_;
+            } else {
+                visible_cursor_col = 0;
+            }
+        }
+    }
+
+    size_t line_count = doc->lineCount();
+    size_t ln_width = 2;
+    if (line_count > 0) {
+        size_t digits = 0;
+        for (size_t n = line_count; n > 0; n /= 10)
+            digits++;
+        ln_width = digits < 2 ? 2 : digits;
+    }
+    int max_content_width = screen_.dimx() - static_cast<int>(ln_width) - 4;
+    if (max_content_width < 20)
+        max_content_width = 20;
+    if (content.length() > static_cast<size_t>(max_content_width)) {
+        content = content.substr(0, static_cast<size_t>(max_content_width));
+        if (is_current && visible_cursor_col >= static_cast<size_t>(max_content_width)) {
+            visible_cursor_col = static_cast<size_t>(max_content_width) - 1;
+        }
+    }
+
     // 获取当前行的搜索匹配
     std::vector<features::SearchMatch> line_matches;
     if (search_highlight_active_ && search_engine_.hasMatches()) {
@@ -1276,9 +1319,6 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
             }
         }
     }
-
-    // 制表符显示宽度，用于展开 \t 以正确显示缩进（如 Go 文件）
-    int tab_size = std::max(1, std::min(8, config_manager_.getConfig().editor.tab_size));
 
     // 渲染带搜索高亮和选中高亮的行内容
     auto renderLineWithHighlights = [&, tab_size](const std::string& line_content,
@@ -1726,7 +1766,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
     };
 
     try {
-        content_elem = renderLineWithHighlights(content, cursor_col_, is_current);
+        content_elem = renderLineWithHighlights(content, visible_cursor_col, is_current);
     } catch (const std::exception& e) {
         // 如果高亮失败，使用简单文本
         content_elem = text(content) | color(theme_.getColors().foreground);

@@ -800,6 +800,7 @@ class Editor {
     void adjustViewOffset();
     void adjustViewOffsetForUndo(size_t target_row, size_t target_col);
     void adjustViewOffsetForUndoConservative(size_t target_row, size_t target_col);
+    static size_t rawColToDisplayCol(const std::string& line, size_t raw_col, int tab_size);
     void setStatusMessage(const std::string& message);
     std::string getFileType() const;
     void executeSearch(bool move_cursor = true);

@@ -1,6 +1,7 @@
 // 光标移动相关实现
 
 #include <cstddef>
+#include <sstream>
 #include <string>
 
 // 获取UTF-8字符的辅助函数
@@ -56,12 +57,28 @@ bool isChineseChar(const std::string& ch) {
 
     return false;
 }
+
 #include "core/editor.h"
 #include "utils/logger.h"
 #include <algorithm>
 
 namespace pnana {
 namespace core {
+
+size_t Editor::rawColToDisplayCol(const std::string& line, size_t raw_col, int tab_size) {
+    if (tab_size <= 0)
+        tab_size = 4;
+    size_t display_col = 0;
+    for (size_t i = 0; i < raw_col && i < line.length(); ++i) {
+        if (line[i] == '\t') {
+            display_col +=
+                static_cast<size_t>(tab_size) - (display_col % static_cast<size_t>(tab_size));
+        } else {
+            display_col += 1;
+        }
+    }
+    return display_col;
+}
 
 // 光标移动
 void Editor::moveCursorUp() {
@@ -171,6 +188,7 @@ void Editor::moveCursorLeft() {
         }
 
         cursor_col_ = new_pos;
+        adjustViewOffset();
     } else if (cursor_row_ > 0) {
         cursor_row_--;
         cursor_col_ = doc->getLine(cursor_row_).length();
@@ -209,6 +227,7 @@ void Editor::moveCursorRight() {
         }
 
         cursor_col_ = new_pos;
+        adjustViewOffset();
     } else if (cursor_row_ < doc->lineCount() - 1) {
         cursor_row_++;
         cursor_col_ = 0;
@@ -227,8 +246,8 @@ void Editor::moveCursorPageUp() {
         return;
 
     // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
-    // 6行
-    int screen_height = screen_.dimy() - 6;
+    // 6行，再减去边框(2) = 8行
+    int screen_height = screen_.dimy() - 7;
     if (screen_height <= 0) {
         screen_height = 1; // 防止除零错误
     }
@@ -285,8 +304,8 @@ void Editor::moveCursorPageDown() {
         return;
 
     // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
-    // 6行
-    int screen_height = screen_.dimy() - 6;
+    // 6行，再减去边框(2) = 8行
+    int screen_height = screen_.dimy() - 7;
     if (screen_height <= 0) {
         screen_height = 1; // 防止除零错误
     }
@@ -519,8 +538,8 @@ void Editor::adjustCursor() {
 
 void Editor::adjustViewOffset() {
     // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
-    // 6行
-    int screen_height = screen_.dimy() - 6;
+    // 6行，再减去边框(2) = 8行
+    int screen_height = screen_.dimy() - 7;
     if (screen_height <= 0) {
         screen_height = 1; // 防止除零错误
     }
@@ -602,6 +621,41 @@ void Editor::adjustViewOffset() {
     if (cursor_col_ > line_len) {
         cursor_col_ = line_len;
     }
+
+    // 水平滚动：确保光标在水平可见区域内
+    size_t line_count = doc->lineCount();
+    size_t line_num_width = 2;
+    if (line_count > 0) {
+        size_t digits = 0;
+        for (size_t n = line_count; n > 0; n /= 10)
+            digits++;
+        line_num_width = digits < 2 ? 2 : digits;
+    }
+    int visible_width = screen_.dimx() - static_cast<int>(line_num_width) - 4;
+    if (visible_width < 20)
+        visible_width = 20;
+
+    std::string cursor_line = doc->getLine(cursor_row_);
+    int tab_size = std::max(1, std::min(8, config_manager_.getConfig().editor.tab_size));
+    size_t display_cursor_col = rawColToDisplayCol(cursor_line, cursor_col_, tab_size);
+
+    const int h_scrolloff = 5;
+
+    size_t old_view_offset_col = view_offset_col_;
+
+    if (display_cursor_col >=
+        view_offset_col_ + static_cast<size_t>(visible_width) - static_cast<size_t>(h_scrolloff)) {
+        size_t new_offset = display_cursor_col - static_cast<size_t>(visible_width) +
+                            static_cast<size_t>(h_scrolloff) + 1;
+        view_offset_col_ = new_offset;
+    } else if (display_cursor_col < view_offset_col_ + static_cast<size_t>(h_scrolloff) &&
+               view_offset_col_ > 0) {
+        if (display_cursor_col >= static_cast<size_t>(h_scrolloff)) {
+            view_offset_col_ = display_cursor_col - static_cast<size_t>(h_scrolloff);
+        } else {
+            view_offset_col_ = 0;
+        }
+    }
 }
 
 // Neovim风格的撤销视图调整：更保守，只在必要时微调
@@ -609,7 +663,7 @@ void Editor::adjustViewOffsetForUndo(size_t target_row, size_t /*target_col*/) {
     // 撤销操作应该尽量保持用户的视觉上下文，避免剧烈跳跃
     // 使用更小的scrolloff值，让调整更平滑
 
-    int screen_height = screen_.dimy() - 6;
+    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -656,7 +710,7 @@ void Editor::adjustViewOffsetForUndoConservative(size_t target_row, size_t /*tar
     // 2. 只有当光标完全超出可见区域时才调整，且调整幅度最小
     // 3. 完全避免使用scrolloff机制，因为撤销应该保持用户的视觉上下文
 
-    int screen_height = screen_.dimy() - 6;
+    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -733,7 +787,7 @@ void Editor::adjustCursorAndViewConservative() {
     // 2. 只有当光标完全超出可见区域时才调整，且调整幅度最小
     // 3. 完全避免使用scrolloff机制，因为撤销应该保持用户的视觉上下文
 
-    int screen_height = screen_.dimy() - 6;
+    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -786,7 +840,7 @@ void Editor::adjustCursorAndViewForRedo() {
     }
 
     // 2. 重做操作的视图调整（可以更激进，因为重做通常是用户主动操作）
-    int screen_height = screen_.dimy() - 4;
+    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
     if (screen_height > 0) {
         // 计算光标在屏幕上的位置
         int cursor_screen_pos = static_cast<int>(cursor_row_) - static_cast<int>(view_offset_row_);
@@ -821,7 +875,7 @@ void Editor::prepareForStaticUndo(size_t change_row, size_t change_col) {
         return;
     }
 
-    int screen_height = screen_.dimy() - 6;
+    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -958,7 +1012,7 @@ void Editor::prepareForStaticRedo(size_t change_row, size_t /*change_col*/) {
         return;
     }
 
-    int screen_height = screen_.dimy() - 6;
+    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
     if (screen_height <= 0) {
         screen_height = 1;
     }

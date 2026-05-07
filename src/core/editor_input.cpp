@@ -896,7 +896,7 @@ void Editor::handleNormalMode(Event event) {
                 Document* doc = getCurrentDocument();
                 if (doc) {
                     size_t total_lines = doc->lineCount();
-                    int screen_height = screen_.dimy() - 6;
+                    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
                     size_t last_visible_row = view_offset_row_ + screen_height - 1;
 
                     if (cursor_row_ >= total_lines - 1 || cursor_row_ >= last_visible_row) {
@@ -933,7 +933,7 @@ void Editor::handleNormalMode(Event event) {
                 Document* doc = getCurrentDocument();
                 if (doc && terminal_.isVisible()) {
                     size_t total_lines = doc->lineCount();
-                    int screen_height = screen_.dimy() - 6;
+                    int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
                     size_t last_visible_row = view_offset_row_ + screen_height - 1;
                     if (cursor_row_ >= total_lines - 1 && cursor_row_ >= last_visible_row) {
                         if (region_manager_.navigateDown()) {
