@@ -641,8 +641,6 @@ void Editor::adjustViewOffset() {
 
     const int h_scrolloff = 5;
 
-    size_t old_view_offset_col = view_offset_col_;
-
     if (display_cursor_col >=
         view_offset_col_ + static_cast<size_t>(visible_width) - static_cast<size_t>(h_scrolloff)) {
         size_t new_offset = display_cursor_col - static_cast<size_t>(visible_width) +
