@@ -781,7 +781,8 @@ class Editor {
     ftxui::Element renderLine(
         Document* doc, size_t line_num, bool is_current, bool use_region_word_highlight = false,
         bool region_word_highlight_active = false,
-        const std::vector<features::SearchMatch>* region_word_matches = nullptr);
+        const std::vector<features::SearchMatch>* region_word_matches = nullptr, int max_width = -1,
+        size_t view_offset_col = 0);
     ftxui::Element renderLineNumber(Document* doc, size_t line_num, bool is_current);
     ftxui::Element renderStatusbar();
     ftxui::Element renderHelpbar();

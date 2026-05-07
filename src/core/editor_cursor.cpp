@@ -631,7 +631,14 @@ void Editor::adjustViewOffset() {
             digits++;
         line_num_width = digits < 2 ? 2 : digits;
     }
-    int visible_width = screen_.dimx() - static_cast<int>(line_num_width) - 4;
+    int screen_width = screen_.dimx();
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->width > 0) {
+            screen_width = active_region->width;
+        }
+    }
+    int visible_width = screen_width - static_cast<int>(line_num_width) - 4;
     if (visible_width < 20)
         visible_width = 20;
 

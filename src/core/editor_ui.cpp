@@ -1049,15 +1049,19 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     // 获取该区域的状态：激活区域用全局光标/视口（实时），非激活区域用各自保存的状态
     size_t region_cursor_row;
     size_t region_view_offset_row;
+    size_t region_view_offset_col;
     if (region.is_active) {
         region_cursor_row = cursor_row_;
         region_view_offset_row = view_offset_row_;
+        region_view_offset_col = view_offset_col_;
     } else if (region_index < region_states_.size()) {
         region_cursor_row = region_states_[region_index].cursor_row;
         region_view_offset_row = region_states_[region_index].view_offset_row;
+        region_view_offset_col = region_states_[region_index].view_offset_col;
     } else {
         region_cursor_row = 0;
         region_view_offset_row = 0;
+        region_view_offset_col = 0;
     }
 
     // 使用区域特定的视图偏移
@@ -1078,7 +1082,8 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
         size_t actual_line_index = visible_lines[i];
         bool is_current = (region.is_active && actual_line_index == region_cursor_row);
         lines.push_back(renderLine(doc, actual_line_index, is_current, true,
-                                   region_word_highlight_active, region_word_matches));
+                                   region_word_highlight_active, region_word_matches, region.width,
+                                   region_view_offset_col));
     }
 
     // 填充空行（行号宽度与文档总行数一致）
@@ -1101,7 +1106,8 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
 
 Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                            bool use_region_word_highlight, bool region_word_highlight_active,
-                           const std::vector<features::SearchMatch>* region_word_matches) {
+                           const std::vector<features::SearchMatch>* region_word_matches,
+                           int max_width, size_t view_offset_col) {
     Elements line_elements;
 
     // 创建光标渲染器并配置
@@ -1197,17 +1203,20 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
     size_t visible_cursor_col = cursor_col_;
     int tab_size = std::max(1, std::min(8, config_manager_.getConfig().editor.tab_size));
 
-    if (view_offset_col_ > 0) {
+    bool is_split_mode = (max_width > 0);
+    size_t effective_view_offset_col = is_split_mode ? view_offset_col : view_offset_col_;
+
+    if (effective_view_offset_col > 0) {
         std::string display_content = expandTabsForDisplay(content, tab_size);
-        if (view_offset_col_ < display_content.length()) {
-            content = display_content.substr(view_offset_col_);
+        if (effective_view_offset_col < display_content.length()) {
+            content = display_content.substr(effective_view_offset_col);
         } else {
             content = "";
         }
         if (is_current) {
             size_t display_cursor = rawColToDisplayCol(original_content, cursor_col_, tab_size);
-            if (display_cursor >= view_offset_col_) {
-                visible_cursor_col = display_cursor - view_offset_col_;
+            if (display_cursor >= effective_view_offset_col) {
+                visible_cursor_col = display_cursor - effective_view_offset_col;
             } else {
                 visible_cursor_col = 0;
             }
@@ -1222,7 +1231,8 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
             digits++;
         ln_width = digits < 2 ? 2 : digits;
     }
-    int max_content_width = screen_.dimx() - static_cast<int>(ln_width) - 4;
+    int effective_screen_width = is_split_mode ? max_width : screen_.dimx();
+    int max_content_width = effective_screen_width - static_cast<int>(ln_width) - 4;
     if (max_content_width < 20)
         max_content_width = 20;
     if (content.length() > static_cast<size_t>(max_content_width)) {
