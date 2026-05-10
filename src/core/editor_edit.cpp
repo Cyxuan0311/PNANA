@@ -830,8 +830,18 @@ void Editor::copy() {
         if (!doc) {
             return;
         }
-        content =
-            doc->getSelection(selection_start_row_, selection_start_col_, cursor_row_, cursor_col_);
+
+        size_t start_row = selection_start_row_;
+        size_t start_col = selection_start_col_;
+        size_t end_row = cursor_row_;
+        size_t end_col = cursor_col_;
+
+        if (start_row > end_row || (start_row == end_row && start_col > end_col)) {
+            std::swap(start_row, end_row);
+            std::swap(start_col, end_col);
+        }
+
+        content = doc->getSelection(start_row, start_col, end_row, end_col);
 
         if (content.empty()) {
             setStatusMessage("Selection is empty");
@@ -843,6 +853,8 @@ void Editor::copy() {
     if (utils::Clipboard::copyToSystem(content)) {
         // 同时保存到内部剪贴板（作为备份）
         getCurrentDocument()->setClipboard(content);
+        // 添加到剪贴板历史
+        clipboard_panel_.addEntry(content);
         setStatusMessage(selection_active_ ? "Selection copied to clipboard"
                                            : "Line copied to clipboard");
         // 显示 Toast 通知

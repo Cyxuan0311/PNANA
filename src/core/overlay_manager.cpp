@@ -100,6 +100,13 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return hbox({main_ui | flex, separator(), ai_panel});
     }
 
+    // 剪贴板历史面板：以侧边栏形式显示在右侧
+    if (is_clipboard_panel_visible_callback_ && is_clipboard_panel_visible_callback_() &&
+        render_clipboard_panel_callback_) {
+        Element clip_panel = render_clipboard_panel_callback_();
+        return hbox({main_ui | flex, separator(), clip_panel});
+    }
+
 #ifdef BUILD_LUA_SUPPORT
     // 插件管理对话框
     if (is_plugin_manager_visible_callback_ && render_plugin_manager_callback_) {

@@ -61,6 +61,9 @@ class OverlayManager {
     void setRenderAIAssistantCallback(std::function<ftxui::Element()> callback) {
         render_ai_assistant_callback_ = callback;
     }
+    void setRenderClipboardPanelCallback(std::function<ftxui::Element()> callback) {
+        render_clipboard_panel_callback_ = callback;
+    }
     void setRenderPluginManagerCallback(std::function<ftxui::Element()> callback) {
         render_plugin_manager_callback_ = callback;
     }
@@ -171,6 +174,9 @@ class OverlayManager {
     void setIsAIAssistantVisibleCallback(std::function<bool()> callback) {
         is_ai_assistant_visible_callback_ = callback;
     }
+    void setIsClipboardPanelVisibleCallback(std::function<bool()> callback) {
+        is_clipboard_panel_visible_callback_ = callback;
+    }
     void setIsPluginManagerVisibleCallback(std::function<bool()> callback) {
         is_plugin_manager_visible_callback_ = callback;
     }
@@ -257,6 +263,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_cursor_config_callback_;
     std::function<ftxui::Element()> render_ai_config_callback_;
     std::function<ftxui::Element()> render_ai_assistant_callback_;
+    std::function<ftxui::Element()> render_clipboard_panel_callback_;
     std::function<ftxui::Element()> render_plugin_manager_callback_;
     std::function<ftxui::Element()> render_command_palette_callback_;
     std::function<ftxui::Element()> render_format_callback_;
@@ -298,6 +305,7 @@ class OverlayManager {
     std::function<bool()> is_cursor_config_visible_callback_;
     std::function<bool()> is_ai_config_visible_callback_;
     std::function<bool()> is_ai_assistant_visible_callback_;
+    std::function<bool()> is_clipboard_panel_visible_callback_;
     std::function<bool()> is_plugin_manager_visible_callback_;
     std::function<bool()> is_command_palette_visible_callback_;
     std::function<bool()> is_format_visible_callback_;

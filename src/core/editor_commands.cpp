@@ -87,6 +87,12 @@ void Editor::initializeCommandPalette() {
             copy();
         }));
 
+    command_palette_.registerCommand(Command("edit.clipboard", "Clipboard History",
+                                             "Open clipboard history panel",
+                                             {"clip", "clipboard", "history", "paste"}, [this]() {
+                                                 toggleClipboardPanel();
+                                             }));
+
     command_palette_.registerCommand(
         Command("edit.paste", "Paste", "Paste from clipboard", {"paste", "edit"}, [this]() {
             paste();

@@ -376,6 +376,13 @@ void Editor::handleInput(Event event) {
         return;
     }
 
+    // 剪贴板面板可见时的输入处理
+    if (clipboard_panel_.isVisible()) {
+        if (clipboard_panel_.handleInput(event)) {
+            return;
+        }
+    }
+
     // AI 助手面板可见时的导航逻辑
     if (ai_assistant_panel_.isVisible()) {
         EditorRegion cur = region_manager_.getCurrentRegion();

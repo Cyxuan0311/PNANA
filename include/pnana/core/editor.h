@@ -18,6 +18,7 @@
 #include "ui/ai_config_dialog.h"
 #include "ui/animation_menu.h"
 #include "ui/binary_file_view.h"
+#include "ui/clipboard_panel.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
 #include "ui/dialog.h"
@@ -296,6 +297,9 @@ class Editor {
     // 配置
     void loadConfig(const std::string& config_path = "");
 
+    // 应用已加载的配置到编辑器（供热重载使用）
+    void applyLoadedConfig();
+
     // 状态栏美化
     void setStatusbarBeautify(const pnana::ui::StatusbarBeautifyConfig& config) {
         statusbar_.setBeautifyConfig(config);
@@ -447,6 +451,7 @@ class Editor {
     pnana::ui::ExtractPathDialog extract_path_dialog_;
     pnana::ui::ExtractProgressDialog extract_progress_dialog_;
     pnana::ui::AIAssistantPanel ai_assistant_panel_;
+    pnana::ui::ClipboardPanel clipboard_panel_;
     pnana::ui::AIConfigDialog ai_config_dialog_;
     pnana::ui::TodoPanel todo_panel_;
     pnana::ui::PackageManagerPanel package_manager_panel_;
@@ -714,6 +719,7 @@ class Editor {
     // 状态消息
     std::string status_message_;
     bool should_quit_;
+    bool config_watcher_registered_ = false;
 
     // UI更新控制
     bool force_ui_update_;
@@ -925,6 +931,11 @@ class Editor {
     void insertCodeAtCursor(const std::string& code);
     void replaceSelectedCode(const std::string& code);
     std::string getSelectedText() const;
+
+    // 剪贴板面板
+    void toggleClipboardPanel();
+    bool isClipboardPanelVisible() const;
+    ftxui::Element renderClipboardPanel();
 
     // Todo功能
     void toggleTodoPanel();

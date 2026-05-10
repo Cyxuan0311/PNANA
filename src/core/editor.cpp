@@ -64,8 +64,8 @@ Editor::Editor()
       format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
       history_timeline_popup_(theme_), history_diff_popup_(theme_), tui_config_popup_(theme_),
       extract_dialog_(theme_), extract_path_dialog_(theme_), extract_progress_dialog_(theme_),
-      ai_assistant_panel_(theme_), ai_config_dialog_(theme_), todo_panel_(theme_),
-      package_manager_panel_(theme_),
+      ai_assistant_panel_(theme_), clipboard_panel_(theme_), ai_config_dialog_(theme_),
+      todo_panel_(theme_), package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -335,6 +335,11 @@ Editor::Editor()
     // 初始化AI助手
     initializeAIAssistant();
 
+    // 初始化剪贴板面板回调
+    clipboard_panel_.setOnInsertText([this](const std::string& text) {
+        insertCodeAtCursor(text);
+    });
+
     // 初始化输入和UI路由器（解耦优化）
     input_router_ = std::make_unique<pnana::core::input::InputRouter>();
     ui_router_ = std::make_unique<pnana::core::ui::UIRouter>();
@@ -427,6 +432,8 @@ Editor::Editor(const std::vector<std::string>& filepaths) : Editor() {
 }
 
 Editor::~Editor() {
+    config_manager_.stopWatching();
+
     // 先取消解压操作，避免析构时线程仍在运行并访问已销毁的成员
     if (extract_manager_.isExtracting()) {
         extract_manager_.cancelExtraction();
@@ -528,9 +535,22 @@ void Editor::setTheme(const std::string& theme_name) {
 }
 
 void Editor::loadConfig(const std::string& config_path) {
-    // 加载配置文件
     config_manager_.loadConfig(config_path);
+    applyLoadedConfig();
 
+    if (!config_watcher_registered_) {
+        config_watcher_registered_ = true;
+        config_manager_.registerChangeCallback([this]() {
+            screen_.Post([this]() {
+                applyLoadedConfig();
+                setStatusMessage("Config hot-reloaded from disk");
+            });
+        });
+        config_manager_.startWatching();
+    }
+}
+
+void Editor::applyLoadedConfig() {
     // 注入配置中的自定义 Logo（供欢迎页与 Logo 菜单使用）
     features::LogoManager::setCustomLogos(config_manager_.getConfig().custom_logos);
 
@@ -1261,6 +1281,25 @@ bool Editor::isAIAssistantVisible() const {
 
 ftxui::Element Editor::renderAIAssistantPanel() {
     return ai_assistant_panel_.render();
+}
+
+void Editor::toggleClipboardPanel() {
+    if (clipboard_panel_.isVisible()) {
+        clipboard_panel_.hide();
+        setStatusMessage("Clipboard History closed");
+    } else {
+        clipboard_panel_.show();
+        setStatusMessage("Clipboard History opened - ↑↓: Navigate  Enter: Insert  Space: Select  "
+                         "d: Delete  Esc: Close");
+    }
+}
+
+bool Editor::isClipboardPanelVisible() const {
+    return clipboard_panel_.isVisible();
+}
+
+ftxui::Element Editor::renderClipboardPanel() {
+    return clipboard_panel_.render();
 }
 
 void Editor::toggleTodoPanel() {

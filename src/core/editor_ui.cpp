@@ -421,6 +421,9 @@ Element Editor::overlayDialogs(Element main_ui) {
         core::ui::BorderManager bm;
         return bm.applyBorder(el, EditorRegion::AI_ASSISTANT_PANEL, ai_active, theme_);
     });
+    overlay_manager_->setRenderClipboardPanelCallback([this]() {
+        return clipboard_panel_.render();
+    });
     overlay_manager_->setRenderCommandPaletteCallback([this]() {
         return renderCommandPalette();
     });
@@ -572,6 +575,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsAIAssistantVisibleCallback([this]() {
         return ai_assistant_panel_.isVisible();
+    });
+    overlay_manager_->setIsClipboardPanelVisibleCallback([this]() {
+        return clipboard_panel_.isVisible();
     });
     overlay_manager_->setIsCommandPaletteVisibleCallback([this]() {
         return command_palette_.isOpen();
