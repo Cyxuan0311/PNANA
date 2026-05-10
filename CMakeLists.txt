@@ -486,6 +486,7 @@ set(SOURCES
     src/ui/terminal_session_dialog.cpp
     src/ui/ai_config_dialog.cpp
     src/ui/ai_assistant_panel.cpp
+    src/ui/clipboard_panel.cpp
     src/ui/completion_popup.cpp
     src/ui/command_palette_ui.cpp
     src/ui/diagnostics_popup.cpp
@@ -505,6 +506,7 @@ set(SOURCES
     src/utils/text_analyzer.cpp
     src/utils/text_utils.cpp
     src/utils/clipboard.cpp
+    src/utils/clipboard_history.cpp
     src/utils/file_type_detector.cpp
     src/utils/project_root_finder.cpp
     src/utils/file_type_icon_mapper.cpp
