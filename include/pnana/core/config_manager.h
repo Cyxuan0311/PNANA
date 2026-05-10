@@ -1,9 +1,14 @@
 #ifndef PNANA_CORE_CONFIG_MANAGER_H
 #define PNANA_CORE_CONFIG_MANAGER_H
 
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace pnana {
@@ -254,10 +259,39 @@ class ConfigManager {
     // 重置为默认配置
     void resetToDefaults();
 
+    // 配置变更回调类型
+    using ConfigChangeCallback = std::function<void()>;
+
+    // 注册配置变更回调（当配置文件被外部修改并重新加载时触发）
+    void registerChangeCallback(ConfigChangeCallback callback);
+
+    // 检查配置文件是否被外部修改，如有变更则重新加载并触发回调
+    // 返回 true 表示配置已重新加载
+    bool reloadIfChanged();
+
+    // 启动后台文件监控线程
+    // interval_ms: 检查间隔（毫秒），默认 1000ms
+    void startWatching(int interval_ms = 1000);
+
+    // 停止后台文件监控线程
+    void stopWatching();
+
+    // 是否正在监控
+    bool isWatching() const {
+        return watching_.load();
+    }
+
   private:
     AppConfig config_;
     std::string config_path_;
     bool loaded_;
+
+    // 热重载相关
+    std::filesystem::file_time_type last_modified_time_;
+    std::vector<ConfigChangeCallback> change_callbacks_;
+    std::thread watcher_thread_;
+    std::atomic<bool> watching_{false};
+    int watch_interval_ms_ = 1000;
 
     // JSON 解析辅助方法
     bool parseJSON(const std::string& json_content);

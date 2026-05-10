@@ -121,6 +121,7 @@ bool ConfigManager::loadConfig(const std::string& config_path) {
 
     if (parseJSON(content)) {
         loaded_ = true;
+        last_modified_time_ = fs::last_write_time(config_path_);
         return true;
     }
 
@@ -150,6 +151,7 @@ bool ConfigManager::saveConfig(const std::string& config_path) {
 
     file << generateJSON();
     file.close();
+    last_modified_time_ = fs::last_write_time(config_path_);
     return true;
 }
 
@@ -1162,6 +1164,56 @@ int ConfigManager::stringToInt(const std::string& str) {
         return std::stoi(str);
     } catch (...) {
         return 0;
+    }
+}
+
+void ConfigManager::registerChangeCallback(ConfigChangeCallback callback) {
+    change_callbacks_.push_back(std::move(callback));
+}
+
+bool ConfigManager::reloadIfChanged() {
+    if (config_path_.empty() || !fs::exists(config_path_)) {
+        return false;
+    }
+
+    auto current_mtime = fs::last_write_time(config_path_);
+    if (current_mtime == last_modified_time_) {
+        return false;
+    }
+
+    if (!loadConfig(config_path_)) {
+        return false;
+    }
+
+    for (auto& cb : change_callbacks_) {
+        if (cb) {
+            cb();
+        }
+    }
+
+    return true;
+}
+
+void ConfigManager::startWatching(int interval_ms) {
+    if (watching_.load()) {
+        return;
+    }
+
+    watch_interval_ms_ = interval_ms;
+    watching_.store(true);
+
+    watcher_thread_ = std::thread([this]() {
+        while (watching_.load()) {
+            reloadIfChanged();
+            std::this_thread::sleep_for(std::chrono::milliseconds(watch_interval_ms_));
+        }
+    });
+}
+
+void ConfigManager::stopWatching() {
+    watching_.store(false);
+    if (watcher_thread_.joinable()) {
+        watcher_thread_.join();
     }
 }
 
