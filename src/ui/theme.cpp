@@ -7053,6 +7053,49 @@ ThemeColors Theme::GreeceAegean() {
     return colors;
 }
 
+ThemeColors Theme::RedWhite() {
+    ThemeColors colors;
+    // RedWhite: 红白配色主题，灰色背景 + 银白淡红高亮对比
+    colors.background = Color::RGB(45, 45, 48);             // #2D2D30 深灰背景
+    colors.foreground = Color::RGB(200, 200, 205);          // #C8C8CD 银色前景
+    colors.current_line = Color::RGB(55, 55, 58);           // #37373A 当前行中灰
+    colors.selection = Color::RGB(65, 65, 68);              // #414144 选择区
+    colors.line_number = Color::RGB(130, 130, 135);         // #828287 行号银灰
+    colors.line_number_current = Color::RGB(210, 210, 215); // #D2D2D7 当前行号亮银
+
+    colors.statusbar_bg = Color::RGB(160, 80, 90);   // #A0505A 淡红状态栏
+    colors.statusbar_fg = Color::RGB(220, 220, 225); // #DCDCE1 银色文字
+
+    colors.menubar_bg = Color::RGB(40, 40, 43);    // #28282B 深灰菜单
+    colors.menubar_fg = Color::RGB(200, 200, 205); // #C8C8CD 银色文字
+
+    colors.helpbar_bg = Color::RGB(40, 40, 43);
+    colors.helpbar_fg = Color::RGB(160, 160, 165);
+    colors.helpbar_key = Color::RGB(220, 130, 140); // 淡红快捷键
+
+    // 银白淡红语法高亮：灰色背景上柔和醒目
+    colors.keyword = Color::RGB(220, 130, 140);        // #DC828C 淡红关键词
+    colors.string = Color::RGB(210, 210, 215);         // #D2D2D7 银色字符串
+    colors.comment = Color::RGB(120, 120, 125);        // #78787D 灰色注释
+    colors.number = Color::RGB(230, 150, 155);         // #E6969B 浅淡红数字
+    colors.function = Color::RGB(210, 210, 215);       // #D2D2D7 银色函数
+    colors.type = Color::RGB(225, 140, 145);           // #E18C91 淡红类型
+    colors.operator_color = Color::RGB(210, 210, 215); // 银色操作符
+
+    colors.error = Color::RGB(230, 110, 120);   // #E66E78 淡红错误
+    colors.warning = Color::RGB(230, 170, 110); // #E6AA6E 橙黄警告
+    colors.info = Color::RGB(180, 180, 185);    // #B4B4B9 银灰信息
+    colors.success = Color::RGB(220, 140, 145); // #DC8C91 淡红成功
+
+    colors.dialog_bg = Color::RGB(50, 50, 53);          // #323235 中灰对话框
+    colors.dialog_fg = Color::RGB(200, 200, 205);       // #C8C8CD 银色文字
+    colors.dialog_title_bg = Color::RGB(160, 80, 90);   // #A0505A 淡红标题栏
+    colors.dialog_title_fg = Color::RGB(220, 220, 225); // #DCDCE1 银色标题
+    colors.dialog_border = Color::RGB(180, 100, 110);   // #B4646E 淡红边框
+
+    return colors;
+}
+
 void Theme::setTheme(const std::string& name) {
     current_theme_ = name;
 
@@ -7393,6 +7436,8 @@ void Theme::setTheme(const std::string& name) {
         colors_ = GreeceMyth();
     } else if (name == "greece-aegean") {
         colors_ = GreeceAegean();
+    } else if (name == "red-white") {
+        colors_ = RedWhite();
     } else {
         colors_ = Monokai(); // 默认主题
     }
@@ -7670,7 +7715,8 @@ std::vector<std::string> Theme::getAvailableThemes() {
             "france",
             "antarctica",
             "heaven",
-            "hell"};
+            "hell",
+            "red-white"};
 }
 
 std::vector<std::string> Theme::getCustomThemeNames() const {
@@ -7777,6 +7823,9 @@ std::vector<Color> Theme::getGradientColors() const {
         {"cyberpunk",
          {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::type, &ThemeColors::function,
           &ThemeColors::keyword, &ThemeColors::success}},
+        {"red-white",
+         {&ThemeColors::keyword, &ThemeColors::function, &ThemeColors::string,
+          &ThemeColors::function, &ThemeColors::keyword, &ThemeColors::success}},
     };
 
     auto it = theme_gradients.find(current_theme_);

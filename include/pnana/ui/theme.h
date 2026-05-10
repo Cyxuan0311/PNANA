@@ -224,6 +224,7 @@ class Theme {
     static ThemeColors GreeceOlive();  // Greece Olive - 希腊橄榄版，橄榄绿 + 地中海蓝
     static ThemeColors GreeceMyth();   // Greece Myth - 希腊神话版，紫金神话配色
     static ThemeColors GreeceAegean(); // Greece Aegean - 希腊爱琴海版，深邃海洋蓝
+    static ThemeColors RedWhite();     // RedWhite - 红白配色主题，经典红白对比
 
     void setTheme(const std::string& name);
 
