@@ -77,3 +77,34 @@ add_custom_target(run_bracket_match_highlight_perf_test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running bracket match & highlight performance benchmark..."
 )
+
+# Match highlight performance test executable
+add_executable(match_highlight_perf_test
+    match_highlight_perf_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/match_highlight.cpp
+)
+
+target_include_directories(match_highlight_perf_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include/pnana
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(match_highlight_perf_test PRIVATE
+    ftxui::screen
+    ftxui::dom
+    ftxui::component
+)
+
+target_compile_features(match_highlight_perf_test PRIVATE cxx_std_17)
+
+set_target_properties(match_highlight_perf_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+)
+
+# Add convenience target for running the test
+add_custom_target(run_match_highlight_perf_test
+    COMMAND match_highlight_perf_test
+    DEPENDS match_highlight_perf_test
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running match highlight performance benchmark..."
+)

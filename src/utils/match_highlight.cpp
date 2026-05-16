@@ -8,34 +8,80 @@ namespace utils {
 
 namespace {
 
-std::string toLowerAscii(const std::string& s) {
-    std::string out = s;
-    for (char& c : out) {
-        if (static_cast<unsigned char>(c) < 128)
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    return out;
+inline unsigned char toLowerChar(unsigned char c) {
+    return static_cast<unsigned char>(std::tolower(c));
 }
 
-// 在 text_lower 中找 query_lower 的所有起始位置，合并重叠区间
-std::vector<std::pair<size_t, size_t>> findMatchRanges(const std::string& text_lower,
-                                                       const std::string& query_lower) {
+// KMP 前缀函数（部分匹配表）
+std::vector<int> computeLPS(const std::string& pattern) {
+    const int m = static_cast<int>(pattern.size());
+    std::vector<int> lps(m, 0);
+    int len = 0;
+    int i = 1;
+    while (i < m) {
+        if (toLowerChar(static_cast<unsigned char>(pattern[i])) ==
+            toLowerChar(static_cast<unsigned char>(pattern[len]))) {
+            len++;
+            lps[i] = len;
+            i++;
+        } else {
+            if (len != 0) {
+                len = lps[len - 1];
+            } else {
+                lps[i] = 0;
+                i++;
+            }
+        }
+    }
+    return lps;
+}
+
+// KMP 搜索：返回所有匹配的起始位置
+std::vector<size_t> kmpSearch(const std::string& text, const std::string& pattern) {
+    std::vector<size_t> positions;
+    const int n = static_cast<int>(text.size());
+    const int m = static_cast<int>(pattern.size());
+    if (m == 0 || n < m)
+        return positions;
+
+    std::vector<int> lps = computeLPS(pattern);
+
+    int i = 0; // text 索引
+    int j = 0; // pattern 索引
+    while (i < n) {
+        if (toLowerChar(static_cast<unsigned char>(pattern[j])) ==
+            toLowerChar(static_cast<unsigned char>(text[i]))) {
+            i++;
+            j++;
+        }
+        if (j == m) {
+            positions.push_back(static_cast<size_t>(i - j));
+            j = lps[j - 1];
+        } else if (i < n && toLowerChar(static_cast<unsigned char>(pattern[j])) !=
+                                toLowerChar(static_cast<unsigned char>(text[i]))) {
+            if (j != 0) {
+                j = lps[j - 1];
+            } else {
+                i++;
+            }
+        }
+    }
+    return positions;
+}
+
+// 合并重叠区间
+std::vector<std::pair<size_t, size_t>> mergeRanges(std::vector<size_t>&& positions,
+                                                   size_t pattern_len) {
     std::vector<std::pair<size_t, size_t>> ranges;
-    if (query_lower.empty())
+    if (positions.empty())
         return ranges;
-    size_t pos = 0;
-    const size_t qlen = query_lower.size();
-    while (pos + qlen <= text_lower.size()) {
-        size_t found = text_lower.find(query_lower, pos);
-        if (found == std::string::npos)
-            break;
-        size_t end = found + qlen;
-        if (!ranges.empty() && found <= ranges.back().second) {
+    for (size_t pos : positions) {
+        size_t end = pos + pattern_len;
+        if (!ranges.empty() && pos <= ranges.back().second) {
             ranges.back().second = std::max(ranges.back().second, end);
         } else {
-            ranges.emplace_back(found, end);
+            ranges.emplace_back(pos, end);
         }
-        pos = found + 1;
     }
     return ranges;
 }
@@ -48,9 +94,11 @@ ftxui::Element highlightMatch(const std::string& text, const std::string& query,
     if (query.empty())
         return ftxui::text(text) | color(default_color);
 
-    std::string text_lower = toLowerAscii(text);
-    std::string query_lower = toLowerAscii(query);
-    auto ranges = findMatchRanges(text_lower, query_lower);
+    auto positions = kmpSearch(text, query);
+    if (positions.empty())
+        return ftxui::text(text) | color(default_color);
+
+    auto ranges = mergeRanges(std::move(positions), query.size());
     if (ranges.empty())
         return ftxui::text(text) | color(default_color);
 
