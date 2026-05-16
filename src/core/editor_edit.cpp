@@ -18,6 +18,8 @@ void Editor::insertChar(char ch) {
         return;
     }
 
+    auto t_insert_start = std::chrono::steady_clock::now();
+
     // 记录变更（阶段2优化：增量更新）
 #ifdef BUILD_LSP_SUPPORT
     if (lsp_enabled_ && document_change_tracker_) {
@@ -77,6 +79,18 @@ void Editor::insertChar(char ch) {
         }
     }
 #endif
+
+    // 性能埋点：记录慢速插入（>5ms 才记录，避免日志洪水）
+    auto t_insert_end = std::chrono::steady_clock::now();
+    auto insert_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_insert_end - t_insert_start)
+            .count();
+    if (insert_us > 5000) {
+        std::string doc_path = doc->getFilePath();
+        LOG("[perf] INSERT_CHAR_SLOW row=" + std::to_string(cursor_row_) +
+            " col=" + std::to_string(cursor_col_) + " ch=" + std::string(1, ch) +
+            " time_us=" + std::to_string(insert_us));
+    }
 }
 
 void Editor::insertText(const std::string& text) {
@@ -88,6 +102,8 @@ void Editor::insertText(const std::string& text) {
     if (!doc) {
         return;
     }
+
+    auto t_insert_start = std::chrono::steady_clock::now();
 
     // 记录变更（阶段2优化：增量更新）
 #ifdef BUILD_LSP_SUPPORT
@@ -148,6 +164,17 @@ void Editor::insertText(const std::string& text) {
         completion_trigger_delay_ = 0;
     }
 #endif
+
+    // 性能埋点：记录慢速文本插入（>10ms 才记录）
+    auto t_insert_end = std::chrono::steady_clock::now();
+    auto insert_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_insert_end - t_insert_start)
+            .count();
+    if (insert_us > 10000) {
+        LOG("[perf] INSERT_TEXT_SLOW row=" + std::to_string(cursor_row_) +
+            " col=" + std::to_string(cursor_col_) + " text_len=" + std::to_string(text.length()) +
+            " time_us=" + std::to_string(insert_us));
+    }
 }
 
 void Editor::insertNewline() {
@@ -155,9 +182,20 @@ void Editor::insertNewline() {
     if (!doc)
         return;
 
+    auto t_newline_start = std::chrono::steady_clock::now();
+
     std::string current_line = doc->getLine(cursor_row_);
     std::string before_cursor = current_line.substr(0, cursor_col_);
     std::string after_cursor = current_line.substr(cursor_col_);
+
+    size_t abs_pos = 0;
+    for (size_t i = 0; i < cursor_row_; ++i) {
+        abs_pos += doc->getLine(i).length() + 1;
+    }
+    abs_pos += cursor_col_;
+
+    doc->getBufferBackend()->replace(abs_pos, current_line.length() - cursor_col_,
+                                     "\n" + after_cursor);
 
     doc->getLines()[cursor_row_] = before_cursor;
     doc->getLines().insert(doc->getLines().begin() + cursor_row_ + 1, after_cursor);
@@ -261,6 +299,16 @@ void Editor::insertNewline() {
     }
 
     adjustViewOffset();
+
+    // 性能埋点：记录慢速换行（>10ms）
+    auto t_newline_end = std::chrono::steady_clock::now();
+    auto newline_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_newline_end - t_newline_start)
+            .count();
+    if (newline_us > 10000) {
+        LOG("[perf] INSERT_NEWLINE_SLOW row=" + std::to_string(cursor_row_) +
+            " time_us=" + std::to_string(newline_us));
+    }
 }
 
 std::string Editor::computeAutoIndent(const std::vector<std::string>& lines, size_t cursor_row,
@@ -334,6 +382,8 @@ void Editor::deleteChar() {
         return;
     }
 
+    auto t_delete_start = std::chrono::steady_clock::now();
+
     const std::string& line = doc->getLine(cursor_row_);
 
     // 如果光标不在行尾，删除下一个UTF-8字符
@@ -391,12 +441,24 @@ void Editor::deleteChar() {
         }
     }
 #endif
+
+    // 性能埋点：记录慢速删除（>10ms）
+    auto t_delete_end = std::chrono::steady_clock::now();
+    auto delete_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_delete_end - t_delete_start)
+            .count();
+    if (delete_us > 10000) {
+        LOG("[perf] DELETE_CHAR_SLOW row=" + std::to_string(cursor_row_) +
+            " col=" + std::to_string(cursor_col_) + " time_us=" + std::to_string(delete_us));
+    }
 }
 
 void Editor::backspace() {
     Document* doc = getCurrentDocument();
     if (!doc)
         return;
+
+    auto t_backspace_start = std::chrono::steady_clock::now();
 
     // 如果有选中内容，删除选中内容
     if (selection_active_) {
@@ -537,6 +599,16 @@ void Editor::backspace() {
         markdown_preview_needs_update_ = true;
         last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
         last_render_source_ = "edit_backspace";
+    }
+
+    // 性能埋点：记录慢速退格（>10ms）
+    auto t_backspace_end = std::chrono::steady_clock::now();
+    auto backspace_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_backspace_end - t_backspace_start)
+            .count();
+    if (backspace_us > 10000) {
+        LOG("[perf] BACKSPACE_SLOW row=" + std::to_string(cursor_row_) +
+            " col=" + std::to_string(cursor_col_) + " time_us=" + std::to_string(backspace_us));
     }
 }
 
@@ -1010,6 +1082,8 @@ void Editor::undo() {
         return;
     }
 
+    auto t_undo_start = std::chrono::steady_clock::now();
+
     size_t change_row = 0, change_col = 0;
     DocumentChange::Type change_type;
 
@@ -1033,6 +1107,15 @@ void Editor::undo() {
         syncLspAfterEdit(true);
 #endif
 
+        auto t_undo_end = std::chrono::steady_clock::now();
+        auto undo_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(t_undo_end - t_undo_start)
+                .count();
+        if (undo_ms > 10) {
+            LOG("[perf] UNDO_SLOW type=" + std::to_string(static_cast<int>(change_type)) +
+                " row=" + std::to_string(change_row) + " time_ms=" + std::to_string(undo_ms));
+        }
+
         // 不显示成功消息，避免UI干扰（VSCode 行为）
     } else {
         setStatusMessage("Nothing to undo");
@@ -1045,6 +1128,8 @@ void Editor::redo() {
         setStatusMessage("No document to redo");
         return;
     }
+
+    auto t_redo_start = std::chrono::steady_clock::now();
 
     size_t change_row = 0, change_col = 0;
 
@@ -1067,6 +1152,14 @@ void Editor::redo() {
         syncLspAfterEdit(true);
 #endif
 
+        auto t_redo_end = std::chrono::steady_clock::now();
+        auto redo_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(t_redo_end - t_redo_start)
+                .count();
+        if (redo_ms > 10) {
+            LOG("[perf] REDO_SLOW row=" + std::to_string(change_row) +
+                " time_ms=" + std::to_string(redo_ms));
+        }
     } else {
         setStatusMessage("Nothing to redo");
     }

@@ -88,28 +88,16 @@ void Editor::moveCursorUp() {
     }
 
     auto doc = getCurrentDocument();
-    if (!doc)
+    if (!doc || cursor_row_ == 0)
         return;
 
-    // 获取可见行列表
-    std::vector<size_t> visible_lines = doc->getVisibleLines();
-    if (visible_lines.empty())
-        return;
-
-    // 找到当前光标在可见行中的位置
-    size_t current_visible_index = 0;
-    for (size_t i = 0; i < visible_lines.size(); ++i) {
-        if (visible_lines[i] == cursor_row_) {
-            current_visible_index = i;
-            break;
-        }
+    size_t prev = cursor_row_ - 1;
+    while (prev > 0 && doc->isLineInFoldedRange(static_cast<int>(prev))) {
+        --prev;
     }
-
-    // 如果不是第一行，移动到上一可见行
-    if (current_visible_index > 0) {
-        cursor_row_ = visible_lines[current_visible_index - 1];
+    if (!doc->isLineInFoldedRange(static_cast<int>(prev))) {
+        cursor_row_ = prev;
         adjustCursor();
-        // 立即调整视图偏移，使光标移动更流畅
         adjustViewOffset();
     }
 
@@ -130,25 +118,17 @@ void Editor::moveCursorDown() {
     if (!doc)
         return;
 
-    // 获取可见行列表
-    std::vector<size_t> visible_lines = doc->getVisibleLines();
-    if (visible_lines.empty())
+    size_t total = doc->lineCount();
+    if (cursor_row_ + 1 >= total)
         return;
 
-    // 找到当前光标在可见行中的位置
-    size_t current_visible_index = 0;
-    for (size_t i = 0; i < visible_lines.size(); ++i) {
-        if (visible_lines[i] == cursor_row_) {
-            current_visible_index = i;
-            break;
-        }
+    size_t next = cursor_row_ + 1;
+    while (next + 1 < total && doc->isLineInFoldedRange(static_cast<int>(next))) {
+        ++next;
     }
-
-    // 如果不是最后一行，移动到下一可见行
-    if (current_visible_index < visible_lines.size() - 1) {
-        cursor_row_ = visible_lines[current_visible_index + 1];
+    if (next < total && !doc->isLineInFoldedRange(static_cast<int>(next))) {
+        cursor_row_ = next;
         adjustCursor();
-        // 立即调整视图偏移，使光标移动更流畅
         adjustViewOffset();
     }
 

@@ -1767,8 +1767,18 @@ ftxui::Element Editor::renderCompletionPopup() {
 
     int anchor_y = getCompletionAnchorY();
     int anchor_x = getCompletionAnchorX();
-    int origin_x = getContentOriginX();
+
+    // 分屏模式下：使用激活区域的屏幕偏移作为内容原点
+    int origin_x = 0;
     int origin_y = getContentOriginY();
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            origin_x = active_region->x;
+            origin_y = active_region->y;
+        }
+    }
+
     completion_popup_.updateCursorPosition(anchor_y, anchor_x, screen_.dimx(), screen_.dimy());
 
     return completion_popup_.render(theme_, origin_x, origin_y);

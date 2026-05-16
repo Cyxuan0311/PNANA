@@ -123,6 +123,9 @@ bool Editor::openFile(const std::string& filepath) {
 
 bool Editor::openFileInternal(const std::string& filepath) {
     try {
+        LOG("[perf] EDITOR_OPEN_START path=" + filepath);
+        auto t_editor_open = std::chrono::steady_clock::now();
+
         document_manager_.openDocument(filepath);
 
         cursor_row_ = 0;
@@ -250,6 +253,12 @@ bool Editor::openFileInternal(const std::string& filepath) {
             }
         }
 
+        auto t_editor_end = std::chrono::steady_clock::now();
+        auto editor_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(t_editor_end - t_editor_open)
+                .count();
+        LOG("[perf] EDITOR_OPEN_DONE path=" + filepath + " time_ms=" + std::to_string(editor_ms));
+
         return true;
     } catch (const std::exception& e) {
         setStatusMessage(std::string(pnana::ui::icons::ERROR) +
@@ -307,19 +316,28 @@ bool Editor::saveFile() {
     // 普通文件保存
     size_t line_count = doc->lineCount();
     size_t byte_count = 0;
-    for (size_t i = 0; i < line_count; ++i) {
-        byte_count += doc->getLine(i).length() + 1; // +1 for newline
+    if (doc->getBufferBackend()) {
+        byte_count = doc->getBufferBackend()->length();
+    }
+    if (byte_count == 0) {
+        for (size_t i = 0; i < line_count; ++i) {
+            byte_count += doc->getLine(i).length() + 1; // +1 for newline
+        }
     }
 
     if (doc->save()) {
         // 异步记录历史版本（不阻塞主线程）
-        std::string saved_path = doc->getFilePath();
-        std::vector<std::string> saved_lines = doc->getLines();
-        std::thread([this, saved_path, saved_lines]() {
-            bool ok = file_history_manager_.recordVersion(saved_path, saved_lines);
-            LOG(std::string("[history] recordVersion (save) ") + (ok ? "ok" : "failed") +
-                " path=" + saved_path);
-        }).detach();
+        // 大文件跳过历史记录，避免全量拷贝 lines_ 导致卡顿
+        const std::uintmax_t history_threshold = 50ull * 1024 * 1024; // 50 MB
+        if (byte_count <= history_threshold) {
+            std::string saved_path = doc->getFilePath();
+            std::vector<std::string> saved_lines = doc->getLines();
+            std::thread([this, saved_path, saved_lines]() {
+                bool ok = file_history_manager_.recordVersion(saved_path, saved_lines);
+                LOG(std::string("[history] recordVersion (save) ") + (ok ? "ok" : "failed") +
+                    " path=" + saved_path);
+            }).detach();
+        }
 
         // nano风格：显示写入的行数
         std::string msg = std::string(pnana::ui::icons::SAVED) + " Wrote " +
@@ -384,19 +402,28 @@ bool Editor::saveFileAs(const std::string& filepath) {
 
     size_t line_count = doc->lineCount();
     size_t byte_count = 0;
-    for (size_t i = 0; i < line_count; ++i) {
-        byte_count += doc->getLine(i).length() + 1; // +1 for newline
+    if (doc->getBufferBackend()) {
+        byte_count = doc->getBufferBackend()->length();
+    }
+    if (byte_count == 0) {
+        for (size_t i = 0; i < line_count; ++i) {
+            byte_count += doc->getLine(i).length() + 1; // +1 for newline
+        }
     }
 
     if (doc->saveAs(filepath)) {
         // 异步记录历史版本（不阻塞主线程）
-        std::string saved_path = filepath;
-        std::vector<std::string> saved_lines = doc->getLines();
-        std::thread([this, saved_path, saved_lines]() {
-            bool ok = file_history_manager_.recordVersion(saved_path, saved_lines);
-            LOG(std::string("[history] recordVersion (saveAs) ") + (ok ? "ok" : "failed") +
-                " path=" + saved_path);
-        }).detach();
+        // 大文件跳过历史记录，避免全量拷贝 lines_ 导致卡顿
+        const std::uintmax_t history_threshold = 50ull * 1024 * 1024; // 50 MB
+        if (byte_count <= history_threshold) {
+            std::string saved_path = filepath;
+            std::vector<std::string> saved_lines = doc->getLines();
+            std::thread([this, saved_path, saved_lines]() {
+                bool ok = file_history_manager_.recordVersion(saved_path, saved_lines);
+                LOG(std::string("[history] recordVersion (saveAs) ") + (ok ? "ok" : "failed") +
+                    " path=" + saved_path);
+            }).detach();
+        }
 
         // 更新语法高亮器（文件类型可能改变）
         syntax_highlighter_.setFileType(getFileType());
@@ -444,6 +471,10 @@ bool Editor::closeFile() {
     if (!doc)
         return false;
 
+    std::string close_path = doc->getFilePath();
+    LOG("[perf] FILE_CLOSE_START path=" + close_path);
+    auto t_close_start = std::chrono::steady_clock::now();
+
 #ifdef BUILD_LSP_SUPPORT
     // 通知 LSP 服务器文件已关闭
     if (lsp_enabled_ && lsp_manager_) {
@@ -467,6 +498,11 @@ bool Editor::closeFile() {
         return false;
     }
     closeCurrentTab();
+
+    auto t_close_end = std::chrono::steady_clock::now();
+    auto close_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(t_close_end - t_close_start).count();
+    LOG("[perf] FILE_CLOSE_DONE path=" + close_path + " time_ms=" + std::to_string(close_ms));
     return true;
 }
 

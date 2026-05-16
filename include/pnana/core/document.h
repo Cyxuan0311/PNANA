@@ -96,6 +96,9 @@ class Document {
         return backend_type_;
     }
     const char* getBufferBackendName() const;
+    BufferBackend* getBufferBackend() {
+        return buffer_backend_.get();
+    }
     void setBufferBackend(BufferBackendType type);
     void autoSelectBufferBackend(); // 根据文件类型和大小自动选择
 
@@ -199,6 +202,7 @@ class Document {
     // 获取可见行（排除折叠的行）
     std::vector<size_t> getVisibleLines(size_t start_line = 0, size_t end_line = SIZE_MAX) const;
     size_t getVisibleLineCount() const;
+    size_t getActualLineForDisplayLine(size_t display_line) const;
 
     // 将显示行号转换为实际行号
     size_t displayLineToActualLine(size_t display_line) const;
@@ -261,6 +265,10 @@ class Document {
     // 已折叠的行范围（存储起始行号）
     std::set<int> folded_lines_;
 
+    // 可见行数缓存（折叠变化时失效）
+    mutable size_t visible_line_count_cache_ = 0;
+    mutable bool visible_line_count_dirty_ = true;
+
     // 辅助方法
     void detectLineEnding(const std::string& content);
     std::string applyLineEnding(const std::string& line) const;
@@ -268,6 +276,8 @@ class Document {
     bool isContentSameAsOriginal() const; // 检查当前内容是否与原始内容相同
     uint64_t computeFileHash(const std::string& filepath) const;
     void syncToBufferBackend();
+    size_t lineColToAbsolutePos(size_t row, size_t col) const;
+    void syncLinesFromBackend();
 };
 
 } // namespace core

@@ -196,17 +196,35 @@ int Editor::getContentBottomY() const {
 }
 
 int Editor::getCompletionAnchorX() const {
-    // 补全弹窗锚点直接使用编辑区左侧坐标系内的光标列
+    // 分屏模式下：需要加上激活区域的屏幕 X 偏移
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            return active_region->x + static_cast<int>(cursor_col_);
+        }
+    }
+    // 单视图模式：补全弹窗锚点直接使用编辑区左侧坐标系内的光标列
     return cursor_col_;
 }
 
 int Editor::getCompletionAnchorY() const {
-    // 当前编辑区起始于 tabbar+separator 之后
+    // 分屏模式下：需要加上激活区域的屏幕 Y 偏移
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region) {
+            return active_region->y + static_cast<int>(cursor_row_);
+        }
+    }
+    // 单视图模式：当前编辑区起始于 tabbar+separator 之后
     return getContentOriginY() + static_cast<int>(cursor_row_);
 }
 
 // UI渲染
 Element Editor::renderUI() {
+    // 性能埋点：每 60 帧记录一次渲染耗时
+    static thread_local int render_frame_counter = 0;
+    auto t_frame_start = std::chrono::steady_clock::now();
+
     // PTY 有新输出时强制刷新（由 on_output_added_ 原子标记，主线程在此消费）
     if (terminal_has_output_.exchange(false, std::memory_order_relaxed)) {
         force_ui_update_ = true;
@@ -281,11 +299,25 @@ Element Editor::renderUI() {
     // UIRouter::render() 内部已调用 overlayDialogs，无需再叠加一次，否则会导致 AI 面板等被渲染两次
     if (ui_router_) {
         last_rendered_element_ = ui_router_->render(this);
-        return last_rendered_element_;
+    } else {
+        // 如果 UIRouter 未初始化，使用原有逻辑
+        last_rendered_element_ = renderUILegacy();
     }
 
-    // 如果 UIRouter 未初始化，使用原有逻辑
-    last_rendered_element_ = renderUILegacy();
+    // 性能埋点：每 60 帧记录一次渲染耗时
+    ++render_frame_counter;
+    if (render_frame_counter % 60 == 0) {
+        auto t_frame_end = std::chrono::steady_clock::now();
+        auto frame_us =
+            std::chrono::duration_cast<std::chrono::microseconds>(t_frame_end - t_frame_start)
+                .count();
+        Document* doc = getCurrentDocument();
+        std::string doc_path = doc ? doc->getFilePath() : "(none)";
+        size_t doc_lines = doc ? doc->lineCount() : 0;
+        LOG("[perf] RENDER_FRAME_60 path=" + doc_path + " lines=" + std::to_string(doc_lines) +
+            " time_us=" + std::to_string(frame_us) + " avg_us=" + std::to_string(frame_us / 60));
+    }
+
     return last_rendered_element_;
 }
 
@@ -819,8 +851,7 @@ Element Editor::renderEditor() {
     int screen_height = screen_.dimy() - 7;
 
     // 获取可见行（考虑折叠状态）
-    std::vector<size_t> visible_lines = doc->getVisibleLines();
-    size_t total_visible_lines = visible_lines.size();
+    size_t total_visible_lines = doc->getVisibleLineCount();
 
     // 只在可见行数少于屏幕高度时，确保从0开始显示（这样最后一行也能显示）
     // 如果可见行数大于屏幕高度，保持当前的视图偏移，让用户自己滚动
@@ -843,9 +874,12 @@ Element Editor::renderEditor() {
     const size_t MAX_RENDER_LINES = 200; // 最多渲染200行
     size_t render_count = std::min(max_lines - view_offset_row_, MAX_RENDER_LINES);
 
+    // 定位到视口起始的显示行对应的实际行
+    size_t actual_line_index = doc->getActualLineForDisplayLine(view_offset_row_);
+    size_t doc_line_count = doc->lineCount();
+
     try {
-        for (size_t i = view_offset_row_; i < view_offset_row_ + render_count; ++i) {
-            size_t actual_line_index = visible_lines[i];
+        for (size_t i = 0; i < render_count && actual_line_index < doc_line_count; ++i) {
             try {
                 // 性能优化：对于超长行，跳过语法高亮
                 std::string line_content = doc->getLine(actual_line_index);
@@ -884,6 +918,13 @@ Element Editor::renderEditor() {
                     error_line.push_back(text("~") | color(theme_.getColors().comment));
                 }
                 lines.push_back(hbox(error_line));
+            }
+
+            // 前进到下一个可见行（跳过折叠行）
+            ++actual_line_index;
+            while (actual_line_index < doc_line_count &&
+                   doc->isLineInFoldedRange(static_cast<int>(actual_line_index))) {
+                ++actual_line_index;
             }
         }
     } catch (const std::exception& e) {
@@ -969,6 +1010,15 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
         }
     }
 
+    // 根据当前渲染的文档设置语法高亮文件类型（分屏模式下各区域独立）
+    {
+        std::string file_type =
+            utils::FileTypeDetector::detectFileType(doc->getFileName(), doc->getFileExtension());
+        if (syntax_highlighter_.getFileType() != file_type) {
+            syntax_highlighter_.setFileType(file_type);
+        }
+    }
+
     // 如果是图片文件，先尝试显示图片预览（双后端模式）
     bool is_image_file = features::ImagePreview::isImageFile(doc->getFilePath());
 
@@ -1048,8 +1098,7 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     Elements lines;
 
     // 获取可见行（考虑折叠状态）
-    std::vector<size_t> visible_lines = doc->getVisibleLines();
-    size_t total_visible_lines = visible_lines.size();
+    (void)doc->getVisibleLineCount(); // 确保缓存更新
     int region_height = region.height;
 
     // 获取该区域的状态：激活区域用全局光标/视口（实时），非激活区域用各自保存的状态
@@ -1072,7 +1121,6 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
 
     // 使用区域特定的视图偏移
     size_t start_line = region_view_offset_row;
-    size_t max_lines = std::min(start_line + region_height, total_visible_lines);
 
     // 获取该区域的单词高亮状态
     bool region_word_highlight_active = false;
@@ -1084,12 +1132,19 @@ Element Editor::renderEditorRegion(const features::ViewRegion& region, Document*
     }
 
     // 渲染可见行
-    for (size_t i = start_line; i < max_lines && i < start_line + region_height; ++i) {
-        size_t actual_line_index = visible_lines[i];
+    size_t actual_line_index = doc->getActualLineForDisplayLine(start_line);
+    size_t doc_line_count = doc->lineCount();
+    for (size_t i = 0; i < static_cast<size_t>(region_height) && actual_line_index < doc_line_count;
+         ++i) {
         bool is_current = (region.is_active && actual_line_index == region_cursor_row);
         lines.push_back(renderLine(doc, actual_line_index, is_current, true,
                                    region_word_highlight_active, region_word_matches, region.width,
                                    region_view_offset_col));
+        ++actual_line_index;
+        while (actual_line_index < doc_line_count &&
+               doc->isLineInFoldedRange(static_cast<int>(actual_line_index))) {
+            ++actual_line_index;
+        }
     }
 
     // 填充空行（行号宽度与文档总行数一致）
@@ -1134,7 +1189,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
     // 行内容
     // Document* doc is passed in
 
-    // 折叠指示器
+    // 折叠指示器（按文件独立查找折叠状态）
 #ifdef BUILD_LSP_SUPPORT
     if (doc) {
         std::string fold_indicator = " ";
@@ -1143,21 +1198,27 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
         // 首先检查文档是否有折叠状态（从缓存恢复的）
         bool is_folded_in_doc = doc->isFolded(static_cast<int>(line_num));
 
-        if (lsp_enabled_ && folding_manager_ && folding_manager_->isInitialized()) {
+        if (lsp_enabled_) {
             try {
-                // 如果折叠管理器已初始化，使用管理器的状态（来自 LSP）
-                const auto& foldable_lines = folding_manager_->getFoldableLines();
-                bool is_foldable = std::find(foldable_lines.begin(), foldable_lines.end(),
-                                             static_cast<int>(line_num)) != foldable_lines.end();
+                // 按文件路径从折叠缓存中查找
+                std::string filepath = doc->getFileName();
+                if (!filepath.empty()) {
+                    std::string uri = filepathToUri(filepath);
+                    std::lock_guard<std::mutex> cache_lock(folding_cache_mutex_);
+                    auto it = folding_cache_.find(uri);
+                    if (it != folding_cache_.end()) {
+                        const auto& ranges = it->second.ranges;
+                        const auto& folded = it->second.folded_lines;
 
-                if (is_foldable) {
-                    can_fold = true;
-                    bool is_folded = folding_manager_->isFolded(static_cast<int>(line_num));
-
-                    if (is_folded) {
-                        fold_indicator = "▶";
-                    } else {
-                        fold_indicator = "▼";
+                        // 查找当前行是否是可折叠行的起始行
+                        for (const auto& range : ranges) {
+                            if (range.startLine == static_cast<int>(line_num)) {
+                                can_fold = true;
+                                bool is_folded = folded.count(static_cast<int>(line_num)) > 0;
+                                fold_indicator = is_folded ? "▶" : "▼";
+                                break;
+                            }
+                        }
                     }
                 }
             } catch (const std::exception& e) {
@@ -1168,7 +1229,7 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
                 }
             }
         } else if (is_folded_in_doc) {
-            // 如果折叠管理器未初始化，但文档中有折叠状态，显示折叠指示器
+            // 如果 LSP 未启用，但文档中有折叠状态，显示折叠指示器
             can_fold = true;
             fold_indicator = "▶"; // 显示为折叠状态
         }
@@ -1265,12 +1326,13 @@ Element Editor::renderLine(Document* doc, size_t line_num, bool is_current,
     }
 
     // 获取当前行的单词高亮匹配（优先级低于搜索高亮）
+    // 分屏模式下：仅当前激活区域显示单词高亮，非激活区域不显示
     std::vector<features::SearchMatch> word_line_matches;
     if (!search_highlight_active_) {
         const std::vector<features::SearchMatch>* word_src = nullptr;
         if (use_region_word_highlight && region_word_highlight_active && region_word_matches) {
             word_src = region_word_matches;
-        } else if (word_highlight_active_ && !word_matches_.empty()) {
+        } else if (!use_region_word_highlight && word_highlight_active_ && !word_matches_.empty()) {
             word_src = &word_matches_;
         }
         if (word_src) {
@@ -1869,25 +1931,32 @@ Element Editor::renderLineNumber(Document* doc, size_t line_num, bool is_current
         line_str = " " + line_str;
     }
 
-    // 检查是否有诊断信息
+    // 检查是否有诊断信息（按文件独立查找）
     bool has_diagnostic = false;
     ftxui::Color line_number_bg = ftxui::Color::Default;
     ftxui::Color line_number_fg = theme_.getColors().line_number;
 
 #ifdef BUILD_LSP_SUPPORT
-    if (lsp_enabled_) {
-        std::lock_guard<std::mutex> lock(diagnostics_mutex_);
-        for (const auto& diagnostic : current_file_diagnostics_) {
-            if (static_cast<size_t>(diagnostic.range.start.line) == line_num) {
-                has_diagnostic = true;
-                if (diagnostic.severity == 1) { // Error - 红色背景
-                    line_number_bg = ftxui::Color::Red;
-                    line_number_fg = ftxui::Color::White; // 白色文字以提高对比度
-                } else if (diagnostic.severity == 2) { // Warning - 黄色背景（更适合警告）
-                    line_number_bg = ftxui::Color::Yellow;
-                    line_number_fg = ftxui::Color::Black; // 黑色文字以提高对比度
+    if (lsp_enabled_ && doc) {
+        std::string filepath = doc->getFileName();
+        if (!filepath.empty()) {
+            std::string uri = filepathToUri(filepath);
+            std::lock_guard<std::mutex> cache_lock(diagnostics_cache_mutex_);
+            auto it = diagnostics_cache_.find(uri);
+            if (it != diagnostics_cache_.end()) {
+                for (const auto& diagnostic : it->second) {
+                    if (static_cast<size_t>(diagnostic.range.start.line) == line_num) {
+                        has_diagnostic = true;
+                        if (diagnostic.severity == 1) { // Error - 红色背景
+                            line_number_bg = ftxui::Color::Red;
+                            line_number_fg = ftxui::Color::White; // 白色文字以提高对比度
+                        } else if (diagnostic.severity == 2) { // Warning - 黄色背景（更适合警告）
+                            line_number_bg = ftxui::Color::Yellow;
+                            line_number_fg = ftxui::Color::Black; // 黑色文字以提高对比度
+                        }
+                        break;
+                    }
                 }
-                break;
             }
         }
     }
