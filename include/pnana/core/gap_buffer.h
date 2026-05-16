@@ -51,6 +51,9 @@ class GapBuffer : public BufferBackend {
     void removeChar(size_t pos) override;
     char getChar(size_t pos) const override;
 
+    void replace(size_t pos, size_t length, const std::string& text) override;
+    void swapLine(size_t line_a, size_t line_b) override;
+
     // 查询操作
     size_t length() const override;
     size_t lineLength(size_t line_num) const override;

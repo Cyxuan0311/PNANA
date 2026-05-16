@@ -46,6 +46,21 @@ class BufferBackend {
     virtual void removeChar(size_t pos) = 0;
     virtual char getChar(size_t pos) const = 0;
 
+    virtual void replace(size_t pos, size_t length, const std::string& text) {
+        remove(pos, length);
+        insert(pos, text);
+    }
+    virtual void swapLine(size_t line_a, size_t line_b) {
+        if (line_a == line_b)
+            return;
+        std::string content_a = getLine(line_a);
+        std::string content_b = getLine(line_b);
+        removeLine(line_a);
+        insertLine(line_a, content_b);
+        removeLine(line_b);
+        insertLine(line_b, content_a);
+    }
+
     // 查询操作
     virtual size_t length() const = 0;
     virtual size_t lineLength(size_t line_num) const = 0;
