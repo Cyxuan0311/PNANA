@@ -80,6 +80,11 @@ class SyntaxHighlighter {
         return backend_;
     }
 
+    // 获取当前文件类型
+    const std::string& getFileType() const {
+        return current_file_type_;
+    }
+
     // 获取指定语言的关键字列表
     const std::vector<std::string>* getKeywordsForLanguage(const std::string& language) const;
 
