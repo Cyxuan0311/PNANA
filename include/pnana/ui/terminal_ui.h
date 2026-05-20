@@ -22,10 +22,7 @@ struct TerminalCursorOptions {
 ftxui::Element renderTerminal(features::Terminal& terminal, int height,
                               const TerminalCursorOptions* cursor_options = nullptr);
 
-#ifdef BUILD_LIBVTERM_SUPPORT
-// 渲染终端标签栏（多会话时显示）
 ftxui::Element renderTerminalTabs(features::Terminal& terminal);
-#endif
 
 } // namespace ui
 } // namespace pnana
