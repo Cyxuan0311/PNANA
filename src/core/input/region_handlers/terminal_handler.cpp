@@ -26,7 +26,6 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
 
     std::string key_str = event.input();
 
-#ifdef BUILD_LIBVTERM_SUPPORT
     for (int i = 1; i <= 9; i++) {
         if (key_str == "alt_" + std::to_string(i)) {
             editor->getTerminal().setActiveSession(i - 1);
@@ -34,14 +33,12 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
             return true;
         }
     }
-#endif
 
     EditorRegion current_region = editor->getRegionManager().getCurrentRegion();
     if (current_region != EditorRegion::TERMINAL) {
         editor->getRegionManager().setRegion(EditorRegion::TERMINAL);
     }
 
-#ifdef BUILD_LIBVTERM_SUPPORT
     pnana::input::KeyAction action = editor->getKeyBindingManager().getAction(event);
     if (action == pnana::input::KeyAction::NEW_FILE) {
         const auto& ssh_config = editor->getCurrentSSHConfig();
@@ -90,7 +87,6 @@ bool TerminalHandler::handleInput(Event event, Editor* editor) {
         }
         return true;
     }
-#endif
 
     // 终端高度调整
     if (event == Event::F1) {

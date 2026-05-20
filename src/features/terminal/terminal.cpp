@@ -1,17 +1,12 @@
 #include "features/terminal.h"
 #include "features/terminal/terminal_color.h"
 #include "features/terminal/terminal_key_map.h"
-#include "features/terminal/terminal_line_buffer.h"
 #include "features/terminal/terminal_pty.h"
 #include "utils/logger.h"
-#include <chrono>
 #include <cstdlib>
 #include <ftxui/dom/elements.hpp>
-#include <poll.h>
 #include <signal.h>
-#include <sys/wait.h>
 #include <thread>
-#include <unistd.h>
 
 using namespace ftxui;
 
@@ -24,7 +19,7 @@ namespace {
 // 部分 shell 需要 \r\n 才能正确执行命令（PTY 模拟真实终端行为）
 std::string keyToEscape(const std::string& key) {
     if (key == "return" || key == "ctrl_m")
-        return "\r\n";
+        return "\r";
     if (key == "Tab" || key == "tab")
         return "\t";
     if (key == "Backspace")
@@ -73,10 +68,8 @@ std::string keyToEscape(const std::string& key) {
 } // namespace
 
 Terminal::Terminal(ui::Theme& theme)
-    : theme_(theme), visible_(false), pending_line_(""), max_output_lines_(1000), scroll_offset_(0),
-      current_directory_("."), shell_running_(false), current_pid_(0), current_pty_fd_(-1),
-      current_slave_fd_(-1), output_thread_running_(false) {
-    pending_line_buffer_.setPendingBackspaceCount(&pending_backspace_count_);
+    : theme_(theme), visible_(false), max_output_lines_(1000), scroll_offset_(0),
+      current_directory_(".") {
     char* cwd = getcwd(nullptr, 0);
     if (cwd) {
         current_directory_ = cwd;
@@ -85,14 +78,9 @@ Terminal::Terminal(ui::Theme& theme)
 }
 
 Terminal::~Terminal() {
-    // 析构时清空回调，避免输出线程或 Post 的 lambda 使用已析构的 Editor*
     on_shell_exit_ = nullptr;
     on_output_added_ = nullptr;
-    output_thread_running_ = false;
-    if (output_thread_.joinable()) {
-        output_thread_.join();
-    }
-    cleanupShell();
+    builtin_sessions_.clear();
 }
 
 void Terminal::setVisible(bool visible) {
@@ -139,21 +127,24 @@ void Terminal::handleKeyEvent(const std::string& key) {
 
     std::string esc = keyToEscape(key);
     if (!esc.empty()) {
-        // ArrowLeft/ArrowRight 会令 shell 回显 \b 做光标移动，不应消耗 pending_backspace_count_。
-        // 发送方向键前清零残留的 bs，避免误将光标移动当作 Backspace 截断。
         if (key == "ArrowLeft" || key == "ArrowRight") {
-            pending_backspace_count_.store(0);
+            auto* bs = getActiveBuiltinSession();
+            if (bs)
+                bs->pending_backspace_count.store(0);
         } else if (esc.size() == 1 && static_cast<unsigned char>(esc[0]) == 0x08) {
-            pending_backspace_count_++;
+            auto* bs = getActiveBuiltinSession();
+            if (bs)
+                bs->pending_backspace_count++;
         }
         writeToShell(esc);
         return;
     }
 
-    // 单字符直接写入（含 Ctrl+H 等可能产生 \b 的按键）
     if (key.length() == 1) {
         if (static_cast<unsigned char>(key[0]) == 0x08) {
-            pending_backspace_count_++;
+            auto* bs = getActiveBuiltinSession();
+            if (bs)
+                bs->pending_backspace_count++;
         }
         writeToShell(key);
     }
@@ -167,8 +158,9 @@ void Terminal::writeToShell(const std::string& input) {
         return;
     }
 #endif
-    if (shell_running_ && current_pty_fd_ >= 0) {
-        terminal::PTYExecutor::writeInput(current_pty_fd_, input);
+    auto* bs = getActiveBuiltinSession();
+    if (bs && bs->isRunning()) {
+        bs->writeInput(input);
     }
 }
 
@@ -181,19 +173,28 @@ void Terminal::resize(int cols, int rows) {
         return;
     }
 #endif
-    if (current_pty_fd_ >= 0) {
-        terminal::PTYExecutor::setTerminalSize(current_pty_fd_, rows, cols);
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        bs->resize(cols, rows);
     }
 }
 
 void Terminal::clear() {
-    std::lock_guard<std::mutex> lock(output_mutex_);
-    output_lines_.clear();
-    pending_raw_.clear();
-    pending_line_.clear();
-    pending_cursor_pos_ = 0;
-    pending_backspace_count_ = 0;
-    pending_line_buffer_.reset();
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        std::lock_guard<std::mutex> lock(bs->output_mutex);
+        bs->output_lines.clear();
+        bs->pending_raw.clear();
+        bs->pending_line.clear();
+        bs->pending_cursor_pos = 0;
+        bs->pending_backspace_count.store(0);
+        bs->pending_line_buffer.reset();
+        bs->scroll_offset = 0;
+        bs->screen.eraseDisplay(2);
+        bs->screen.cursor_x = 0;
+        bs->screen.cursor_y = 0;
+        bs->screen.clearAllDirty();
+    }
     scroll_offset_ = 0;
 }
 
@@ -208,38 +209,31 @@ void Terminal::interruptCommand() {
         return;
     }
 #endif
-    if (shell_running_ && current_pid_ > 0) {
-        terminal::PTYExecutor::sendSignal(current_pid_, SIGINT);
+    auto* bs = getActiveBuiltinSession();
+    if (bs && bs->isRunning()) {
+        terminal::PTYExecutor::sendSignal(bs->pid, SIGINT);
     }
 }
 
 void Terminal::addOutputLine(const std::string& line) {
-    if (output_lines_.size() >= max_output_lines_) {
-        output_lines_.erase(output_lines_.begin());
-    }
-    bool has_ansi = terminal::AnsiColorParser::hasAnsiCodes(line);
-    output_lines_.push_back(TerminalLine(line, has_ansi));
-}
-
-void Terminal::addOutputLines(const std::vector<std::string>& lines) {
-    for (const auto& line : lines) {
-        addOutputLine(line);
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        if (bs->output_lines.size() >= max_output_lines_) {
+            bs->output_lines.erase(bs->output_lines.begin());
+        }
+        bool has_ansi = terminal::AnsiColorParser::hasAnsiCodes(line);
+        bs->output_lines.push_back(TerminalLine(line, has_ansi));
     }
 }
 
-std::vector<TerminalLine> Terminal::getOutputLinesSnapshot() const {
-    std::lock_guard<std::mutex> lock(output_mutex_);
-    return output_lines_;
-}
-
-std::string Terminal::getPendingLineSnapshot() const {
-    std::lock_guard<std::mutex> lock(output_mutex_);
-    return pending_line_;
-}
-
-size_t Terminal::getPendingCursorPositionSnapshot() const {
-    std::lock_guard<std::mutex> lock(output_mutex_);
-    return pending_cursor_pos_;
+terminal::BuiltinScreenSnapshot Terminal::getBuiltinScreenSnapshot() const {
+    auto* bs = getActiveBuiltinSession();
+    if (!bs) {
+        return terminal::BuiltinScreenSnapshot();
+    }
+    auto snap = bs->getSnapshot();
+    scroll_offset_ = snap.scroll_offset;
+    return snap;
 }
 
 void Terminal::startShellSession() {
@@ -250,7 +244,6 @@ void Terminal::startShellSession() {
         int idx = newLocalShellSession(current_directory_);
         if (idx >= 0) {
             LOG("[Terminal] newLocalShellSession ok idx=" + std::to_string(idx));
-            shell_running_ = true;
             return;
         }
         LOG("[Terminal] newLocalShellSession failed");
@@ -261,25 +254,16 @@ void Terminal::startShellSession() {
     return;
 #endif
 
-    if (shell_running_)
+    if (!builtin_sessions_.empty())
         return;
 
-    terminal::PTYResult result = terminal::PTYExecutor::createInteractiveShell(current_directory_);
-    if (!result.success) {
-        addOutputLine("Error: " + result.error);
-        return;
+    int idx = newLocalShellSession(current_directory_);
+    if (idx < 0) {
+        addOutputLine("Error: Could not start shell session");
     }
-
-    shell_running_ = true;
-    current_pid_ = result.pid;
-    current_pty_fd_ = result.master_fd;
-    current_slave_fd_ = result.slave_fd;
-    startOutputThread(result.master_fd);
 }
 
 void Terminal::stopShellSession() {
-    if (!shell_running_)
-        return;
 #ifdef BUILD_LIBVTERM_SUPPORT
     auto* sess = getActiveSession();
     if (sess) {
@@ -290,168 +274,19 @@ void Terminal::stopShellSession() {
         } else {
             closeSession(active_session_index_);
         }
-        shell_running_ = sessions_.empty() ? false : true;
         return;
     }
 #endif
-    writeToShell("exit\n");
-    output_thread_running_ = false;
-    if (output_thread_.joinable()) {
-        output_thread_.join();
-    }
-    cleanupShell();
-}
-
-void Terminal::startOutputThread(int pty_fd) {
-    stopOutputThread();
-    output_thread_running_ = true;
-    output_thread_ = std::thread([this, pty_fd]() {
-        readPTYOutput(pty_fd);
-    });
-}
-
-void Terminal::stopOutputThread() {
-    output_thread_running_ = false;
-    if (output_thread_.joinable()) {
-        output_thread_.join();
-    }
-}
-
-void Terminal::readPTYOutput(int pty_fd) {
-    const size_t BUFFER_SIZE = 4096;
-    char buffer[BUFFER_SIZE];
-
-    auto drainAndAdd = [this, pty_fd, &buffer, BUFFER_SIZE]() {
-        bool had_output = false;
-        while (true) {
-            ssize_t n = terminal::PTYExecutor::readOutput(pty_fd, buffer, BUFFER_SIZE);
-            if (n > 0) {
-                had_output = true;
-                bool had_complete_line = false;
-                {
-                    std::lock_guard<std::mutex> lock(output_mutex_);
-                    std::string raw = pending_raw_ + std::string(buffer, static_cast<size_t>(n));
-                    pending_raw_.clear();
-                    size_t start = 0;
-                    size_t end;
-                    bool is_first_line_in_batch = true;
-                    while ((end = raw.find('\n', start)) != std::string::npos) {
-                        std::string line_to_add;
-                        if (is_first_line_in_batch && !pending_line_.empty()) {
-                            // 第一行即用户刚提交的输入，使用我们持续解析的
-                            // pending_line_（已正确处理历史切换）
-                            line_to_add = pending_line_;
-                        } else {
-                            std::string line_raw = raw.substr(start, end - start);
-                            pending_line_buffer_.reset();
-                            pending_line_buffer_.feed(line_raw);
-                            pending_line_buffer_.flushReplace();
-                            line_to_add = pending_line_buffer_.getLine();
-                            if (line_to_add.empty())
-                                line_to_add = line_raw;
-                        }
-                        addOutputLine(line_to_add);
-                        had_complete_line = true;
-                        start = end + 1;
-                        is_first_line_in_batch = false;
-                        pending_line_buffer_.reset();
-                    }
-                    if (start < raw.length()) {
-                        std::string new_pending = raw.substr(start);
-                        std::string to_feed;
-                        if (had_complete_line) {
-                            // 中间有换行：reset 后 feed 剩余部分（新行起始）
-                            pending_line_buffer_.reset();
-                            to_feed = new_pending;
-                        } else {
-                            // 无换行：仅 feed 本次 read 的新字节，避免重复处理历史 \b 耗尽 bs_count
-                            to_feed = std::string(buffer, static_cast<size_t>(n));
-                        }
-                        if (!to_feed.empty()) {
-                            pending_line_buffer_.feed(to_feed);
-                            pending_line_buffer_.flushReplace();
-                        }
-                        pending_raw_ = new_pending;
-                        pending_line_ = pending_line_buffer_.getLine();
-                        pending_cursor_pos_ = pending_line_buffer_.getCursorPos();
-                    } else {
-                        pending_raw_.clear();
-                        pending_line_.clear();
-                        pending_cursor_pos_ = 0;
-                        pending_line_buffer_.reset();
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-        // 每个 poll 周期最多触发一次；节流到 ~30fps 避免事件队列洪泛
-        if (had_output && on_output_added_) {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed =
-                std::chrono::duration_cast<std::chrono::milliseconds>(now - last_refresh_time_)
-                    .count();
-            if (elapsed >= REFRESH_THROTTLE_MS) {
-                last_refresh_time_ = now;
-                on_output_added_();
-            }
-        }
-    };
-
-    constexpr int CURSOR_BLINK_INTERVAL_MS = 500;
-    auto last_cursor_tick = std::chrono::steady_clock::now();
-
-    while (output_thread_running_) {
-        struct pollfd pfd = {};
-        pfd.fd = pty_fd;
-        pfd.events = POLLIN;
-        int ret = poll(&pfd, 1, 16); // 16ms 超时 (~60fps)，输入回显更及时
-
-        if (ret > 0 && (pfd.revents & POLLIN)) {
-            drainAndAdd();
-        } else if (ret < 0) {
-            break;
-        }
-
-        // 定期触发刷新以保持光标闪烁（终端空闲时）
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - last_cursor_tick).count();
-        if (elapsed >= CURSOR_BLINK_INTERVAL_MS && on_output_added_) {
-            last_cursor_tick = now;
-            on_output_added_();
-        }
-
-        if (current_pid_ > 0 && !terminal::PTYExecutor::isProcessRunning(current_pid_)) {
-            drainAndAdd();
-            shell_running_ = false;
-            if (on_shell_exit_) {
-                on_shell_exit_();
-            }
-            break;
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        bs->writeInput("exit\n");
+        if (builtin_sessions_.size() == 1) {
+            builtin_sessions_.clear();
+            builtin_active_index_ = 0;
+        } else {
+            closeSession(builtin_active_index_);
         }
     }
-}
-
-void Terminal::cleanupShell() {
-#ifdef BUILD_LIBVTERM_SUPPORT
-    for (auto& s : sessions_)
-        if (s)
-            s->terminate();
-    sessions_.clear();
-    active_session_index_ = 0;
-#endif
-    stopOutputThread();
-    if (current_pty_fd_ >= 0) {
-        terminal::PTYExecutor::closePTY(current_pty_fd_);
-        current_pty_fd_ = -1;
-    }
-    if (current_slave_fd_ >= 0) {
-        terminal::PTYExecutor::closeSlave(current_slave_fd_);
-        current_slave_fd_ = -1;
-    }
-    shell_running_ = false;
-    current_pid_ = 0;
 }
 
 static std::string escapeSingleQuotes(const std::string& s) {
@@ -475,7 +310,6 @@ void Terminal::startSSHSession(const std::string& host, const std::string& user,
     return;
 #endif
 
-    cleanupShell();
     int p = (port > 0) ? port : 22;
     std::string port_opt = (p != 22) ? (" -p " + std::to_string(p)) : "";
     std::string key_opt = key_path.empty() ? "" : (" -i " + key_path);
@@ -489,20 +323,32 @@ void Terminal::startSSHSession(const std::string& host, const std::string& user,
     } else {
         cmd = "ssh -t" + opts + port_opt + key_opt + " " + target;
     }
+
+    auto s = std::make_unique<terminal::BuiltinSession>();
+    s->on_output_callback = on_output_added_;
+    s->on_exit_callback = on_shell_exit_;
     terminal::PTYResult result = terminal::PTYExecutor::createPTY(cmd, ".", {});
     if (!result.success) {
         addOutputLine("SSH failed: " + result.error);
         return;
     }
-    shell_running_ = true;
-    current_pid_ = result.pid;
-    current_pty_fd_ = result.master_fd;
-    current_slave_fd_ = result.slave_fd;
-    startOutputThread(result.master_fd);
+    s->pid = result.pid;
+    s->pty_fd = result.master_fd;
+    s->slave_fd = result.slave_fd;
+    s->running.store(true);
+    s->title = "SSH: " + target;
+    s->output_thread_running.store(true);
+    s->output_thread = std::thread([&s]() {
+        s->readOutput();
+    });
+    int idx = static_cast<int>(builtin_sessions_.size());
+    builtin_sessions_.push_back(std::move(s));
+    builtin_active_index_ = idx;
 }
 
 void Terminal::restoreLocalShell() {
-    cleanupShell();
+    builtin_sessions_.clear();
+    builtin_active_index_ = 0;
     startShellSession();
 }
 
@@ -569,7 +415,6 @@ int Terminal::newLocalShellSession(const std::string& cwd, const std::string& sh
     int idx = static_cast<int>(sessions_.size());
     sessions_.push_back(std::move(s));
     active_session_index_ = idx;
-    shell_running_ = true;
     return idx;
 }
 
@@ -589,7 +434,6 @@ int Terminal::newSSHSession(const std::string& host, const std::string& user, in
     int idx = static_cast<int>(sessions_.size());
     sessions_.push_back(std::move(s));
     active_session_index_ = idx;
-    shell_running_ = true;
     return idx;
 }
 
@@ -608,7 +452,6 @@ int Terminal::newContainerSession(const std::string& container_id, const std::st
     int idx = static_cast<int>(sessions_.size());
     sessions_.push_back(std::move(s));
     active_session_index_ = idx;
-    shell_running_ = true;
     return idx;
 }
 
@@ -618,7 +461,6 @@ void Terminal::closeSession(int index) {
     sessions_.erase(sessions_.begin() + index);
     if (active_session_index_ >= static_cast<int>(sessions_.size()))
         active_session_index_ = std::max(0, static_cast<int>(sessions_.size()) - 1);
-    shell_running_ = !sessions_.empty();
 }
 
 std::string Terminal::getSessionTitle(int index) const {
@@ -627,6 +469,65 @@ std::string Terminal::getSessionTitle(int index) const {
     return sessions_[index]->getTitle();
 }
 #endif
+
+#ifndef BUILD_LIBVTERM_SUPPORT
+int Terminal::sessionCount() const {
+    return static_cast<int>(builtin_sessions_.size());
+}
+
+int Terminal::activeSessionIndex() const {
+    return builtin_active_index_;
+}
+
+void Terminal::setActiveSession(int index) {
+    if (index >= 0 && index < static_cast<int>(builtin_sessions_.size()))
+        builtin_active_index_ = index;
+}
+
+int Terminal::newLocalShellSession(const std::string& cwd, const std::string& shell_path) {
+    auto s = std::make_unique<terminal::BuiltinSession>();
+    s->on_output_callback = on_output_added_;
+    s->on_exit_callback = on_shell_exit_;
+    std::string dir = cwd.empty() ? current_directory_ : cwd;
+    if (!s->start(dir, shell_path))
+        return -1;
+    int idx = static_cast<int>(builtin_sessions_.size());
+    builtin_sessions_.push_back(std::move(s));
+    builtin_active_index_ = idx;
+    return idx;
+}
+
+int Terminal::newSSHSession(const std::string& /*host*/, const std::string& /*user*/, int /*port*/,
+                            const std::string& /*key_path*/, const std::string& /*password*/) {
+    return -1;
+}
+
+int Terminal::newContainerSession(const std::string& /*container_id*/,
+                                  const std::string& /*shell*/) {
+    return -1;
+}
+
+void Terminal::closeSession(int index) {
+    if (index < 0 || index >= static_cast<int>(builtin_sessions_.size()))
+        return;
+    builtin_sessions_.erase(builtin_sessions_.begin() + index);
+    if (builtin_active_index_ >= static_cast<int>(builtin_sessions_.size()))
+        builtin_active_index_ = std::max(0, static_cast<int>(builtin_sessions_.size()) - 1);
+}
+
+std::string Terminal::getSessionTitle(int index) const {
+    if (index < 0 || index >= static_cast<int>(builtin_sessions_.size()))
+        return "";
+    return builtin_sessions_[index]->title;
+}
+#endif
+
+terminal::BuiltinSession* Terminal::getActiveBuiltinSession() const {
+    if (builtin_sessions_.empty() || builtin_active_index_ < 0 ||
+        builtin_active_index_ >= static_cast<int>(builtin_sessions_.size()))
+        return nullptr;
+    return builtin_sessions_[builtin_active_index_].get();
+}
 
 ftxui::Element Terminal::render(int /* height */) {
     return text("");
@@ -640,9 +541,12 @@ void Terminal::scrollUp() {
         return;
     }
 #endif
-    std::lock_guard<std::mutex> lock(output_mutex_);
-    if (scroll_offset_ < output_lines_.size()) {
-        scroll_offset_ += 1;
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        std::lock_guard<std::mutex> lock(bs->output_mutex);
+        size_t max_scroll = bs->screen.scrollbackSize();
+        if (bs->scroll_offset < max_scroll)
+            bs->scroll_offset += 1;
     }
 }
 
@@ -654,18 +558,25 @@ void Terminal::scrollDown() {
         return;
     }
 #endif
-    if (scroll_offset_ > 0) {
-        scroll_offset_ -= 1;
+    auto* bs = getActiveBuiltinSession();
+    if (bs && bs->scroll_offset > 0) {
+        bs->scroll_offset -= 1;
     }
 }
 
 void Terminal::scrollToTop() {
-    std::lock_guard<std::mutex> lock(output_mutex_);
-    scroll_offset_ = output_lines_.size();
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        std::lock_guard<std::mutex> lock(bs->output_mutex);
+        bs->scroll_offset = bs->screen.scrollbackSize();
+    }
 }
 
 void Terminal::scrollToBottom() {
-    scroll_offset_ = 0;
+    auto* bs = getActiveBuiltinSession();
+    if (bs) {
+        bs->scroll_offset = 0;
+    }
 }
 
 } // namespace features
