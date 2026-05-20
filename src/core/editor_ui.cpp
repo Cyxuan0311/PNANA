@@ -2288,15 +2288,12 @@ Element Editor::renderTerminal() {
     cursor_opts.config.blink_enabled = cursor_config_dialog_.getBlinkEnabled();
     cursor_opts.blink_rate_ms = getCursorBlinkRate();
 
-#ifdef BUILD_LIBVTERM_SUPPORT
     if (terminal_.sessionCount() > 1) {
-        // 标签栏 + 终端内容，使用 vbox 但去除元素间隔
         return ftxui::vbox({
             pnana::ui::renderTerminalTabs(terminal_),
-            pnana::ui::renderTerminal(terminal_, height - 1, &cursor_opts), // 减去标签栏高度
+            pnana::ui::renderTerminal(terminal_, height - 1, &cursor_opts),
         });
     }
-#endif
     return pnana::ui::renderTerminal(terminal_, height, &cursor_opts);
 }
 
