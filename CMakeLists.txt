@@ -545,13 +545,11 @@ set(SOURCES
     src/features/terminal/terminal.cpp
     src/features/terminal/terminal_line_buffer.cpp
     src/features/terminal/terminal_color.cpp
-    src/features/terminal/terminal_parser.cpp
-    src/features/terminal/terminal_builtin.cpp
-    src/features/terminal/terminal_shell.cpp
-    src/features/terminal/terminal_utils.cpp
-    src/features/terminal/terminal_completion.cpp
     src/features/terminal/terminal_pty.cpp
-    src/features/terminal/terminal_job.cpp
+    src/features/terminal/builtin_screen.cpp
+    src/features/terminal/builtin_vt_parser.cpp
+    src/features/terminal/builtin_renderer.cpp
+    src/features/terminal/builtin_session.cpp
     src/features/terminal/terminal_pty_backend.cpp
     src/features/terminal/terminal_session.cpp
     src/features/terminal/terminal_key_map.cpp
