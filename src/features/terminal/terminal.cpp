@@ -289,6 +289,7 @@ void Terminal::stopShellSession() {
     }
 }
 
+#ifndef BUILD_LIBVTERM_SUPPORT
 static std::string escapeSingleQuotes(const std::string& s) {
     std::string out;
     for (char c : s) {
@@ -299,6 +300,7 @@ static std::string escapeSingleQuotes(const std::string& s) {
     }
     return out;
 }
+#endif
 
 void Terminal::startSSHSession(const std::string& host, const std::string& user, int port,
                                const std::string& key_path, const std::string& password) {
@@ -308,8 +310,7 @@ void Terminal::startSSHSession(const std::string& host, const std::string& user,
         return;
     addOutputLine("SSH failed: could not start session");
     return;
-#endif
-
+#else
     int p = (port > 0) ? port : 22;
     std::string port_opt = (p != 22) ? (" -p " + std::to_string(p)) : "";
     std::string key_opt = key_path.empty() ? "" : (" -i " + key_path);
@@ -344,6 +345,7 @@ void Terminal::startSSHSession(const std::string& host, const std::string& user,
     int idx = static_cast<int>(builtin_sessions_.size());
     builtin_sessions_.push_back(std::move(s));
     builtin_active_index_ = idx;
+#endif
 }
 
 void Terminal::restoreLocalShell() {
@@ -387,6 +389,10 @@ terminal::ScreenSnapshot Terminal::getSessionSnapshot(int view_height) const {
 
 int Terminal::sessionCount() const {
     return static_cast<int>(sessions_.size());
+}
+
+int Terminal::activeSessionIndex() const {
+    return active_session_index_;
 }
 
 void Terminal::setActiveSession(int index) {
