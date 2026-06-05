@@ -1,5 +1,6 @@
 #include "ui/file_picker.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/file_type_detector.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
@@ -362,14 +363,16 @@ Element FilePicker::render() {
                       filler()};
     left_content.push_back(hbox(hints) | bgcolor(colors.menubar_bg));
 
-    Element left_panel = vbox(std::move(left_content)) | size(WIDTH, EQUAL, 64);
+    int dialog_w = responsiveWidth(124, 50);
+    int left_w = responsiveSubWidth(64, 124, dialog_w, 25);
+    int right_w = responsiveSubWidth(60, 124, dialog_w, 25);
+    Element left_panel = vbox(std::move(left_content)) | size(WIDTH, EQUAL, left_w);
 
-    // ---------- 右侧：预览面板 ----------
-    Element right_panel = renderPreviewPanel() | size(WIDTH, EQUAL, 60);
+    Element right_panel = renderPreviewPanel() | size(WIDTH, EQUAL, right_w);
 
     return hbox({left_panel, separator(), right_panel}) | borderWithColor(colors.dialog_border) |
-           bgcolor(colors.background) | size(WIDTH, GREATER_THAN, 124) |
-           size(HEIGHT, GREATER_THAN, 26) | center;
+           bgcolor(colors.background) | size(WIDTH, GREATER_THAN, responsiveMinWidth(124)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(26)) | center;
 }
 
 void FilePicker::reset() {
@@ -1204,7 +1207,7 @@ Element FilePicker::renderPreviewPanel() {
                content,
            }) |
            borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
-           size(HEIGHT, EQUAL, 26);
+           size(HEIGHT, EQUAL, responsiveHeight(26, 10));
 }
 
 } // namespace ui

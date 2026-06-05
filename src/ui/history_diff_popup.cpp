@@ -1,5 +1,6 @@
 #include "ui/history_diff_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
@@ -137,8 +138,10 @@ Element HistoryDiffPopup::render() const {
     content.push_back(separator());
     content.push_back(renderHelp());
 
-    return window(text(""), vbox(std::move(content))) | size(WIDTH, EQUAL, 110) |
-           size(HEIGHT, EQUAL, 26) | bgcolor(colors.dialog_bg) |
+    int w = responsiveWidth(110, 40);
+    int h = responsiveHeight(26, 10);
+    return window(text(""), vbox(std::move(content))) | size(WIDTH, EQUAL, w) |
+           size(HEIGHT, EQUAL, h) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }
 

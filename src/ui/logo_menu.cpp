@@ -1,5 +1,6 @@
 #include "ui/logo_menu.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
@@ -237,7 +238,10 @@ Element LogoMenu::renderLogoPreview() const {
         size_t g = i % gradient_colors.size();
         preview_elements.push_back(text("  " + lines[i]) | color(gradient_colors[g]) | bold);
     }
-    return vbox(preview_elements) | bgcolor(colors.dialog_bg) | size(WIDTH, EQUAL, 70) |
+    int dialog_w = responsiveWidth(75, 35);
+    int preview_w = responsiveSubWidth(70, 75, dialog_w, 18);
+
+    return vbox(preview_elements) | bgcolor(colors.dialog_bg) | size(WIDTH, EQUAL, preview_w) |
            borderWithColor(colors.dialog_border);
 }
 
@@ -252,10 +256,12 @@ Element LogoMenu::render() {
     left_content.push_back(renderSearchBox());
     left_content.push_back(separator());
     left_content.push_back(renderStyleList());
-    Element left_panel = vbox(left_content) | size(WIDTH, EQUAL, 28) | flex;
+    Element left_panel =
+        vbox(left_content) |
+        size(WIDTH, EQUAL, responsiveSubWidth(28, 75, responsiveWidth(75, 35), 14)) | flex;
     Element right_panel = renderLogoPreview();
-    Element main_content =
-        hbox({left_panel, separator(), right_panel}) | flex | size(HEIGHT, EQUAL, 22);
+    Element main_content = hbox({left_panel, separator(), right_panel}) | flex |
+                           size(HEIGHT, EQUAL, responsiveHeight(22, 10));
 
     Element help_bar =
         hbox({text(" "), text("↑↓") | color(colors.helpbar_key) | bold, text(": Select  "),
@@ -266,7 +272,8 @@ Element LogoMenu::render() {
 
     return vbox({title_bar, separator(), main_content, separator(), help_bar}) |
            borderWithColor(colors.dialog_border) | bgcolor(colors.background) |
-           size(WIDTH, GREATER_THAN, 75) | size(HEIGHT, GREATER_THAN, 24);
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(75)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(24));
 }
 
 } // namespace ui

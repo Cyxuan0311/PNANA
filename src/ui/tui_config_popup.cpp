@@ -1,5 +1,6 @@
 #include "ui/tui_config_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
 #include <filesystem>
@@ -53,7 +54,9 @@ ftxui::Element TUIConfigPopup::render() {
     left_content.push_back(renderConfigList());
 
     Elements main_row;
-    main_row.push_back(vbox(left_content) | size(WIDTH, EQUAL, 45) | flex);
+    int dialog_w = responsiveWidth(120, 50);
+    int left_w = responsiveSubWidth(45, 120, dialog_w, 20);
+    main_row.push_back(vbox(left_content) | size(WIDTH, EQUAL, left_w) | flex);
     main_row.push_back(separator());
     main_row.push_back(renderConfigPreview() | flex);
 
@@ -63,8 +66,9 @@ ftxui::Element TUIConfigPopup::render() {
 
     int height =
         std::min(28, int(12 + static_cast<int>(std::min(filtered_configs_.size(), size_t(18)))));
+    height = responsiveHeight(height, 12);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 120) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, dialog_w) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }
@@ -611,8 +615,12 @@ Element TUIConfigPopup::renderConfigPreview() const {
         }
     }
 
-    return vbox(preview_elements) | bgcolor(colors.background) | flex | size(WIDTH, EQUAL, 52) |
-           borderWithColor(colors.dialog_border);
+    int rw = responsiveWidth(120, 50);
+    int lw = responsiveSubWidth(45, 120, rw, 20);
+    int preview_w = rw - lw - 3;
+    preview_w = std::max(20, preview_w);
+    return vbox(preview_elements) | bgcolor(colors.background) | flex |
+           size(WIDTH, EQUAL, preview_w) | borderWithColor(colors.dialog_border);
 }
 
 Element TUIConfigPopup::renderHelpBar() const {

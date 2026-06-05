@@ -1,5 +1,6 @@
 #include "ui/split_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 
 using namespace ftxui;
 
@@ -156,8 +157,9 @@ ftxui::Element SplitDialog::render() {
                   text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
             bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim);
 
-        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 58) | size(HEIGHT, EQUAL, 11) |
-               bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
+        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(58, 30)) |
+               size(HEIGHT, EQUAL, responsiveHeight(11, 8)) | bgcolor(colors.background) |
+               borderWithColor(colors.dialog_border) | center;
     } else {
         // 关闭分屏模式
         content.push_back(hbox({text(" "), text(icons::CLOSE) | color(colors.foreground),
@@ -214,7 +216,8 @@ ftxui::Element SplitDialog::render() {
             bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim);
 
         int height = std::min(20, int(10 + static_cast<int>(splits_.size())));
-        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 68) |
+        height = responsiveHeight(height, 10);
+        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(68, 30)) |
                size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
                borderWithColor(colors.dialog_border) | center;
     }

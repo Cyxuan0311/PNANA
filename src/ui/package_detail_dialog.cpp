@@ -1,5 +1,6 @@
 #include "ui/package_detail_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <chrono>
 #include <exception>
@@ -307,8 +308,9 @@ Element PackageDetailDialog::render() const {
 
     return window(text(" Package Details ") | color(colors.success) | bold,
                   vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, 80) | size(HEIGHT, GREATER_THAN, 15) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(80)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(15)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border) | center;
 }
 
 Element PackageDetailDialog::renderPackageInfo() const {

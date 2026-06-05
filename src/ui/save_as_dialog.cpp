@@ -1,5 +1,6 @@
 #include "ui/save_as_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
 
@@ -141,8 +142,9 @@ Element SaveAsDialog::render() {
 
     // 根据是否为未命名文件调整对话框大小
     int dialog_height = is_untitled ? 13 : 12;
+    dialog_height = responsiveHeight(dialog_height, 8);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 65) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(65, 35)) |
            size(HEIGHT, EQUAL, dialog_height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

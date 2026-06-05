@@ -1,5 +1,6 @@
 #include "ui/ssh_transfer_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
@@ -206,8 +207,9 @@ Element SSHTransferDialog::render() {
 
     Element dialog_content = vbox(fields);
 
-    return window(text("SSH File Transfer"), dialog_content) | size(WIDTH, GREATER_THAN, 80) |
-           size(HEIGHT, GREATER_THAN, 25) | bgcolor(colors.background) |
+    return window(text("SSH File Transfer"), dialog_content) |
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(80)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(25)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

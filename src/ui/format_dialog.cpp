@@ -1,5 +1,6 @@
 #include "ui/format_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "ui/theme.h"
 #include "utils/file_type_color_mapper.h"
 #include "utils/file_type_detector.h"
@@ -406,9 +407,10 @@ Element FormatDialog::render() {
 
     // 计算对话框高度
     int height = std::min(25, int(12 + static_cast<int>(files_.size())));
-    height = std::max(height, 15); // 最小高度
+    height = std::max(height, 15);
+    height = responsiveHeight(height, 12);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 80) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

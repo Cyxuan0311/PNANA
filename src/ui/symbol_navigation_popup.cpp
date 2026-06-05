@@ -1,5 +1,6 @@
 #include "ui/symbol_navigation_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/logger.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
@@ -313,8 +314,9 @@ Element SymbolNavigationPopup::render() const {
     Element dialog_content = vbox(content);
 
     return window(text("Symbol Navigation") | color(colors.foreground), dialog_content) |
-           size(WIDTH, GREATER_THAN, 70) | size(HEIGHT, GREATER_THAN, 15) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(70)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(15)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 Element SymbolNavigationPopup::renderSymbolItem(const pnana::features::DocumentSymbol& symbol,

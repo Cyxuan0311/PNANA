@@ -1,5 +1,6 @@
 #include "ui/extract_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
 
@@ -128,7 +129,7 @@ ftxui::Element ExtractDialog::render() {
             ? 10
             : std::min(20, int(8 + static_cast<int>(std::min(archive_files_.size(), size_t(10)))));
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 70) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(70, 35)) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

@@ -1,5 +1,6 @@
 #include "ui/encoding_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 
 using namespace ftxui;
@@ -182,9 +183,9 @@ Element EncodingDialog::render() {
         return child | borderRounded | ftxui::color(colors.dialog_border);
     };
 
-    return applyBorderColor(window(text(""), vbox(content)) | size(WIDTH, EQUAL, 55) |
-                            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
-                            color(colors.dialog_fg) | center);
+    return applyBorderColor(
+        window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(55, 30)) |
+        size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) | color(colors.dialog_fg) | center);
 }
 
 void EncodingDialog::selectNext() {

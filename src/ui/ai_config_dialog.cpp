@@ -1,6 +1,7 @@
 #include "ui/ai_config_dialog.h"
 #include "features/ai_config/ai_config.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <sstream>
 
@@ -140,8 +141,9 @@ Element AIConfigDialog::render() {
     content.push_back(separator());
     content.push_back(renderButtons());
 
-    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 90) | size(HEIGHT, EQUAL, 22) |
-           bgcolor(colors.dialog_bg) | borderWithColor(colors.dialog_border);
+    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(90, 40)) |
+           size(HEIGHT, EQUAL, responsiveHeight(22, 10)) | bgcolor(colors.dialog_bg) |
+           borderWithColor(colors.dialog_border);
 }
 
 Element AIConfigDialog::renderTitle() const {

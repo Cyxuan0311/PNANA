@@ -1,5 +1,6 @@
 #include "ui/history_timeline_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <ctime>
@@ -145,10 +146,11 @@ Element HistoryTimelinePopup::render() {
     content.push_back(renderHelp());
 
     int h = std::min<int>(22, 10 + static_cast<int>(versions_.size()));
+    h = responsiveHeight(h, 8);
 
-    return window(text(""), vbox(std::move(content))) | size(WIDTH, EQUAL, 72) |
-           size(HEIGHT, EQUAL, h) | bgcolor(colors.dialog_bg) |
-           borderWithColor(colors.dialog_border);
+    return window(text(""), vbox(std::move(content))) |
+           size(WIDTH, EQUAL, responsiveWidth(72, 30)) | size(HEIGHT, EQUAL, h) |
+           bgcolor(colors.dialog_bg) | borderWithColor(colors.dialog_border);
 }
 
 bool HistoryTimelinePopup::handleInput(ftxui::Event event) {

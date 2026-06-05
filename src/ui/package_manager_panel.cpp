@@ -1,6 +1,7 @@
 #include "ui/package_manager_panel.h"
 #include "ui/icons.h"
 #include "ui/package_detail_dialog.h"
+#include "ui/responsive_size.h"
 #include "utils/logger.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
@@ -77,8 +78,9 @@ Element PackageManagerPanel::render() {
                                                                                 footer,
                                                                             })) |
            // 让面板尽量适配终端：给最小尺寸，剩余空间交给 flex
-           size(WIDTH, GREATER_THAN, 72) | size(HEIGHT, GREATER_THAN, 18) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(72)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(18)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 Component PackageManagerPanel::getComponent() {

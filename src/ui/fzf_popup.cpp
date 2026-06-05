@@ -1,5 +1,6 @@
 #include "ui/fzf_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/file_info_utils.h"
 #include "utils/file_type_detector.h"
 #include "utils/logger.h"
@@ -542,8 +543,10 @@ Element FzfPopup::render() {
     dialog_content.push_back(separator());
 
     // 左右布局：文件列表 | 预览
+    int dialog_w = responsiveWidth(150, 60);
+    int file_list_w = responsiveSubWidth(70, 150, dialog_w, 25);
     Elements main_row;
-    main_row.push_back(renderFileList() | size(WIDTH, EQUAL, 70));
+    main_row.push_back(renderFileList() | size(WIDTH, EQUAL, file_list_w));
     main_row.push_back(separator());
     main_row.push_back(renderPreview() | flex);
 
@@ -554,8 +557,9 @@ Element FzfPopup::render() {
     dialog_content.push_back(renderHelpBar());
 
     int height = std::min(35, int(12 + static_cast<int>(list_display_count_)));
+    height = responsiveHeight(height, 12);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 150) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, dialog_w) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }

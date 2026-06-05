@@ -1,5 +1,6 @@
 #include "ui/lsp_status_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -272,11 +273,13 @@ Element LspStatusPopup::render() {
     refreshEntries();
 
     const auto& colors = theme_.getColors();
+    int dialog_w = responsiveWidth(120, 50);
+    int left_w = responsiveSubWidth(52, 120, dialog_w, 20);
     Elements content;
     content.push_back(renderTitle());
     content.push_back(separator());
     content.push_back(hbox({
-                          renderLeftList() | size(WIDTH, EQUAL, 52),
+                          renderLeftList() | size(WIDTH, EQUAL, left_w),
                           separator(),
                           renderRightDetail() | flex,
                       }) |
@@ -284,8 +287,8 @@ Element LspStatusPopup::render() {
     content.push_back(separator());
     content.push_back(renderHelpBar());
 
-    return window(text("LSP Connection Status"), vbox(content)) | size(WIDTH, EQUAL, 120) |
-           size(HEIGHT, EQUAL, 28) | bgcolor(colors.background) |
+    return window(text("LSP Connection Status"), vbox(content)) | size(WIDTH, EQUAL, dialog_w) |
+           size(HEIGHT, EQUAL, responsiveHeight(28, 12)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

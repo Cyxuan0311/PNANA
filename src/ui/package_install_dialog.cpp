@@ -1,5 +1,6 @@
 #include "ui/package_install_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -225,8 +226,9 @@ Element PackageInstallDialog::render() const {
 
     return window(text(" Install Package ") | color(colors.success) | bold,
                   vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, 70) | size(HEIGHT, GREATER_THAN, 10) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(70)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(10)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border) | center;
 }
 
 Element PackageInstallDialog::renderInputField() const {

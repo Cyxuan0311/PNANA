@@ -1,5 +1,6 @@
 #include "ui/create_folder_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <ftxui/dom/elements.hpp>
 
 using namespace ftxui;
@@ -69,8 +70,8 @@ Element CreateFolderDialog::render() {
                                    text(" to create folder") | dim}) |
                              dim);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 55) |
-           size(HEIGHT, EQUAL, 13) | bgcolor(colors.background) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(55, 30)) |
+           size(HEIGHT, EQUAL, responsiveHeight(13, 8)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

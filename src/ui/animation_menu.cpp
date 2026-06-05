@@ -1,5 +1,6 @@
 #include "ui/animation_menu.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
 
@@ -225,7 +226,8 @@ Element AnimationMenu::renderEffects() const {
         rows.push_back(text("  ▼") | color(colors.comment) | dim);
     }
 
-    return vbox(rows) | size(WIDTH, EQUAL, 34) | borderWithColor(colors.dialog_border);
+    return vbox(rows) | size(WIDTH, EQUAL, responsiveWidth(34, 20)) |
+           borderWithColor(colors.dialog_border);
 }
 
 Element AnimationMenu::renderParams() const {
@@ -247,7 +249,8 @@ Element AnimationMenu::renderParams() const {
     line(1, "Refresh(ms)", std::to_string(pending_config_.refresh_interval_ms));
     line(2, "Pulse Speed", std::to_string(pending_config_.pulse_speed));
 
-    return vbox(rows) | size(WIDTH, EQUAL, 42) | borderWithColor(c.dialog_border);
+    return vbox(rows) | size(WIDTH, EQUAL, responsiveWidth(42, 25)) |
+           borderWithColor(c.dialog_border);
 }
 
 Element AnimationMenu::renderPreview() const {
@@ -278,7 +281,8 @@ Element AnimationMenu::render() {
 
     return vbox({title_bar, separator(), main, separator(), renderPreview(), separator(), help}) |
            borderWithColor(c.dialog_border) | bgcolor(c.background) |
-           size(WIDTH, GREATER_THAN, 84) | size(HEIGHT, GREATER_THAN, 24);
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(84)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(24));
 }
 
 } // namespace ui

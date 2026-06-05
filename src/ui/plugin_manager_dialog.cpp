@@ -1,5 +1,6 @@
 #include "ui/plugin_manager_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "ui/toast.h"
 #include "utils/logger.h"
 #include <algorithm>
@@ -121,8 +122,9 @@ Element PluginManagerDialog::render() {
               text("Esc") | color(colors.function) | bold, text(": Close"), filler()}) |
         bgcolor(colors.menubar_bg) | dim);
 
-    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, 80) | size(HEIGHT, EQUAL, 25) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
+    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
+           size(HEIGHT, EQUAL, responsiveHeight(25, 10)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border) | center;
 }
 
 Element PluginManagerDialog::renderPluginList() {

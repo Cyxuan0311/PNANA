@@ -1,5 +1,6 @@
 #include "ui/move_file_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
 
@@ -141,8 +142,8 @@ Element MoveFileDialog::render() {
         hbox({text("  "), text("Tab") | color(colors.function) | bold, text(": Path completion")}) |
         dim);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 60) |
-           size(HEIGHT, EQUAL, 14) | bgcolor(colors.background) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(60, 35)) |
+           size(HEIGHT, EQUAL, responsiveHeight(14, 8)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

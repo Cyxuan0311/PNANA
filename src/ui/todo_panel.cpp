@@ -1,6 +1,7 @@
 #include "ui/todo_panel.h"
 #include "features/todo/todo_manager.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -461,7 +462,7 @@ Element TodoPanel::renderBody() const {
     auto left = vbox({
                     renderCalendar(),
                 }) |
-                size(WIDTH, EQUAL, 26) | borderWithColor(colors.dialog_border);
+                size(WIDTH, EQUAL, responsiveWidth(26, 18)) | borderWithColor(colors.dialog_border);
 
     auto right = vbox({
                      renderTodoList(),

@@ -1,5 +1,6 @@
 #include "ui/terminal_session_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <ftxui/dom/elements.hpp>
 #include <unistd.h>
 #include <vector>
@@ -304,8 +305,9 @@ ftxui::Element TerminalSessionDialog::render() {
                                                                          separator(),
                                                                          footer,
                                                                      })) |
-           size(WIDTH, GREATER_THAN, 64) | size(HEIGHT, GREATER_THAN, 11) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(64)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(11)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border) | center;
 }
 
 } // namespace ui

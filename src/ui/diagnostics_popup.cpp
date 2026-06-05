@@ -1,5 +1,6 @@
 #include "ui/diagnostics_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <sstream>
 
@@ -113,9 +114,11 @@ Element DiagnosticsPopup::render() const {
             renderDiagnosticItem(diagnostics_[i], is_selected, i + 1, diagnostics_.size()));
     }
 
-    content.push_back(vbox(items) | vscroll_indicator | frame |
-                      size(HEIGHT, EQUAL, kListVisibleHeight) |
-                      size(WIDTH, EQUAL, kDiagnosticContentWidth));
+    int content_w = responsiveWidth(kDiagnosticContentWidth, 30);
+    int list_h = responsiveHeight(kListVisibleHeight, 8);
+
+    content.push_back(vbox(items) | vscroll_indicator | frame | size(HEIGHT, EQUAL, list_h) |
+                      size(WIDTH, EQUAL, content_w));
 
     // 统计信息
     std::string stats = std::to_string(diagnostics_.size()) + " diagnostics";
@@ -130,10 +133,11 @@ Element DiagnosticsPopup::render() const {
     Element dialog_content = vbox(content);
 
     // 使用 window 样式，固定宽度与高度，边框与标题使用当前主题色
+    int dialog_w = responsiveWidth(kDiagnosticContentWidth + 4, 34);
+    int dialog_h = responsiveHeight(kListVisibleHeight + 8, 12);
     return window(text("Diagnostics") | color(colors.foreground), dialog_content) |
-           size(WIDTH, EQUAL, kDiagnosticContentWidth + 4) |
-           size(HEIGHT, EQUAL, kListVisibleHeight + 8) | bgcolor(colors.background) |
-           borderWithColor(colors.dialog_border);
+           size(WIDTH, EQUAL, dialog_w) | size(HEIGHT, EQUAL, dialog_h) |
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic& diagnostic,
@@ -196,7 +200,7 @@ Element DiagnosticsPopup::renderDiagnosticItem(const pnana::features::Diagnostic
                           prefix_el,
                           message_el,
                       }) |
-                      size(WIDTH, EQUAL, kDiagnosticContentWidth);
+                      size(WIDTH, EQUAL, responsiveWidth(kDiagnosticContentWidth, 30));
 
     return element;
 }

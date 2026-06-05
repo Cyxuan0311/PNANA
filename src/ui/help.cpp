@@ -1,5 +1,6 @@
 #include "ui/help.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <map>
 
 using namespace ftxui;

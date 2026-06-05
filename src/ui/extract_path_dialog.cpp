@@ -1,5 +1,6 @@
 #include "ui/extract_path_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
 
@@ -169,8 +170,8 @@ ftxui::Element ExtractPathDialog::render() {
               text("Esc") | color(colors.function) | bold, text(": Cancel")}) |
         dim);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 75) |
-           size(HEIGHT, EQUAL, 16) | bgcolor(colors.background) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(75, 35)) |
+           size(HEIGHT, EQUAL, responsiveHeight(16, 10)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

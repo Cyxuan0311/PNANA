@@ -1,5 +1,6 @@
 #include "ui/cursor_config_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
@@ -192,8 +193,9 @@ Element CursorConfigDialog::render() {
                                                                        separator(),
                                                                        footer,
                                                                    })) |
-           size(WIDTH, GREATER_THAN, 66) | size(HEIGHT, GREATER_THAN, 16) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border) | center;
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(66)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(16)) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border) | center;
 }
 
 Element CursorConfigDialog::renderStyleSelector() {

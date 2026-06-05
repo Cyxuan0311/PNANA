@@ -1,5 +1,6 @@
 #include "ui/extract_progress_dialog.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <chrono>
 #include <cmath>
 #include <ftxui/dom/elements.hpp>
@@ -93,8 +94,8 @@ ftxui::Element ExtractProgressDialog::render() {
         hbox({text("  "), text("Please wait while extracting...") | color(colors.comment) | dim}) |
         center);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 70) |
-           size(HEIGHT, EQUAL, 15) | bgcolor(colors.background) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(70, 35)) |
+           size(HEIGHT, EQUAL, responsiveHeight(15, 8)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

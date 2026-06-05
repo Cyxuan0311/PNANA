@@ -1,5 +1,6 @@
 #include "ui/git_panel.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <chrono>
@@ -12,6 +13,7 @@
 
 using namespace ftxui;
 using namespace pnana::ui::icons;
+using namespace pnana::ui;
 
 namespace fs = std::filesystem;
 
@@ -687,7 +689,7 @@ Element GitPanel::renderStatusPanel() {
                         separator(),
                         vbox(std::move(detail)) | flex,
                     }) |
-                    size(WIDTH, EQUAL, kDetailPaneWidth) | flex;
+                    size(WIDTH, EQUAL, responsiveWidth(kDetailPaneWidth, 20)) | flex;
 
     Elements panes;
     panes.push_back(left | flex);
@@ -1755,9 +1757,9 @@ Element GitPanel::renderDiffViewer() {
 
     // Modal-like viewer with fixed size (similar to fzf popup)
     // 使用简单边框，标题已在 header_row 中显示
-    return vbox(std::move(viewer_elements)) | size(WIDTH, EQUAL, 80) |
-           size(HEIGHT, EQUAL, DIFF_VISIBLE_LINES + 6) | borderWithColor(colors.dialog_border) |
-           flex | bgcolor(colors.background);
+    return vbox(std::move(viewer_elements)) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
+           size(HEIGHT, EQUAL, responsiveHeight(DIFF_VISIBLE_LINES + 6, 10)) |
+           borderWithColor(colors.dialog_border) | flex | bgcolor(colors.background);
 }
 
 Color GitPanel::getDiffLineColor(const std::string& line) {
@@ -1962,7 +1964,8 @@ Component GitPanel::buildMainComponent() {
 
                // Use window style like other dialogs with proper sizing
                Element main_panel = window(text("Git Panel"), dialog_content) |
-                                    size(WIDTH, GREATER_THAN, 75) | size(HEIGHT, GREATER_THAN, 28) |
+                                    size(WIDTH, GREATER_THAN, responsiveMinWidth(75)) |
+                                    size(HEIGHT, GREATER_THAN, responsiveMinHeight(28)) |
                                     bgcolor(colors.background) |
                                     borderWithColor(colors.dialog_border);
 

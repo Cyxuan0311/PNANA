@@ -1,6 +1,7 @@
 #include "ui/command_palette_ui.h"
 #include "features/command_palette.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
@@ -61,7 +62,9 @@ ftxui::Element CommandPaletteUI::render() {
 
     int height =
         std::min(22, int(15 + static_cast<int>(std::min(filtered_commands_.size(), size_t(15)))));
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 70) |
+    height = responsiveHeight(height, 12);
+    int w = responsiveWidth(70, 35);
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, w) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }

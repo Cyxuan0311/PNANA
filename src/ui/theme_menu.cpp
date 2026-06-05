@@ -1,5 +1,6 @@
 #include "ui/theme_menu.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
 #include <cctype>
@@ -319,8 +320,11 @@ Element ThemeMenu::renderColorPreview() const {
     }
     preview_elements.push_back(vbox(grid_rows));
 
-    return vbox(preview_elements) | bgcolor(current_colors.dialog_bg) | size(WIDTH, EQUAL, 48) |
-           borderWithColor(current_colors.dialog_border);
+    int dialog_w = responsiveWidth(90, 40);
+    int preview_w = responsiveSubWidth(48, 90, dialog_w, 20);
+
+    return vbox(preview_elements) | bgcolor(current_colors.dialog_bg) |
+           size(WIDTH, EQUAL, preview_w) | borderWithColor(current_colors.dialog_border);
 }
 
 Element ThemeMenu::render() {
@@ -338,14 +342,16 @@ Element ThemeMenu::render() {
     left_content.push_back(separator());
     left_content.push_back(renderThemeList());
 
-    Element left_panel = vbox(left_content) | size(WIDTH, EQUAL, 38) | flex;
+    Element left_panel =
+        vbox(left_content) |
+        size(WIDTH, EQUAL, responsiveSubWidth(38, 90, responsiveWidth(90, 40), 18)) | flex;
 
     // 右侧：颜色预览
     Element right_panel = renderColorPreview();
 
     // 主内容区：左右布局
-    Element main_content =
-        hbox({left_panel, separator(), right_panel}) | flex | size(HEIGHT, EQUAL, 26);
+    Element main_content = hbox({left_panel, separator(), right_panel}) | flex |
+                           size(HEIGHT, EQUAL, responsiveHeight(26, 10));
 
     // 底部提示（选中即预览，Enter 才确认切换）
     Element help_bar =
@@ -358,7 +364,8 @@ Element ThemeMenu::render() {
 
     return vbox({title_bar, separator(), main_content, separator(), help_bar}) |
            borderWithColor(current_colors.dialog_border) | bgcolor(current_colors.background) |
-           size(WIDTH, GREATER_THAN, 90) | size(HEIGHT, GREATER_THAN, 28);
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(90)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(28));
 }
 
 } // namespace ui

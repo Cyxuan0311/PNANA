@@ -1,5 +1,6 @@
 #include "ui/clipboard_panel.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/mouse.hpp>
@@ -41,9 +42,10 @@ Element ClipboardPanel::render() {
 
     Element dialog_content = vbox(content);
 
+    int w = responsiveWidth(panel_width_, 25);
+    int h = responsiveMinHeight(20);
     return window(text("Clipboard") | color(colors.foreground), dialog_content) |
-           size(WIDTH, EQUAL, panel_width_) | size(HEIGHT, GREATER_THAN, 20) |
-           bgcolor(colors.background);
+           size(WIDTH, EQUAL, w) | size(HEIGHT, GREATER_THAN, h) | bgcolor(colors.background);
 }
 
 Component ClipboardPanel::getComponent() {
@@ -95,8 +97,9 @@ Element ClipboardPanel::renderEntries() {
         items.push_back(renderEntry(history_.getEntries()[i], is_selected, i + 1, history_.size()));
     }
 
-    return vbox(items) | vscroll_indicator | frame | size(HEIGHT, EQUAL, 20) |
-           size(WIDTH, EQUAL, panel_width_ - 4);
+    int cw = responsiveWidth(panel_width_, 25);
+    return vbox(items) | vscroll_indicator | frame | size(HEIGHT, EQUAL, responsiveHeight(20, 8)) |
+           size(WIDTH, EQUAL, std::max(10, cw - 4));
 }
 
 Element ClipboardPanel::renderEntry(const utils::ClipboardEntry& entry, bool is_selected,

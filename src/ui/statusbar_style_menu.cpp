@@ -1,4 +1,5 @@
 #include "ui/statusbar_style_menu.h"
+#include "ui/responsive_size.h"
 #include "ui/statusbar_theme.h"
 #include "utils/match_highlight.h"
 #include <algorithm>
@@ -302,8 +303,11 @@ Element StatusbarStyleMenu::renderStylePreview() const {
                                          text(value) | color(current_colors.foreground) | bold}));
     }
 
-    return vbox(preview_elements) | bgcolor(current_colors.dialog_bg) | size(WIDTH, EQUAL, 30) |
-           borderWithColor(current_colors.dialog_border);
+    int dialog_w = responsiveWidth(70, 35);
+    int preview_w = responsiveSubWidth(30, 70, dialog_w, 15);
+
+    return vbox(preview_elements) | bgcolor(current_colors.dialog_bg) |
+           size(WIDTH, EQUAL, preview_w) | borderWithColor(current_colors.dialog_border);
 }
 
 Element StatusbarStyleMenu::render() {
@@ -321,14 +325,16 @@ Element StatusbarStyleMenu::render() {
     left_content.push_back(separator());
     left_content.push_back(renderStyleList());
 
-    Element left_panel = vbox(left_content) | size(WIDTH, EQUAL, 30) | flex;
+    Element left_panel =
+        vbox(left_content) |
+        size(WIDTH, EQUAL, responsiveSubWidth(30, 70, responsiveWidth(70, 35), 15)) | flex;
 
     // 右侧：样式预览
     Element right_panel = renderStylePreview();
 
     // 主内容区：左右布局
-    Element main_content =
-        hbox({left_panel, separator(), right_panel}) | flex | size(HEIGHT, EQUAL, 15);
+    Element main_content = hbox({left_panel, separator(), right_panel}) | flex |
+                           size(HEIGHT, EQUAL, responsiveHeight(15, 8));
 
     // 底部提示
     Element help_bar =
@@ -340,7 +346,8 @@ Element StatusbarStyleMenu::render() {
 
     return vbox({title_bar, separator(), main_content, separator(), help_bar}) |
            borderWithColor(current_colors.dialog_border) | bgcolor(current_colors.background) |
-           size(WIDTH, GREATER_THAN, 70) | size(HEIGHT, GREATER_THAN, 17);
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(70)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(17));
 }
 
 } // namespace ui

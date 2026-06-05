@@ -1,5 +1,6 @@
 #include "ui/recent_files_popup.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include "ui/toast.h"
 #include <algorithm>
 #include <filesystem>
@@ -58,8 +59,10 @@ ftxui::Element RecentFilesPopup::render() {
     auto current_items = getCurrentTabItems();
     int height =
         std::min(24, int(12 + static_cast<int>(std::min(current_items.size(), size_t(8)))));
+    height = responsiveHeight(height, 10);
+    int w = responsiveWidth(80, 35);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, 80) |
+    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, w) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }

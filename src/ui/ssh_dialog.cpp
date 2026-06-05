@@ -1,6 +1,7 @@
 #include "ui/ssh_dialog.h"
 #include "features/cursor/cursor_renderer.h"
 #include "ui/icons.h"
+#include "ui/responsive_size.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -496,8 +497,9 @@ Element SSHDialog::renderHistoryView() {
                          text("Esc") | color(colors.keyword) | bold, text(": Cancel")}) |
                    color(colors.comment) | center);
 
-    return window(text("SSH Connection"), vbox(rows)) | size(WIDTH, GREATER_THAN, 60) |
-           size(HEIGHT, GREATER_THAN, 14) | bgcolor(colors.background) |
+    return window(text("SSH Connection"), vbox(rows)) |
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(60)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(14)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 
@@ -563,8 +565,9 @@ Element SSHDialog::renderNewFormView() {
                            text(!history_.empty() ? ": Back to history" : ": Cancel")}) |
                      color(colors.comment) | center);
 
-    return window(text("SSH Connection"), vbox(fields)) | size(WIDTH, GREATER_THAN, 70) |
-           size(HEIGHT, GREATER_THAN, 20) | bgcolor(colors.background) |
+    return window(text("SSH Connection"), vbox(fields)) |
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(70)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(20)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 
@@ -625,8 +628,9 @@ Element SSHDialog::renderPasswordView() {
                          text("Esc") | color(colors.keyword) | bold, text(": Back to list")}) |
                    color(colors.comment) | center);
 
-    return window(text("SSH Connection"), vbox(rows)) | size(WIDTH, GREATER_THAN, 60) |
-           size(HEIGHT, GREATER_THAN, 14) | bgcolor(colors.background) |
+    return window(text("SSH Connection"), vbox(rows)) |
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(60)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(14)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 
@@ -652,8 +656,9 @@ Element SSHDialog::renderConnectedView() {
                          text("Esc: Close") | color(colors.comment)}) |
                    center);
 
-    return window(text("SSH Connection"), vbox(rows)) | size(WIDTH, GREATER_THAN, 50) |
-           size(HEIGHT, GREATER_THAN, 12) | bgcolor(colors.background) |
+    return window(text("SSH Connection"), vbox(rows)) |
+           size(WIDTH, GREATER_THAN, responsiveMinWidth(50)) |
+           size(HEIGHT, GREATER_THAN, responsiveMinHeight(12)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 
