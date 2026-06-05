@@ -225,56 +225,47 @@ void Editor::moveCursorPageUp() {
     if (!doc)
         return;
 
-    // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
-    // 6行，再减去边框(2) = 8行
     int screen_height = screen_.dimy() - 7;
     if (screen_height <= 0) {
-        screen_height = 1; // 防止除零错误
+        screen_height = 1;
     }
+
+    int configured = config_manager_.getConfig().editor.page_scroll_lines;
+    int scroll_distance = (configured > 0) ? configured : screen_height;
 
     size_t total_lines = doc->lineCount();
     if (total_lines == 0)
         return;
 
-    // 计算当前光标在可见区域中的位置
     size_t cursor_visible_row =
         (cursor_row_ >= view_offset_row_) ? (cursor_row_ - view_offset_row_) : 0;
 
-    // 向上滚动一页：视图向上移动一页
     size_t old_view_offset = view_offset_row_;
-    if (view_offset_row_ >= static_cast<size_t>(screen_height)) {
-        view_offset_row_ -= screen_height;
+    if (view_offset_row_ >= static_cast<size_t>(scroll_distance)) {
+        view_offset_row_ -= scroll_distance;
     } else {
         view_offset_row_ = 0;
     }
 
-    // 如果视图已经到达顶部，将光标移到文件开头（保持列位置）
     if (view_offset_row_ == 0 && old_view_offset == 0) {
         cursor_row_ = 0;
-        // 保持列位置，但确保不超过行长度
         size_t line_len = doc->getLine(0).length();
         if (cursor_col_ > line_len) {
             cursor_col_ = line_len;
         }
     } else {
-        // 保持光标在屏幕中的相对位置，但确保在新视图范围内
-        // 如果光标原本在屏幕上半部分，移到新视图顶部；否则保持相对位置
-        if (cursor_visible_row < static_cast<size_t>(screen_height / 2)) {
-            // 光标在屏幕上半部分，移到新视图顶部
+        if (cursor_visible_row < static_cast<size_t>(scroll_distance / 2)) {
             cursor_row_ = view_offset_row_;
         } else {
-            // 光标在屏幕下半部分，保持相对位置
             cursor_row_ = view_offset_row_ + cursor_visible_row;
         }
 
-        // 确保光标在有效范围内
         if (cursor_row_ >= total_lines) {
             cursor_row_ = total_lines - 1;
         }
     }
 
     adjustCursor();
-    // 确保视图偏移正确（处理边界情况）
     adjustViewOffset();
 }
 
@@ -283,32 +274,30 @@ void Editor::moveCursorPageDown() {
     if (!doc)
         return;
 
-    // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
-    // 6行，再减去边框(2) = 8行
     int screen_height = screen_.dimy() - 7;
     if (screen_height <= 0) {
-        screen_height = 1; // 防止除零错误
+        screen_height = 1;
     }
+
+    int configured = config_manager_.getConfig().editor.page_scroll_lines;
+    int scroll_distance = (configured > 0) ? configured : screen_height;
 
     size_t total_lines = doc->lineCount();
     if (total_lines == 0)
         return;
 
-    // 计算当前光标在可见区域中的位置
     size_t cursor_visible_row =
         (cursor_row_ >= view_offset_row_) ? (cursor_row_ - view_offset_row_) : 0;
 
-    // 向下滚动一页：视图向下移动一页
     size_t max_offset =
         (total_lines > static_cast<size_t>(screen_height)) ? (total_lines - screen_height) : 0;
     size_t old_view_offset = view_offset_row_;
-    if (view_offset_row_ + static_cast<size_t>(screen_height) <= max_offset) {
-        view_offset_row_ += screen_height;
+    if (view_offset_row_ + static_cast<size_t>(scroll_distance) <= max_offset) {
+        view_offset_row_ += scroll_distance;
     } else {
         view_offset_row_ = max_offset;
     }
 
-    // 如果视图已经到达底部，将光标移到文件末尾（保持列位置，但确保不超过行长度）
     if (view_offset_row_ == max_offset && old_view_offset == max_offset && max_offset > 0) {
         cursor_row_ = total_lines - 1;
         size_t line_len = doc->getLine(cursor_row_).length();
@@ -316,22 +305,16 @@ void Editor::moveCursorPageDown() {
             cursor_col_ = line_len;
         }
     } else {
-        // 保持光标在屏幕中的相对位置，但确保在新视图范围内
-        // 如果光标原本在屏幕下半部分，移到新视图底部；否则保持相对位置
-        if (cursor_visible_row >= static_cast<size_t>(screen_height / 2)) {
-            // 光标在屏幕下半部分，移到新视图底部（保留一些边距）
+        if (cursor_visible_row >= static_cast<size_t>(scroll_distance / 2)) {
             size_t target_visible_row = static_cast<size_t>(screen_height) - 1;
-            // 确保不超过屏幕高度（虽然理论上不会发生，但为了安全）
             if (target_visible_row >= static_cast<size_t>(screen_height)) {
                 target_visible_row = static_cast<size_t>(screen_height) - 1;
             }
             cursor_row_ = view_offset_row_ + target_visible_row;
         } else {
-            // 光标在屏幕上半部分，保持相对位置
             cursor_row_ = view_offset_row_ + cursor_visible_row;
         }
 
-        // 确保光标在有效范围内
         if (cursor_row_ >= total_lines) {
             cursor_row_ = total_lines - 1;
         }
