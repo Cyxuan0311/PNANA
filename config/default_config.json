@@ -6,7 +6,8 @@
     "tab_size": 4,
     "insert_spaces": true,
     "word_wrap": false,
-    "auto_indent": true
+    "auto_indent": true,
+    "page_scroll_lines": 0
   },
   "display": {
     "_comment": "Display: line numbers, highlight, cursor style, helpbar, logo gradient, tab indicators, side panels, terminal position",

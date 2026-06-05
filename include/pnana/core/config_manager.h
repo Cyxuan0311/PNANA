@@ -22,6 +22,7 @@ struct EditorConfig {
     bool insert_spaces = true;
     bool word_wrap = false;
     bool auto_indent = true;
+    int page_scroll_lines = 0;
 };
 
 // 语言特定缩进配置

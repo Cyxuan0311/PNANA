@@ -240,6 +240,8 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         config_.editor.insert_spaces = extractBool("insert_spaces", editor_pos, editor_end, true);
         config_.editor.word_wrap = extractBool("word_wrap", editor_pos, editor_end, false);
         config_.editor.auto_indent = extractBool("auto_indent", editor_pos, editor_end, true);
+        config_.editor.page_scroll_lines =
+            extractInt("page_scroll_lines", editor_pos, editor_end, 0);
     }
 
     // 解析 display 配置
@@ -899,7 +901,8 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"tab_size\": " << config_.editor.tab_size << ",\n";
     oss << "    \"insert_spaces\": " << (config_.editor.insert_spaces ? "true" : "false") << ",\n";
     oss << "    \"word_wrap\": " << (config_.editor.word_wrap ? "true" : "false") << ",\n";
-    oss << "    \"auto_indent\": " << (config_.editor.auto_indent ? "true" : "false") << "\n";
+    oss << "    \"auto_indent\": " << (config_.editor.auto_indent ? "true" : "false") << ",\n";
+    oss << "    \"page_scroll_lines\": " << config_.editor.page_scroll_lines << "\n";
     oss << "  },\n";
     oss << "  \"display\": {\n";
     oss << "    \"_comment\": \"Display: line numbers, highlight, cursor style, side panels, "
