@@ -530,6 +530,13 @@ Element Editor::overlayDialogs(Element main_ui) {
         return lsp_status_popup_.isOpen();
     });
 #endif
+    overlay_manager_->setRenderDependencyStatusPopupCallback([this]() {
+        return dependency_status_popup_.render();
+    });
+    overlay_manager_->setIsDependencyStatusPopupVisibleCallback([this]() {
+        return dependency_status_popup_.isOpen();
+    });
+
     overlay_manager_->setRenderTUIConfigCallback([this]() {
         // 仅打开时用已有列表，避免每次渲染都拉取（SSH 下会数百次远程调用导致卡顿）
         const auto& configs = tui_config_popup_.getCurrentConfigs();

@@ -145,6 +145,12 @@ bool InputRouter::handleDialogs(ftxui::Event event, Editor* editor) {
     }
 #endif
 
+    // 2c. 依赖状态弹窗
+    if (editor->dependency_status_popup_.isOpen()) {
+        editor->handleDependencyStatusPopupInput(event);
+        return true;
+    }
+
     // 3. 最近文件弹窗
     if (editor->recent_files_popup_.isOpen()) {
         if (editor->recent_files_popup_.handleInput(event)) {

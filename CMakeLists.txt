@@ -498,6 +498,7 @@ set(SOURCES
     src/ui/package_detail_dialog.cpp
     src/ui/package_install_dialog.cpp
     src/ui/move_file_dialog.cpp
+    src/ui/dependency_status_popup.cpp
     src/ui/extract_dialog.cpp
     src/ui/extract_path_dialog.cpp
     src/ui/extract_progress_dialog.cpp
@@ -703,6 +704,7 @@ set(HEADERS
     include/pnana/ui/format_dialog.h
     include/pnana/ui/todo_panel.h
     include/pnana/ui/move_file_dialog.h
+    include/pnana/ui/dependency_status_popup.h
     include/pnana/ui/history_timeline_popup.h
     include/pnana/ui/history_diff_popup.h
     # 功能模块头文件

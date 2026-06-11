@@ -79,8 +79,8 @@ Editor::Editor()
 #ifdef BUILD_TREE_SITTER_SUPPORT
       auto_indent_engine_(config_manager_),
 #endif
-      command_palette_(theme_), terminal_(theme_), split_view_manager_(),
-      diagnostics_popup_(theme_),
+      dependency_status_popup_(theme_), command_palette_(theme_), terminal_(theme_),
+      split_view_manager_(), diagnostics_popup_(theme_),
 #ifdef BUILD_LSP_SUPPORT
       symbol_navigation_popup_(theme_), lsp_status_popup_(theme_),
 #endif
@@ -1031,18 +1031,28 @@ bool Editor::isMarkdownPreviewActive() const {
 }
 
 ftxui::Element Editor::renderMarkdownPreview() {
-    // Render preview using MarkdownRenderer directly (lightweight)
     pnana::features::MarkdownRenderConfig cfg;
     int half_width = std::max(10, getScreenWidth() / 2 - 4);
     cfg.max_width = half_width;
     cfg.use_color = true;
     cfg.theme = theme_.getCurrentThemeName();
-    pnana::features::MarkdownRenderer renderer(cfg);
+    pnana::features::MarkdownRenderer renderer(cfg, &syntax_highlighter_);
     std::string content = getCurrentDocumentContent();
     if (content.empty())
         return ftxui::text("");
 
-    auto elem = renderer.render(content);
+    // Use cached AST if content hasn't changed
+    std::shared_ptr<pnana::features::MarkdownElement> root;
+    if (content == cached_markdown_content_ && cached_markdown_ast_) {
+        root = cached_markdown_ast_;
+    } else {
+        pnana::features::MarkdownParser parser;
+        root = parser.parse(content);
+        cached_markdown_content_ = content;
+        cached_markdown_ast_ = root;
+    }
+
+    auto elem = renderer.render(root);
 
     // Diagnostic/fallback: render to an off-screen buffer and check if visible characters exist.
     try {
@@ -1456,6 +1466,114 @@ void Editor::handleLspStatusPopupInput(Event event) {
     }
 }
 #endif
+
+void Editor::openDependencyStatusPopup() {
+    std::vector<pnana::ui::DependencyEntry> entries;
+
+    auto add = [&](const std::string& name, const std::string& version, const std::string& type,
+                   bool enabled, const std::string& desc) {
+        entries.push_back({name, version, type, enabled, desc});
+    };
+
+    add("FTXUI", "find_package", "Required", true, "Terminal UI framework");
+    add("C++17", "std=c++17", "Required", true, "C++ standard");
+
+#ifdef BUILD_IMAGE_PREVIEW_SUPPORT
+    add("Chafa", "pkg-config", "Optional", true, "Image preview in terminal");
+#else
+    add("Chafa", "pkg-config", "Optional", false, "Image preview (BUILD_IMAGE_PREVIEW=ON)");
+#endif
+
+#ifdef BUILD_TREE_SITTER_SUPPORT
+    add("Tree-sitter", "find_package", "Optional", true, "Enhanced syntax highlighting");
+#else
+    add("Tree-sitter", "find_package", "Optional", false,
+        "Syntax highlighting (BUILD_TREE_SITTER=ON)");
+#endif
+
+#ifdef BUILD_LUA_SUPPORT
+    add("Lua", "5.3/5.4", "Optional", true, "Plugin system");
+#else
+    add("Lua", "5.3/5.4", "Optional", false, "Plugin system (BUILD_LUA=ON)");
+#endif
+
+#if defined(BUILD_CPP_SSH_MODULE)
+    add("libssh2", "find_package", "Optional", true, "Native C++ SSH");
+#else
+    add("libssh2", "find_package", "Optional", false, "SSH mode (BUILD_SSH_MODE=CPP)");
+#endif
+
+#ifdef BUILD_GO_MODULE
+    add("Go", "compiler", "Optional", true, "Go SSH module");
+#else
+    add("Go", "compiler", "Optional", false, "Go SSH module (BUILD_SSH_MODE=GO)");
+#endif
+
+#ifdef BUILD_AI_CLIENT_SUPPORT
+    add("libcurl", "find_package", "Optional", true, "AI client");
+#else
+    add("libcurl", "find_package", "Optional", false, "AI client (BUILD_AI_CLIENT=ON)");
+#endif
+
+#ifdef BUILD_LIBVTERM_SUPPORT
+    add("libvterm", "find_package", "Optional", true, "Full terminal emulation");
+#else
+    add("libvterm", "find_package", "Optional", false, "Terminal emulation (BUILD_LIBVTERM=ON)");
+#endif
+
+#ifdef BUILD_ICONV_SUPPORT
+    add("iconv", "libc/pkg", "Optional", true, "Encoding conversion");
+#else
+    add("iconv", "libc/pkg", "Optional", false, "Encoding conversion (auto-detected)");
+#endif
+
+    add("nlohmann/json", "third-party", "Bundled", true, "JSON parsing");
+    add("jsonrpccxx", "third-party", "Bundled", true, "LSP RPC client");
+    add("CLI11", "third-party", "Bundled", true, "CLI argument parsing");
+    add("md4c", "third-party", "Bundled", true, "Markdown parsing");
+    add("dsa/stb_image", "third-party", "Bundled", true, "Data structures & image loading");
+
+#ifdef BUILD_LSP_SUPPORT
+    add("LSP", "enabled", "Build", true, "Language Server Protocol support");
+#else
+    add("LSP", "disabled", "Build", false, "Language Server Protocol (requires nlohmann/json)");
+#endif
+
+    std::string arch =
+#if defined(__x86_64__) || defined(_M_X64)
+        "x86_64";
+#elif defined(__aarch64__) || defined(ARM64)
+        "arm64";
+#elif defined(__riscv64) || defined(__riscv)
+        "riscv64";
+#elif defined(__arm__) || defined(_M_ARM)
+        "armv7";
+#else
+        "unknown";
+#endif
+    add("Architecture", arch, "Build", true, "Target CPU architecture");
+
+    std::string build_type =
+#ifdef NDEBUG
+        "Release";
+#else
+        "Debug";
+#endif
+    add("Build Type", build_type, "Build", true, "Build configuration");
+
+    dependency_status_popup_.setData(entries);
+    dependency_status_popup_.open();
+    setStatusMessage("Dependency Status — ↑↓ Scroll  Esc Close");
+}
+
+void Editor::handleDependencyStatusPopupInput(Event event) {
+    if (dependency_status_popup_.handleInput(event)) {
+        if (!dependency_status_popup_.isOpen()) {
+            setStatusMessage("pnana - Modern Terminal Editor | Ctrl+Q Quit | Ctrl+T Themes | "
+                             "Ctrl+O Files | F1 Help");
+        }
+    }
+}
 
 void Editor::openExtractDialog() {
     std::string current_dir = file_browser_.getCurrentDirectory();

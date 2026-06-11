@@ -261,6 +261,13 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(tui_config_elements);
     }
 
+    // 如果依赖状态弹窗打开，叠加显示
+    if (is_dependency_status_popup_visible_callback_ &&
+        is_dependency_status_popup_visible_callback_() &&
+        render_dependency_status_popup_callback_) {
+        return dbox({main_ui | dim, render_dependency_status_popup_callback_() | center});
+    }
+
     // 如果通用对话框打开，叠加显示
     if (is_dialog_visible_callback_ && is_dialog_visible_callback_() && render_dialog_callback_) {
         Elements dialog_elements = {main_ui | dim, render_dialog_callback_() | center};

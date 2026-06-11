@@ -21,6 +21,7 @@
 #include "ui/clipboard_panel.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
+#include "ui/dependency_status_popup.h"
 #include "ui/dialog.h"
 #include "ui/encoding_dialog.h"
 #include "ui/extract_dialog.h"
@@ -65,6 +66,7 @@
 #include "features/file_browser.h"
 #include "features/history/file_history_manager.h"
 #include "features/image_preview.h"
+#include "features/md_render/markdown_parser.h"
 #include "features/recent_files_manager.h"
 #include "features/search.h"
 #include "features/split_view/split_view.h"
@@ -499,6 +501,7 @@ class Editor {
 #ifdef BUILD_TREE_SITTER_SUPPORT
     features::AutoIndentEngine auto_indent_engine_;
 #endif
+    pnana::ui::DependencyStatusPopup dependency_status_popup_;
     features::CommandPalette command_palette_;
     features::RecentFilesManager recent_files_manager_;
     features::TUIConfigManager tui_config_manager_;
@@ -727,6 +730,9 @@ class Editor {
     std::atomic<bool> terminal_has_output_{false};
     // 简单的 Markdown 预览开关（重构后的轻量开关）
     bool markdown_preview_enabled_ = false;
+    // Markdown 解析缓存（避免重复解析）
+    std::string cached_markdown_content_;
+    std::shared_ptr<pnana::features::MarkdownElement> cached_markdown_ast_;
 
     // 渲染调试信息
     size_t render_call_count_ = 0;
@@ -949,6 +955,10 @@ class Editor {
 
     // 文件选择器
     void handleFilePickerInput(ftxui::Event event);
+
+    // 依赖状态弹窗
+    void openDependencyStatusPopup();
+    void handleDependencyStatusPopupInput(ftxui::Event event);
 
     // 编码对话框
     void handleEncodingDialogInput(ftxui::Event event);

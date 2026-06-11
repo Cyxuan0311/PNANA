@@ -52,6 +52,12 @@ void Editor::initializeCommandPalette() {
                     showFileHistoryTimeline();
                 }));
 
+    command_palette_.registerCommand(
+        Command("build.status", "Status", "Show build dependencies and status",
+                {"status", "build", "dependencies", "about", "info"}, [this]() {
+                    openDependencyStatusPopup();
+                }));
+
 #ifdef BUILD_LSP_SUPPORT
     command_palette_.registerCommand(
         Command("lsp.status", "LSP Status", "LSP connection status and server details",

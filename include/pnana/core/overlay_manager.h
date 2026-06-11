@@ -127,6 +127,9 @@ class OverlayManager {
     void setRenderTUIConfigCallback(std::function<ftxui::Element()> callback) {
         render_tui_config_callback_ = callback;
     }
+    void setRenderDependencyStatusPopupCallback(std::function<ftxui::Element()> callback) {
+        render_dependency_status_popup_callback_ = callback;
+    }
     void setRenderDialogCallback(std::function<ftxui::Element()> callback) {
         render_dialog_callback_ = callback;
     }
@@ -240,6 +243,9 @@ class OverlayManager {
     void setIsTUIConfigVisibleCallback(std::function<bool()> callback) {
         is_tui_config_visible_callback_ = callback;
     }
+    void setIsDependencyStatusPopupVisibleCallback(std::function<bool()> callback) {
+        is_dependency_status_popup_visible_callback_ = callback;
+    }
     void setIsDialogVisibleCallback(std::function<bool()> callback) {
         is_dialog_visible_callback_ = callback;
     }
@@ -285,6 +291,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_history_diff_popup_callback_;
     std::function<ftxui::Element()> render_lsp_status_popup_callback_;
     std::function<ftxui::Element()> render_tui_config_callback_;
+    std::function<ftxui::Element()> render_dependency_status_popup_callback_;
     std::function<ftxui::Element()> render_dialog_callback_;
 
     // AI 面板位置：false = 在右侧（默认），true = 在左侧
@@ -327,6 +334,7 @@ class OverlayManager {
     std::function<bool()> is_history_diff_popup_visible_callback_;
     std::function<bool()> is_lsp_status_popup_visible_callback_;
     std::function<bool()> is_tui_config_visible_callback_;
+    std::function<bool()> is_dependency_status_popup_visible_callback_;
     std::function<bool()> is_dialog_visible_callback_;
 };
 
