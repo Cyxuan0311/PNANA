@@ -36,11 +36,13 @@ enum class MarkdownElementType {
 struct MarkdownElement {
     MarkdownElementType type;
     std::string content;
-    int level = 0;          // 用于标题级别
-    std::string url;        // 用于链接和图片
-    std::string title;      // 用于链接和图片
-    std::string lang;       // 用于代码块的语言信息
-    bool is_header = false; // 用于表格单元格
+    int level = 0;             // 用于标题级别
+    std::string url;           // 用于链接和图片
+    std::string title;         // 用于链接和图片
+    std::string lang;          // 用于代码块的语言信息
+    bool is_header = false;    // 用于表格单元格
+    bool is_task = false;      // 任务列表项
+    bool task_checked = false; // 任务列表是否已勾选
     std::vector<std::shared_ptr<MarkdownElement>> children;
 
     MarkdownElement(MarkdownElementType t, const std::string& c = "") : type(t), content(c) {}

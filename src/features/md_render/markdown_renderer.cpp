@@ -1,4 +1,5 @@
 #include "features/md_render/markdown_renderer.h"
+#include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "ui/theme.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
@@ -52,7 +53,9 @@ namespace {
 pnana::ui::ThemeColors loadThemeColors(const std::string& theme_name);
 }
 
-MarkdownRenderer::MarkdownRenderer(const MarkdownRenderConfig& config) : config_(config) {
+MarkdownRenderer::MarkdownRenderer(const MarkdownRenderConfig& config,
+                                   SyntaxHighlighter* syntax_highlighter)
+    : config_(config), syntax_highlighter_(syntax_highlighter) {
     // 加载并缓存当前主题颜色
     try {
         theme_colors_ = loadThemeColors(config_.theme);
@@ -77,6 +80,10 @@ ftxui::Element MarkdownRenderer::render(const std::string& markdown) {
     return render_element(root);
 }
 
+ftxui::Element MarkdownRenderer::render(const std::shared_ptr<MarkdownElement>& root) {
+    return render_element(root);
+}
+
 ftxui::Element MarkdownRenderer::render_element(const std::shared_ptr<MarkdownElement>& element,
                                                 int indent) {
     if (!element) {
@@ -85,35 +92,50 @@ ftxui::Element MarkdownRenderer::render_element(const std::shared_ptr<MarkdownEl
 
     using namespace ftxui;
 
+    Element result;
     switch (element->type) {
         case MarkdownElementType::HEADING:
-            return render_heading(element);
+            result = render_heading(element);
+            break;
         case MarkdownElementType::PARAGRAPH:
-            return render_paragraph(element);
+            result = render_paragraph(element);
+            break;
         case MarkdownElementType::CODE_BLOCK:
-            return render_code_block(element);
+            result = render_code_block(element);
+            break;
         case MarkdownElementType::INLINE_CODE:
-            return render_inline_code(element);
+            result = render_inline_code(element);
+            break;
         case MarkdownElementType::BOLD:
-            return render_bold(element);
+            result = render_bold(element);
+            break;
         case MarkdownElementType::ITALIC:
-            return render_italic(element);
+            result = render_italic(element);
+            break;
         case MarkdownElementType::LINK:
-            return render_link(element);
+            result = render_link(element);
+            break;
         case MarkdownElementType::IMAGE:
-            return render_image(element);
+            result = render_image(element);
+            break;
         case MarkdownElementType::LIST_ITEM:
-            return render_list_item(element, indent);
+            result = render_list_item(element, indent);
+            break;
         case MarkdownElementType::BLOCKQUOTE:
-            return render_blockquote(element);
+            result = render_blockquote(element);
+            break;
         case MarkdownElementType::HORIZONTAL_RULE:
-            return render_horizontal_rule();
+            result = render_horizontal_rule();
+            break;
         case MarkdownElementType::TABLE:
-            return render_table(element);
+            result = render_table(element);
+            break;
         case MarkdownElementType::TABLE_ROW:
-            return render_table_row(element);
+            result = render_table_row(element);
+            break;
         case MarkdownElementType::TABLE_CELL:
-            return render_table_cell(element);
+            result = render_table_cell(element);
+            break;
         case MarkdownElementType::TEXT:
         default: {
             Elements children_elements;
@@ -121,20 +143,35 @@ ftxui::Element MarkdownRenderer::render_element(const std::shared_ptr<MarkdownEl
                 children_elements.push_back(render_element(child, indent));
             }
             if (children_elements.empty()) {
-                return render_text(element->content);
+                result = render_text(element->content);
+            } else {
+                result = vbox(std::move(children_elements));
             }
-            return vbox(std::move(children_elements));
         }
     }
+
+    // Add blank line after block-level elements for vertical spacing
+    switch (element->type) {
+        case MarkdownElementType::HEADING:
+        case MarkdownElementType::PARAGRAPH:
+        case MarkdownElementType::CODE_BLOCK:
+        case MarkdownElementType::BLOCKQUOTE:
+        case MarkdownElementType::LIST_ITEM:
+        case MarkdownElementType::HORIZONTAL_RULE:
+        case MarkdownElementType::TABLE:
+            result = vbox({std::move(result), text("")});
+            break;
+        default:
+            break;
+    }
+
+    return result;
 }
 
 ftxui::Element MarkdownRenderer::render_heading(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
 
-    // Prepare inline elements: if there are child spans, render each and apply
-    // fg/bg/bold to each child so background only covers text width.
     std::string text_content = element->content;
-    // Trim trailing newlines
     while (!text_content.empty() && (text_content.back() == '\n' || text_content.back() == '\r'))
         text_content.pop_back();
 
@@ -143,28 +180,46 @@ ftxui::Element MarkdownRenderer::render_heading(const std::shared_ptr<MarkdownEl
 
     Elements inline_elems;
     if (!element->children.empty()) {
-        // If there's leading plain content, add it first
         if (!text_content.empty())
             inline_elems.push_back(text(text_content) | get_bold_decorator() | ftxui::color(fg) |
                                    ftxui::bgcolor(bg));
-
         for (const auto& child : element->children) {
-            // Render child then apply fg/bg and bold to ensure bg only covers child width
-            auto child_el = render_element(child);
-            inline_elems.push_back(child_el | get_bold_decorator() | ftxui::color(fg) |
+            inline_elems.push_back(render_element(child) | get_bold_decorator() | ftxui::color(fg) |
                                    ftxui::bgcolor(bg));
         }
     } else {
-        // No child spans: simple text element
         inline_elems.push_back(text(text_content) | get_bold_decorator() | ftxui::color(fg) |
                                ftxui::bgcolor(bg));
     }
 
-    auto row = hbox(std::move(inline_elems));
-    if (element->level == 1 && config_.max_width > 0) {
-        return ftxui::hcenter(row);
+    Elements block;
+
+    if (element->level == 1) {
+        // H1: centered + full-width underline
+        auto heading_line = hbox(std::move(inline_elems));
+        block.push_back(ftxui::hcenter(heading_line));
+        if (config_.max_width > 0) {
+            int w = std::min(config_.max_width, 60);
+            block.push_back(text(std::string(w, '=')) | ftxui::color(fg) | ftxui::dim);
+        }
+    } else if (element->level == 2) {
+        // H2: left accent bar
+        block.push_back(hbox({
+            text(" ") | ftxui::color(fg) | ftxui::bgcolor(fg) | size(ftxui::WIDTH, ftxui::EQUAL, 2),
+            text(" ") | size(ftxui::WIDTH, ftxui::EQUAL, 1),
+            hbox(std::move(inline_elems)),
+        }));
+    } else {
+        // H3+: indent progressively
+        int indent = (element->level - 3) * 2;
+        std::string pad(indent, ' ');
+        block.push_back(hbox({
+            text(pad),
+            hbox(std::move(inline_elems)),
+        }));
     }
-    return row;
+
+    return vbox(std::move(block));
 }
 
 ftxui::Element MarkdownRenderer::render_paragraph(const std::shared_ptr<MarkdownElement>& element) {
@@ -192,60 +247,96 @@ ftxui::Element MarkdownRenderer::render_paragraph(const std::shared_ptr<Markdown
     return wrap_text(element->content, config_.max_width);
 }
 
+static std::string mapCodeLangToFileType(const std::string& lang) {
+    if (lang == "py" || lang == "python3")
+        return "python";
+    if (lang == "js" || lang == "javascript" || lang == "node")
+        return "javascript";
+    if (lang == "ts" || lang == "typescript")
+        return "typescript";
+    if (lang == "rs" || lang == "rust")
+        return "rust";
+    if (lang == "sh" || lang == "bash" || lang == "zsh" || lang == "shell")
+        return "bash";
+    if (lang == "yml" || lang == "yaml")
+        return "yaml";
+    if (lang == "md" || lang == "markdown")
+        return "markdown";
+    if (lang == "c++" || lang == "cxx" || lang == "cc")
+        return "cpp";
+    if (lang == "h" || lang == "hpp")
+        return "cpp";
+    if (lang == "jsx")
+        return "javascript";
+    if (lang == "tsx")
+        return "typescript";
+    if (lang == "kt" || lang == "kotlin")
+        return "kotlin";
+    if (lang == "swift")
+        return "swift";
+    if (lang == "rb" || lang == "ruby")
+        return "ruby";
+    if (lang == "pl" || lang == "perl")
+        return "perl";
+    if (lang == "php")
+        return "php";
+    if (lang == "scala")
+        return "scala";
+    if (lang == "lua")
+        return "lua";
+    if (lang == "go" || lang == "golang")
+        return "go";
+    if (lang == "dockerfile" || lang == "docker")
+        return "dockerfile";
+    if (lang == "makefile" || lang == "make")
+        return "makefile";
+    if (lang == "cmake" || lang == "cmakelists")
+        return "cmake";
+    if (lang == "sql")
+        return "sql";
+    return lang;
+}
+
 ftxui::Element MarkdownRenderer::render_code_block(
     const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
 
-    // Render code block with dark background
     Elements rendered;
-    int total_width = std::max(0, config_.max_width);
     std::string lang = element->lang;
+    auto bg = get_code_bg_color();
+    auto fg = get_code_color();
 
-    // Header: language label with dark background
-    std::string header;
-    if (!lang.empty())
-        header = "-----" + lang + "-----";
-    else
-        header = std::string(5, '-') + "code" + std::string(5, '-');
-    if ((int)header.length() < total_width)
-        header += std::string(total_width - (int)header.length(), '-');
-    if ((int)header.length() > total_width)
-        header = header.substr(0, total_width);
-
-    Element header_el = text(header) | ftxui::color(ftxui::Color::GrayLight) |
-                        get_bold_decorator() | ftxui::bgcolor(get_code_bg_color());
-    rendered.push_back(header_el);
+    // Language tag (right-aligned, dim)
+    if (!lang.empty()) {
+        std::string tag = " " + lang + " ";
+        rendered.push_back(hbox({filler(), text(tag) | dim | color(fg) | bgcolor(bg)}) |
+                           bgcolor(bg));
+    }
 
     // Body: code lines with dark background
     Elements body_lines;
     auto raw_lines = split_lines(element->content);
-    // Wrap each source line by words to avoid mid-word truncation
-    for (auto& ln : raw_lines) {
-        auto wrapped = wrap_into_lines(ln, total_width);
-        if (wrapped.empty()) {
-            body_lines.push_back(text("") | ftxui::color(get_code_color()) |
-                                 ftxui::bgcolor(get_code_bg_color()));
-        } else {
-            for (const auto& wln : wrapped) {
-                body_lines.push_back(text(wln) | ftxui::color(get_code_color()) |
-                                     ftxui::bgcolor(get_code_bg_color()));
-            }
+
+    if (syntax_highlighter_ && !lang.empty()) {
+        // Use syntax highlighting
+        std::string file_type = mapCodeLangToFileType(lang);
+        syntax_highlighter_->setFileType(file_type);
+        for (auto& ln : raw_lines) {
+            body_lines.push_back(syntax_highlighter_->highlightLine(ln) | bgcolor(bg));
+        }
+    } else {
+        // Plain text fallback
+        for (auto& ln : raw_lines) {
+            body_lines.push_back(text(ln) | color(fg) | bgcolor(bg));
         }
     }
+
     if (body_lines.empty())
-        body_lines.push_back(text("") | ftxui::bgcolor(get_code_bg_color()));
+        body_lines.push_back(text("") | bgcolor(bg));
     rendered.push_back(vbox(std::move(body_lines)));
 
-    // Footer: short separator with dark background
-    std::string footer = std::string(10, '-');
-    if ((int)footer.length() < total_width) {
-        // center footer
-        int pad = (total_width - (int)footer.length()) / 2;
-        footer = std::string(pad, ' ') + footer;
-    }
-    Element footer_el =
-        text(footer) | ftxui::color(ftxui::Color::GrayLight) | ftxui::bgcolor(get_code_bg_color());
-    rendered.push_back(footer_el);
+    // Bottom padding
+    rendered.push_back(text("") | bgcolor(bg));
 
     return vbox(std::move(rendered));
 }
@@ -272,13 +363,22 @@ ftxui::Element MarkdownRenderer::render_italic(const std::shared_ptr<MarkdownEle
 
 ftxui::Element MarkdownRenderer::render_link(const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
+    auto link_color = get_link_color();
     std::string display_text = element->content;
     if (display_text.empty())
         display_text = element->url;
     if (display_text.empty())
         display_text = "[Link]";
-    Decorator d = ftxui::color(get_link_color()) | ftxui::underlined;
-    return text(display_text) | d;
+
+    // Show as [text](url)
+    std::string full_text;
+    if (!element->url.empty() && element->url != display_text) {
+        full_text = "[" + display_text + "](" + element->url + ")";
+    } else {
+        full_text = display_text;
+    }
+
+    return text(full_text) | ftxui::color(link_color) | ftxui::underlined | ftxui::dim;
 }
 
 ftxui::Element MarkdownRenderer::render_image(const std::shared_ptr<MarkdownElement>& element) {
@@ -293,42 +393,72 @@ ftxui::Element MarkdownRenderer::render_list_item(const std::shared_ptr<Markdown
                                                   int indent) {
     using namespace ftxui;
     std::string indent_str(indent * 2, ' ');
-    std::string marker = "• ";
+
+    // Task list or regular bullet
+    std::string marker;
+    Color marker_color = theme_colors_.foreground;
+    if (element->is_task) {
+        marker = element->task_checked ? "[✓] " : "[ ] ";
+        marker_color = element->task_checked ? theme_colors_.success : theme_colors_.comment;
+    } else {
+        marker = "• ";
+        marker_color = theme_colors_.keyword;
+    }
+
     int available_width =
         config_.max_width - static_cast<int>(indent_str.size()) - static_cast<int>(marker.size());
     if (available_width <= 0)
         available_width = config_.max_width;
-    // Prefer rendering children if present (inline formatting). Otherwise wrap textual content.
+
     if (!element->children.empty()) {
         Elements elems;
-        elems.push_back(text(indent_str + marker));
+        elems.push_back(text(indent_str + marker) | color(marker_color));
         for (const auto& child : element->children) {
             elems.push_back(render_element(child, indent + 1));
         }
         return hbox(std::move(elems));
     }
+
     auto wrapped = wrap_into_lines(element->content, available_width);
     std::ostringstream oss;
     if (!wrapped.empty()) {
         oss << indent_str << marker << wrapped[0];
         for (size_t i = 1; i < wrapped.size(); ++i) {
-            oss << "\n" << indent_str << std::string(marker.size(), ' ') << wrapped[i];
+            oss << "\n" << indent_str << std::string(marker.size() - 1, ' ') << " " << wrapped[i];
         }
     } else {
         oss << indent_str << marker;
     }
-    return text(oss.str());
+    return text(oss.str()) | color(marker_color);
 }
 
 ftxui::Element MarkdownRenderer::render_blockquote(
     const std::shared_ptr<MarkdownElement>& element) {
     using namespace ftxui;
-    auto lines = wrap_into_lines(element->content, config_.max_width);
+    auto bq_color = get_blockquote_color();
     Elements lines_el;
-    for (const auto& ln : lines) {
-        lines_el.push_back(text(std::string("│ ") + ln));
+
+    if (!element->children.empty()) {
+        for (const auto& child : element->children) {
+            auto child_el = render_element(child);
+            lines_el.push_back(hbox({
+                text("▎") | ftxui::color(bq_color) | bold,
+                text(" ") | size(WIDTH, EQUAL, 1),
+                child_el | ftxui::dim,
+            }));
+        }
+    } else {
+        auto lines = wrap_into_lines(element->content, config_.max_width - 4);
+        for (const auto& ln : lines) {
+            lines_el.push_back(hbox({
+                text("▎") | ftxui::color(bq_color) | bold,
+                text(" ") | size(WIDTH, EQUAL, 1),
+                text(ln) | ftxui::dim,
+            }));
+        }
     }
-    return vbox(std::move(lines_el)) | ftxui::color(get_blockquote_color());
+
+    return vbox(std::move(lines_el));
 }
 
 ftxui::Element MarkdownRenderer::render_horizontal_rule() {

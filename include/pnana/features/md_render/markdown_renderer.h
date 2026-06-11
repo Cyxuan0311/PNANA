@@ -9,6 +9,8 @@
 namespace pnana {
 namespace features {
 
+class SyntaxHighlighter;
+
 // Markdown渲染器配置
 struct MarkdownRenderConfig {
     int max_width = 80;
@@ -19,16 +21,21 @@ struct MarkdownRenderConfig {
 // Markdown渲染器
 class MarkdownRenderer {
   public:
-    explicit MarkdownRenderer(const MarkdownRenderConfig& config = MarkdownRenderConfig());
+    explicit MarkdownRenderer(const MarkdownRenderConfig& config = MarkdownRenderConfig(),
+                              SyntaxHighlighter* syntax_highlighter = nullptr);
 
     // 渲染markdown文本
     ftxui::Element render(const std::string& markdown);
+
+    // 渲染已解析的markdown元素树（缓存用，避免重复解析）
+    ftxui::Element render(const std::shared_ptr<MarkdownElement>& root);
 
     // 渲染解析后的markdown元素
     ftxui::Element render_element(const std::shared_ptr<MarkdownElement>& element, int indent = 0);
 
   private:
     MarkdownRenderConfig config_;
+    SyntaxHighlighter* syntax_highlighter_ = nullptr;
     // 临时表格列宽（在渲染单个表格时使用）
     std::vector<int> table_col_widths_;
     int table_num_cols_ = 0;

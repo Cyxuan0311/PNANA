@@ -121,10 +121,6 @@ void MarkdownParser::handle_enter_block(MD_BLOCKTYPE type, void* detail) {
 
         case MD_BLOCK_LI:
             elem_type = MarkdownElementType::LIST_ITEM;
-            if (detail) {
-                auto* li_detail = static_cast<MD_BLOCK_LI_DETAIL*>(detail);
-                (void)li_detail; // 可以根据li_detail->is_task和li_detail->task_mark来处理任务列表
-            }
             break;
 
         case MD_BLOCK_HR:
@@ -156,6 +152,13 @@ void MarkdownParser::handle_enter_block(MD_BLOCKTYPE type, void* detail) {
         if (code_detail->lang.size > 0 && code_detail->lang.text != nullptr) {
             element->lang = std::string(code_detail->lang.text, code_detail->lang.size);
         }
+    }
+    // 任务列表信息
+    if (elem_type == MarkdownElementType::LIST_ITEM && detail) {
+        auto* li_detail = static_cast<MD_BLOCK_LI_DETAIL*>(detail);
+        element->is_task = (li_detail->is_task != 0);
+        element->task_checked =
+            (li_detail->is_task && (li_detail->task_mark == 'x' || li_detail->task_mark == 'X'));
     }
     add_to_current_parent(element);
     context_.element_stack.push(element);
