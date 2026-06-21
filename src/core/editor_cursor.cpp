@@ -226,6 +226,12 @@ void Editor::moveCursorPageUp() {
         return;
 
     int screen_height = screen_.dimy() - 7;
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -275,6 +281,12 @@ void Editor::moveCursorPageDown() {
         return;
 
     int screen_height = screen_.dimy() - 7;
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -503,6 +515,12 @@ void Editor::adjustViewOffset() {
     // 统一计算屏幕高度：减去标签栏(1) + 分隔符(1) + 状态栏(1) + 输入框(1) + 帮助栏(1) + 分隔符(1) =
     // 6行，再减去边框(2) = 8行
     int screen_height = screen_.dimy() - 7;
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1; // 防止除零错误
     }
@@ -632,6 +650,12 @@ void Editor::adjustViewOffsetForUndo(size_t target_row, size_t /*target_col*/) {
     // 使用更小的scrolloff值，让调整更平滑
 
     int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -679,6 +703,12 @@ void Editor::adjustViewOffsetForUndoConservative(size_t target_row, size_t /*tar
     // 3. 完全避免使用scrolloff机制，因为撤销应该保持用户的视觉上下文
 
     int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -756,6 +786,12 @@ void Editor::adjustCursorAndViewConservative() {
     // 3. 完全避免使用scrolloff机制，因为撤销应该保持用户的视觉上下文
 
     int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -809,6 +845,12 @@ void Editor::adjustCursorAndViewForRedo() {
 
     // 2. 重做操作的视图调整（可以更激进，因为重做通常是用户主动操作）
     int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height > 0) {
         // 计算光标在屏幕上的位置
         int cursor_screen_pos = static_cast<int>(cursor_row_) - static_cast<int>(view_offset_row_);
@@ -844,6 +886,12 @@ void Editor::prepareForStaticUndo(size_t change_row, size_t change_col) {
     }
 
     int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
@@ -981,6 +1029,12 @@ void Editor::prepareForStaticRedo(size_t change_row, size_t /*change_col*/) {
     }
 
     int screen_height = screen_.dimy() - 7; // 减去6行UI元素 + 2行边框
+    if (split_view_manager_.hasSplits()) {
+        const auto* active_region = split_view_manager_.getActiveRegion();
+        if (active_region && active_region->height > 0) {
+            screen_height = active_region->height;
+        }
+    }
     if (screen_height <= 0) {
         screen_height = 1;
     }
