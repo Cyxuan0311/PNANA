@@ -744,6 +744,9 @@ class Editor {
     // Glow Markdown 预览缓存
     std::string cached_preview_content_;
     std::string cached_preview_output_;
+    ftxui::Element cached_preview_element_;
+    int cached_preview_width_ = 0;
+    size_t last_preview_cursor_line_ = SIZE_MAX;
 
     // 渲染调试信息
     size_t render_call_count_ = 0;

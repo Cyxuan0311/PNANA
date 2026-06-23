@@ -994,7 +994,10 @@ void Editor::toggleMarkdownPreview() {
     }
 
     std::string ext = doc->getFileExtension();
-    if (ext != ".md" && ext != ".markdown") {
+    std::string ext_lower = ext;
+    for (auto& c : ext_lower)
+        c = std::tolower(c);
+    if (ext_lower != "md" && ext_lower != "markdown") {
         return;
     }
 
@@ -1015,15 +1018,28 @@ bool Editor::isMarkdownPreviewActive() const {
     if (!doc)
         return false;
     std::string ext = doc->getFileExtension();
-    return ext == ".md" || ext == ".markdown";
+    std::string ext_lower = ext;
+    for (auto& c : ext_lower)
+        c = std::tolower(c);
+    return ext_lower == "md" || ext_lower == "markdown";
 }
 
 ftxui::Element Editor::renderMarkdownPreview() {
-    if (!isGlowAvailable()) {
+    if (!isGlowAvailable())
         return ftxui::text("");
+
+    auto el = renderGlowPreview(getCurrentDocumentContent());
+
+    // 自动滚动预览以匹配源码光标位置
+    Document* doc = getCurrentDocument();
+    if (doc && doc->lineCount() > 1) {
+        size_t cursor = cursor_row_;
+        float ratio = static_cast<float>(cursor) / static_cast<float>(doc->lineCount() - 1);
+        ratio = std::max(0.0f, std::min(1.0f, ratio));
+        el = el | ftxui::focusPositionRelative(0.0f, ratio);
     }
 
-    return renderGlowPreview(getCurrentDocumentContent());
+    return el;
 }
 
 bool Editor::isGlowAvailable() const {
@@ -1037,10 +1053,17 @@ bool Editor::isGlowAvailable() const {
 }
 
 ftxui::Element Editor::renderGlowPreview(const std::string& content) {
-    if (content == cached_preview_content_ && !cached_preview_output_.empty()) {
-        auto segments = parseAnsiOutput(cached_preview_output_);
-        return segmentsToPreview(segments);
+    int cur_width = std::max(20, getScreenWidth() / 2 - 6);
+
+    // 缓存命中：内容未变 && Element 树有效 && 窗口宽度未变
+    if (content == cached_preview_content_ && cached_preview_element_ &&
+        !cached_preview_output_.empty() && cur_width == cached_preview_width_) {
+        return cached_preview_element_;
     }
+
+    // 缓存失效，重新跑 glow
+    cached_preview_element_.reset();
+    cached_preview_output_.clear();
 
     // Write content to temp file
     char tmp_path[] = "/tmp/pnana_md_XXXXXX";
@@ -1065,10 +1088,9 @@ ftxui::Element Editor::renderGlowPreview(const std::string& content) {
         style = "light";
     }
 
-    int panel_width = std::max(20, getScreenWidth() / 2 - 6);
     std::string cmd = "CLICOLOR_FORCE=1 cat " + std::string(tmp_path) +
                       " | CLICOLOR_FORCE=1 glow --style " + style + " --width " +
-                      std::to_string(panel_width) + " - 2>/dev/null";
+                      std::to_string(cur_width) + " - 2>/dev/null";
 
     // Capture glow output
     std::string result;
@@ -1088,10 +1110,10 @@ ftxui::Element Editor::renderGlowPreview(const std::string& content) {
     }
 
     cached_preview_content_ = content;
+    cached_preview_width_ = cur_width;
     cached_preview_output_ = result;
-
-    auto segments = parseAnsiOutput(result);
-    return segmentsToPreview(segments);
+    cached_preview_element_ = segmentsToPreview(parseAnsiOutput(result));
+    return cached_preview_element_;
 }
 
 std::vector<Editor::StyledSegment> Editor::parseAnsiOutput(const std::string& input) const {
