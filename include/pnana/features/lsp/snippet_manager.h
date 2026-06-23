@@ -14,8 +14,6 @@ namespace core {
 class Editor;
 } // namespace core
 
-class Editor;
-
 namespace features {
 
 /**

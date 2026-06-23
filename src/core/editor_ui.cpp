@@ -237,17 +237,8 @@ Element Editor::renderUI() {
         return last_rendered_element_; // 返回上次渲染结果
     }
 
-    // Markdown预览延迟更新检查
-    auto current_time = std::chrono::steady_clock::now();
-    if (markdown_preview_needs_update_ &&
-        current_time - last_markdown_preview_update_time_ >= markdown_preview_update_delay_) {
-        // 延迟时间已到，触发预览更新
-        force_ui_update_ = true;
-        markdown_preview_needs_update_ = false;
-        last_markdown_preview_update_time_ = current_time;
-    }
-
     // 增量渲染优化：抑制快速的光标移动渲染
+    auto current_time = std::chrono::steady_clock::now();
     auto time_since_last_render = current_time - last_render_time_;
 
     // 检查是否是高优先级更新（诊断、折叠状态变化等）

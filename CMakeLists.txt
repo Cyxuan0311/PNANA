@@ -526,8 +526,6 @@ set(SOURCES
     src/ui/tui_config_popup.cpp
     src/utils/assembly_analyzer.cpp
     src/utils/clangd_flags.cpp
-    # Markdown 解析库
-    third-party/md4c/md4c.c
     # 功能模块
     src/features/search.cpp
     src/features/file_browser.cpp
@@ -557,8 +555,6 @@ set(SOURCES
     $<$<BOOL:${BUILD_LIBVTERM_SUPPORT}>:src/features/terminal/terminal_vterm_screen.cpp>
     $<$<BOOL:${BUILD_LIBVTERM_SUPPORT}>:src/features/terminal/terminal_view.cpp>
     src/features/split_view/split_view.cpp
-    src/features/md_render/markdown_parser.cpp
-    src/features/md_render/markdown_renderer.cpp
     src/features/encoding_converter.cpp
     src/features/cursor/cursor_renderer.cpp
     src/features/ai_config/ai_config.cpp
@@ -723,8 +719,6 @@ set(HEADERS
     include/pnana/ui/git_panel.h
     include/pnana/features/terminal.h
     include/pnana/features/split_view/split_view.h
-    include/pnana/features/markdown_parser.h
-    include/pnana/features/md_render/markdown_renderer.h
     include/pnana/features/encoding_converter.h
     include/pnana/features/cursor/cursor_renderer.h
     include/pnana/features/ai_config/ai_config.h

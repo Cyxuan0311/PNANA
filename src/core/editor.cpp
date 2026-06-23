@@ -28,9 +28,9 @@
 #include "features/ai_config/ai_config.h"
 #endif
 #include "features/logo_manager.h"
-#include "features/md_render/markdown_renderer.h"
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <ftxui/component/component.hpp>
@@ -40,6 +40,7 @@
 #include <iostream>
 #include <sstream>
 #include <streambuf>
+#include <unistd.h>
 
 using namespace ftxui;
 
@@ -983,39 +984,20 @@ void Editor::toggleHelp() {
 }
 
 void Editor::toggleMarkdownPreview() {
-    // 检查当前文件是否为 Markdown 文件
+    if (!isGlowAvailable()) {
+        return;
+    }
+
     Document* doc = getCurrentDocument();
     if (!doc) {
-        setStatusMessage("No file open - Cannot preview Markdown");
         return;
     }
 
-    std::string file_path = doc->getFilePath();
-    bool is_markdown = false;
-
-    // 检查文件扩展名
-    if (!file_path.empty()) {
-        std::string ext = "";
-        size_t dot_pos = file_path.rfind('.');
-        if (dot_pos != std::string::npos) {
-            ext = file_path.substr(dot_pos);
-            // 转换为小写
-            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-            // 检查是否为 Markdown 扩展名
-            is_markdown = (ext == ".md" || ext == ".markdown" || ext == ".mkd" || ext == ".mdown");
-        }
-    }
-
-    // 如果不是 Markdown 文件，提示用户
-    if (!is_markdown) {
-        setStatusMessage("Not a Markdown file - Preview only supports .md/.markdown files");
-        markdown_preview_enabled_ = false;
-        force_ui_update_ = true;
-        last_render_source_ = "toggleMarkdownPreview";
+    std::string ext = doc->getFileExtension();
+    if (ext != ".md" && ext != ".markdown") {
         return;
     }
 
-    // Toggle lightweight preview flag and request UI update
     markdown_preview_enabled_ = !markdown_preview_enabled_;
     if (markdown_preview_enabled_) {
         setStatusMessage("Markdown preview enabled - Press Alt+W again to close");
@@ -1027,62 +1009,319 @@ void Editor::toggleMarkdownPreview() {
 }
 
 bool Editor::isMarkdownPreviewActive() const {
-    return markdown_preview_enabled_;
+    if (!markdown_preview_enabled_)
+        return false;
+    const Document* doc = getCurrentDocument();
+    if (!doc)
+        return false;
+    std::string ext = doc->getFileExtension();
+    return ext == ".md" || ext == ".markdown";
 }
 
 ftxui::Element Editor::renderMarkdownPreview() {
-    pnana::features::MarkdownRenderConfig cfg;
-    int half_width = std::max(10, getScreenWidth() / 2 - 4);
-    cfg.max_width = half_width;
-    cfg.use_color = true;
-    cfg.theme = theme_.getCurrentThemeName();
-    pnana::features::MarkdownRenderer renderer(cfg, &syntax_highlighter_);
-    std::string content = getCurrentDocumentContent();
-    if (content.empty())
+    if (!isGlowAvailable()) {
         return ftxui::text("");
-
-    // Use cached AST if content hasn't changed
-    std::shared_ptr<pnana::features::MarkdownElement> root;
-    if (content == cached_markdown_content_ && cached_markdown_ast_) {
-        root = cached_markdown_ast_;
-    } else {
-        pnana::features::MarkdownParser parser;
-        root = parser.parse(content);
-        cached_markdown_content_ = content;
-        cached_markdown_ast_ = root;
     }
 
-    auto elem = renderer.render(root);
+    return renderGlowPreview(getCurrentDocumentContent());
+}
 
-    // Diagnostic/fallback: render to an off-screen buffer and check if visible characters exist.
-    try {
-        int height = std::max(10, getScreenHeight() - 6);
-        ftxui::Screen screen(half_width, height);
-        ftxui::Render(screen, elem);
-        std::string out = screen.ToString();
-        // check for any non-space visible characters
-        bool has_visible = false;
-        for (char c : out) {
-            if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
-                has_visible = true;
+bool Editor::isGlowAvailable() const {
+    FILE* pipe = popen("command -v glow 2>/dev/null", "r");
+    if (!pipe)
+        return false;
+    char buf[256] = {};
+    bool found = fgets(buf, sizeof(buf), pipe) != nullptr;
+    pclose(pipe);
+    return found;
+}
+
+ftxui::Element Editor::renderGlowPreview(const std::string& content) {
+    if (content == cached_preview_content_ && !cached_preview_output_.empty()) {
+        auto segments = parseAnsiOutput(cached_preview_output_);
+        return segmentsToPreview(segments);
+    }
+
+    // Write content to temp file
+    char tmp_path[] = "/tmp/pnana_md_XXXXXX";
+    int fd = mkstemp(tmp_path);
+    if (fd == -1)
+        return ftxui::text("(Failed to create temp file)");
+
+    FILE* tmp_file = fdopen(fd, "w");
+    if (!tmp_file) {
+        close(fd);
+        unlink(tmp_path);
+        return ftxui::text("(Failed to open temp file)");
+    }
+    fwrite(content.data(), 1, content.size(), tmp_file);
+    fclose(tmp_file);
+
+    // Determine glow style based on theme
+    std::string theme_name = theme_.getCurrentThemeName();
+    std::string style = "dark";
+    if (theme_name.find("light") != std::string::npos ||
+        theme_name.find("Light") != std::string::npos) {
+        style = "light";
+    }
+
+    int panel_width = std::max(20, getScreenWidth() / 2 - 6);
+    std::string cmd = "CLICOLOR_FORCE=1 cat " + std::string(tmp_path) +
+                      " | CLICOLOR_FORCE=1 glow --style " + style + " --width " +
+                      std::to_string(panel_width) + " - 2>/dev/null";
+
+    // Capture glow output
+    std::string result;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (pipe) {
+        char buf[4096];
+        while (fgets(buf, sizeof(buf), pipe)) {
+            result += buf;
+        }
+        pclose(pipe);
+    }
+
+    unlink(tmp_path);
+
+    if (result.empty()) {
+        return ftxui::text("(glow output empty)");
+    }
+
+    cached_preview_content_ = content;
+    cached_preview_output_ = result;
+
+    auto segments = parseAnsiOutput(result);
+    return segmentsToPreview(segments);
+}
+
+std::vector<Editor::StyledSegment> Editor::parseAnsiOutput(const std::string& input) const {
+    std::vector<StyledSegment> segments;
+    StyledSegment current;
+
+    size_t i = 0;
+    while (i < input.size()) {
+        // Check for ANSI escape sequence
+        if (input[i] == '\033' && i + 1 < input.size() && input[i + 1] == '[') {
+            // Find end of sequence
+            size_t end = i + 2;
+            while (end < input.size() && !(input[end] >= 'A' && input[end] <= 'Z') &&
+                   !(input[end] >= 'a' && input[end] <= 'z')) {
+                end++;
+            }
+            if (end < input.size() && input[end] == 'm') {
+                // Parse SGR parameters (handle 256-color & true-color)
+                std::string ps = input.substr(i + 2, end - i - 2);
+                // Collect all tokens first
+                std::vector<std::string> tokens;
+                size_t ppos = 0;
+                while (ppos < ps.size()) {
+                    size_t next = ps.find(';', ppos);
+                    tokens.push_back(ps.substr(ppos, next - ppos));
+                    ppos = (next == std::string::npos) ? ps.size() : next + 1;
+                }
+                // Process tokens with state awareness for extended colors
+                for (size_t ti = 0; ti < tokens.size(); ti++) {
+                    if (tokens[ti].empty())
+                        continue;
+                    int param = std::stoi(tokens[ti]);
+                    // Handle extended color sequences
+                    if (param == 38 || param == 48) {
+                        if (ti + 2 < tokens.size() && tokens[ti + 1] == "5") {
+                            int idx = std::stoi(tokens[ti + 2]);
+                            auto c = ftxui::Color::Palette256(static_cast<uint8_t>(idx));
+                            if (param == 38)
+                                current.fg_color = c;
+                            else
+                                current.bg_color = c;
+                            ti += 2;
+                            continue;
+                        }
+                        if (ti + 4 < tokens.size() && tokens[ti + 1] == "2") {
+                            int r = std::stoi(tokens[ti + 2]);
+                            int g = std::stoi(tokens[ti + 3]);
+                            int b = std::stoi(tokens[ti + 4]);
+                            auto c =
+                                ftxui::Color::RGB(static_cast<uint8_t>(r), static_cast<uint8_t>(g),
+                                                  static_cast<uint8_t>(b));
+                            if (param == 38)
+                                current.fg_color = c;
+                            else
+                                current.bg_color = c;
+                            ti += 4;
+                            continue;
+                        }
+                        continue; // unknown extended color, skip
+                    }
+                    switch (param) {
+                        case 0:
+                            current = StyledSegment{};
+                            break;
+                        case 1:
+                            current.bold = true;
+                            break;
+                        case 4:
+                            current.underline = true;
+                            break;
+                        case 30:
+                            current.fg_color = ftxui::Color::Black;
+                            break;
+                        case 31:
+                            current.fg_color = ftxui::Color::Red;
+                            break;
+                        case 32:
+                            current.fg_color = ftxui::Color::Green;
+                            break;
+                        case 33:
+                            current.fg_color = ftxui::Color::Yellow;
+                            break;
+                        case 34:
+                            current.fg_color = ftxui::Color::Blue;
+                            break;
+                        case 35:
+                            current.fg_color = ftxui::Color::Magenta;
+                            break;
+                        case 36:
+                            current.fg_color = ftxui::Color::Cyan;
+                            break;
+                        case 37:
+                            current.fg_color = ftxui::Color::White;
+                            break;
+                        case 40:
+                            current.bg_color = ftxui::Color::Black;
+                            break;
+                        case 41:
+                            current.bg_color = ftxui::Color::Red;
+                            break;
+                        case 42:
+                            current.bg_color = ftxui::Color::Green;
+                            break;
+                        case 43:
+                            current.bg_color = ftxui::Color::Yellow;
+                            break;
+                        case 44:
+                            current.bg_color = ftxui::Color::Blue;
+                            break;
+                        case 45:
+                            current.bg_color = ftxui::Color::Magenta;
+                            break;
+                        case 46:
+                            current.bg_color = ftxui::Color::Cyan;
+                            break;
+                        case 47:
+                            current.bg_color = ftxui::Color::White;
+                            break;
+                        case 90:
+                            current.fg_color = ftxui::Color::GrayDark;
+                            break;
+                        case 91:
+                            current.fg_color = ftxui::Color::RedLight;
+                            break;
+                        case 92:
+                            current.fg_color = ftxui::Color::GreenLight;
+                            break;
+                        case 93:
+                            current.fg_color = ftxui::Color::YellowLight;
+                            break;
+                        case 94:
+                            current.fg_color = ftxui::Color::BlueLight;
+                            break;
+                        case 95:
+                            current.fg_color = ftxui::Color::MagentaLight;
+                            break;
+                        case 96:
+                            current.fg_color = ftxui::Color::CyanLight;
+                            break;
+                        case 97:
+                            current.fg_color = ftxui::Color::White;
+                            break;
+                        case 100:
+                            current.bg_color = ftxui::Color::GrayDark;
+                            break;
+                        case 101:
+                            current.bg_color = ftxui::Color::RedLight;
+                            break;
+                        case 102:
+                            current.bg_color = ftxui::Color::GreenLight;
+                            break;
+                        case 103:
+                            current.bg_color = ftxui::Color::YellowLight;
+                            break;
+                        case 104:
+                            current.bg_color = ftxui::Color::BlueLight;
+                            break;
+                        case 105:
+                            current.bg_color = ftxui::Color::MagentaLight;
+                            break;
+                        case 106:
+                            current.bg_color = ftxui::Color::CyanLight;
+                            break;
+                        case 107:
+                            current.bg_color = ftxui::Color::White;
+                            break;
+                    }
+                }
+            }
+            i = end + 1;
+        } else {
+            // Collect regular text until next ANSI sequence
+            size_t start = i;
+            while (i < input.size() &&
+                   !(input[i] == '\033' && i + 1 < input.size() && input[i + 1] == '[')) {
+                i++;
+            }
+            current.text = input.substr(start, i - start);
+            segments.push_back(current);
+        }
+    }
+
+    return segments;
+}
+
+ftxui::Element Editor::segmentsToPreview(const std::vector<StyledSegment>& segments) const {
+    ftxui::Elements lines;
+    ftxui::Elements current_line;
+
+    auto apply_style = [](const std::string& text, const StyledSegment& style) -> ftxui::Element {
+        auto el = ftxui::text(text);
+        if (style.bold)
+            el = ftxui::bold(el);
+        if (style.underline)
+            el = ftxui::underlined(el);
+        if (style.fg_color != ftxui::Color::Default)
+            el = ftxui::color(style.fg_color, el);
+        if (style.bg_color != ftxui::Color::Default)
+            el = ftxui::bgcolor(style.bg_color, el);
+        return el;
+    };
+
+    auto flush_line = [&] {
+        if (!current_line.empty()) {
+            lines.push_back(ftxui::hbox(std::move(current_line)));
+            current_line.clear();
+        } else {
+            lines.push_back(ftxui::text(""));
+        }
+    };
+
+    for (const auto& seg : segments) {
+        std::string remaining = seg.text;
+        while (!remaining.empty()) {
+            size_t nl_pos = remaining.find('\n');
+            if (nl_pos == std::string::npos) {
+                current_line.push_back(apply_style(remaining, seg));
                 break;
             }
-        }
-        if (!has_visible) {
-            // Fallback: render plain text (no colors) to ensure content is visible
-            Elements lines;
-            std::istringstream iss(content);
-            std::string line;
-            while (std::getline(iss, line)) {
-                lines.push_back(ftxui::text(line));
+            if (nl_pos > 0) {
+                current_line.push_back(apply_style(remaining.substr(0, nl_pos), seg));
             }
-            return vbox(std::move(lines));
+            flush_line();
+            remaining = remaining.substr(nl_pos + 1);
         }
-    } catch (...) {
-        // ignore and return elem
     }
 
-    return elem;
+    flush_line();
+
+    return ftxui::vbox(std::move(lines)) | ftxui::frame | ftxui::vscroll_indicator | ftxui::flex;
 }
 
 std::string Editor::getCurrentDocumentContent() const {
@@ -1530,7 +1769,6 @@ void Editor::openDependencyStatusPopup() {
     add("nlohmann/json", "third-party", "Bundled", true, "JSON parsing");
     add("jsonrpccxx", "third-party", "Bundled", true, "LSP RPC client");
     add("CLI11", "third-party", "Bundled", true, "CLI argument parsing");
-    add("md4c", "third-party", "Bundled", true, "Markdown parsing");
     add("dsa/stb_image", "third-party", "Bundled", true, "Data structures & image loading");
 
 #ifdef BUILD_LSP_SUPPORT

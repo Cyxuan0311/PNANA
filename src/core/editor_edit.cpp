@@ -32,15 +32,6 @@ void Editor::insertChar(char ch) {
     doc->insertChar(cursor_row_, cursor_col_, ch);
     cursor_col_++;
 
-    // 更新markdown预览（延迟更新以提升性能）
-    if (isMarkdownPreviewActive()) {
-        // 使用延迟更新机制，避免每次输入都立即重新渲染
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_insertChar";
-        // 不立即设置 force_ui_update_，而是等待延迟更新
-    }
-
     // 更新单词高亮（光标位置变化）
     updateWordHighlight();
 
@@ -119,13 +110,6 @@ void Editor::insertText(const std::string& text) {
     // 更新光标位置：对于UTF-8字符，需要按字符数移动光标
     // 由于 cursor_col_ 是按字节索引的，所以直接加上文本长度
     cursor_col_ += text.length();
-
-    // 更新markdown预览（延迟更新以提升性能）
-    if (isMarkdownPreviewActive()) {
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_insertText";
-    }
 
     // 更新单词高亮（光标位置变化）
     updateWordHighlight();
@@ -292,12 +276,6 @@ void Editor::insertNewline() {
     syncLspAfterEdit(true);
 #endif
 
-    if (isMarkdownPreviewActive()) {
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_newline";
-    }
-
     adjustViewOffset();
 
     // 性能埋点：记录慢速换行（>10ms）
@@ -412,13 +390,6 @@ void Editor::deleteChar() {
         doc->deleteLine(cursor_row_ + 1);
     }
 
-    // 更新markdown预览（延迟更新以提升性能）
-    if (isMarkdownPreviewActive()) {
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_deleteChar";
-    }
-
 #ifdef BUILD_LSP_SUPPORT
     // 普通删除走防抖同步
     syncLspAfterEdit(false);
@@ -524,13 +495,6 @@ void Editor::backspace() {
         syncLspAfterEdit(true);
 #endif
 
-        // 更新markdown预览（延迟更新以提升性能）
-        if (isMarkdownPreviewActive()) {
-            markdown_preview_needs_update_ = true;
-            last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-            last_render_source_ = "edit_backspace";
-        }
-
         return;
     }
 
@@ -594,13 +558,6 @@ void Editor::backspace() {
     }
 #endif
 
-    // 更新markdown预览（延迟更新以提升性能）
-    if (isMarkdownPreviewActive()) {
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_backspace";
-    }
-
     // 性能埋点：记录慢速退格（>10ms）
     auto t_backspace_end = std::chrono::steady_clock::now();
     auto backspace_us =
@@ -625,13 +582,6 @@ void Editor::deleteLine() {
     // 删行属于结构变化
     syncLspAfterEdit(true);
 #endif
-
-    // 更新markdown预览（延迟更新以提升性能）
-    if (isMarkdownPreviewActive()) {
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_deleteLine";
-    }
 }
 
 void Editor::deleteWord() {
@@ -659,12 +609,6 @@ void Editor::deleteWord() {
 #ifdef BUILD_LSP_SUPPORT
     syncLspAfterEdit(false);
 #endif
-
-    if (isMarkdownPreviewActive()) {
-        markdown_preview_needs_update_ = true;
-        last_markdown_preview_update_time_ = std::chrono::steady_clock::now();
-        last_render_source_ = "edit_deleteWord";
-    }
 }
 
 void Editor::duplicateLine() {

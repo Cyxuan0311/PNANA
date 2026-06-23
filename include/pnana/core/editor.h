@@ -66,7 +66,6 @@
 #include "features/file_browser.h"
 #include "features/history/file_history_manager.h"
 #include "features/image_preview.h"
-#include "features/md_render/markdown_parser.h"
 #include "features/recent_files_manager.h"
 #include "features/search.h"
 #include "features/split_view/split_view.h"
@@ -507,7 +506,19 @@ class Editor {
     features::TUIConfigManager tui_config_manager_;
     features::Terminal terminal_;
     features::SplitViewManager split_view_manager_;
-    // markdown_preview_ removed
+
+    // Glow 预览内部方法
+    struct StyledSegment {
+        std::string text;
+        ftxui::Color fg_color{ftxui::Color::Default};
+        ftxui::Color bg_color{ftxui::Color::Default};
+        bool bold = false;
+        bool underline = false;
+    };
+    bool isGlowAvailable() const;
+    std::vector<StyledSegment> parseAnsiOutput(const std::string& input) const;
+    ftxui::Element segmentsToPreview(const std::vector<StyledSegment>& segments) const;
+    ftxui::Element renderGlowPreview(const std::string& content);
 
     // 分屏区域状态存储
     struct RegionState {
@@ -730,9 +741,9 @@ class Editor {
     std::atomic<bool> terminal_has_output_{false};
     // 简单的 Markdown 预览开关（重构后的轻量开关）
     bool markdown_preview_enabled_ = false;
-    // Markdown 解析缓存（避免重复解析）
-    std::string cached_markdown_content_;
-    std::shared_ptr<pnana::features::MarkdownElement> cached_markdown_ast_;
+    // Glow Markdown 预览缓存
+    std::string cached_preview_content_;
+    std::string cached_preview_output_;
 
     // 渲染调试信息
     size_t render_call_count_ = 0;
@@ -754,11 +765,6 @@ class Editor {
     bool pending_cursor_update_ = false;
     static constexpr auto MIN_RENDER_INTERVAL = std::chrono::milliseconds(16); // ~60fps
     static constexpr auto CURSOR_UPDATE_DELAY = std::chrono::milliseconds(50); // 延迟更新时间
-
-    // Markdown预览延迟更新优化
-    std::chrono::steady_clock::time_point last_markdown_preview_update_time_;
-    std::chrono::milliseconds markdown_preview_update_delay_{300}; // 300ms延迟更新
-    bool markdown_preview_needs_update_ = false;
 
     // 粘贴检测：快速连续输入时禁用自动缩进
     std::chrono::steady_clock::time_point last_char_input_time_;
