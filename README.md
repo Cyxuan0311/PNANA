@@ -4,12 +4,12 @@
 
 # pnana - Modern Terminal Text Editor
 
-![pnana](https://img.shields.io/badge/pnana-v0.0.6-brightgreen)
-![C++](https://img.shields.io/badge/C++-17-blue)
-![FTXUI](https://img.shields.io/badge/FTXUI-Terminal%20UI-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/Platform-Linux-blue)
-![Platform](https://img.shields.io/badge/Platform-macOS-purple)
+![Version](https://img.shields.io/badge/version-v0.0.6-5C2D91?style=for-the-badge&logo=github)
+![C++](https://img.shields.io/badge/C++-17-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
+![FTXUI](https://img.shields.io/badge/FTXUI-Terminal%20UI-FF6B35?style=for-the-badge&logo=terminal)
+![License](https://img.shields.io/badge/License-MIT-000000?style=for-the-badge&logo=opensourceinitiative&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+![Platform](https://img.shields.io/badge/Platform-macOS-999999?style=for-the-badge&logo=apple&logoColor=white)
 
 **English** | [中文](README_CN.md)
 
@@ -185,5 +185,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 [![Star History Chart](https://api.star-history.com/svg?repos=Cyxuan0311/PNANA&type=Date)](https://star-history.com/#Cyxuan0311/PNANA&Date)
 
 ---
-
-
