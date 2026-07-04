@@ -133,6 +133,9 @@ class OverlayManager {
     void setRenderDialogCallback(std::function<ftxui::Element()> callback) {
         render_dialog_callback_ = callback;
     }
+    void setRenderImageProtocolCallback(std::function<ftxui::Element()> callback) {
+        render_image_protocol_callback_ = callback;
+    }
 
     // 设置可见性检查回调
     void setIsHelpVisibleCallback(std::function<bool()> callback) {
@@ -249,6 +252,9 @@ class OverlayManager {
     void setIsDialogVisibleCallback(std::function<bool()> callback) {
         is_dialog_visible_callback_ = callback;
     }
+    void setIsImageProtocolVisibleCallback(std::function<bool()> callback) {
+        is_image_protocol_visible_callback_ = callback;
+    }
 
     // 主渲染方法
     ftxui::Element renderOverlays(ftxui::Element main_ui);
@@ -293,6 +299,7 @@ class OverlayManager {
     std::function<ftxui::Element()> render_tui_config_callback_;
     std::function<ftxui::Element()> render_dependency_status_popup_callback_;
     std::function<ftxui::Element()> render_dialog_callback_;
+    std::function<ftxui::Element()> render_image_protocol_callback_;
 
     // AI 面板位置：false = 在右侧（默认），true = 在左侧
     bool ai_panel_on_left_ = false;
@@ -336,6 +343,7 @@ class OverlayManager {
     std::function<bool()> is_tui_config_visible_callback_;
     std::function<bool()> is_dependency_status_popup_visible_callback_;
     std::function<bool()> is_dialog_visible_callback_;
+    std::function<bool()> is_image_protocol_visible_callback_;
 };
 
 } // namespace core

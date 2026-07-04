@@ -88,6 +88,13 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
+    // 图像协议设置弹窗
+    if (is_image_protocol_visible_callback_ && is_image_protocol_visible_callback_() &&
+        render_image_protocol_callback_) {
+        Elements dialog_elements = {main_ui, render_image_protocol_callback_() | center};
+        return dbox(dialog_elements);
+    }
+
     // AI助手面板：以侧边栏形式显示，位置可配置（左侧或右侧）
     if (is_ai_assistant_visible_callback_ && is_ai_assistant_visible_callback_() &&
         render_ai_assistant_callback_) {
