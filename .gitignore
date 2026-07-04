@@ -5,6 +5,7 @@ logs/
 __pycache__/
 data/
 .cursor/
+.trae/
 models/
 fastscreen/
 

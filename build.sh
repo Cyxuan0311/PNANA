@@ -130,6 +130,14 @@ configure_cmake() {
         cmake_args+=(-DBUILD_PERFORMANCE_TESTS=OFF)
         print_info "  - Performance tests: DISABLED"
     fi
+
+    if [ "$BUILD_IMAGE_PROTOCOL" = "ON" ]; then
+        cmake_args+=(-DBUILD_IMAGE_PROTOCOL=ON)
+        print_info "  - Terminal image protocol (Kitty/iTerm2/Sixel): ENABLED"
+    elif [ "$BUILD_IMAGE_PROTOCOL" = "OFF" ]; then
+        cmake_args+=(-DBUILD_IMAGE_PROTOCOL=OFF)
+        print_info "  - Terminal image protocol (Kitty/iTerm2/Sixel): DISABLED"
+    fi
     
     # SSH 模式处理（交互式确认）
     if [ "$BUILD_SSH_MODE" != "" ]; then
@@ -203,6 +211,7 @@ show_help() {
     echo "  BUILD_AI_CLIENT=ON       Enable AI client support (requires libcurl)"
     echo "  BUILD_LIBVTERM=ON        Enable libvterm terminal emulation"
     echo "  BUILD_PERFORMANCE_TESTS=ON  Build performance tests"
+    echo "  BUILD_IMAGE_PROTOCOL=ON    Enable terminal image protocol (Kitty/iTerm2/Sixel)"
     echo ""
     echo "Examples:"
     echo "  ./build.sh                                    # Build the project"
@@ -215,6 +224,7 @@ show_help() {
     echo "  ./build.sh --clean BUILD_TREE_SITTER=ON       # Clean and build with Tree-sitter"
     echo "  ./build.sh --clean --install BUILD_AI_CLIENT=ON  # Clean, build, install with AI client"
     echo "  ./build.sh BUILD_LIBVTERM=ON                    # Build with libvterm support"
+    echo "  ./build.sh BUILD_IMAGE_PROTOCOL=ON              # Build with terminal image protocol"
     echo "  ./build.sh --all                                # Build with all optional features enabled (interactive SSH mode selection)"
 }
 
@@ -245,6 +255,31 @@ interactive_feature_selection() {
                 BUILD_IMAGE_PREVIEW="OFF"
                 BUILD_IMAGE_PREVIEW_SET=true
                 print_info "  -> Image preview: DISABLED"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
+
+    # 终端图像协议
+    while true; do
+        read -p "  Enable terminal image protocol (Kitty/iTerm2/Sixel)? [y/N]: " choice
+        case "$choice" in
+            [Yy]*)
+                BUILD_IMAGE_PROTOCOL="ON"
+                print_info "  -> Terminal image protocol: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_IMAGE_PROTOCOL="OFF"
+                print_info "  -> Terminal image protocol: DISABLED"
+                break
+                ;;
+            "")
+                BUILD_IMAGE_PROTOCOL="OFF"
+                print_info "  -> Terminal image protocol: DISABLED"
                 break
                 ;;
             *)

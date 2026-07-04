@@ -72,6 +72,21 @@ include(CheckAtomic)
 # 图片预览支持（手动启用，使用Chafa）
 option(BUILD_IMAGE_PREVIEW "Enable image preview support with Chafa" OFF)
 
+# 终端图像协议支持（Kitty/iTerm2/Sixel，默认关闭）
+option(BUILD_IMAGE_PROTOCOL "Enable terminal image protocol (Kitty/iTerm2/Sixel)" OFF)
+
+if(BUILD_IMAGE_PROTOCOL)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(SIXEL libsixel QUIET)
+    endif()
+    if(SIXEL_FOUND)
+        message(STATUS "Sixel encoding via libsixel (libsixel-dev)")
+    else()
+        message(STATUS "libsixel not found - Sixel protocol will use fallback encoding")
+    endif()
+endif()
+
 # Tree-sitter语法高亮支持（手动启用）
 option(BUILD_TREE_SITTER "Enable Tree-sitter syntax highlighting" OFF)
 
@@ -621,11 +636,25 @@ endif()
 
 # 图片预览模块（双后端模式，始终启用）
 list(APPEND SOURCES
-    src/features/image_preview.cpp
+    src/features/image/image_preview.cpp
+    src/features/image/stb_image_resize_impl.cpp
 )
 list(APPEND HEADERS
-    include/pnana/features/image_preview.h
+    include/pnana/features/image/image_preview.h
 )
+
+# 终端图像协议支持（如果启用）
+if(BUILD_IMAGE_PROTOCOL)
+    list(APPEND SOURCES
+        src/features/image/protocol_manager.cpp
+        src/ui/image_protocol_dialog.cpp
+    )
+    list(APPEND HEADERS
+        include/pnana/features/image/protocol_manager.h
+        include/pnana/ui/image_protocol_dialog.h
+    )
+    message(STATUS "Terminal image protocol support enabled (Kitty/iTerm2/Sixel)")
+endif()
 
 # 插件系统模块（如果启用）
 if(BUILD_LUA_SUPPORT)
@@ -863,6 +892,18 @@ if(BUILD_IMAGE_PREVIEW_SUPPORT)
     target_include_directories(pnana PRIVATE ${CHAFA_INCLUDE_DIRS})
     target_compile_options(pnana PRIVATE ${CHAFA_CFLAGS_OTHER})
     target_compile_definitions(pnana PRIVATE BUILD_IMAGE_PREVIEW_SUPPORT)
+endif()
+
+# 终端图像协议支持
+if(BUILD_IMAGE_PROTOCOL)
+    if(SIXEL_FOUND)
+        target_link_libraries(pnana PRIVATE ${SIXEL_LIBRARIES})
+        target_include_directories(pnana PRIVATE ${SIXEL_INCLUDE_DIRS})
+        target_compile_options(pnana PRIVATE ${SIXEL_CFLAGS_OTHER})
+        target_compile_definitions(pnana PRIVATE SIXEL_FOUND)
+        message(STATUS "libsixel linked for Sixel encoding")
+    endif()
+    target_compile_definitions(pnana PRIVATE BUILD_IMAGE_PROTOCOL_SUPPORT)
 endif()
 
 # AI客户端模块（如果启用）

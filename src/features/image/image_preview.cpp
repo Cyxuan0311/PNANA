@@ -1,4 +1,4 @@
-#include "features/image_preview.h"
+#include "features/image/image_preview.h"
 #include "ui/icons.h"
 #include "utils/logger.h"
 #include <algorithm>
@@ -17,6 +17,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "dsa/stb_image.h"
+
+#include "dsa/stb_image_resize2.h"
 
 namespace fs = std::filesystem;
 
@@ -59,7 +61,11 @@ bool ImagePreview::isChafaAvailable() {
 bool ImagePreview::loadImage(const std::string& filepath, int width, int max_height) {
     clear();
 
+    LOG_DEBUG("[ImagePreview::loadImage] enter filepath=" + filepath +
+              " width=" + std::to_string(width) + " max_height=" + std::to_string(max_height));
+
     if (!fs::exists(filepath) || !fs::is_regular_file(filepath)) {
+        LOG_DEBUG("[ImagePreview::loadImage] file not found: " + filepath);
         return false;
     }
 
@@ -78,6 +84,11 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
 
             // 检查缓存是否过期
             if (cache_age < CACHE_DURATION_SECONDS) {
+                LOG_DEBUG("[ImagePreview::loadImage] cache HIT key=" + cache_key +
+                          " render=" + std::to_string(cache_it->second.render_width) + "x" +
+                          std::to_string(cache_it->second.render_height) +
+                          " original=" + std::to_string(cache_it->second.original_width) + "x" +
+                          std::to_string(cache_it->second.original_height));
                 // 使用缓存数据
                 preview_lines_ = cache_it->second.preview_lines;
                 preview_pixels_ = cache_it->second.preview_pixels;
@@ -96,19 +107,14 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
 
                 return loaded_;
             } else {
+                LOG_DEBUG("[ImagePreview::loadImage] cache EXPIRED key=" + cache_key +
+                          " age=" + std::to_string(cache_age) + "s");
                 // 缓存过期，移除
                 cache_.erase(cache_it);
             }
+        } else {
+            LOG_DEBUG("[ImagePreview::loadImage] cache MISS key=" + cache_key);
         }
-    }
-
-    const int MAX_PREVIEW_WIDTH = 300;
-    const int MAX_PREVIEW_HEIGHT = 150;
-    if (width > MAX_PREVIEW_WIDTH) {
-        width = MAX_PREVIEW_WIDTH;
-    }
-    if (max_height > 0 && max_height > MAX_PREVIEW_HEIGHT) {
-        max_height = MAX_PREVIEW_HEIGHT;
     }
 
     int image_width = 0;
@@ -128,22 +134,22 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
     image_height_ = image_height;
     image_path_ = filepath;
 
+    LOG_DEBUG("[ImagePreview::loadImage] decoded: " + std::to_string(image_width) + "x" +
+              std::to_string(image_height) + " channels=" + std::to_string(channels));
+
     float scale = static_cast<float>(width) / image_width;
-    int new_height = static_cast<int>(image_height * scale * 0.6f);
+    int new_height = static_cast<int>(image_height * scale * 0.5f);
+
+    LOG_DEBUG("[ImagePreview::loadImage] initial scale=" + std::to_string(scale) + " new_height=" +
+              std::to_string(new_height) + " max_height=" + std::to_string(max_height));
 
     if (max_height > 0 && new_height > max_height) {
         new_height = max_height;
-        scale = static_cast<float>(new_height) / (image_height * 0.6f);
+        scale = static_cast<float>(new_height) / (image_height * 0.5f);
         width = static_cast<int>(image_width * scale);
-        if (width > MAX_PREVIEW_WIDTH) {
-            width = MAX_PREVIEW_WIDTH;
-            scale = static_cast<float>(width) / image_width;
-            new_height = static_cast<int>(image_height * scale * 0.6f);
-        }
-    } else if (new_height > MAX_PREVIEW_HEIGHT) {
-        new_height = MAX_PREVIEW_HEIGHT;
-        scale = static_cast<float>(new_height) / (image_height * 0.6f);
-        width = static_cast<int>(image_width * scale);
+        LOG_DEBUG(
+            "[ImagePreview::loadImage] clamped by max_height: scale=" + std::to_string(scale) +
+            " width=" + std::to_string(width) + " new_height=" + std::to_string(new_height));
     }
 
     if (new_height <= 0) {
@@ -155,6 +161,8 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
 
     render_width_ = width;
     render_height_ = new_height;
+    LOG_DEBUG("[ImagePreview::loadImage] final render dims: " + std::to_string(render_width_) +
+              "x" + std::to_string(render_height_));
 
     bool success = false;
 #ifdef BUILD_IMAGE_PREVIEW_SUPPORT
@@ -194,6 +202,9 @@ bool ImagePreview::loadImage(const std::string& filepath, int width, int max_hei
         cache_[cache_key] = cached_data;
     }
 
+    LOG_DEBUG("[ImagePreview::loadImage] done success=" + std::string(success ? "1" : "0") +
+              " render=" + std::to_string(render_width_) + "x" + std::to_string(render_height_) +
+              " cache_size=" + std::to_string(cache_.size()));
     return success;
 }
 
@@ -295,33 +306,74 @@ bool ImagePreview::loadWithBlockChars(unsigned char* image_data, int image_width
                                       int image_height) {
     preview_lines_.clear();
     preview_pixels_.clear();
-    preview_pixels_.resize(render_height_);
 
-    const char* block_chars[] = {" ", "░", "▒", "▓", "█"};
+    double target_ratio = 2.0 * image_width / image_height;
+    int render_w, render_h;
+    if (static_cast<double>(render_width_) / render_height_ > target_ratio) {
+        render_h = render_height_;
+        render_w = std::max(1, static_cast<int>(render_height_ * target_ratio));
+    } else {
+        render_w = render_width_;
+        render_h = std::max(1, static_cast<int>(render_width_ / target_ratio));
+    }
+    LOG_DEBUG("[ImagePreview::loadWithBlockChars] target_ratio=" + std::to_string(target_ratio) +
+              " input_render=" + std::to_string(render_width_) + "x" +
+              std::to_string(render_height_) + " computed_render=" + std::to_string(render_w) +
+              "x" + std::to_string(render_h) + " orig_img=" + std::to_string(image_width) + "x" +
+              std::to_string(image_height));
 
-    for (int y = 0; y < render_height_; ++y) {
+    int pixel_h = render_h * 2;
+
+    std::vector<unsigned char> rgb_data(image_width * image_height * 3);
+    for (int i = 0; i < image_width * image_height; ++i) {
+        rgb_data[i * 3 + 0] = image_data[i * 4 + 0];
+        rgb_data[i * 3 + 1] = image_data[i * 4 + 1];
+        rgb_data[i * 3 + 2] = image_data[i * 4 + 2];
+    }
+
+    std::vector<unsigned char> scaled(render_w * pixel_h * 3);
+
+    stbir_resize_uint8_srgb(rgb_data.data(), image_width, image_height, 0, scaled.data(), render_w,
+                            pixel_h, 0, STBIR_RGB);
+
+    preview_pixels_.resize(render_h);
+
+    for (int y = 0; y < render_h; ++y) {
         std::string line;
-        preview_pixels_[y].resize(render_width_);
+        preview_pixels_[y].resize(render_w);
 
-        for (int x = 0; x < render_width_; ++x) {
-            int src_x = static_cast<int>(x * image_width / render_width_);
-            int src_y = static_cast<int>(y * image_height / render_height_);
+        int top_row = y * 2;
+        int bot_row = y * 2 + 1;
 
-            int pixel_index = (src_y * image_width + src_x) * 4;
-            unsigned char r = image_data[pixel_index];
-            unsigned char g = image_data[pixel_index + 1];
-            unsigned char b = image_data[pixel_index + 2];
+        for (int x = 0; x < render_w; ++x) {
+            int top_idx = (top_row * render_w + x) * 3;
+            int bot_idx = (bot_row * render_w + x) * 3;
 
-            float brightness = (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
-            int char_index = static_cast<int>(brightness * 4.0f);
-            if (char_index > 4)
-                char_index = 4;
+            uint8_t top_r = scaled[top_idx];
+            uint8_t top_g = scaled[top_idx + 1];
+            uint8_t top_b = scaled[top_idx + 2];
+            uint8_t bot_r = scaled[bot_idx];
+            uint8_t bot_g = scaled[bot_idx + 1];
+            uint8_t bot_b = scaled[bot_idx + 2];
 
             PreviewPixel pixel{};
-            pixel.r = r;
-            pixel.g = g;
-            pixel.b = b;
-            pixel.ch = block_chars[char_index];
+            if (top_r == bot_r && top_g == bot_g && top_b == bot_b) {
+                pixel.ch = "\u2588";
+                pixel.r = top_r;
+                pixel.g = top_g;
+                pixel.b = top_b;
+                pixel.bg_r = 0;
+                pixel.bg_g = 0;
+                pixel.bg_b = 0;
+            } else {
+                pixel.ch = "\u2584";
+                pixel.r = bot_r;
+                pixel.g = bot_g;
+                pixel.b = bot_b;
+                pixel.bg_r = top_r;
+                pixel.bg_g = top_g;
+                pixel.bg_b = top_b;
+            }
             line += pixel.ch;
 
             preview_pixels_[y][x] = pixel;
@@ -329,6 +381,13 @@ bool ImagePreview::loadWithBlockChars(unsigned char* image_data, int image_width
 
         preview_lines_.push_back(line);
     }
+
+    render_width_ = render_w;
+    render_height_ = render_h;
+    LOG_DEBUG("[ImagePreview::loadWithBlockChars] final render_width_=" +
+              std::to_string(render_width_) + " render_height_=" + std::to_string(render_height_) +
+              " pixel_rows=" + std::to_string(preview_pixels_.size()) +
+              " loaded=" + std::string(loaded_ ? "1" : "0"));
 
     loaded_ = !preview_pixels_.empty();
     return loaded_;
@@ -380,9 +439,15 @@ ftxui::Element ImagePreview::render() const {
     using namespace ftxui;
 
     if (!loaded_ || preview_pixels_.empty()) {
+        LOG_DEBUG("[ImagePreview::render] not loaded, returning error msg");
         return (text("Failed to load image preview") | color(Color::Red) | center) | flex |
                bgcolor(Color::Black);
     }
+
+    LOG_DEBUG("[ImagePreview::render] render_size=" + std::to_string(render_width_) + "x" +
+              std::to_string(render_height_) + " pixel_rows=" +
+              std::to_string(preview_pixels_.size()) + " orig=" + std::to_string(image_width_) +
+              "x" + std::to_string(image_height_) + " info_header_rows=3");
 
     Elements preview_rows;
 
@@ -413,6 +478,9 @@ ftxui::Element ImagePreview::render() const {
 
     // Center the preview block within the available editor (code area) space.
     // `flex` ensures we occupy the available space, `center` positions the content.
+    int total_rows = static_cast<int>(preview_rows.size());
+    LOG_DEBUG("[ImagePreview::render] vbox total_rows=" + std::to_string(total_rows) +
+              " returning (vbox | center) | flex | bgcolor(Black)");
     return (vbox(preview_rows) | center) | flex | bgcolor(Color::Black);
 }
 
