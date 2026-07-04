@@ -544,31 +544,54 @@ void Editor::run() {
         while (!loop.HasQuitted()) {
             loop.RunOnceBlocking();
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
-            // 每帧 Draw 后：如果正在查看图片，更新位置并重发 Sixel
-            // 这确保 FTXUI 差异渲染不会覆盖协议图像
+            // 每帧 Draw 后：重发 Sixel 图片，确保 FTXUI 差异渲染不会覆盖协议图像
             {
-                Document* doc = getCurrentDocument();
-                bool viewing_image = doc && !doc->getFilePath().empty() &&
-                                     features::ImagePreview::isImageFile(doc->getFilePath());
-                if (viewing_image && image_spacer_box_.y_max >= image_spacer_box_.y_min &&
-                    image_term_cols_ > 0 && image_term_rows_ > 0) {
-                    // 如果有新 pending 数据，先 flush 它（带位置更新）
-                    if (pnana::features::ProtocolManager::hasPending()) {
-                        int spacer_w = image_spacer_box_.x_max - image_spacer_box_.x_min + 1;
-                        int row = image_spacer_box_.y_min + 1;
-                        int col = image_spacer_box_.x_min + 1 + (spacer_w - image_term_cols_) / 2;
-                        pnana::features::ProtocolManager::updatePendingPosition(row, col);
-                        bool sent = pnana::features::ProtocolManager::flushPending();
-                        if (sent) {
-                            protocol_image_active_ = true;
+                bool fzf_has_image = fzf_popup_.hasProtocolImagePreview();
+
+                if (fzf_has_image) {
+                    // FZF 弹窗中的图像协议预览
+                    auto box = fzf_popup_.getFzfImageSpacerBox();
+                    int term_cols = fzf_popup_.getFzfImageTermCols();
+                    if (box.y_max >= box.y_min && term_cols > 0) {
+                        if (pnana::features::ProtocolManager::hasPending()) {
+                            int spacer_w = box.x_max - box.x_min + 1;
+                            int row = box.y_min + 1;
+                            int col = box.x_min + 1 + (spacer_w - term_cols) / 2;
+                            pnana::features::ProtocolManager::updatePendingPosition(row, col);
+                            pnana::features::ProtocolManager::flushPending();
+                        } else {
+                            int spacer_w = box.x_max - box.x_min + 1;
+                            int row = box.y_min + 1;
+                            int col = box.x_min + 1 + (spacer_w - term_cols) / 2;
+                            pnana::features::ProtocolManager::updatePendingPosition(row, col);
+                            pnana::features::ProtocolManager::resendLast();
                         }
-                    } else if (protocol_image_active_) {
-                        // 无新 pending 但图像已活跃：用当前位置重发
-                        int spacer_w = image_spacer_box_.x_max - image_spacer_box_.x_min + 1;
-                        int row = image_spacer_box_.y_min + 1;
-                        int col = image_spacer_box_.x_min + 1 + (spacer_w - image_term_cols_) / 2;
-                        pnana::features::ProtocolManager::updatePendingPosition(row, col);
-                        pnana::features::ProtocolManager::resendLast();
+                    }
+                } else {
+                    // 主编辑区的图像协议预览
+                    Document* doc = getCurrentDocument();
+                    bool viewing_image = doc && !doc->getFilePath().empty() &&
+                                         features::ImagePreview::isImageFile(doc->getFilePath());
+                    if (viewing_image && image_spacer_box_.y_max >= image_spacer_box_.y_min &&
+                        image_term_cols_ > 0 && image_term_rows_ > 0) {
+                        if (pnana::features::ProtocolManager::hasPending()) {
+                            int spacer_w = image_spacer_box_.x_max - image_spacer_box_.x_min + 1;
+                            int row = image_spacer_box_.y_min + 1;
+                            int col =
+                                image_spacer_box_.x_min + 1 + (spacer_w - image_term_cols_) / 2;
+                            pnana::features::ProtocolManager::updatePendingPosition(row, col);
+                            bool sent = pnana::features::ProtocolManager::flushPending();
+                            if (sent) {
+                                protocol_image_active_ = true;
+                            }
+                        } else if (protocol_image_active_) {
+                            int spacer_w = image_spacer_box_.x_max - image_spacer_box_.x_min + 1;
+                            int row = image_spacer_box_.y_min + 1;
+                            int col =
+                                image_spacer_box_.x_min + 1 + (spacer_w - image_term_cols_) / 2;
+                            pnana::features::ProtocolManager::updatePendingPosition(row, col);
+                            pnana::features::ProtocolManager::resendLast();
+                        }
                     }
                 }
             }
