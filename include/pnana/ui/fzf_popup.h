@@ -2,7 +2,7 @@
 #define PNANA_UI_FZF_POPUP_H
 
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
-#include "features/image_preview.h"
+#include "features/image/image_preview.h"
 #include "ui/theme.h"
 #include "utils/file_type_color_mapper.h"
 #include "utils/file_type_icon_mapper.h"
