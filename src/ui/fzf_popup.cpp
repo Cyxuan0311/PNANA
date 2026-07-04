@@ -355,6 +355,12 @@ void FzfPopup::close() {
     filtered_files_.clear();
     filtered_display_paths_.clear();
     root_path_.clear();
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    fzf_protocol_image_active_ = false;
+    fzf_last_image_path_.clear();
+    fzf_last_pixel_w_ = 0;
+    fzf_last_pixel_h_ = 0;
+#endif
 }
 
 void FzfPopup::setFileOpenCallback(std::function<void(const std::string&)> callback) {
@@ -459,6 +465,10 @@ void FzfPopup::filterFiles() {
     preview_page_ = 0;             // 过滤变化时重置预览页
     preview_h_offset_ = 0;         // 过滤变化时重置水平偏移
     image_preview_loaded_ = false; // 过滤变化时重置图片预览
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    fzf_protocol_image_active_ = false;
+    fzf_last_image_path_.clear();
+#endif
     if (selected_index_ >= filtered_files_.size() && !filtered_files_.empty()) {
         selected_index_ = filtered_files_.size() - 1;
     }
@@ -674,6 +684,41 @@ Element FzfPopup::renderPreview() const {
 
     // 图片文件：使用 ImagePreview 渲染
     if (isImageFile(filepath)) {
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+        // 图像协议模式：渲染占位符供 Sixel/Kitty 填充
+        if (pnana::features::ProtocolManager::isActive()) {
+            if (fzf_protocol_image_active_) {
+                using namespace ftxui;
+                Elements placeholder;
+                placeholder.push_back(
+                    hbox({text(std::string(pnana::ui::icons::IMAGE) + " Image Preview: ") |
+                              color(Color::Blue) | bold,
+                          text(filepath) | color(Color::White)}));
+                if (image_preview_.isLoaded()) {
+                    placeholder.push_back(
+                        hbox({text("  Size: ") | color(Color::GrayDark),
+                              text(std::to_string(image_preview_.getImageWidth()) + "x" +
+                                   std::to_string(image_preview_.getImageHeight())) |
+                                  color(Color::White)}));
+                }
+                placeholder.push_back(separator());
+
+                // Sixel 占位区域
+                Elements spacer;
+                for (int r = 0; r < fzf_image_term_rows_; ++r) {
+                    spacer.push_back(text(""));
+                }
+                placeholder.push_back(vbox(spacer) | reflect(fzf_image_spacer_box_));
+
+                return vbox(placeholder) | flex | bgcolor(Color::Black) | reflect(fzf_preview_box_);
+            } else {
+                return (hbox({text("  "),
+                              text("Loading image preview...") | color(colors.comment) | dim}) |
+                        bgcolor(colors.background) | center) |
+                       reflect(fzf_preview_box_);
+            }
+        }
+#endif
         if (image_preview_loaded_) {
             return image_preview_.render() | flex;
         } else {
@@ -811,8 +856,15 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                 int max_height = 20;
                 image_preview_loaded_ =
                     image_preview_.loadImage(filepath, preview_width, max_height);
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+                loadProtocolImage(filepath);
+#endif
             } else {
                 image_preview_loaded_ = false;
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+                fzf_protocol_image_active_ = false;
+                fzf_last_image_path_.clear();
+#endif
             }
         }
         return true;
@@ -840,8 +892,15 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                 int max_height = 20;
                 image_preview_loaded_ =
                     image_preview_.loadImage(filepath, preview_width, max_height);
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+                loadProtocolImage(filepath);
+#endif
             } else {
                 image_preview_loaded_ = false;
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+                fzf_protocol_image_active_ = false;
+                fzf_last_image_path_.clear();
+#endif
             }
         }
         return true;
@@ -998,6 +1057,84 @@ bool FzfPopup::handleInput(ftxui::Event event) {
 
     return false;
 }
+
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+void FzfPopup::loadProtocolImage(const std::string& filepath) {
+    if (!pnana::features::ProtocolManager::isActive()) {
+        fzf_protocol_image_active_ = false;
+        return;
+    }
+
+    const int cell_w_px = pnana::features::ProtocolManager::getCellWidthPx();
+    const int cell_h_px = pnana::features::ProtocolManager::getCellHeightPx();
+
+    // 从上一帧的 preview_box 获取实际可用尺寸
+    // 首帧 box 无效时使用默认估计值
+    int avail_cols = 40;
+    int avail_rows = 20;
+    if (fzf_preview_box_.x_max >= fzf_preview_box_.x_min) {
+        avail_cols = fzf_preview_box_.x_max - fzf_preview_box_.x_min + 1;
+    }
+    if (fzf_preview_box_.y_max >= fzf_preview_box_.y_min) {
+        avail_rows = fzf_preview_box_.y_max - fzf_preview_box_.y_min + 1;
+    }
+
+    // header 占 3 行（标题 + 尺寸 + 分隔线），减去后为图片可用高度
+    const int header_rows = 3;
+    int img_avail_rows = std::max(3, avail_rows - header_rows);
+
+    int max_pixel_w = avail_cols * cell_w_px;
+    int max_pixel_h = img_avail_rows * cell_h_px;
+
+    // 只在文件或编码尺寸变化时重新编码
+    bool need_reencode = (filepath != fzf_last_image_path_ || max_pixel_w != fzf_last_pixel_w_ ||
+                          max_pixel_h != fzf_last_pixel_h_);
+    if (!need_reencode && fzf_protocol_image_active_) {
+        return;
+    }
+
+    // 先用 STB 加载图片原始尺寸，做双向约束等比缩放
+    int pixel_w_fill = max_pixel_w;
+    int img_w = 0, img_h = 0;
+    // 复用 image_preview_ 获取原始尺寸
+    if (image_preview_.isLoaded()) {
+        img_w = image_preview_.getImageWidth();
+        img_h = image_preview_.getImageHeight();
+    }
+    if (img_w > 0 && img_h > 0) {
+        double scale_w = static_cast<double>(max_pixel_w) / img_w;
+        double scale_h = static_cast<double>(max_pixel_h) / img_h;
+        double scale = std::min(scale_w, scale_h);
+        pixel_w_fill = std::max(1, static_cast<int>(img_w * scale));
+    }
+
+    pnana::features::ProtocolImageData proto_data;
+    if (pnana::features::ProtocolManager::encodeImage(filepath, pixel_w_fill, 0, proto_data)) {
+        fzf_image_term_cols_ = proto_data.term_cols;
+        fzf_image_term_rows_ = proto_data.term_rows;
+
+        // 确保 spacer 不超过可用区域
+        if (fzf_image_term_rows_ > img_avail_rows) {
+            fzf_image_term_rows_ = img_avail_rows;
+        }
+        if (fzf_image_term_cols_ > avail_cols) {
+            fzf_image_term_cols_ = avail_cols;
+        }
+
+        pnana::features::ProtocolManager::setPending(proto_data, 0, 0);
+        fzf_last_image_path_ = filepath;
+        fzf_last_pixel_w_ = max_pixel_w;
+        fzf_last_pixel_h_ = max_pixel_h;
+        fzf_protocol_image_active_ = true;
+    } else {
+        fzf_protocol_image_active_ = false;
+    }
+}
+
+bool FzfPopup::hasProtocolImagePreview() const {
+    return fzf_protocol_image_active_ && is_open_;
+}
+#endif
 
 } // namespace ui
 } // namespace pnana

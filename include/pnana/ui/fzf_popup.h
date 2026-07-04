@@ -3,6 +3,9 @@
 
 #include "features/SyntaxHighlighter/syntax_highlighter.h"
 #include "features/image/image_preview.h"
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+#include "features/image/protocol_manager.h"
+#endif
 #include "ui/theme.h"
 #include "utils/file_type_color_mapper.h"
 #include "utils/file_type_icon_mapper.h"
@@ -58,6 +61,20 @@ class FzfPopup {
     void receiveFiles(std::vector<std::string> files, std::vector<std::string> display_paths,
                       std::string root_path);
 
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    // 图像协议支持：查询当前是否有协议图像预览
+    bool hasProtocolImagePreview() const;
+    ftxui::Box getFzfImageSpacerBox() const {
+        return fzf_image_spacer_box_;
+    }
+    int getFzfImageTermCols() const {
+        return fzf_image_term_cols_;
+    }
+    int getFzfImageTermRows() const {
+        return fzf_image_term_rows_;
+    }
+#endif
+
   private:
     Theme& theme_;
     bool is_open_;
@@ -77,6 +94,18 @@ class FzfPopup {
     size_t preview_h_offset_ = 0; // 预览水平偏移（Tab 横向滚动）
     size_t preview_h_step_ = 24;  // 每次 Tab 横向滚动步长
     bool image_preview_loaded_ = false; // 图片是否已加载
+
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    // 图像协议状态
+    mutable ftxui::Box fzf_image_spacer_box_; // spacer 区域坐标
+    mutable ftxui::Box fzf_preview_box_;      // 整个预览区域坐标
+    bool fzf_protocol_image_active_ = false;
+    int fzf_image_term_cols_ = 0;
+    int fzf_image_term_rows_ = 0;
+    std::string fzf_last_image_path_;
+    int fzf_last_pixel_w_ = 0;
+    int fzf_last_pixel_h_ = 0;
+#endif
 
     static const size_t PREVIEW_LINES_PER_PAGE = 25; // 每页预览行数
 
@@ -119,6 +148,11 @@ class FzfPopup {
     // 获取文件图标和颜色
     std::string getFileIcon(const std::string& filepath) const;
     ftxui::Color getFileColor(const std::string& filepath) const;
+
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    // 加载图像协议编码
+    void loadProtocolImage(const std::string& filepath);
+#endif
 };
 
 } // namespace ui
