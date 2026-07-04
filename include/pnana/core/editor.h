@@ -21,6 +21,9 @@
 #include "ui/clipboard_panel.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+#include "ui/image_protocol_dialog.h"
+#endif
 #include "ui/dependency_status_popup.h"
 #include "ui/dialog.h"
 #include "ui/encoding_dialog.h"
@@ -65,7 +68,10 @@
 #include "features/extract.h"
 #include "features/file_browser.h"
 #include "features/history/file_history_manager.h"
-#include "features/image_preview.h"
+#include "features/image/image_preview.h"
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+#include "features/image/protocol_manager.h"
+#endif
 #include "features/recent_files_manager.h"
 #include "features/search.h"
 #include "features/split_view/split_view.h"
@@ -440,6 +446,9 @@ class Editor {
     pnana::ui::SaveAsDialog save_as_dialog_;
     pnana::ui::MoveFileDialog move_file_dialog_;
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    pnana::ui::ImageProtocolDialog image_protocol_dialog_;
+#endif
     pnana::ui::BinaryFileView binary_file_view_;
     pnana::ui::EncodingDialog encoding_dialog_;
     pnana::ui::FormatDialog format_dialog_;
@@ -774,6 +783,19 @@ class Editor {
     static constexpr auto PASTE_DETECTION_INTERVAL = std::chrono::milliseconds(50);
     bool is_pasting_ = false;
 
+    // 图像协议状态
+    bool protocol_image_active_ = false;
+    // reflect(Box) 追踪 Sixel 图片 placeholder 和 spacer 区域的实际渲染位置
+    ftxui::Box image_placeholder_box_;
+    ftxui::Box image_spacer_box_;
+    // 图像定位参数（由 renderUI 设置，由 post-Draw 消费）
+    int image_term_cols_ = 0;
+    int image_term_rows_ = 0;
+    int image_header_rows_ = 0;
+    // 跟踪上次编码参数，检测布局/文件变化时重新编码
+    std::string last_image_path_;
+    int last_pixel_w_fill_ = 0;
+
     // 强制触发待处理的光标更新
     void triggerPendingCursorUpdate();
 
@@ -907,6 +929,9 @@ class Editor {
     void openCursorConfig();
     void openEncodingDialog();
     void applyCursorConfig();
+
+    // 图像协议设置
+    void toggleImageProtocolPopup();
 
     // 代码格式化
     void openFormatDialog();

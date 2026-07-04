@@ -428,6 +428,16 @@ void Editor::handleInput(Event event) {
         }
     }
 
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    // 图像协议设置弹窗
+    if (image_protocol_dialog_.isVisible()) {
+        if (image_protocol_dialog_.handleInput(event)) {
+            // 刷新协议状态
+            return;
+        }
+    }
+#endif
+
 #ifdef BUILD_LUA_SUPPORT
     // 优先处理插件管理对话框输入
     if (plugin_manager_dialog_.isVisible()) {

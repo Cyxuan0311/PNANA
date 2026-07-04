@@ -35,6 +35,7 @@
 #include <fstream>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
+#include <ftxui/component/loop.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/screen.hpp>
 #include <iostream>
@@ -61,12 +62,16 @@ Editor::Editor()
       welcome_screen_(theme_, config_manager_), split_welcome_screen_(theme_),
       new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_), animation_menu_(theme_),
       create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
-      cursor_config_dialog_(theme_), binary_file_view_(theme_), encoding_dialog_(theme_),
-      format_dialog_(theme_), recent_files_popup_(theme_), fzf_popup_(theme_),
-      history_timeline_popup_(theme_), history_diff_popup_(theme_), tui_config_popup_(theme_),
-      extract_dialog_(theme_), extract_path_dialog_(theme_), extract_progress_dialog_(theme_),
-      ai_assistant_panel_(theme_), clipboard_panel_(theme_), ai_config_dialog_(theme_),
-      todo_panel_(theme_), package_manager_panel_(theme_),
+      cursor_config_dialog_(theme_),
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+      image_protocol_dialog_(theme_),
+#endif
+      binary_file_view_(theme_), encoding_dialog_(theme_), format_dialog_(theme_),
+      recent_files_popup_(theme_), fzf_popup_(theme_), history_timeline_popup_(theme_),
+      history_diff_popup_(theme_), tui_config_popup_(theme_), extract_dialog_(theme_),
+      extract_path_dialog_(theme_), extract_progress_dialog_(theme_), ai_assistant_panel_(theme_),
+      clipboard_panel_(theme_), ai_config_dialog_(theme_), todo_panel_(theme_),
+      package_manager_panel_(theme_),
 #ifdef BUILD_LUA_SUPPORT
       plugin_manager_dialog_(theme_, nullptr), // 将在 initializePluginManager 中设置
 #endif
@@ -140,6 +145,26 @@ Editor::Editor()
         config_manager_.getConfig().display.statusbar_style = name;
         config_manager_.saveConfig();
     });
+
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    // 初始化图像协议管理器
+    {
+        const auto& ip_cfg = config_manager_.getConfig().image_protocol;
+        pnana::features::ProtocolManager::setEnabled(ip_cfg.enabled);
+        pnana::features::ProtocolManager::setPreferred(ip_cfg.preferred);
+        pnana::features::ProtocolManager::init();
+    }
+
+    // 图像协议设置弹窗回调
+    image_protocol_dialog_.setOnApply([this]() {
+        auto& cfg = config_manager_.getConfig().image_protocol;
+        cfg.enabled = image_protocol_dialog_.isProtocolEnabled();
+        cfg.preferred = image_protocol_dialog_.getPreferredProtocol();
+        config_manager_.saveConfig();
+        setStatusMessage(std::string("Image protocol ") + (cfg.enabled ? "enabled" : "disabled") +
+                         " | preferred: " + cfg.preferred);
+    });
+#endif
 
     // 初始化最近文件管理器
     recent_files_manager_.setFileOpenCallback([this](const std::string& filepath) {
@@ -461,16 +486,42 @@ void Editor::run() {
     };
 
     TerminalCursorGuard terminal_cursor_guard;
-    main_component_ = CatchEvent(Renderer([this] {
-                                     // 每帧渲染时再次隐藏宿主光标，压住 FTXUI 可能输出的
-                                     // \x1b[?25h。 这里不记录 ANSI 日志，避免高频渲染导致日志爆炸。
-                                     std::cout << "\x1b[?25l" << std::flush;
-                                     return renderUI();
-                                 }),
-                                 [this](Event event) {
-                                     handleInput(event);
-                                     return true;
-                                 });
+    main_component_ = CatchEvent(
+        Renderer([this] {
+            // 每帧渲染时再次隐藏宿主光标，压住 FTXUI 可能输出的
+            // \x1b[?25h。 这里不记录 ANSI 日志，避免高频渲染导致日志爆炸。
+            std::cout << "\x1b[?25l" << std::flush;
+            return renderUI();
+        }),
+        [this](Event event) {
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+            // 图像活跃时拦截 Custom 事件，防止 Print 覆盖协议图像
+            if (event == Event::Custom && protocol_image_active_) {
+                Document* doc = getCurrentDocument();
+                bool still_image = doc && !doc->getFilePath().empty() &&
+                                   features::ImagePreview::isImageFile(doc->getFilePath());
+                if (still_image)
+                    return false;
+                // 不再查看图片 → 清除栅栏，让渲染正常进行
+                protocol_image_active_ = false;
+            }
+#endif
+            handleInput(event);
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+            {
+                Document* doc = getCurrentDocument();
+                bool viewing_image = doc && !doc->getFilePath().empty() &&
+                                     features::ImagePreview::isImageFile(doc->getFilePath());
+                // 非图片文件 → 清除状态
+                if (!viewing_image) {
+                    protocol_image_active_ = false;
+                    last_image_path_.clear();
+                    last_pixel_w_fill_ = 0;
+                }
+            }
+#endif
+            return true;
+        });
     // 禁止 FTXUI 对 Ctrl+C / Ctrl+Z 的内置强制处理。
     // FTXUI 默认 force_handle_ctrl_c_ = true / force_handle_ctrl_z_ = true，
     // 这意味着即使 CatchEvent 返回 true（事件已被消费），FTXUI 仍会：
@@ -485,7 +536,45 @@ void Editor::run() {
     // Post a Custom event so ftxui performs an initial render immediately
     // (ensures renderUI() runs once even if incremental-render logic would skip it)
     screen_.PostEvent(Event::Custom);
-    screen_.Loop(main_component_);
+
+    // 使用手动循环替代 screen_.Loop()，以便在每帧 Draw/Print 之后
+    // 重发 Sixel 图片，确保 FTXUI Print 不会覆盖协议图像
+    {
+        ftxui::Loop loop(&screen_, main_component_);
+        while (!loop.HasQuitted()) {
+            loop.RunOnceBlocking();
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+            // 每帧 Draw 后：如果正在查看图片，更新位置并重发 Sixel
+            // 这确保 FTXUI 差异渲染不会覆盖协议图像
+            {
+                Document* doc = getCurrentDocument();
+                bool viewing_image = doc && !doc->getFilePath().empty() &&
+                                     features::ImagePreview::isImageFile(doc->getFilePath());
+                if (viewing_image && image_spacer_box_.y_max >= image_spacer_box_.y_min &&
+                    image_term_cols_ > 0 && image_term_rows_ > 0) {
+                    // 如果有新 pending 数据，先 flush 它（带位置更新）
+                    if (pnana::features::ProtocolManager::hasPending()) {
+                        int spacer_w = image_spacer_box_.x_max - image_spacer_box_.x_min + 1;
+                        int row = image_spacer_box_.y_min + 1;
+                        int col = image_spacer_box_.x_min + 1 + (spacer_w - image_term_cols_) / 2;
+                        pnana::features::ProtocolManager::updatePendingPosition(row, col);
+                        bool sent = pnana::features::ProtocolManager::flushPending();
+                        if (sent) {
+                            protocol_image_active_ = true;
+                        }
+                    } else if (protocol_image_active_) {
+                        // 无新 pending 但图像已活跃：用当前位置重发
+                        int spacer_w = image_spacer_box_.x_max - image_spacer_box_.x_min + 1;
+                        int row = image_spacer_box_.y_min + 1;
+                        int col = image_spacer_box_.x_min + 1 + (spacer_w - image_term_cols_) / 2;
+                        pnana::features::ProtocolManager::updatePendingPosition(row, col);
+                        pnana::features::ProtocolManager::resendLast();
+                    }
+                }
+            }
+#endif
+        }
+    }
 
 #ifdef BUILD_LSP_SUPPORT
     // 清理 LSP 客户端
@@ -729,6 +818,14 @@ void Editor::openCursorConfig() {
     setStatusMessage(
         "Cursor Configuration | ↑↓: Navigate, ←→: Change Style, Enter: Apply, Esc: Cancel");
 }
+
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+void Editor::toggleImageProtocolPopup() {
+    image_protocol_dialog_.open();
+    setStatusMessage(
+        "Image Protocol Settings | ↑↓: Navigate, Space: Toggle, Enter: Apply, Esc: Cancel");
+}
+#endif
 
 void Editor::applyCursorConfig() {
     // 获取配置

@@ -248,6 +248,16 @@ void Editor::initializeCommandPalette() {
                                                  toggleTodoPanel();
                                              }));
 
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    // 图像协议设置
+    command_palette_.registerCommand(Command(
+        "view.image_protocol", "Image Protocol Settings",
+        "Configure terminal image protocol (Kitty/iTerm2/Sixel)",
+        {"protocol", "image", "kitty", "sixel", "iterm2", "imgproto", "terminal image"}, [this]() {
+            toggleImageProtocolPopup();
+        }));
+#endif
+
     // 注册包管理器命令
     command_palette_.registerCommand(Command("package.manager", "Package Manager",
                                              "Open package manager panel",

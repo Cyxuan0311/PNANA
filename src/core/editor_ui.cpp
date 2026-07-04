@@ -3,7 +3,7 @@
 #include "core/ui/border_manager.h"
 #include "core/ui/ui_router.h"
 #include "features/cursor/cursor_renderer.h"
-#include "features/image_preview.h"
+#include "features/image/image_preview.h"
 #include "features/ssh/ssh_client.h"
 #include "ui/binary_file_view.h"
 #include "ui/create_folder_dialog.h"
@@ -435,6 +435,14 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderCursorConfigCallback([this]() {
         return cursor_config_dialog_.render();
     });
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+    overlay_manager_->setRenderImageProtocolCallback([this]() {
+        return image_protocol_dialog_.render();
+    });
+    overlay_manager_->setIsImageProtocolVisibleCallback([this]() {
+        return image_protocol_dialog_.isVisible();
+    });
+#endif
     overlay_manager_->setRenderAIConfigCallback([this]() {
         return ai_config_dialog_.render();
     });
@@ -784,16 +792,19 @@ Element Editor::renderEditor() {
 
         // 计算代码区的实际可用尺寸
         int code_area_width = screen_.dimx();
-        int code_area_height = screen_.dimy() - 7; // 减去标签栏、状态栏等6行 + 边框1行
+        int code_area_height = screen_.dimy() - 7;
 
         // 如果文件浏览器打开，减去文件浏览器的宽度
         if (file_browser_.isVisible()) {
-            code_area_width -= (file_browser_width_ + 1); // +1 是分隔符
+            code_area_width -= (file_browser_width_ + 1);
         }
 
-        // 预留一些边距和图片信息空间（标题、尺寸、分隔符 = 3 行）
+        // 预留水平边距
         code_area_width -= 4;
-        int available_height = code_area_height - 3 - 4; // 减去图片信息行和边距
+        // 减去 placeholder 内部 header 行数（标题+尺寸+分隔线=3行），
+        // 使图片缩放时留出居中空间，避免图片占满整个区域
+        constexpr int image_header_rows = 3;
+        int available_height = code_area_height - image_header_rows;
 
         // 确保最小尺寸
         if (code_area_width < 40)
@@ -801,21 +812,128 @@ Element Editor::renderEditor() {
         if (available_height < 10)
             available_height = 10;
 
+        // Step 1: 如果未加载或图片路径变了，先加载（获取原始尺寸）
+        if (!image_preview_.isLoaded() || image_preview_.getImagePath() != image_path) {
+            image_preview_.loadImage(image_path, code_area_width, available_height);
+        }
+
+        // Step 2: 基于实际图片尺寸计算预览大小（首帧和后续帧一致）
         int preview_width = code_area_width;
         int preview_height = available_height;
+        int img_w = image_preview_.getImageWidth();
+        int img_h = image_preview_.getImageHeight();
+        if (img_w > 0 && img_h > 0) {
+            double scale_w = static_cast<double>(code_area_width) / img_w;
+            double scale_h = static_cast<double>(available_height * 2) / img_h;
+            double scale = std::min(scale_w, scale_h);
+            preview_width = static_cast<int>(img_w * scale);
+            preview_height = static_cast<int>(img_h * scale / 2);
+        }
 
-        if (!image_preview_.isLoaded() || image_preview_.getImagePath() != image_path ||
-            image_preview_.getRenderWidth() != preview_width ||
+        // Step 3: 如果尺寸变了，重新加载
+        if (image_preview_.getRenderWidth() != preview_width ||
             image_preview_.getRenderHeight() != preview_height) {
             image_preview_.loadImage(image_path, preview_width, preview_height);
         }
+
+        // Terminal image protocol path (independent of ImagePreview text loader)
+#ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
+        if (pnana::features::ProtocolManager::isActive()) {
+            pnana::features::ProtocolImageData proto_data;
+
+            // 字符单元像素尺寸：从 ProtocolManager 获取动态值
+            const int cell_w_px = pnana::features::ProtocolManager::getCellWidthPx();
+            const int cell_h_px = pnana::features::ProtocolManager::getCellHeightPx();
+            const int info_header_h = 3; // 标题 + 尺寸 + separator
+            int max_pixel_w = code_area_width * cell_w_px;
+            // 图片区域高度 = 可用高度 - info_header，确保图片不溢出
+            int max_pixel_h = (available_height - info_header_h) * cell_h_px;
+
+            // 按宽高双向约束等比缩放
+            int pixel_w_fill = preview_width;
+            if (img_w > 0 && img_h > 0) {
+                double scale_w = static_cast<double>(max_pixel_w) / img_w;
+                double scale_h = static_cast<double>(max_pixel_h) / img_h;
+                double scale = std::min(scale_w, scale_h);
+                pixel_w_fill = std::max(1, static_cast<int>(img_w * scale));
+            }
+
+            // 检测文件或布局变化：需要重新编码
+            bool need_reencode =
+                (image_path != last_image_path_ || pixel_w_fill != last_pixel_w_fill_);
+
+            bool enc_ok = pnana::features::ProtocolManager::encodeImage(image_path, pixel_w_fill, 0,
+                                                                        proto_data);
+            if (enc_ok && proto_data.valid) {
+                int spacer_rows = proto_data.term_rows;
+                // 保存图像尺寸，供 post-Draw 做居中定位
+                image_term_cols_ = proto_data.term_cols;
+                image_term_rows_ = proto_data.term_rows;
+
+                // 文件或尺寸变化时重新 setPending
+                if (need_reencode) {
+                    pnana::features::ProtocolManager::setPending(proto_data, 0, 0);
+                    last_image_path_ = image_path;
+                    last_pixel_w_fill_ = pixel_w_fill;
+                }
+
+                using namespace ftxui;
+                Elements placeholder;
+                placeholder.push_back(
+                    hbox({text(std::string(pnana::ui::icons::IMAGE) + " Image Preview: ") |
+                              color(Color::Blue) | bold,
+                          text(image_path) | color(Color::White)}));
+                if (image_preview_.isLoaded()) {
+                    placeholder.push_back(
+                        hbox({text("  Size: ") | color(Color::GrayDark),
+                              text(std::to_string(image_preview_.getImageWidth()) + "x" +
+                                   std::to_string(image_preview_.getImageHeight())) |
+                                  color(Color::White)}));
+                } else {
+                    placeholder.push_back(hbox({text("  Size: ") | color(Color::GrayDark),
+                                                text(std::to_string(proto_data.render_w) + "x" +
+                                                     std::to_string(proto_data.render_h)) |
+                                                    color(Color::White)}));
+                }
+                placeholder.push_back(separator());
+
+                // 记录 header 行数（标题 + 尺寸 + 分隔线）
+                image_header_rows_ = 3;
+
+                // 在整个代码区域内居中图片（header 本身算作顶部留白）
+                int total_non_image = code_area_height - spacer_rows; // 45-39=6
+                int space_above = (total_non_image + 1) / 2;          // ceil(6/2)=3
+                int top_pad = std::max(0, space_above - image_header_rows_);
+                int bottom_pad = std::max(0, total_non_image - image_header_rows_ - top_pad);
+
+                // 顶部 padding
+                for (int r = 0; r < top_pad; ++r) {
+                    placeholder.push_back(text(""));
+                }
+
+                // Sixel 占位区域
+                Elements spacer;
+                for (int r = 0; r < spacer_rows; ++r) {
+                    spacer.push_back(text(""));
+                }
+                placeholder.push_back(vbox(spacer) | reflect(image_spacer_box_));
+
+                // 底部 padding
+                for (int r = 0; r < bottom_pad; ++r) {
+                    placeholder.push_back(text(""));
+                }
+                auto placeholder_elem = vbox(placeholder) | flex | bgcolor(Color::Black) |
+                                        reflect(image_placeholder_box_);
+                return placeholder_elem;
+            }
+        }
+#endif
 
         if (image_preview_.isLoaded()) {
             return image_preview_.render();
         }
     }
 
-    // 如果之前加载了图片但现在不需要，清空预览
     if (image_preview_.isLoaded()) {
         image_preview_.clear();
     }
