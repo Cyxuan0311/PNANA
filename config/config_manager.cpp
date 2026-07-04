@@ -186,6 +186,7 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t history_pos = cleaned.find("\"history\":{");
     size_t ui_pos = cleaned.find("\"ui\":{");
     size_t lang_indent_pos = cleaned.find("\"language_indent\":{");
+    size_t image_protocol_pos = cleaned.find("\"image_protocol\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
@@ -784,6 +785,19 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
         }
     }
 
+    // 解析 image_protocol 配置
+    if (image_protocol_pos != std::string::npos) {
+        size_t ip_end = cleaned.find("}", image_protocol_pos + 1);
+        if (ip_end != std::string::npos) {
+            config_.image_protocol.enabled =
+                extractBool("enabled", image_protocol_pos, ip_end, false);
+            std::string pref = extractStr("preferred", image_protocol_pos, ip_end);
+            if (!pref.empty()) {
+                config_.image_protocol.preferred = pref;
+            }
+        }
+    }
+
     // 解析 language_indent 配置
     if (lang_indent_pos != std::string::npos) {
         size_t lang_indent_start = lang_indent_pos + 19;
@@ -1086,6 +1100,11 @@ std::string ConfigManager::generateJSON() const {
     oss << "    \"toast_bold_text\": " << (config_.ui.toast_bold_text ? "true" : "false") << ",\n";
     oss << "    \"max_recent_files\": " << config_.ui.max_recent_files << ",\n";
     oss << "    \"max_recent_folders\": " << config_.ui.max_recent_folders << "\n";
+    oss << "  },\n";
+    oss << "  \"image_protocol\": {\n";
+    oss << "    \"_comment\": \"Terminal image protocol (Kitty/iTerm2/Sixel) settings\",\n";
+    oss << "    \"enabled\": " << (config_.image_protocol.enabled ? "true" : "false") << ",\n";
+    oss << "    \"preferred\": \"" << config_.image_protocol.preferred << "\"\n";
     oss << "  },\n";
     oss << "  \"language_indent\": {\n";
     oss << "    \"_comment\": \"Language-specific indent configuration for auto-indent module\",\n";

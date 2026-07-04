@@ -202,6 +202,12 @@ struct CustomLogoConfig {
     std::vector<std::string> lines; // Logo 文本行
 };
 
+// 图像协议配置结构
+struct ImageProtocolConfig {
+    bool enabled = true;
+    std::string preferred = "auto";
+};
+
 // 完整配置结构
 struct AppConfig {
     EditorConfig editor;
@@ -213,6 +219,7 @@ struct AppConfig {
     AnimationConfig animation;
     HistoryConfig history;
     UIConfig ui;
+    ImageProtocolConfig image_protocol;
 
     // Logo 配置
     std::vector<CustomLogoConfig> custom_logos; // 用户自定义 logo 列表
