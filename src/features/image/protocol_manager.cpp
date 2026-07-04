@@ -52,7 +52,7 @@ static void queryCellPixelSize() {
     // 请求 cell 像素尺寸: \033[16t
     // 有些终端支持直接返回 cell 尺寸
     const char* req_cell = "\033[16t";
-    ::write(fd, req_cell, std::strlen(req_cell));
+    (void)::write(fd, req_cell, std::strlen(req_cell));
 
     // 读取响应 (最多等待 200ms)
     char buf[64] = {};
@@ -96,7 +96,7 @@ static void queryCellPixelSize() {
         ::tcflush(fd, TCIFLUSH);
 
         const char* req_pixels = "\033[14t";
-        ::write(fd, req_pixels, std::strlen(req_pixels));
+        (void)::write(fd, req_pixels, std::strlen(req_pixels));
 
         n = 0;
         for (int attempt = 0; attempt < 10 && n < 63; ++attempt) {
