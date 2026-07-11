@@ -1,6 +1,7 @@
 build/
 lib/
 logs/
+.mimocode/
 .cache/
 __pycache__/
 data/

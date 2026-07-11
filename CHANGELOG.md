@@ -16,6 +16,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added code quality checks and security scanning
 
 
+## [0.0.7] - 2026-07-09
+
+### Added
+
+- Add image protocol integration with overlay rendering and fzf popup image preview
+- Add image block rendering and editor enhancements with modular image feature structure
+- Add configuration fields for image protocol support
+- Add full builtin VT100 terminal implementation, replacing legacy terminal with builtin sessions
+- Add clipboard history panel with management and integration features
+- Add split view support for line rendering in editor
+- Add responsive UI layout utilities and adapt all dialogs
+- Add configurable page scroll lines option
+- Add dependency status popup
+- Add new red-white color theme
+- Add hot-reload capability for configuration changes
+- Add `replace` and `swapLine` buffer operations
+- Add `getFileType` getter method to SyntaxHighlighter
+- Add `rawColToDisplayCol` helper method for tab handling
+- Improve markdown preview caching and rendering logic
+
+### Improved
+
+- Restructure image preview into modular image feature with protocol support
+- Rewrite terminal rendering with builtin renderer and restructure terminal sources
+- Replace legacy terminal implementation with builtin VT100 sessions
+- Replace naive string search with KMP algorithm for syntax highlighting
+- Improve editor performance with split view support
+- Remove redundant BUILD_LIBVTERM_SUPPORT check
+- Remove unused variable in adjustViewOffset
+- Simplify line ending type references in status bar
+- Remove debug message in RPM package configuration
+- Remove markdown rendering components and update related logic
+- Wrap escape helper and SSH logic in build flag
+
+### Fixed
+
+- Fix unused-result warning for write() calls in image module
+- Fix badge formatting in README files for consistency
+- Fix split-view scroll calculation using region height
+- Fix undo operation reliability issues
+- Fix git panel newline shortcut from ctrl+enter to ctrl+j
+- Fix compile warnings with `[[maybe_unused]]` attribute
+
+For detailed getting started documentation, refer to [QUICKSTART](QUICKSTART.md)
+
+
 ## [0.0.6] - 2026-04-24
 
 
