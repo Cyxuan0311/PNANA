@@ -53,6 +53,10 @@ class TUIConfigManager {
     // 打开指定配置
     void openConfig(const TUIConfig& config);
 
+    // 加载用户自定义工具路径覆盖配置（来自 ~/.config/pnana/tool_paths.json）
+    // 同名工具覆盖内置路径，不同名工具新增到弹窗列表
+    void loadUserToolPaths(const std::string& path = "");
+
   private:
     std::vector<TUIConfig> tui_configs_;
     std::function<void(const std::string&)> config_open_callback_;
@@ -105,6 +109,15 @@ class TUIConfigManager {
 
     // 展开路径（处理~和环境变量）
     std::filesystem::path expandPath(const std::string& path) const;
+
+    // 获取用户 tool_paths.json 路径
+    std::string getUserToolPath() const;
+
+    // 获取内置默认 tool_paths.json 模板路径
+    std::string getDefaultToolPath() const;
+
+    // 解析用户 tool_paths.json 内容并应用到内置列表
+    void parseUserToolPaths(const std::string& json_content);
 };
 
 } // namespace features

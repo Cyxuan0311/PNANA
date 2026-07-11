@@ -1,5 +1,8 @@
 #include "features/tui_config_manager.h"
 #include <algorithm>
+#include <cctype>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 
 namespace pnana {
@@ -1334,6 +1337,151 @@ std::filesystem::path TUIConfigManager::expandPath(const std::string& path) cons
     }
 
     return std::filesystem::path(expanded);
+}
+
+void TUIConfigManager::loadUserToolPaths(const std::string& path) {
+    std::string file_path = path.empty() ? getUserToolPath() : path;
+
+    if (!std::filesystem::exists(file_path)) {
+        std::string default_path = getDefaultToolPath();
+        if (std::filesystem::exists(default_path)) {
+            try {
+                std::filesystem::create_directories(std::filesystem::path(file_path).parent_path());
+                std::filesystem::copy(default_path, file_path,
+                                      std::filesystem::copy_options::overwrite_existing);
+            } catch (...) {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    std::ifstream file(file_path);
+    if (!file.is_open())
+        return;
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+
+    parseUserToolPaths(buffer.str());
+}
+
+std::string TUIConfigManager::getUserToolPath() const {
+    const char* home = std::getenv("HOME");
+    return home ? std::string(home) + "/.config/pnana/tool_paths.json" : "tool_paths.json";
+}
+
+std::string TUIConfigManager::getDefaultToolPath() const {
+    return "config/default_tool_paths.json";
+}
+
+void TUIConfigManager::parseUserToolPaths(const std::string& json_content) {
+    std::string cleaned;
+    bool in_string = false;
+    for (char c : json_content) {
+        if (c == '"')
+            in_string = !in_string;
+        if (in_string || !std::isspace(static_cast<unsigned char>(c)))
+            cleaned += c;
+    }
+
+    auto findMatchingBrace = [&](size_t start, char open, char close) -> size_t {
+        if (start >= cleaned.size() || cleaned[start] != open)
+            return std::string::npos;
+        int depth = 1;
+        size_t pos = start + 1;
+        bool str_mode = false;
+        while (depth > 0 && pos < cleaned.size()) {
+            if (cleaned[pos] == '"')
+                str_mode = !str_mode;
+            if (!str_mode) {
+                if (cleaned[pos] == open)
+                    depth++;
+                else if (cleaned[pos] == close)
+                    depth--;
+            }
+            pos++;
+        }
+        return depth == 0 ? pos - 1 : std::string::npos;
+    };
+
+    auto extractStr = [&](const std::string& key, size_t region_start,
+                          size_t region_end) -> std::string {
+        std::string search = "\"" + key + "\":\"";
+        size_t p = cleaned.find(search, region_start);
+        if (p == std::string::npos || p >= region_end)
+            return "";
+        p += search.size();
+        size_t e = cleaned.find("\"", p);
+        if (e == std::string::npos || e > region_end)
+            return "";
+        return cleaned.substr(p, e - p);
+    };
+
+    auto extractStrArray = [&](const std::string& key, size_t region_start,
+                               size_t region_end) -> std::vector<std::string> {
+        std::vector<std::string> result;
+        std::string search = "\"" + key + "\":[";
+        size_t arr_start = cleaned.find(search, region_start);
+        if (arr_start == std::string::npos || arr_start >= region_end)
+            return result;
+        arr_start += search.size();
+        size_t arr_end = findMatchingBrace(arr_start - 1, '[', ']');
+        if (arr_end == std::string::npos || arr_end > region_end)
+            return result;
+        std::string content = cleaned.substr(arr_start, arr_end - arr_start);
+        size_t p = 0;
+        while ((p = content.find("\"", p)) != std::string::npos) {
+            p++;
+            size_t e = content.find("\"", p);
+            if (e == std::string::npos)
+                break;
+            result.push_back(content.substr(p, e - p));
+            p = e + 1;
+        }
+        return result;
+    };
+
+    size_t pos = 0;
+    while ((pos = cleaned.find("{", pos)) != std::string::npos) {
+        size_t brace_end = findMatchingBrace(pos, '{', '}');
+        if (brace_end == std::string::npos)
+            break;
+
+        std::string name = extractStr("name", pos, brace_end);
+        if (name.empty()) {
+            pos = brace_end + 1;
+            continue;
+        }
+
+        std::vector<std::string> paths = extractStrArray("config_paths", pos, brace_end);
+        if (paths.empty()) {
+            pos = brace_end + 1;
+            continue;
+        }
+
+        bool found = false;
+        for (auto& config : tui_configs_) {
+            if (config.name == name) {
+                config.config_paths = paths;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            TUIConfig new_config;
+            new_config.name = name;
+            new_config.display_name = name;
+            new_config.description = "User-defined";
+            new_config.config_paths = paths;
+            new_config.category = "custom";
+            tui_configs_.push_back(new_config);
+        }
+
+        pos = brace_end + 1;
+    }
 }
 
 } // namespace features

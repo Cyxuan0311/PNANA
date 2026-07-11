@@ -1,0 +1,12 @@
+[
+  {
+    "_comment": "User-defined tool config path overrides for TUI Config popup.",
+    "_comment_name": "Use the same name as a built-in tool to override its paths.",
+    "_comment_new": "Use a new name to add an extra tool entry to the popup.",
+    "_comment_format": "Each entry: {\"name\": \"tool-name\", \"config_paths\": [\"path1\", \"path2\"]}"
+  },
+  {
+    "name": "fzf",
+    "config_paths": ["~/.fzfrc", "~/.config/fzf/fzf.bash"]
+  }
+]

@@ -1039,6 +1039,12 @@ configure_file(
     COPYONLY
 )
 
+configure_file(
+    ${CMAKE_SOURCE_DIR}/config/default_tool_paths.json
+    ${CMAKE_BINARY_DIR}/default_tool_paths.json
+    COPYONLY
+)
+
 # 复制插件文件到构建目录
 file(GLOB_RECURSE PLUGIN_FILES "${CMAKE_SOURCE_DIR}/plugins/*")
 foreach(PLUGIN_FILE ${PLUGIN_FILES})
@@ -1103,6 +1109,13 @@ install(FILES
     DESTINATION .config/pnana/
     COMPONENT config
     RENAME config.json
+)
+
+install(FILES
+    ${CMAKE_SOURCE_DIR}/config/default_tool_paths.json
+    DESTINATION .config/pnana/
+    COMPONENT config
+    RENAME tool_paths.json
 )
 
 # 插件现在直接安装到用户目录
