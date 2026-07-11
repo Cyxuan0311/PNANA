@@ -97,7 +97,9 @@ void Editor::moveCursorUp() {
     }
     if (!doc->isLineInFoldedRange(static_cast<int>(prev))) {
         cursor_row_ = prev;
-        adjustCursor();
+        // Nano风格：使用期望列定位，超出行长时 clamp 到行尾
+        size_t line_len = doc->getLine(cursor_row_).length();
+        cursor_col_ = std::min(preferred_col_, line_len);
         adjustViewOffset();
     }
 
@@ -128,7 +130,9 @@ void Editor::moveCursorDown() {
     }
     if (next < total && !doc->isLineInFoldedRange(static_cast<int>(next))) {
         cursor_row_ = next;
-        adjustCursor();
+        // Nano风格：使用期望列定位，超出行长时 clamp 到行尾
+        size_t line_len = doc->getLine(cursor_row_).length();
+        cursor_col_ = std::min(preferred_col_, line_len);
         adjustViewOffset();
     }
 
@@ -168,10 +172,12 @@ void Editor::moveCursorLeft() {
         }
 
         cursor_col_ = new_pos;
+        preferred_col_ = cursor_col_;
         adjustViewOffset();
     } else if (cursor_row_ > 0) {
         cursor_row_--;
         cursor_col_ = doc->getLine(cursor_row_).length();
+        preferred_col_ = cursor_col_;
         adjustCursor();
         // 跨行移动时调整视图
         adjustViewOffset();
@@ -207,10 +213,12 @@ void Editor::moveCursorRight() {
         }
 
         cursor_col_ = new_pos;
+        preferred_col_ = cursor_col_;
         adjustViewOffset();
     } else if (cursor_row_ < doc->lineCount() - 1) {
         cursor_row_++;
         cursor_col_ = 0;
+        preferred_col_ = cursor_col_;
         adjustCursor();
         // 跨行移动时调整视图
         adjustViewOffset();
@@ -344,6 +352,7 @@ void Editor::moveCursorLineStart() {
     }
 
     cursor_col_ = 0;
+    preferred_col_ = cursor_col_;
     // 行首/行尾移动时也检查视图，确保光标可见
     adjustViewOffset();
 
@@ -358,6 +367,7 @@ void Editor::moveCursorLineEnd() {
     }
 
     cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
+    preferred_col_ = cursor_col_;
     // 行首/行尾移动时也检查视图，确保光标可见
     adjustViewOffset();
 
@@ -373,6 +383,7 @@ void Editor::moveCursorFileStart() {
 
     cursor_row_ = 0;
     cursor_col_ = 0;
+    preferred_col_ = cursor_col_;
     adjustViewOffset();
 
     // 更新单词高亮
@@ -387,6 +398,7 @@ void Editor::moveCursorFileEnd() {
 
     cursor_row_ = getCurrentDocument()->lineCount() - 1;
     cursor_col_ = getCurrentDocument()->getLine(cursor_row_).length();
+    preferred_col_ = cursor_col_;
     adjustViewOffset();
 
     // 更新单词高亮
@@ -459,6 +471,7 @@ void Editor::gotoLine(size_t line) {
     if (line > 0 && line <= getCurrentDocument()->lineCount()) {
         cursor_row_ = line - 1;
         cursor_col_ = 0;
+        preferred_col_ = cursor_col_;
         adjustViewOffset();
         setStatusMessage("Jumped to line " + std::to_string(line));
     }

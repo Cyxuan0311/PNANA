@@ -80,6 +80,7 @@ bool Editor::openFile(const std::string& filepath) {
         document_manager_.switchToDocument(doc_index);
         cursor_row_ = 0;
         cursor_col_ = 0;
+        preferred_col_ = 0;
         view_offset_row_ = 0;
         view_offset_col_ = 0;
         syntax_highlighter_.setFileType(getFileType());
@@ -130,6 +131,7 @@ bool Editor::openFileInternal(const std::string& filepath) {
 
         cursor_row_ = 0;
         cursor_col_ = 0;
+        preferred_col_ = 0;
         view_offset_row_ = 0;
         view_offset_col_ = 0;
 
@@ -510,6 +512,7 @@ void Editor::newFile() {
     document_manager_.createNewDocument();
     cursor_row_ = 0;
     cursor_col_ = 0;
+    preferred_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
 
@@ -685,6 +688,7 @@ void Editor::closeCurrentTab() {
         setStatusMessage(std::string(pnana::ui::icons::CLOSE) + " Tab closed");
         cursor_row_ = 0;
         cursor_col_ = 0;
+        preferred_col_ = 0;
         view_offset_row_ = 0;
         view_offset_col_ = 0;
     } else {
@@ -724,6 +728,7 @@ void Editor::switchToNextTab() {
 
     cursor_row_ = 0;
     cursor_col_ = 0;
+    preferred_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
     Document* doc = getCurrentDocument();
@@ -767,6 +772,7 @@ void Editor::switchToPreviousTab() {
 
     cursor_row_ = 0;
     cursor_col_ = 0;
+    preferred_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
     Document* doc = getCurrentDocument();
@@ -782,6 +788,7 @@ void Editor::switchToTab(size_t index) {
     document_manager_.switchToDocument(index);
     cursor_row_ = 0;
     cursor_col_ = 0;
+    preferred_col_ = 0;
     view_offset_row_ = 0;
     view_offset_col_ = 0;
 }

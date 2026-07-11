@@ -90,8 +90,8 @@ Editor::Editor()
 #ifdef BUILD_LSP_SUPPORT
       symbol_navigation_popup_(theme_), lsp_status_popup_(theme_),
 #endif
-      mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), view_offset_row_(0),
-      view_offset_col_(0), show_theme_menu_(false), show_logo_menu_(false),
+      mode_(EditorMode::NORMAL), cursor_row_(0), cursor_col_(0), preferred_col_(0),
+      view_offset_row_(0), view_offset_col_(0), show_theme_menu_(false), show_logo_menu_(false),
       show_animation_menu_(false), show_statusbar_style_menu_(false), show_help_(false),
       show_create_folder_(false), show_save_as_(false), show_move_file_(false),
       show_extract_dialog_(false), show_extract_path_dialog_(false),
@@ -666,6 +666,9 @@ void Editor::loadConfig(const std::string& config_path) {
 void Editor::applyLoadedConfig() {
     // 注入配置中的自定义 Logo（供欢迎页与 Logo 菜单使用）
     features::LogoManager::setCustomLogos(config_manager_.getConfig().custom_logos);
+
+    // 加载用户自定义工具路径覆盖（来自 tool_paths.json）
+    tui_config_manager_.loadUserToolPaths();
 
     // 从配置获取主题名称并应用
     const auto& config = config_manager_.getConfig();
@@ -3089,6 +3092,7 @@ void Editor::saveCurrentRegionState() {
         // 初始化新区域的状态为默认值
         region_states_[region_index].cursor_row = 0;
         region_states_[region_index].cursor_col = 0;
+        region_states_[region_index].preferred_col = 0;
         region_states_[region_index].view_offset_row = 0;
         region_states_[region_index].view_offset_col = 0;
         // 初始化单词高亮状态
@@ -3102,6 +3106,7 @@ void Editor::saveCurrentRegionState() {
     // 保存当前状态
     region_states_[region_index].cursor_row = cursor_row_;
     region_states_[region_index].cursor_col = cursor_col_;
+    region_states_[region_index].preferred_col = preferred_col_;
     region_states_[region_index].view_offset_row = view_offset_row_;
     region_states_[region_index].view_offset_col = view_offset_col_;
 
@@ -3114,6 +3119,7 @@ void Editor::restoreRegionState(size_t region_index) {
         // 如果没有保存的状态，使用默认值
         cursor_row_ = 0;
         cursor_col_ = 0;
+        preferred_col_ = 0;
         view_offset_row_ = 0;
         view_offset_col_ = 0;
         // 清除单词高亮
@@ -3132,6 +3138,7 @@ void Editor::restoreRegionState(size_t region_index) {
     // 恢复状态
     cursor_row_ = region_states_[region_index].cursor_row;
     cursor_col_ = region_states_[region_index].cursor_col;
+    preferred_col_ = region_states_[region_index].preferred_col;
     view_offset_row_ = region_states_[region_index].view_offset_row;
     view_offset_col_ = region_states_[region_index].view_offset_col;
 

@@ -533,6 +533,7 @@ class Editor {
     struct RegionState {
         size_t cursor_row = 0;
         size_t cursor_col = 0;
+        size_t preferred_col = 0;
         size_t view_offset_row = 0;
         size_t view_offset_col = 0;
 
@@ -666,6 +667,7 @@ class Editor {
     EditorMode mode_;
     size_t cursor_row_;
     size_t cursor_col_;
+    size_t preferred_col_;
     size_t view_offset_row_;
     size_t view_offset_col_;
 

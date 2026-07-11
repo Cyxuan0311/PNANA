@@ -1229,7 +1229,8 @@ void Editor::handleNormalMode(Event event) {
         // 直接移动光标，不调用 moveCursorUp（避免取消选中）
         if (cursor_row_ > 0) {
             cursor_row_--;
-            adjustCursor();
+            size_t line_len = getCurrentDocument()->getLine(cursor_row_).length();
+            cursor_col_ = std::min(preferred_col_, line_len);
             adjustViewOffset();
         }
     } else if (event == Event::ArrowDownCtrl) {
@@ -1244,7 +1245,8 @@ void Editor::handleNormalMode(Event event) {
         // 直接移动光标，不调用 moveCursorDown（避免取消选中）
         if (cursor_row_ < getCurrentDocument()->lineCount() - 1) {
             cursor_row_++;
-            adjustCursor();
+            size_t line_len = getCurrentDocument()->getLine(cursor_row_).length();
+            cursor_col_ = std::min(preferred_col_, line_len);
             adjustViewOffset();
         }
     } else if (event == Event::ArrowLeftCtrl) {
