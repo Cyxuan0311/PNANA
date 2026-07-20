@@ -72,18 +72,23 @@ git submodule update --init --recursive  # Initialize submodules
 
 ### Image Preview (-DBUILD_IMAGE_PREVIEW=ON)
 
-**Dependencies**: FFmpeg dev libraries (libavformat, libavcodec, libswscale, libavutil)
+**Dependencies**: Chafa image processing library
 
-**Ubuntu/Debian** `sudo apt install libavformat-dev libavcodec-dev libswscale-dev libavutil-dev`  
-**Fedora/RHEL** `sudo dnf install ffmpeg-devel`  
-**macOS** `brew install ffmpeg`
+**Ubuntu/Debian** `sudo apt install libchafa-dev`  
+**Fedora/RHEL** `sudo dnf install chafa-devel`  
+**macOS** `brew install chafa`
+
+**Verify**: `pkg-config --modversion chafa`
 
 ### Tree-sitter Syntax Highlighting (-DBUILD_TREE_SITTER=ON)
 
 **Dependencies**: Tree-sitter dev library
 
 **Ubuntu/Debian** `sudo apt install libtree-sitter-dev`  
+**Fedora/RHEL** `sudo dnf install tree-sitter-devel`  
 **macOS** `brew install tree-sitter`
+
+**Verify**: `pkg-config --modversion tree-sitter`
 
 Falls back to built-in highlighter when disabled.
 
@@ -123,6 +128,36 @@ No extra dependencies required, uses system SSH commands as fallback.
 **Fedora/RHEL** `sudo dnf install libcurl-devel`  
 **macOS** `brew install curl`
 
+### libvterm Terminal Emulation (-DBUILD_LIBVTERM=ON)
+
+**Dependencies**: libvterm development library
+
+**Ubuntu/Debian** `sudo apt install libvterm-dev`  
+**Fedora/RHEL** `sudo dnf install libvterm-devel`  
+**macOS** `brew install libvterm`
+
+Used for full terminal emulation support.
+
+**Verify**: `pkg-config --modversion vterm`
+
+### Terminal Image Protocol (-DBUILD_IMAGE_PROTOCOL=ON)
+
+**Dependencies**: libsixel (optional, for Sixel encoding)
+
+**Ubuntu/Debian** `sudo apt install libsixel-dev`  
+**Fedora/RHEL** `sudo dnf install libsixel-devel`  
+**macOS** `brew install libsixel`
+
+Supports Kitty, iTerm2, and Sixel terminal image protocols. Falls back to built-in encoding if libsixel is not found.
+
+### Nerd Font Icons (-DBUILD_ICON_SUPPORT=ON, default: ON)
+
+**Dependencies**: None (Nerd Font glyphs are embedded as Unicode strings)
+
+When enabled (default), uses Nerd Font Unicode characters for file type and UI icons.
+When disabled (`-DBUILD_ICON_SUPPORT=OFF`), uses ASCII character fallbacks instead.
+A Nerd Font patched terminal font is required at runtime to display icons correctly.
+
 ### iconv (auto-detected, optional)
 
 Used for encoding conversion. Falls back to built-in implementation if not found. Usually included in Linux glibc, no extra install needed.
@@ -137,7 +172,6 @@ These are included in the source tree; no separate installation:
 |---------|------|---------|
 | nlohmann/json | `third-party/nlohmann/json.hpp` | JSON, LSP & AI config |
 | jsonrpccxx | `third-party/JSON-RPC-CXX` | JSON-RPC, LSP |
-| md4c | `third-party/md4c/` | Markdown parsing |
 | stb | `third-party/dsa/stb_image.h` | Image handling |
 
 ---
@@ -148,12 +182,15 @@ These are included in the source tree; no separate installation:
 
 ```bash
 ./build.sh                                    # Basic build (LSP auto-detected)
+./build.sh BUILD_ICON_SUPPORT=OFF             # ASCII icons (disable Nerd Font)
 ./build.sh BUILD_IMAGE_PREVIEW=ON             # Image preview
+./build.sh BUILD_IMAGE_PROTOCOL=ON            # Terminal image protocol
 ./build.sh BUILD_TREE_SITTER=ON               # Tree-sitter
 ./build.sh BUILD_LUA=ON                       # Lua plugins
 ./build.sh BUILD_SSH_MODE=GO                  # Go SSH module
 ./build.sh BUILD_SSH_MODE=CPP                 # C++ SSH module (libssh2)
 ./build.sh BUILD_SSH_MODE=NONE                # No SSH (default)
+./build.sh BUILD_LIBVTERM=ON                  # libvterm terminal emulation
 ./build.sh BUILD_AI_CLIENT=ON                 # AI client
 ./build.sh --clean BUILD_LUA=ON               # Clean then build
 ./build.sh --clean --install BUILD_AI_CLIENT=ON  # Build and install
@@ -167,10 +204,13 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 
 # Enable optional features
 cmake .. -DBUILD_IMAGE_PREVIEW=ON \
+        -DBUILD_IMAGE_PROTOCOL=ON \
         -DBUILD_TREE_SITTER=ON \
         -DBUILD_LUA=ON \
         -DBUILD_SSH_MODE=GO \
-        -DBUILD_AI_CLIENT=ON
+        -DBUILD_LIBVTERM=ON \
+        -DBUILD_AI_CLIENT=ON \
+        -DBUILD_ICON_SUPPORT=ON
 
 make -j$(nproc)
 ```
@@ -179,10 +219,13 @@ make -j$(nproc)
 
 | Option | Default | Depends On | Feature |
 |--------|---------|------------|---------|
+| `BUILD_ICON_SUPPORT` | ON | None (Nerd Font glyphs embedded) | Nerd Font icons |
 | `BUILD_IMAGE_PREVIEW` | OFF | Chafa | Image preview |
+| `BUILD_IMAGE_PROTOCOL` | OFF | libsixel (optional) | Terminal image protocol |
 | `BUILD_TREE_SITTER` | OFF | Tree-sitter | Syntax highlighting |
 | `BUILD_LUA` | OFF | Lua 5.3/5.4 | Lua plugins |
 | `BUILD_SSH_MODE` | NONE | Go/libssh2 | SSH module (GO/CPP/NONE) |
+| `BUILD_LIBVTERM` | OFF | libvterm | Terminal emulation |
 | `BUILD_AI_CLIENT` | OFF | libcurl | AI client |
 
 LSP is determined by bundled nlohmann/json and jsonrpccxx; there is no separate option.
@@ -201,12 +244,17 @@ LSP is determined by bundled nlohmann/json and jsonrpccxx; there is no separate 
 | Tree-sitter | 0.20+ | Optional (-DBUILD_TREE_SITTER=ON) |
 | Chafa | 1.12+ | Optional (-DBUILD_IMAGE_PREVIEW=ON) |
 | Lua | 5.3 / 5.4 | Optional (-DBUILD_LUA=ON) |
-| Go | 1.21+ | Optional (-DBUILD_SSH_MODE=GO) |
+| libsixel | Latest | Optional (-DBUILD_IMAGE_PROTOCOL=ON, auto-detected) |
+| libvterm | 0.3+ | Optional (-DBUILD_LIBVTERM=ON) |
 | libssh2 | 1.9+ | Optional (-DBUILD_SSH_MODE=CPP) |
+| Go | 1.18+ | Optional (-DBUILD_SSH_MODE=GO) |
 | libcurl | Latest | Optional (-DBUILD_AI_CLIENT=ON) |
 | iconv | - | Optional (auto-detected) |
+| libatomic | - | Optional (RISC-V requires explicit link) |
 | nlohmann/json | 3.x | Bundled (third-party) |
 | jsonrpccxx | Latest | Bundled (third-party) |
+| github.com/pkg/sftp | v1.13.10 | Go SSH module (transitive) |
+| golang.org/x/crypto | v0.47.0 | Go SSH module (transitive) |
 
 ---
 
@@ -216,7 +264,7 @@ LSP is determined by bundled nlohmann/json and jsonrpccxx; there is no separate 
 
 **A**: Check the CMake configuration output. Example:
 ```
-✓ FFmpeg found - image preview enabled
+✓ Chafa found - image preview enabled
 ✓ Tree-sitter found - syntax highlighting enabled
 ✓ Lua found - plugin system enabled
 LSP support enabled (using local third-party libraries)

@@ -78,12 +78,17 @@ git submodule update --init --recursive  # 初始化子模块
 **Fedora/RHEL** `sudo dnf install chafa-devel`  
 **macOS** `brew install chafa`
 
+**验证**：`pkg-config --modversion chafa`
+
 ### Tree-sitter 语法高亮（-DBUILD_TREE_SITTER=ON）
 
 **依赖**：Tree-sitter 开发库
 
 **Ubuntu/Debian** `sudo apt install libtree-sitter-dev`  
+**Fedora/RHEL** `sudo dnf install tree-sitter-devel`  
 **macOS** `brew install tree-sitter`
+
+**验证**：`pkg-config --modversion tree-sitter`
 
 未启用时使用内置语法高亮器。
 
@@ -125,6 +130,28 @@ git submodule update --init --recursive  # 初始化子模块
 
 用于完整的终端模拟功能。
 
+**验证**：`pkg-config --modversion vterm`
+
+### 终端图像协议（-DBUILD_IMAGE_PROTOCOL=ON）
+
+**依赖**：libsixel（可选，用于 Sixel 编码）
+
+**Ubuntu/Debian** `sudo apt install libsixel-dev`  
+**Fedora/RHEL** `sudo dnf install libsixel-devel`  
+**macOS** `brew install libsixel`
+
+支持 Kitty、iTerm2 和 Sixel 终端图像协议。若 libsixel 未安装则使用内置编码。
+
+**注意**：在支持 Kitty 图像协议的终端中可能存在渲染残留问题，按 F3 输入 proto 可关闭协议。
+
+### Nerd Font 图标（-DBUILD_ICON_SUPPORT=ON，默认：ON）
+
+**依赖**：无（Nerd Font 字形以 Unicode 字符串内嵌）
+
+启用时（默认），使用 Nerd Font Unicode 字符显示文件类型和 UI 图标。
+关闭时（`-DBUILD_ICON_SUPPORT=OFF`），使用 ASCII 字符替代。
+运行时需终端安装 Nerd Font 字体才能正常显示图标。
+
 ### AI 客户端（-DBUILD_AI_CLIENT=ON）
 
 **依赖**：libcurl
@@ -147,9 +174,7 @@ git submodule update --init --recursive  # 初始化子模块
 |----|------|------|
 | nlohmann/json | `third-party/nlohmann/json.hpp` | JSON，LSP 与 AI 配置 |
 | jsonrpccxx | `third-party/JSON-RPC-CXX` | JSON-RPC，LSP |
-| md4c | `third-party/md4c/` | Markdown 解析 |
 | stb | `third-party/dsa/stb_image.h` | 图像处理 |
-| ftxui | `third-party/ftxui/` | 终端 UI 框架（备用） |
 
 ---
 
@@ -159,7 +184,9 @@ git submodule update --init --recursive  # 初始化子模块
 
 ```bash
 ./build.sh                                    # 基础编译（LSP 自动检测）
+./build.sh BUILD_ICON_SUPPORT=OFF             # ASCII 图标（禁用 Nerd Font）
 ./build.sh BUILD_IMAGE_PREVIEW=ON             # 图片预览（Chafa）
+./build.sh BUILD_IMAGE_PROTOCOL=ON            # 终端图像协议
 ./build.sh BUILD_TREE_SITTER=ON               # Tree-sitter
 ./build.sh BUILD_LUA=ON                       # Lua 插件
 ./build.sh BUILD_SSH_MODE=GO                  # Go SSH 模块
@@ -179,11 +206,13 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 
 # 启用可选功能
 cmake .. -DBUILD_IMAGE_PREVIEW=ON \
+        -DBUILD_IMAGE_PROTOCOL=ON \
         -DBUILD_TREE_SITTER=ON \
         -DBUILD_LUA=ON \
         -DBUILD_SSH_MODE=GO \
         -DBUILD_LIBVTERM=ON \
-        -DBUILD_AI_CLIENT=ON
+        -DBUILD_AI_CLIENT=ON \
+        -DBUILD_ICON_SUPPORT=ON
 
 make -j$(nproc)
 ```
@@ -192,7 +221,9 @@ make -j$(nproc)
 
 | 选项 | 默认 | 依赖 | 功能 |
 |------|------|------|------|
+| `BUILD_ICON_SUPPORT` | ON | 无（Nerd Font 内嵌） | Nerd Font 图标 |
 | `BUILD_IMAGE_PREVIEW` | OFF | Chafa | 图片预览 |
+| `BUILD_IMAGE_PROTOCOL` | OFF | libsixel（可选） | 终端图像协议 |
 | `BUILD_TREE_SITTER` | OFF | Tree-sitter | 语法高亮 |
 | `BUILD_LUA` | OFF | Lua 5.3/5.4 | Lua 插件 |
 | `BUILD_SSH_MODE` | NONE | Go/libssh2 | SSH 模块（GO/CPP/NONE） |
@@ -215,13 +246,17 @@ LSP 由内置 nlohmann/json 与 jsonrpccxx 决定，无单独选项。
 | Chafa | 1.12+ | 可选（-DBUILD_IMAGE_PREVIEW=ON） |
 | Tree-sitter | 0.20+ | 可选（-DBUILD_TREE_SITTER=ON） |
 | Lua | 5.3 / 5.4 | 可选（-DBUILD_LUA=ON） |
-| Go | 1.21+ | 可选（-DBUILD_SSH_MODE=GO） |
-| libssh2 | 1.9+ | 可选（-DBUILD_SSH_MODE=CPP） |
+| libsixel | 最新 | 可选（-DBUILD_IMAGE_PROTOCOL=ON，自动检测） |
 | libvterm | 0.3+ | 可选（-DBUILD_LIBVTERM=ON） |
+| libssh2 | 1.9+ | 可选（-DBUILD_SSH_MODE=CPP） |
+| Go | 1.18+ | 可选（-DBUILD_SSH_MODE=GO） |
 | libcurl | 最新 | 可选（-DBUILD_AI_CLIENT=ON） |
 | iconv | - | 可选（自动检测） |
+| libatomic | - | 可选（RISC-V 架构需显式链接） |
 | nlohmann/json | 3.x | 内置（third-party） |
 | jsonrpccxx | 最新 | 内置（third-party） |
+| github.com/pkg/sftp | v1.13.10 | Go SSH 模块（传递依赖） |
+| golang.org/x/crypto | v0.47.0 | Go SSH 模块（传递依赖） |
 
 ---
 
@@ -231,7 +266,7 @@ LSP 由内置 nlohmann/json 与 jsonrpccxx 决定，无单独选项。
 
 **A**: 配置阶段会输出状态，例如：
 ```
-✓ FFmpeg found - image preview enabled
+✓ Chafa found - image preview enabled
 ✓ Tree-sitter found - syntax highlighting enabled
 ✓ Lua found - plugin system enabled
 LSP support enabled (using local third-party libraries)
