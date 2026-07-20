@@ -83,6 +83,14 @@ configure_cmake() {
     local cmake_args=(-DCMAKE_BUILD_TYPE=Release)
     
     # 添加用户指定的 CMake 选项
+    if [ "$BUILD_ICON_SUPPORT" = "ON" ]; then
+        cmake_args+=(-DBUILD_ICON_SUPPORT=ON)
+        print_info "  - Nerd Font icons: ENABLED"
+    elif [ "$BUILD_ICON_SUPPORT" = "OFF" ]; then
+        cmake_args+=(-DBUILD_ICON_SUPPORT=OFF)
+        print_info "  - Nerd Font icons: DISABLED (using ASCII fallback)"
+    fi
+    
     if [ "$BUILD_IMAGE_PREVIEW" = "ON" ]; then
         cmake_args+=(-DBUILD_IMAGE_PREVIEW=ON)
         print_info "  - Image preview support: ENABLED"
@@ -204,6 +212,7 @@ show_help() {
     echo "  --install        Install the project after building"
     echo ""
     echo "CMake Options (enable features):"
+    echo "  BUILD_ICON_SUPPORT=ON     Enable Nerd Font icons (default: ON, set OFF for ASCII)"
     echo "  BUILD_IMAGE_PREVIEW=ON    Enable image preview support (requires chafa)"
     echo "  BUILD_TREE_SITTER=ON      Enable Tree-sitter syntax highlighting"
     echo "  BUILD_LUA=ON              Enable Lua plugin system"
@@ -234,6 +243,28 @@ interactive_feature_selection() {
     print_info "=== Interactive Feature Selection ==="
     echo "Please choose which features to enable (y/n):"
     echo ""
+
+    # Nerd Font 图标
+    while true; do
+        read -p "  Enable Nerd Font icons? (set OFF for ASCII fallback) [Y/n]: " choice
+        case "$choice" in
+            [Yy]*|"")
+                BUILD_ICON_SUPPORT="ON"
+                BUILD_ICON_SUPPORT_SET=true
+                print_info "  -> Nerd Font icons: ENABLED"
+                break
+                ;;
+            [Nn]*)
+                BUILD_ICON_SUPPORT="OFF"
+                BUILD_ICON_SUPPORT_SET=true
+                print_info "  -> Nerd Font icons: DISABLED (ASCII fallback)"
+                break
+                ;;
+            *)
+                print_warning "Please enter y or n."
+                ;;
+        esac
+    done
 
     # 图片预览
     while true; do
@@ -515,6 +546,7 @@ main() {
     local interactive_mode=false
     
     # 初始化 CMake 选项变量（空表示未由用户显式设置）
+    BUILD_ICON_SUPPORT=""
     BUILD_IMAGE_PREVIEW=""
     BUILD_TREE_SITTER=""
     BUILD_LUA=""
@@ -523,6 +555,7 @@ main() {
     BUILD_LIBVTERM=""
     BUILD_PERFORMANCE_TESTS=""
     # 标记每个选项是否由用户显式设置（用于 --all 后允许显式覆盖）
+    BUILD_ICON_SUPPORT_SET=false
     BUILD_IMAGE_PREVIEW_SET=false
     BUILD_TREE_SITTER_SET=false
     BUILD_LUA_SET=false
@@ -554,12 +587,17 @@ main() {
                 show_help
                 exit 0
                 ;;
-            BUILD_IMAGE_PREVIEW=*)
+             BUILD_ICON_SUPPORT=*)
+                BUILD_ICON_SUPPORT="${1#*=}"
+                BUILD_ICON_SUPPORT_SET=true
+                shift
+                ;;
+             BUILD_IMAGE_PREVIEW=*)
                 BUILD_IMAGE_PREVIEW="${1#*=}"
                 BUILD_IMAGE_PREVIEW_SET=true
                 shift
                 ;;
-            BUILD_TREE_SITTER=*)
+             BUILD_TREE_SITTER=*)
                 BUILD_TREE_SITTER="${1#*=}"
                 BUILD_TREE_SITTER_SET=true
                 shift
@@ -605,6 +643,7 @@ main() {
     # 如果启用了 --all，则将未显式设置的 BUILD_* 选项置为 ON（允许用户在命令行中显式覆盖）
     if [ "$build_all" = true ]; then
         print_info "--all: enabling all optional CMake features (unless explicitly set)."
+        if [ "$BUILD_ICON_SUPPORT_SET" = false ]; then BUILD_ICON_SUPPORT="ON"; fi
         if [ "$BUILD_IMAGE_PREVIEW_SET" = false ]; then BUILD_IMAGE_PREVIEW="ON"; fi
         if [ "$BUILD_TREE_SITTER_SET" = false ]; then BUILD_TREE_SITTER="ON"; fi
         if [ "$BUILD_LUA_SET" = false ]; then BUILD_LUA="ON"; fi

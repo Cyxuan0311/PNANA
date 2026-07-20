@@ -69,6 +69,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # 检查原子操作支持（针对 RISC-V、ARM 等架构）
 include(CheckAtomic)
 
+# 图标支持（默认启用，关闭则使用 ASCII 字符替代 Nerd Font 图标）
+option(BUILD_ICON_SUPPORT "Enable Nerd Font icon support (disable for ASCII fallback)" ON)
+
 # 图片预览支持（手动启用，使用Chafa）
 option(BUILD_IMAGE_PREVIEW "Enable image preview support with Chafa" OFF)
 
@@ -884,6 +887,14 @@ check_and_configure_atomic(pnana)
 if(ARCHITECTURE STREQUAL "riscv64")
     target_link_libraries(pnana PRIVATE atomic)
     message(STATUS "RISC-V: Forcing libatomic link for atomic operations support")
+endif()
+
+# 图标支持（如果启用，使用 Nerd Font 图标；否则使用 ASCII 字符替代）
+if(BUILD_ICON_SUPPORT)
+    target_compile_definitions(pnana PRIVATE BUILD_ICON_SUPPORT)
+    message(STATUS "Nerd Font icon support: ENABLED")
+else()
+    message(STATUS "Nerd Font icon support: DISABLED (using ASCII fallback)")
 endif()
 
 # 只在找到 Chafa 时链接

@@ -34,11 +34,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `replace` and `swapLine` buffer operations
 - Add `getFileType` getter method to SyntaxHighlighter
 - Add `rawColToDisplayCol` helper method for tab handling
+- Add Nano-style preferred column tracking for vertical cursor navigation
+- Add user tool paths override via `tool_paths.json` configuration
+- Add BUILD_ICON_SUPPORT CMake option for conditional icon compilation with ASCII fallback
 - Improve markdown preview caching and rendering logic
 
 ### Improved
 
-- Restructure image preview into modular image feature with protocol support
+- Restructure image preview into modular image feature with protocol support  
+  **Note**: May cause image rendering residue issues in terminals with Kitty image protocol support. Use with caution.  
+  If you encounter problems, press `F3` to open the command palette and type `proto` to disable the image protocol.
 - Rewrite terminal rendering with builtin renderer and restructure terminal sources
 - Replace legacy terminal implementation with builtin VT100 sessions
 - Replace naive string search with KMP algorithm for syntax highlighting

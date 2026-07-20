@@ -6,6 +6,8 @@
 namespace pnana {
 namespace ui {
 namespace icons {
+#ifdef BUILD_ICON_SUPPORT
+
 
 // Nerd Font图标常量
 // 使用 JetBrains Nerd Font 的 Unicode 字符
@@ -625,6 +627,632 @@ constexpr const char* CALENDAR_ALT = "\uf073"; // nf-fa-calendar (日历替代)
 constexpr const char* CLOCK_ALT = "\uf017";    // nf-fa-clock-o (时钟替代)
 constexpr const char* FOLDER_ALT = "\uf07b";   // nf-fa-folder (文件夹替代)
 constexpr const char* FILE_ALT = "\uf15b";     // nf-fa-file (文件替代)
+
+
+#else  // !BUILD_ICON_SUPPORT
+
+
+// Nerd Font图标常量
+// 使用 JetBrains Nerd Font 的 Unicode 字符
+// 参考: https://www.nerdfonts.com/cheat-sheet
+
+// 文件和文件夹
+constexpr const char* FOLDER = "+";  // nf-fa-folder
+constexpr const char* FOLDER_OPEN = "-";  // nf-fa-folder_open
+constexpr const char* FOLDER_UP = "^";  // nf-fa-arrow_up (上级目录)
+constexpr const char* FILE = " ";  // nf-fa-file
+constexpr const char* FILE_TEXT = "T";  // nf-fa-file_text_o
+
+// 编程语言 (使用 Devicons 或 Font Awesome)
+constexpr const char* CPP = "C++";  // nf-dev-cplusplus
+constexpr const char* C = "C";  // nf-dev-c
+constexpr const char* PYTHON = "Py";  // nf-dev-python
+constexpr const char* JAVASCRIPT = "JS";  // nf-dev-javascript
+constexpr const char* TYPESCRIPT = "TS";  // nf-dev-typescript
+constexpr const char* JAVA = "Ja";  // nf-dev-java
+constexpr const char* GO = "Go";  // nf-dev-go
+constexpr const char* RUST = "Rs";  // nf-dev-rust
+constexpr const char* RUBY = "Rb";  // nf-dev-ruby
+constexpr const char* PHP = "Ph";  // nf-dev-php
+constexpr const char* LUA = "Lu";  // nf-dev-lua
+constexpr const char* HTML = "HT";  // nf-dev-html5
+constexpr const char* CSS = "CS";  // nf-dev-css3
+constexpr const char* JSON = "Jn";  // nf-dev-json
+constexpr const char* MARKDOWN = "Md";  // nf-dev-markdown
+constexpr const char* YAML = "Yml";  // nf-mdi-code_braces
+constexpr const char* XML = "Xml";  // nf-dev-xml
+constexpr const char* SQL = "SQ";  // nf-fa-database
+constexpr const char* SHELL = "sh";  // nf-mdi-console
+constexpr const char* DOCKER = "Dk";  // nf-dev-docker
+constexpr const char* GIT = "Gi";  // nf-dev-git
+constexpr const char* GIT_BRANCH = "<>";  // nf-fa-code-fork (分支图标)
+constexpr const char* GITIGNORE = "Gi";  // nf-dev-git
+constexpr const char* CMAKE = "Cm";  // nf-mdi-console
+constexpr const char* MAKEFILE = "Mk";  // nf-mdi-console
+
+// 新增语言图标
+constexpr const char* SWIFT = "Sw";  // nf-dev-swift
+constexpr const char* KOTLIN = "Kt";  // nf-dev-kotlin
+constexpr const char* SCALA = "Sc";  // nf-dev-scala
+constexpr const char* R = "R";  // nf-dev-r (R语言)
+constexpr const char* PERL = "Pl";  // nf-dev-perl
+constexpr const char* VIM = "Vi";  // nf-dev-vim
+constexpr const char* POWERSHELL = "PS";  // nf-mdi-console
+constexpr const char* HASKELL = "Hs";  // nf-dev-haskell
+constexpr const char* TCL = "Tc";  // nf-mdi-console
+constexpr const char* FORTRAN = "Fn";  // nf-mdi-console
+
+// 更多编程语言图标
+constexpr const char* ELIXIR = "Ex";  // nf-dev-elixir
+constexpr const char* CLOJURE = "Cl";  // nf-dev-clojure
+constexpr const char* ERLANG = "Er";  // nf-dev-erlang
+constexpr const char* F_SHARP = "F#";  // nf-dev-fsharp
+constexpr const char* JULIA = "Jl";  // nf-dev-julia
+constexpr const char* DART = "Da";  // nf-dev-dart
+constexpr const char* NIM = "Ni";  // nf-dev-nim
+constexpr const char* CRYSTAL = "Cr";  // nf-dev-crystal
+constexpr const char* ZIG = "Zi";  // nf-dev-zig
+constexpr const char* OCAML = "Oc";  // nf-dev-ocaml
+constexpr const char* COQ = "Cq";  // nf-dev-coq
+constexpr const char* AGDA = "Ag";  // nf-dev-agda
+constexpr const char* IDRIS = "Id";  // nf-dev-idris
+constexpr const char* PURESCRIPT = "Pu";  // nf-dev-purescript
+constexpr const char* REASON = "Re";  // nf-dev-reason
+constexpr const char* SML = "Sm";  // nf-dev-sml
+constexpr const char* LLVM = "Lv";  // nf-dev-llvm
+constexpr const char* SCHEME = "Sk";  // nf-dev-racket
+constexpr const char* GROOVY = "Gr";  // nf-dev-groovy
+constexpr const char* CLOJURESCRIPT = "Cs";  // nf-dev-clojurescript
+constexpr const char* COFFEESCRIPT = "Cf";  // nf-dev-coffeescript
+constexpr const char* PUG = "Pg";  // nf-dev-pug
+constexpr const char* STYLUS = "St";  // nf-dev-stylus
+constexpr const char* SASS = "Sa";  // nf-dev-sass
+constexpr const char* LESS = "Le";  // nf-dev-less
+constexpr const char* POSTCSS = "Pc";  // nf-dev-postcss
+constexpr const char* GRAPHQL = "Gq";  // nf-dev-graphql
+constexpr const char* APOLLO = "\ue659";  // nf-dev-apollo
+constexpr const char* NEXTJS = "Nx";  // nf-dev-nextjs
+constexpr const char* NUXTJS = "Nu";  // nf-dev-nuxtjs
+constexpr const char* VUE = "Vu";  // nf-dev-vue
+constexpr const char* ANGULAR = "Ng";  // nf-dev-angular
+constexpr const char* REACT = "Rc";  // nf-dev-react
+constexpr const char* SVELTE = "Sv";  // nf-dev-svelte
+constexpr const char* EMBER = "Em";  // nf-dev-ember
+constexpr const char* METEOR = "Mt";  // nf-dev-meteor
+constexpr const char* AURELIA = "Au";  // nf-dev-aurelia
+constexpr const char* BACKBONE = "Bb";  // nf-dev-backbone
+constexpr const char* KNOCKOUT = "Ko";  // nf-dev-knockout
+constexpr const char* POLYMER = "Py";  // nf-dev-polymer
+constexpr const char* LIT = "Li";  // nf-dev-lit
+constexpr const char* STENCIL = "Sn";  // nf-dev-stencil
+constexpr const char* IONIC = "Io";  // nf-dev-ionic
+constexpr const char* CAPACITOR = "Ca";  // nf-dev-capacitor
+constexpr const char* CORDOVA = "Cd";  // nf-dev-cordova
+constexpr const char* ELECTRON = "El";  // nf-dev-electron
+constexpr const char* NWJS = "Nw";  // nf-dev-nwjs
+constexpr const char* TAURI = "Ta";  // nf-dev-tauri
+constexpr const char* TUXEDO = "Tx";  // nf-dev-tuxedo
+constexpr const char* DOTNET = ".N";  // nf-dev-dotnet
+constexpr const char* CSHARP = "C#";  // nf-dev-csharp
+constexpr const char* VB = "Vb";  // nf-dev-visualstudio
+constexpr const char* F_SHARP_ALT = "F#";  // nf-dev-fsharp
+constexpr const char* ASSEMBLY = "As";  // nf-mdi-chip
+constexpr const char* WEBASSEMBLY = "Wa";  // nf-dev-webassembly
+constexpr const char* VERILOG = "Vl";  // nf-mdi-memory
+constexpr const char* VHDL = "Vh";  // nf-mdi-memory
+constexpr const char* MATLAB = "Ml";  // nf-dev-matlab
+constexpr const char* OCTAVE = "Oc";  // nf-dev-matlab
+constexpr const char* RACKET = "Rk";  // nf-dev-racket
+constexpr const char* COMMON_LISP = "Lp";  // nf-dev-clisp
+constexpr const char* EMACS_LISP = "El";  // nf-dev-clisp
+constexpr const char* LOGO = "Lg";  // nf-dev-logo
+constexpr const char* PROLOG = "Pl";  // nf-dev-prolog
+constexpr const char* MERCURY = "Mc";  // nf-dev-mercury
+constexpr const char* ALLOY = "Al";  // nf-dev-alloy
+constexpr const char* Z3 = "Z3";  // nf-dev-alloy
+constexpr const char* DAFNY = "Df";  // nf-dev-dafny
+constexpr const char* WHY3 = "W3";  // nf-dev-dafny
+constexpr const char* COQ_ALT = "Cq";  // nf-dev-coq
+constexpr const char* ISABELLE = "Is";  // nf-dev-coq
+constexpr const char* HOL = "Ho";  // nf-dev-coq
+constexpr const char* LEAN = "Le";  // nf-dev-lean
+constexpr const char* TLA = "Tl";  // nf-dev-coq
+constexpr const char* B = "B";  // nf-dev-alloy
+constexpr const char* EVENT_B = "Eb";  // nf-dev-alloy
+constexpr const char* ABEL = "Ab";  // nf-dev-abel
+constexpr const char* BALLERINA = "Ba";  // nf-dev-ballerina
+constexpr const char* CADENCE = "Cd";  // nf-dev-cadence
+constexpr const char* CLARITY = "Cl";  // nf-dev-clarity
+constexpr const char* MOVE = "Mv";  // nf-dev-move
+constexpr const char* SOLIDITY = "So";  // nf-dev-solidity
+constexpr const char* VYPER = "Vy";  // nf-dev-solidity
+constexpr const char* RUST_ALT = "Rs";  // nf-dev-rust
+constexpr const char* GO_ALT = "Go";  // nf-dev-go
+constexpr const char* CARBON = "Ca";  // nf-dev-carbon
+constexpr const char* VALA = "Va";  // nf-dev-vala
+constexpr const char* GENIE = "Ge";  // nf-dev-vala
+constexpr const char* NIM_ALT = "Ni";  // nf-dev-nim
+constexpr const char* D = "D";  // nf-dev-dlang
+constexpr const char* NIMROD = "\ue677";  // nf-dev-nim
+constexpr const char* PONY = "Po";  // nf-dev-pony
+constexpr const char* V_LANG = "V";  // nf-dev-v
+constexpr const char* ODIN = "Od";  // nf-dev-v
+constexpr const char* JAI = "Ja";  // nf-dev-jai
+constexpr const char* ZIG_ALT = "Zi";  // nf-dev-zig
+constexpr const char* NELUA = "Ne";  // nf-dev-nelua
+constexpr const char* WREN = "Wr";  // nf-dev-nelua
+constexpr const char* MOONSCRIPT = "Ms";  // nf-dev-moon
+constexpr const char* FAN = "Fn";  // nf-dev-fantom
+constexpr const char* KRYPTON = "Kr";  // nf-dev-fantom
+constexpr const char* FANTOM = "Fm";  // nf-dev-fantom
+constexpr const char* SMALLTALK = "St";  // nf-dev-smalltalk
+constexpr const char* SELF = "Sf";  // nf-dev-smalltalk
+constexpr const char* NEWSPEAK = "Ns";  // nf-dev-smalltalk
+constexpr const char* IO = "IO";  // nf-dev-smalltalk
+constexpr const char* SELF_ALT = "Sf";  // nf-dev-smalltalk
+constexpr const char* PHARO = "Ph";  // nf-dev-smalltalk
+constexpr const char* SQUEAK = "Sq";  // nf-dev-smalltalk
+constexpr const char* RED = "Rd";  // nf-dev-smalltalk
+constexpr const char* REBOL = "Rb";  // nf-dev-smalltalk
+constexpr const char* APL = "AP";  // nf-dev-apl
+constexpr const char* J = "J";  // nf-dev-apl
+constexpr const char* K = "K";  // nf-dev-apl
+constexpr const char* Q = "Q";  // nf-dev-apl
+constexpr const char* KDB = "Kd";  // nf-dev-apl
+constexpr const char* QLANG = "Ql";  // nf-dev-apl
+constexpr const char* KDB_ALT = "Kd";  // nf-dev-apl
+constexpr const char* Q_ALT = "Q";  // nf-dev-apl
+
+// 更多编程语言图标（补充）
+constexpr const char* BASH = "Ba";  // nf-mdi-console
+constexpr const char* ZSH = "Zs";  // nf-mdi-console
+constexpr const char* FISH = "Fi";  // nf-mdi-console
+constexpr const char* POWERSHELL_ALT = "PS";  // nf-mdi-console
+constexpr const char* BATCH = "Bt";  // nf-mdi-console
+constexpr const char* WINDOWS_CMD = "Cm";  // nf-mdi-console
+constexpr const char* APPLESCRIPT = "As";  // nf-fa-apple
+constexpr const char* VISUAL_BASIC = "Vb";  // nf-dev-visualstudio
+constexpr const char* DELPHI = "Dp";  // nf-dev-visualstudio
+constexpr const char* PASCAL = "Pa";  // nf-dev-visualstudio
+constexpr const char* ADA = "Ad";  // nf-dev-visualstudio
+constexpr const char* COBOL = "Cb";  // nf-mdi-console
+constexpr const char* FORTH = "Fh";  // nf-mdi-console
+constexpr const char* LISP = "Li";  // nf-dev-clisp
+constexpr const char* SCHEME_ALT = "Sk";  // nf-dev-racket
+constexpr const char* CLOJURE_ALT = "Cl";  // nf-dev-clojure
+constexpr const char* ERLANG_ALT = "Er";  // nf-dev-erlang
+constexpr const char* ELIXIR_ALT = "Ex";  // nf-dev-elixir
+constexpr const char* HASKELL_ALT = "Hs";  // nf-dev-haskell
+constexpr const char* OCAML_ALT = "Oc";  // nf-dev-ocaml
+constexpr const char* F_SHARP_ALT2 = "F#";  // nf-dev-fsharp
+constexpr const char* ML = "ML";  // nf-dev-sml
+constexpr const char* COQ_ALT2 = "Cq";  // nf-dev-coq
+constexpr const char* AGDA_ALT = "Ag";  // nf-dev-agda
+constexpr const char* IDRIS_ALT = "Id";  // nf-dev-idris
+constexpr const char* LEAN_ALT = "Le";  // nf-dev-lean
+constexpr const char* ISABELLE_ALT = "Is";  // nf-dev-coq
+constexpr const char* HOL_ALT = "Ho";  // nf-dev-coq
+constexpr const char* TLA_ALT = "Tl";  // nf-dev-coq
+constexpr const char* ALLOY_ALT = "Al";  // nf-dev-alloy
+constexpr const char* Z3_ALT = "Z3";  // nf-dev-alloy
+constexpr const char* DAFNY_ALT = "Df";  // nf-dev-dafny
+constexpr const char* WHY3_ALT = "W3";  // nf-dev-dafny
+constexpr const char* BALLERINA_ALT = "Ba";  // nf-dev-ballerina
+constexpr const char* CADENCE_ALT = "Cd";  // nf-dev-cadence
+constexpr const char* CLARITY_ALT = "Cl";  // nf-dev-clarity
+constexpr const char* MOVE_ALT = "Mv";  // nf-dev-move
+constexpr const char* SOLIDITY_ALT = "So";  // nf-dev-solidity
+constexpr const char* VYPER_ALT = "Vy";  // nf-dev-solidity
+constexpr const char* CARBON_ALT = "Ca";  // nf-dev-carbon
+constexpr const char* VALA_ALT = "Va";  // nf-dev-vala
+constexpr const char* GENIE_ALT = "Ge";  // nf-dev-vala
+constexpr const char* D_ALT = "D";  // nf-dev-dlang
+constexpr const char* PONY_ALT = "Po";  // nf-dev-pony
+constexpr const char* V_ALT = "\ue6ac";  // nf-dev-v
+constexpr const char* ODIN_ALT = "Od";  // nf-dev-v
+constexpr const char* JAI_ALT = "Ja";  // nf-dev-jai
+constexpr const char* ZIG_ALT2 = "Zi";  // nf-dev-zig
+constexpr const char* NELUA_ALT = "Ne";  // nf-dev-nelua
+constexpr const char* WREN_ALT = "Wr";  // nf-dev-nelua
+constexpr const char* MOONSCRIPT_ALT = "Ms";  // nf-dev-moon
+constexpr const char* FANTOM_ALT = "Fm";  // nf-dev-fantom
+constexpr const char* SMALLTALK_ALT = "St";  // nf-dev-smalltalk
+constexpr const char* APL_ALT = "AP";  // nf-dev-apl
+constexpr const char* J_ALT = "J";  // nf-dev-apl
+constexpr const char* K_ALT = "K";  // nf-dev-apl
+constexpr const char* Q_ALT2 = "Q";  // nf-dev-apl
+constexpr const char* KDB_ALT2 = "Kd";  // nf-dev-apl
+constexpr const char* QLANG_ALT = "Ql";  // nf-dev-apl
+constexpr const char* MATLAB_ALT = "Ml";  // nf-dev-matlab
+constexpr const char* OCTAVE_ALT = "Oc";  // nf-dev-matlab
+constexpr const char* R_ALT = "R";  // nf-dev-r
+constexpr const char* JULIA_ALT = "Jl";  // nf-dev-julia
+constexpr const char* LUA_ALT = "Lu";  // nf-dev-lua
+constexpr const char* PYTHON_ALT = "Py";  // nf-dev-python
+constexpr const char* RUBY_ALT = "Rb";  // nf-dev-ruby
+constexpr const char* PERL_ALT = "Pl";  // nf-dev-perl
+constexpr const char* PHP_ALT = "Ph";  // nf-dev-php
+constexpr const char* JAVASCRIPT_ALT = "JS";  // nf-dev-javascript
+constexpr const char* TYPESCRIPT_ALT = "TS";  // nf-dev-typescript
+constexpr const char* JAVA_ALT = "Ja";  // nf-dev-java
+constexpr const char* KOTLIN_ALT = "Kt";  // nf-dev-kotlin
+constexpr const char* SCALA_ALT = "Sc";  // nf-dev-scala
+constexpr const char* CSHARP_ALT = "C#";  // nf-dev-csharp
+constexpr const char* GO_ALT2 = "Go";  // nf-dev-go
+constexpr const char* RUST_ALT2 = "Rs";  // nf-dev-rust
+constexpr const char* SWIFT_ALT = "Sw";  // nf-dev-swift
+constexpr const char* OBJECTIVE_C = "Oc";  // nf-dev-swift
+constexpr const char* CPP_ALT = "C++";  // nf-dev-cplusplus
+constexpr const char* C_ALT = "C";  // nf-dev-c
+constexpr const char* CSHARP_ALT2 = "C#";  // nf-dev-csharp
+constexpr const char* VB_ALT = "Vb";  // nf-dev-visualstudio
+constexpr const char* F_SHARP_ALT3 = "F#";  // nf-dev-fsharp
+constexpr const char* NIM_ALT2 = "Ni";  // nf-dev-nim
+constexpr const char* CRYSTAL_ALT = "Cr";  // nf-dev-crystal
+constexpr const char* DART_ALT = "Da";  // nf-dev-dart
+constexpr const char* GROOVY_ALT = "Gr";  // nf-dev-groovy
+constexpr const char* CLOJURESCRIPT_ALT = "Cs";  // nf-dev-clojurescript
+constexpr const char* COFFEESCRIPT_ALT = "Cf";  // nf-dev-coffeescript
+constexpr const char* PUG_ALT = "Pg";  // nf-dev-pug
+constexpr const char* STYLUS_ALT = "St";  // nf-dev-stylus
+constexpr const char* SASS_ALT = "Sa";  // nf-dev-sass
+constexpr const char* LESS_ALT = "Le";  // nf-dev-less
+constexpr const char* POSTCSS_ALT = "Pc";  // nf-dev-postcss
+constexpr const char* GRAPHQL_ALT = "Gq";  // nf-dev-graphql
+constexpr const char* VUE_ALT = "Vu";  // nf-dev-vue
+constexpr const char* ANGULAR_ALT = "Ng";  // nf-dev-angular
+constexpr const char* REACT_ALT = "Rc";  // nf-dev-react
+constexpr const char* SVELTE_ALT = "Sv";  // nf-dev-svelte
+constexpr const char* IONIC_ALT = "Io";  // nf-dev-ionic
+constexpr const char* CAPACITOR_ALT = "Ca";  // nf-dev-capacitor
+constexpr const char* CORDOVA_ALT = "Cd";  // nf-dev-cordova
+constexpr const char* ELECTRON_ALT = "El";  // nf-dev-electron
+constexpr const char* NWJS_ALT = "Nw";  // nf-dev-nwjs
+constexpr const char* TAURI_ALT = "Ta";  // nf-dev-tauri
+constexpr const char* DOTNET_ALT = ".N";  // nf-dev-dotnet
+constexpr const char* ASSEMBLY_ALT = "As";  // nf-mdi-chip
+constexpr const char* WEBASSEMBLY_ALT = "Wa";  // nf-dev-webassembly
+constexpr const char* VERILOG_ALT = "Vl";  // nf-mdi-memory
+constexpr const char* VHDL_ALT = "Vh";  // nf-mdi-memory
+constexpr const char* TCL_ALT = "Tc";  // nf-mdi-console
+constexpr const char* FORTRAN_ALT = "Fn";  // nf-mdi-console
+constexpr const char* RACKET_ALT = "Rk";  // nf-dev-racket
+constexpr const char* COMMON_LISP_ALT = "Lp";  // nf-dev-clisp
+constexpr const char* EMACS_LISP_ALT = "El";  // nf-dev-clisp
+constexpr const char* PROLOG_ALT = "Pl";  // nf-dev-prolog
+constexpr const char* MERCURY_ALT = "Mc";  // nf-dev-mercury
+
+// 状态图标
+constexpr const char* MODIFIED = "*";  // nf-fa-circle (修改标记)
+constexpr const char* SAVED = "v";  // nf-fa-check (已保存)
+constexpr const char* UNSAVED = "!";  // nf-fa-exclamation (未保存)
+constexpr const char* CLOSE = "x";  // nf-fa-times (关闭)
+
+// 操作图标
+constexpr const char* SEARCH = "?";  // nf-fa-search (搜索)
+constexpr const char* REPLACE = "R=";  // nf-fa-exchange (替换)
+constexpr const char* SAVE = "S";  // nf-fa-floppy_o (保存)
+constexpr const char* OPEN = "O";  // nf-fa-folder_open (打开)
+constexpr const char* NEW = "+";  // nf-fa-file_o (新建)
+constexpr const char* UNDO = "u";  // nf-fa-undo (撤销)
+constexpr const char* REDO = "r";  // nf-fa-repeat (重做)
+constexpr const char* COPY = "C";  // nf-fa-files_o (复制)
+constexpr const char* CUT = "X";  // nf-fa-cut (剪切)
+constexpr const char* PASTE = "P";  // nf-fa-clipboard (粘贴)
+
+// 导航图标
+constexpr const char* ARROW_UP = "^";  // nf-fa-arrow_up
+constexpr const char* ARROW_DOWN = "v";  // nf-fa-arrow_down
+constexpr const char* ARROW_LEFT = "<";  // nf-fa-arrow_left
+constexpr const char* ARROW_RIGHT = ">";  // nf-fa-arrow_right
+constexpr const char* GO_TO = "->";  // nf-fa-external_link (跳转)
+
+// UI元素
+constexpr const char* THEME = "[T]";  // nf-fa-paint_brush (主题)
+constexpr const char* SETTINGS = "[*]";  // nf-fa-cog (设置)
+constexpr const char* HELP = "[?]";  // nf-fa-question_circle (帮助)
+constexpr const char* INFO = "[i]";  // nf-fa-info_circle (信息)
+constexpr const char* WARNING = "[!]";  // nf-fa-exclamation_triangle (警告)
+constexpr const char* ERROR = "[X]";  // nf-fa-exclamation_circle (错误)
+constexpr const char* SUCCESS = "[v]";  // nf-fa-check_circle (成功)
+
+// 编辑器功能
+constexpr const char* LINE_NUMBER = "#";  // nf-fa-list_alt (行号)
+constexpr const char* WORD_WRAP = "W";  // nf-fa-arrows_alt (自动换行)
+constexpr const char* FULLSCREEN = "[]";  // nf-fa-expand (全屏)
+constexpr const char* SPLIT = "||";  // nf-fa-columns (分屏)
+constexpr const char* CODE = "{}";  // nf-fa-code (代码)
+constexpr const char* FUNCTION = "f()";  // nf-fa-cube (函数)
+
+// LSP 补全类型图标（Nerd Fonts，参考 lspkind）
+constexpr const char* LSP_METHOD = "[M]";  // nf-fa-cube (方法)
+constexpr const char* LSP_FUNCTION = "[F]";  // nf-fa-code (函数)
+constexpr const char* LSP_CONSTRUCTOR = "[C]";  // nf-fa-wrench (构造)
+constexpr const char* LSP_FIELD = "[f]";  // nf-fa-square_o (字段)
+constexpr const char* LSP_VARIABLE = "[v]";  // nf-fa-tag (变量)
+constexpr const char* LSP_CLASS = "[c]";  // nf-fa-cube (类)
+constexpr const char* LSP_INTERFACE = "[I]";  // nf-fa-object_group (接口)
+constexpr const char* LSP_MODULE = "[M]";  // nf-fa-object_group (模块)
+constexpr const char* LSP_PROPERTY = "[p]";  // nf-fa-square_o (属性)
+constexpr const char* LSP_UNIT = "[u]";  // nf-fa-cube (单位)
+constexpr const char* LSP_VALUE = "[v]";  // nf-fa-database (值)
+constexpr const char* LSP_ENUM = "[e]";  // nf-fa-list_ul (枚举)
+constexpr const char* LSP_KEYWORD = "[k]";  // nf-fa-key (关键字)
+constexpr const char* LSP_SNIPPET = "[s]";  // nf-dev-json (片段)
+constexpr const char* LSP_COLOR = "[#]";  // nf-fa-paint_brush (颜色)
+constexpr const char* LSP_REFERENCE = "[&]";  // nf-fa-link (引用)
+constexpr const char* LSP_ENUMMEMBER = "[e]";  // nf-fa-list_ul (枚举成员)
+constexpr const char* LSP_CONSTANT = "[c]";  // nf-fa-lock (常量)
+constexpr const char* LSP_STRUCT = "[s]";  // nf-fa-object_group (结构体)
+constexpr const char* LSP_EVENT = "[!]";  // nf-fa-bolt (事件)
+constexpr const char* LSP_OPERATOR = "[o]";  // nf-fa-code (运算符)
+constexpr const char* LSP_TYPEPARAM = "[T]";  // nf-fa-code (类型参数)
+constexpr const char* TAB = "[t]";  // nf-fa-tag (标签)
+constexpr const char* SELECT = "[+]";  // nf-fa-mouse_pointer (选择)
+constexpr const char* HIGHLIGHT = "[*]";  // nf-fa-lightbulb_o (语法高亮)
+constexpr const char* LOCATION = "[@]";  // nf-fa-map_marker (位置)
+constexpr const char* CLOCK = "[t]";  // nf-fa-clock_o (时钟)
+
+// 文件浏览器
+constexpr const char* REFRESH = "[R]";  // nf-fa-refresh (刷新)
+constexpr const char* HOME = "[~]";  // nf-fa-home (主目录)
+
+// 其他文件类型图标
+constexpr const char* IMAGE = "[I]";  // nf-fa-file_image_o (图片)
+constexpr const char* IMAGE_PNG = "[P]";  // nf-mdi-file_png (PNG 图片)
+constexpr const char* IMAGE_JPG = "[J]";  // nf-mdi-file_jpg (JPG 图片)
+constexpr const char* IMAGE_GIF = "[G]";  // nf-mdi-file_gif (GIF 图片)
+constexpr const char* PDF = "[P]";  // nf-fa-file_pdf_o (PDF)
+constexpr const char* ARCHIVE = "[Z]";  // nf-fa-file_archive_o (压缩包)
+constexpr const char* VIDEO = "[V]";  // nf-fa-file_video_o (视频)
+constexpr const char* AUDIO = "[A]";  // nf-fa-file_audio_o (音频)
+constexpr const char* DATABASE = "[DB]";  // nf-fa-database (数据库)
+constexpr const char* CONFIG = "[CFG]";  // nf-fa-cog (配置文件)
+constexpr const char* LOCK = "[L]";  // nf-fa-lock (锁定文件)
+constexpr const char* EXECUTABLE = "[X]";  // nf-fa-terminal (可执行文件)
+
+// 构建和依赖管理文件
+constexpr const char* PACKAGE_JSON = "npm";  // nf-dev-npm (npm/package.json)
+constexpr const char* PACKAGE_LOCK = "npm";  // nf-dev-npm (package-lock.json)
+constexpr const char* YARN = "Yrn";  // nf-fa-yarn (yarn.lock)
+constexpr const char* CARGO = "Cgo";  // nf-dev-rust (Cargo.toml)
+constexpr const char* CARGO_LOCK = "Cgo";  // nf-dev-rust (Cargo.lock)
+constexpr const char* PIP = "pip";  // nf-dev-python (requirements.txt)
+constexpr const char* MAVEN = "Mvn";  // nf-dev-java (pom.xml)
+constexpr const char* GRADLE = "Gdl";  // nf-dev-java (build.gradle)
+constexpr const char* GEMFILE = "Gem";  // nf-dev-ruby (Gemfile)
+constexpr const char* COMPOSER = "Cmp";  // nf-dev-php (composer.json)
+constexpr const char* GO_MOD = "Gmd";  // nf-dev-go (go.mod)
+constexpr const char* GO_SUM = "Gmd";  // nf-dev-go (go.sum)
+constexpr const char* TOML = "Tml";  // nf-dev-json (TOML文件)
+
+// 环境配置文件
+constexpr const char* ENV = ".env";  // nf-mdi-key (环境变量文件)
+constexpr const char* DOCKERIGNORE = "Dk!";  // nf-dev-docker (.dockerignore)
+constexpr const char* EDITORCONFIG = ".ec";  // nf-fa-cog (.editorconfig)
+constexpr const char* PRETTIER = "Prc";  // nf-dev-json (.prettierrc)
+constexpr const char* ESLINT = "Esl";  // nf-dev-json (.eslintrc)
+constexpr const char* BABEL = "Bbl";  // nf-dev-json (.babelrc)
+constexpr const char* TSCONFIG = "Tsc";  // nf-dev-typescript (tsconfig.json)
+
+// 文档文件
+constexpr const char* README = "[R]";  // nf-dev-markdown (README)
+constexpr const char* LICENSE = "[L]";  // nf-fa-file_text_o (LICENSE)
+constexpr const char* CHANGELOG = "[C]";  // nf-fa-file_text_o (CHANGELOG)
+constexpr const char* CONTRIBUTING = "[Ct]";  // nf-fa-file_text_o (CONTRIBUTING)
+constexpr const char* AUTHORS = "[A]";  // nf-fa-file_text_o (AUTHORS)
+constexpr const char* TODO = "[T]";  // nf-fa-tasks (TODO)
+
+// 测试文件
+constexpr const char* TEST = "[T]";  // nf-fa-flask (测试文件)
+constexpr const char* SPEC = "[S]";  // nf-fa-flask (spec文件)
+
+// 数据文件
+constexpr const char* CSV = "[,]";  // nf-fa-file_text_o (CSV)
+constexpr const char* TSV = "[|]";  // nf-fa-file_text_o (TSV)
+constexpr const char* EXCEL = "[X]";  // nf-fa-file_excel_o (Excel)
+
+// 特殊配置文件
+constexpr const char* TRAVIS = "Tv";  // nf-dev-travis (.travis.yml)
+constexpr const char* JENKINS = "Jk";  // nf-dev-jenkins (Jenkinsfile)
+constexpr const char* GITHUB_ACTIONS = "Gh";  // nf-dev-git (GitHub Actions)
+constexpr const char* CI = "CI";  // nf-fa-cog (CI配置文件)
+
+// 锁文件和清单文件
+constexpr const char* YARN_LOCK = "Yrn";  // nf-fa-yarn (yarn.lock)
+constexpr const char* PNPM_LOCK = "npm";  // nf-dev-npm (pnpm-lock.yaml)
+constexpr const char* GEMFILE_LOCK = "Gem";  // nf-dev-ruby (Gemfile.lock)
+constexpr const char* POETRY = "Poe";  // nf-dev-python (poetry.lock)
+
+// 特殊目录
+constexpr const char* NODE_MODULES = "nm";  // nf-dev-npm (node_modules)
+constexpr const char* VENV = ".v";  // nf-dev-python (虚拟环境)
+constexpr const char* DOTFILES = "..";  // nf-fa-cog (隐藏配置文件)
+
+// 日志和临时文件
+constexpr const char* LOG = "[L]";  // nf-fa-file_text_o (日志文件)
+constexpr const char* TEMP = "[~]";  // nf-fa-file_o (临时文件)
+constexpr const char* CACHE = "[C]";  // nf-fa-lightbulb_o (缓存文件)
+
+// 证书和密钥文件
+constexpr const char* CERTIFICATE = "[C]";  // nf-fa-lock (证书文件)
+constexpr const char* KEY = "[K]";  // nf-fa-key (密钥文件)
+constexpr const char* PEM = "[P]";  // nf-fa-lock (PEM文件)
+
+// 字体和样式文件
+constexpr const char* FONT = "[F]";  // nf-fa-font (字体文件)
+
+// 其他特殊文件
+constexpr const char* DOCKER_COMPOSE = "Dc!";  // nf-dev-docker (docker-compose.yml)
+constexpr const char* MESON = "Msn";  // nf-mdi-console (Meson构建文件)
+constexpr const char* KUBERNETES = "K8s";  // nf-mdi-kubernetes (Kubernetes)
+constexpr const char* TERRAFORM = "Tf";  // nf-fa-cube (Terraform)
+constexpr const char* ANSIBLE = "An";  // nf-fa-cog (Ansible)
+constexpr const char* VAGRANT = "Vg";  // nf-fa-cube (Vagrant)
+
+// Git 相关图标
+constexpr const char* GIT_REPO = "[R]";  // nf-fa-code-fork (仓库)
+constexpr const char* GIT_COMMIT = "[C]";  // nf-fa-dot-circle-o (提交)
+constexpr const char* GIT_MERGE = "[M]";  // nf-fa-code-fork (合并)
+constexpr const char* GIT_PULL_REQUEST = "[PR]";  // nf-fa-code-fork (拉取请求)
+constexpr const char* GIT_TAG = "[T]";  // nf-fa-tag (标签)
+constexpr const char* GIT_STASH = "[S]";  // nf-fa-archive (贮藏)
+constexpr const char* GIT_CONFLICT = "[!]";  // nf-fa-exclamation-circle (冲突)
+constexpr const char* GIT_DIFF = "[D]";  // nf-fa-plus (差异)
+constexpr const char* GIT_HISTORY = "[H]";  // nf-fa-history (历史)
+constexpr const char* GIT_REMOTE = "[~]";  // nf-fa-cloud (远程)
+
+// 状态和操作图标
+constexpr const char* CHECK_CIRCLE = "[v]";  // nf-fa-check-circle (成功)
+constexpr const char* EXCLAMATION_CIRCLE = "[!]";  // nf-fa-exclamation-circle (错误)
+constexpr const char* QUESTION_CIRCLE = "[?]";  // nf-fa-question-circle (帮助)
+constexpr const char* INFO_CIRCLE = "[i]";  // nf-fa-info-circle (信息)
+constexpr const char* BELL = "[@]";  // nf-fa-bell (通知)
+constexpr const char* FLAG = "[F]";  // nf-fa-flag (标记)
+
+// 导航和方向
+constexpr const char* CHEVRON_LEFT = "<";  // nf-fa-chevron-left (左箭头)
+constexpr const char* CHEVRON_RIGHT = ">";  // nf-fa-chevron-right (右箭头)
+constexpr const char* CHEVRON_UP = "^";  // nf-fa-chevron-up (上箭头)
+constexpr const char* CHEVRON_DOWN = "v";  // nf-fa-chevron-down (下箭头)
+constexpr const char* ARROW_CIRCLE_LEFT = "<";  // nf-fa-arrow-circle-left (左圆箭头)
+constexpr const char* ARROW_CIRCLE_RIGHT = ">";  // nf-fa-arrow-circle-right (右圆箭头)
+constexpr const char* ARROW_CIRCLE_UP = "^";  // nf-fa-arrow-circle-up (上圆箭头)
+constexpr const char* ARROW_CIRCLE_DOWN = "v";  // nf-fa-arrow-circle-down (下圆箭头)
+
+// 文件和文件夹操作
+constexpr const char* FOLDER_PLUS = "+";  // nf-fa-folder (新建文件夹)
+constexpr const char* FILE_PLUS = "+";  // nf-fa-file-o (新建文件)
+constexpr const char* FILE_EDIT = "E";  // nf-fa-edit (编辑文件)
+constexpr const char* FILE_REMOVE = "X";  // nf-fa-trash-o (删除文件)
+constexpr const char* FILE_COPY = "C";  // nf-fa-files-o (复制文件)
+constexpr const char* FILE_MOVE = "M";  // nf-fa-arrows (移动文件)
+constexpr const char* FILE_RENAME = "R";  // nf-fa-edit (重命名)
+
+// 搜索和过滤
+constexpr const char* SEARCH_PLUS = "+";  // nf-fa-search-plus (放大搜索)
+constexpr const char* SEARCH_MINUS = "-";  // nf-fa-search-minus (缩小搜索)
+constexpr const char* FILTER = "F";  // nf-fa-filter (过滤)
+
+// 编辑操作
+constexpr const char* PENCIL = "P";  // nf-fa-pencil (铅笔)
+constexpr const char* ERASER = "E";  // nf-fa-eraser (橡皮)
+constexpr const char* SCISSORS = "X";  // nf-fa-scissors (剪刀)
+
+// 时间相关
+constexpr const char* CALENDAR = "[D]";  // nf-fa-calendar (日历)
+constexpr const char* CALENDAR_PLUS = "[+]";  // nf-fa-calendar-plus-o (添加日程)
+
+// 用户和权限
+constexpr const char* USER = "[U]";  // nf-fa-user (用户)
+constexpr const char* USERS = "[UU]";  // nf-fa-users (用户组)
+constexpr const char* UNLOCK = "[U]";  // nf-fa-unlock (解锁)
+
+// 系统和设置
+constexpr const char* COGS = "[*]";  // nf-fa-cogs (高级设置)
+constexpr const char* WRENCH = "[W]";  // nf-fa-wrench (工具)
+constexpr const char* GEAR = "[G]";  // nf-fa-cog (齿轮)
+
+// 网络和连接
+constexpr const char* WIFI = "^^";  // nf-fa-wifi (WiFi)
+constexpr const char* GLOBE = "[@]";  // nf-fa-globe (网络)
+constexpr const char* LINK = "=&";  // nf-fa-link (链接)
+constexpr const char* UNLINK = "-%";  // nf-fa-unlink (断开链接)
+
+// 数据库和存储
+constexpr const char* HDD = "[D]";  // nf-fa-hdd-o (硬盘)
+constexpr const char* DOWNLOAD = "v";  // nf-fa-download (下载)
+constexpr const char* UPLOAD = "^";  // nf-fa-upload (上传)
+
+// 平台图标
+constexpr const char* LINUX = "Lx";  // nf-fa-linux (Linux)
+constexpr const char* UBUNTU = "Ub";  // nf-fa-ubuntu (Ubuntu)
+constexpr const char* FEDORA = "Fd";  // nf-fa-fedora (Fedora)
+constexpr const char* CENTOS = "Ct";  // nf-fa-centos (CentOS)
+constexpr const char* DEBIAN = "Db";  // nf-fa-debian (Debian)
+constexpr const char* ARCHLINUX = "Ar";  // nf-fa-archlinux (Arch Linux)
+constexpr const char* MANJARO = "Mj";  // nf-fa-manjaro (Manjaro)
+constexpr const char* WINDOWS = "Win";  // nf-fa-windows (Windows)
+constexpr const char* APPLE = "Mac";  // nf-fa-apple (macOS)
+constexpr const char* MACOS = "Mac";  // nf-fa-apple (macOS)
+constexpr const char* FREEBSD = "Fb";  // nf-fa-freebsd (FreeBSD)
+constexpr const char* OPENBSD = "Ob";  // nf-fa-openbsd (OpenBSD)
+constexpr const char* NETBSD = "Nb";  // nf-fa-netbsd (NetBSD)
+constexpr const char* SOLARIS = "Sl";  // nf-fa-sun-o (Solaris)
+constexpr const char* REDHAT = "Rh";  // nf-fa-redhat (Red Hat)
+constexpr const char* SUSE = "Su";  // nf-fa-suse (SUSE)
+constexpr const char* GENTOO = "Gn";  // nf-fa-gentoo (Gentoo)
+constexpr const char* MINT = "Mi";  // nf-fa-linux (Linux Mint)
+constexpr const char* POP_OS = "Pop";  // nf-fa-centos (Pop!_OS)
+constexpr const char* ELEMENTARY = "El";  // nf-fa-elementor (Elementary OS)
+// 更多 Linux 发行版图标
+constexpr const char* KALI = "Kl";  // nf-fa-linux (Kali Linux)
+constexpr const char* PARROT = "Pr";  // nf-fa-linux (Parrot OS)
+constexpr const char* LUBUNTU = "Lu";  // nf-fa-ubuntu (Lubuntu)
+constexpr const char* XUBUNTU = "Xu";  // nf-fa-ubuntu (Xubuntu)
+constexpr const char* KUBUNTU = "Ku";  // nf-fa-ubuntu (Kubuntu)
+constexpr const char* UBUNTU_MATE = "UM";  // nf-fa-ubuntu (Ubuntu MATE)
+constexpr const char* ZORIN = "Zo";  // nf-fa-linux (Zorin OS)
+constexpr const char* GARUDA = "Gd";  // nf-fa-archlinux (Garuda Linux)
+constexpr const char* ARTIX = "Ax";  // nf-fa-archlinux (Artix Linux)
+constexpr const char* FEDORA_SILVERBLUE = "Fs";  // nf-fa-fedora (Fedora Silverblue)
+constexpr const char* FEDORA_KINOITE = "Fk";  // nf-fa-fedora (Fedora Kinoite)
+constexpr const char* ROCKY = "Rc";  // nf-fa-centos (Rocky Linux)
+constexpr const char* ALMA = "Al";  // nf-fa-centos (AlmaLinux)
+constexpr const char* DEBIAN_UNSTABLE = "Du";  // nf-fa-debian (Debian Unstable)
+constexpr const char* DEBIAN_TESTING = "Dt";  // nf-fa-debian (Debian Testing)
+constexpr const char* KNOPPIX = "Kp";  // nf-fa-debian (Knoppix)
+constexpr const char* PARDUS = "Pd";  // nf-fa-linux (Pardus Linux)
+constexpr const char* ALT_LINUX = "Al";  // nf-fa-linux (ALT Linux)
+constexpr const char* SLACKWARE = "Sw";  // nf-fa-linux (Slackware)
+constexpr const char* CRUX = "Cx";  // nf-fa-linux (CRUX)
+constexpr const char* FUNTOO = "Fu";  // nf-fa-gentoo (Funtoo)
+constexpr const char* SOLUS = "So";  // nf-fa-linux (Solus)
+constexpr const char* NIXOS = "Nx";  // nf-fa-linux (NixOS)
+constexpr const char* GUIX = "Gx";  // nf-fa-linux (Guix System)
+constexpr const char* OPENSUSE_TUMBLEWEED = "OT";  // nf-fa-suse (openSUSE Tumbleweed)
+constexpr const char* OPENSUSE_LEAP = "OL";  // nf-fa-suse (openSUSE Leap)
+constexpr const char* MAGEIA = "Mg";  // nf-fa-linux (Mageia)
+constexpr const char* ROSA = "Rs";  // nf-fa-linux (ROSA Linux)
+
+// 欢迎界面
+constexpr const char* ROCKET = ">>";  // nf-fa-rocket (快速开始)
+constexpr const char* STAR = "*";  // nf-fa-star (特性)
+constexpr const char* BULB = "[!]";  // nf-fa-lightbulb_o (提示)
+constexpr const char* BOOK = "[B]";  // nf-fa-book (文档)
+
+// 终端
+constexpr const char* TERMINAL = ">$";  // nf-fa-terminal (终端)
+
+// SSH 和网络
+constexpr const char* SERVER = "[S]";  // nf-fa-server (服务器)
+constexpr const char* NETWORK = "[N]";  // nf-fa-server (网络)
+
+// 包管理和容器
+constexpr const char* PACKAGE = "[P]";  // nf-fa-archive (包)
+constexpr const char* CONTAINER = "[C]";  // nf-dev-docker (容器)
+constexpr const char* FLATPAK = "Fp";  // nf-fa-linux (Flatpak)
+constexpr const char* SNAP = "Sn";  // nf-fa-ubuntu (Snap)
+
+// 任务和列表
+constexpr const char* CHECKLIST = "[x]";  // nf-fa-check-square-o (检查列表)
+constexpr const char* TASK = "[T]";  // nf-fa-tasks (任务)
+constexpr const char* LIST = "[*]";  // nf-fa-list-ul (列表)
+
+// 通信
+constexpr const char* MAIL = "[@]";  // nf-fa-envelope (邮件)
+constexpr const char* EMAIL = "[@]";  // nf-fa-envelope (电子邮件)
+constexpr const char* RSS = "[R]";  // nf-fa-rss (RSS订阅)
+constexpr const char* CHAT = "[C]";  // nf-fa-comments (聊天)
+
+// 更多实用工具图标
+constexpr const char* CALENDAR_ALT = "[D]";  // nf-fa-calendar (日历替代)
+constexpr const char* CLOCK_ALT = "[t]";  // nf-fa-clock-o (时钟替代)
+constexpr const char* FOLDER_ALT = "+";  // nf-fa-folder (文件夹替代)
+constexpr const char* FILE_ALT = " ";  // nf-fa-file (文件替代)
+
+
+#endif // BUILD_ICON_SUPPORT
 
 // 文件类型图标映射函数
 inline std::string getFileTypeIcon(const std::string& file_type) {

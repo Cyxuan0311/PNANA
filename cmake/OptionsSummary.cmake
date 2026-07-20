@@ -3,6 +3,7 @@
 function(generate_options_summary)
     # 收集所有选项及其状态
     set(OPTIONS_LIST
+        "BUILD_ICON_SUPPORT"
         "BUILD_LIBVTERM"
         "BUILD_IMAGE_PREVIEW"
         "BUILD_AI_CLIENT"
@@ -16,6 +17,7 @@ function(generate_options_summary)
     
     # 选项的友好名称
     set(OPTIONS_NAMES
+        "Icon Support"
         "libvterm"
         "Image Preview"
         "AI Client"
