@@ -41,7 +41,7 @@ Element WelcomeScreen::render() {
                            colors.success, colors.success, colors.success};
     }
 
-    // Logo：应用色彩动画效果
+    // Logo：逐字符 2D 平滑渐变
     if (config_.getConfig().display.show_welcome_logo) {
         std::string logo_style = config_.getConfig().display.logo_style;
         std::vector<std::string> logo_lines = features::LogoManager::getLogoLines(logo_style);
@@ -49,69 +49,97 @@ Element WelcomeScreen::render() {
         logo_animation_.setConfig(config_.getConfig().animation);
         const auto frame = logo_animation_.currentFrame();
 
-        // 获取色彩动画参数
         const float glow = frame.getGlowIntensity();
         const float sharpness = frame.getSharpness();
-        const float color_shift = frame.getColorShift();
         const float hue_shift = frame.getHueShift();
         const float sat_boost = frame.getSaturationBoost();
         const float val_mod = frame.getValueModulation();
         const bool is_none_mode = (config_.getConfig().animation.effect == "none");
 
-        // 根据色相偏移计算颜色索引偏移量（0-360 度映射到颜色索引，增强变化幅度）
-        const size_t hue_color_offset =
-            is_none_mode
-                ? 0
-                : static_cast<size_t>(std::fmod(hue_shift / 30.0f, gradient_colors.size() * 2));
-
-        for (size_t i = 0; i < logo_lines.size(); ++i) {
-            size_t base_g = i % gradient_colors.size();
-
-            // 应用色相偏移（增强 chroma_shift 和 hue_shift 的影响），none 模式不偏移
-            size_t g = is_none_mode
-                           ? base_g
-                           : static_cast<size_t>((hue_color_offset +
-                                                  static_cast<size_t>(color_shift * 4) + base_g) %
-                                                 gradient_colors.size());
-
-            // 根据饱和度和明度调整选择颜色（增强对比度）
-            Element logo_line;
-            if (sat_boost > 1.3f && val_mod > 1.15f) {
-                // 高饱和高明度：使用更亮的颜色 + 加粗
-                logo_line = text("  " + logo_lines[i]) | color(gradient_colors[g]) | bold;
-            } else if (sat_boost < 0.85f || val_mod < 0.85f) {
-                // 低饱和或低明度：使用较暗的颜色 + 淡化
-                logo_line = text("  " + logo_lines[i]) | color(gradient_colors[g]) | dim;
-            } else {
-                logo_line = text("  " + logo_lines[i]) | color(gradient_colors[g]);
+        // 1) 对调色板应用 hue_shift
+        std::vector<Color> palette = gradient_colors;
+        if (!is_none_mode && hue_shift != 0.0f) {
+            int offset = static_cast<int>(std::fmod(hue_shift / 30.0f, palette.size() * 2));
+            offset %= static_cast<int>(palette.size());
+            if (offset) {
+                std::rotate(palette.begin(), palette.begin() + offset, palette.end());
             }
+        }
 
-            // 呼吸/闪烁效果：none 模式保持恒定亮度，其他模式根据脉冲波和锐度调整
+        // 2) 将每行拆分为独立字符（UTF‑8 感知），并求出最大列数
+        auto splitGlyphs = [](const std::string& s) {
+            std::vector<std::string> out;
+            for (size_t i = 0; i < s.size();) {
+                unsigned char c = s[i];
+                size_t len = 1;
+                if (c >= 0xF0)
+                    len = 4;
+                else if (c >= 0xE0)
+                    len = 3;
+                else if (c >= 0xC0)
+                    len = 2;
+                out.push_back(s.substr(i, len));
+                i += len;
+            }
+            return out;
+        };
+
+        std::vector<std::vector<std::string>> logo_glyphs;
+        size_t max_cols = 0;
+        for (const auto& line : logo_lines) {
+            auto glyphs = splitGlyphs(line);
+            if (glyphs.size() > max_cols)
+                max_cols = glyphs.size();
+            logo_glyphs.push_back(std::move(glyphs));
+        }
+
+        // 3) 生成逐字符渐变
+        auto smooth_colors =
+            features::LogoManager::generateSmoothGradient(palette, logo_glyphs.size(), max_cols);
+
+        // 4) 逐行渲染
+        for (size_t i = 0; i < logo_glyphs.size(); ++i) {
+            const auto& glyphs = logo_glyphs[i];
+
+            Elements char_elems;
+            char_elems.push_back(text("  ")); // 前缀缩进
+            for (size_t j = 0; j < glyphs.size(); ++j) {
+                size_t idx = i * max_cols + j;
+                Color ch_color =
+                    (idx < smooth_colors.size()) ? smooth_colors[idx] : gradient_colors[0];
+
+                char_elems.push_back(text(glyphs[j]) | color(ch_color));
+            }
+            Element logo_line = hbox(std::move(char_elems));
+
+            // 应用动画装饰（逐行）
+            bool has_glow = false, has_dim = false;
             if (!is_none_mode) {
-                const float adjusted_pulse = frame.pulse_wave * sharpness;
-                if (adjusted_pulse > 0.0f) {
-                    // 亮周期：根据发光强度决定是否加粗和闪烁
-                    if (glow > 0.6f) {
+                float pulse = frame.pulse_wave * sharpness;
+                if (pulse > 0.0f) {
+                    has_glow = true;
+                    if (glow > 0.6f)
                         logo_line = logo_line | bold | blink;
-                    } else {
+                    else
                         logo_line = logo_line | bold;
-                    }
                 } else {
-                    // 暗周期：根据发光强度决定变暗程度
                     if (glow < 0.3f) {
+                        has_dim = true;
                         logo_line = logo_line | dim;
                     }
                 }
             } else {
-                // none 模式：始终加粗，不闪烁
                 logo_line = logo_line | bold;
             }
 
-            // 抖动效果（某些动画效果会有 jitter 参数），none 模式不抖动
-            if (!is_none_mode && frame.jitter > 0.3f && i % 2 == 0) {
-                // 偶数行轻微偏移，模拟抖动
+            if (!is_none_mode && !has_glow && !has_dim && sat_boost > 1.3f && val_mod > 1.15f)
+                logo_line = logo_line | bold;
+            if (!is_none_mode && !has_glow && !has_dim && (sat_boost < 0.85f || val_mod < 0.85f))
+                logo_line = logo_line | dim;
+
+            // 抖动
+            if (!is_none_mode && frame.jitter > 0.3f && i % 2 == 0)
                 logo_line = hbox({text(" "), logo_line});
-            }
 
             welcome_content.push_back(logo_line | center);
         }

@@ -1612,5 +1612,33 @@ bool LogoManager::isValidStyle(const std::string& style_id) {
     return false;
 }
 
+std::vector<ftxui::Color> LogoManager::generateSmoothGradient(
+    const std::vector<ftxui::Color>& palette, int num_rows, int num_cols) {
+    if (palette.empty() || num_rows <= 0 || num_cols <= 0)
+        return {};
+
+    int total = num_rows * num_cols;
+    int n = static_cast<int>(palette.size());
+    std::vector<ftxui::Color> result;
+    result.reserve(total);
+
+    for (int row = 0; row < num_rows; ++row) {
+        for (int col = 0; col < num_cols; ++col) {
+            float t = static_cast<float>(row * num_cols + col) / static_cast<float>(total);
+
+            float seg = t * (n - 1);
+            int idx = static_cast<int>(seg);
+            if (idx >= n - 1) {
+                result.push_back(palette.back());
+                continue;
+            }
+            float frac = seg - idx;
+
+            result.push_back(ftxui::Color::Interpolate(frac, palette[idx], palette[idx + 1]));
+        }
+    }
+    return result;
+}
+
 } // namespace features
 } // namespace pnana
