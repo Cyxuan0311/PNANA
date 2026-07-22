@@ -1,4 +1,5 @@
 #include "ui/split_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 
@@ -6,9 +7,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -157,7 +156,7 @@ ftxui::Element SplitDialog::render() {
                   text("Esc") | color(colors.helpbar_key) | bold, text(": Cancel")}) |
             bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim);
 
-        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(58, 30)) |
+        return vbox(content) | size(WIDTH, EQUAL, responsiveWidth(58, 30)) |
                size(HEIGHT, EQUAL, responsiveHeight(11, 8)) | bgcolor(colors.background) |
                borderWithColor(colors.dialog_border) | center;
     } else {
@@ -217,7 +216,7 @@ ftxui::Element SplitDialog::render() {
 
         int height = std::min(20, int(10 + static_cast<int>(splits_.size())));
         height = responsiveHeight(height, 10);
-        return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(68, 30)) |
+        return vbox(content) | size(WIDTH, EQUAL, responsiveWidth(68, 30)) |
                size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
                borderWithColor(colors.dialog_border) | center;
     }

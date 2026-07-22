@@ -176,6 +176,12 @@ void Editor::initializeCommandPalette() {
                                                  openCursorConfig();
                                              }));
 
+    command_palette_.registerCommand(Command("view.border_style", "Border Style",
+                                             "Configure border style for UI panels",
+                                             {"border", "style", "appearance", "ui"}, [this]() {
+                                                 openBorderConfigPopup();
+                                             }));
+
     command_palette_.registerCommand(Command("view.line_numbers", "Toggle Line Numbers",
                                              "Show/hide line numbers",
                                              {"line", "numbers", "view", "toggle"}, [this]() {

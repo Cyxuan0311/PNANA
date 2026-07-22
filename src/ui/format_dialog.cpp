@@ -1,4 +1,5 @@
 #include "ui/format_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "ui/theme.h"
@@ -17,9 +18,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 FormatDialog::FormatDialog(Theme& theme)
@@ -410,7 +409,7 @@ Element FormatDialog::render() {
     height = std::max(height, 15);
     height = responsiveHeight(height, 12);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
+    return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

@@ -1,4 +1,5 @@
 #include "ui/dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
@@ -7,9 +8,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -144,7 +143,7 @@ Element Dialog::render() {
                   text(at_cursor) | bgcolor(colors.foreground) | color(colors.background),
                   text(after_cursor) | color(colors.foreground),
                   text(" ") | color(colors.foreground)}) |
-            bgcolor(colors.background) | borderWithColor(colors.dialog_border));
+            bgcolor(colors.background));
 
         // 提示
         content.push_back(hbox(

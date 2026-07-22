@@ -1,4 +1,5 @@
 #include "ui/package_manager_panel.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/package_detail_dialog.h"
 #include "ui/responsive_size.h"
@@ -13,9 +14,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 static inline Element padded(Element e) {
@@ -70,13 +69,16 @@ Element PackageManagerPanel::render() {
 
     Element footer = renderFooter();
 
-    return window(text(" Package Manager ") | color(colors.success) | bold, vbox({
-                                                                                top,
-                                                                                separator(),
-                                                                                body,
-                                                                                separator(),
-                                                                                footer,
-                                                                            })) |
+    return vbox({
+               hbox({text(" Package Manager ") | color(colors.success) | bold, filler()}) |
+                   bgcolor(colors.menubar_bg),
+               separator(),
+               top,
+               separator(),
+               body,
+               separator(),
+               footer,
+           }) |
            // 让面板尽量适配终端：给最小尺寸，剩余空间交给 flex
            size(WIDTH, GREATER_THAN, responsiveMinWidth(72)) |
            size(HEIGHT, GREATER_THAN, responsiveMinHeight(18)) | bgcolor(colors.background) |

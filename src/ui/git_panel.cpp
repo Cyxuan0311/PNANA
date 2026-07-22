@@ -1,4 +1,5 @@
 #include "ui/git_panel.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "utils/logger.h"
@@ -19,9 +20,7 @@ namespace fs = std::filesystem;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -1960,14 +1959,18 @@ Component GitPanel::buildMainComponent() {
                content_elements.push_back(separatorLight());
                content_elements.push_back(renderFooter());
 
+               content_elements.insert(content_elements.begin(), separator());
+               content_elements.insert(
+                   content_elements.begin(),
+                   hbox({text("Git Panel") | bold | color(colors.keyword), filler()}) |
+                       bgcolor(colors.menubar_bg));
                Element dialog_content = vbox(std::move(content_elements));
 
-               // Use window style like other dialogs with proper sizing
-               Element main_panel = window(text("Git Panel"), dialog_content) |
-                                    size(WIDTH, GREATER_THAN, responsiveMinWidth(75)) |
-                                    size(HEIGHT, GREATER_THAN, responsiveMinHeight(28)) |
-                                    bgcolor(colors.background) |
-                                    borderWithColor(colors.dialog_border);
+               // Use vbox style like other dialogs with proper sizing
+               Element main_panel =
+                   dialog_content | size(WIDTH, GREATER_THAN, responsiveMinWidth(75)) |
+                   size(HEIGHT, GREATER_THAN, responsiveMinHeight(28)) |
+                   bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 
                // If diff viewer is visible, render it on top
                if (diff_viewer_visible_) {

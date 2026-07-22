@@ -1,4 +1,5 @@
 #include "ui/fzf_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "utils/file_info_utils.h"
@@ -25,9 +26,7 @@ namespace ui {
 
 // 自定义边框
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 // 应忽略的目录名（递归扫描时跳过）
@@ -569,9 +568,8 @@ Element FzfPopup::render() {
     int height = std::min(35, int(12 + static_cast<int>(list_display_count_)));
     height = responsiveHeight(height, 12);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, dialog_w) |
-           size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
-           borderWithColor(colors.dialog_border);
+    return vbox(dialog_content) | size(WIDTH, EQUAL, dialog_w) | size(HEIGHT, EQUAL, height) |
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 Element FzfPopup::renderTitle() const {

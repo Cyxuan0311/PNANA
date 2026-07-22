@@ -490,6 +490,7 @@ set(SOURCES
     src/ui/statusbar_style_menu.cpp
     src/ui/create_folder_dialog.cpp
     src/ui/cursor_config_dialog.cpp
+    src/ui/border_config_popup.cpp
     src/ui/save_as_dialog.cpp
     src/ui/binary_file_view.cpp
     src/ui/encoding_dialog.cpp
@@ -714,6 +715,7 @@ set(HEADERS
     include/pnana/ui/create_folder_dialog.h
     include/pnana/ui/save_as_dialog.h
     include/pnana/ui/cursor_config_dialog.h
+    include/pnana/ui/border_config_popup.h
     include/pnana/ui/binary_file_view.h
     include/pnana/ui/encoding_dialog.h
     include/pnana/ui/dialog.h

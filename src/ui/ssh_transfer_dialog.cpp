@@ -1,4 +1,5 @@
 #include "ui/ssh_transfer_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -9,9 +10,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -205,10 +204,13 @@ Element SSHTransferDialog::render() {
     hints.push_back(text("Esc: Cancel"));
     fields.push_back(hbox(hints) | color(colors.comment) | center);
 
-    Element dialog_content = vbox(fields);
+    fields.insert(fields.begin(), separator());
+    fields.insert(fields.begin(),
+                  hbox({text("SSH File Transfer") | bold | color(colors.keyword), filler()}) |
+                      bgcolor(colors.menubar_bg));
+    Element dialog_content = vbox(std::move(fields));
 
-    return window(text("SSH File Transfer"), dialog_content) |
-           size(WIDTH, GREATER_THAN, responsiveMinWidth(80)) |
+    return dialog_content | size(WIDTH, GREATER_THAN, responsiveMinWidth(80)) |
            size(HEIGHT, GREATER_THAN, responsiveMinHeight(25)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

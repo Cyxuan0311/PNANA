@@ -1,4 +1,5 @@
 #include "ui/cursor_config_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -9,9 +10,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 static inline Element padded(Element e) {
@@ -186,13 +185,16 @@ Element CursorConfigDialog::render() {
                      }) |
                      bgcolor(colors.helpbar_bg);
 
-    return window(text(" Cursor ") | color(colors.keyword) | bold, vbox({
-                                                                       header,
-                                                                       separator(),
-                                                                       body,
-                                                                       separator(),
-                                                                       footer,
-                                                                   })) |
+    return vbox({
+               hbox({text(" Cursor ") | color(colors.keyword) | bold, filler()}) |
+                   bgcolor(colors.menubar_bg),
+               separator(),
+               header,
+               separator(),
+               body,
+               separator(),
+               footer,
+           }) |
            size(WIDTH, GREATER_THAN, responsiveMinWidth(66)) |
            size(HEIGHT, GREATER_THAN, responsiveMinHeight(16)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border) | center;

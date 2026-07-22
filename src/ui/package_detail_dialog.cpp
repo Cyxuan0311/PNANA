@@ -1,4 +1,5 @@
 #include "ui/package_detail_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -13,9 +14,7 @@ namespace ui {
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 PackageDetailDialog::PackageDetailDialog(Theme& theme)
@@ -306,9 +305,11 @@ Element PackageDetailDialog::render() const {
     hint_elements.push_back(text(": Return") | color(colors.comment) | dim);
     content.push_back(hbox(std::move(hint_elements)));
 
-    return window(text(" Package Details ") | color(colors.success) | bold,
-                  vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, responsiveMinWidth(80)) |
+    content.insert(content.begin(), separator());
+    content.insert(content.begin(),
+                   hbox({text(" Package Details ") | color(colors.success) | bold, filler()}) |
+                       bgcolor(colors.menubar_bg));
+    return vbox(std::move(content)) | size(WIDTH, GREATER_THAN, responsiveMinWidth(80)) |
            size(HEIGHT, GREATER_THAN, responsiveMinHeight(15)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border) | center;
 }

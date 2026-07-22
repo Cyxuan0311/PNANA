@@ -181,6 +181,13 @@ struct HistoryConfig {
     int critical_time_interval = 86400;
 };
 
+// 边框配置结构
+struct BorderConfig {
+    std::string global_style = "rounded"; // 全局边框样式
+    std::string active_style = "";        // 激活区域样式，空 = 继承 global
+    std::string inactive_style = "light"; // 非激活区域样式，空 = 继承 global
+};
+
 // UI 配置结构
 struct UIConfig {
     bool toast_enabled = false;          // 是否启用 Toast 弹窗通知
@@ -193,6 +200,9 @@ struct UIConfig {
     // 最近项目数量限制
     int max_recent_files = 8;   // 最近打开的文件最大数量
     int max_recent_folders = 4; // 最近打开的文件夹最大数量
+
+    // 边框样式配置
+    BorderConfig border;
 };
 
 // 自定义 Logo 配置

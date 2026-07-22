@@ -1,4 +1,5 @@
 #include "ui/history_timeline_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "utils/logger.h"
@@ -12,9 +13,7 @@ using namespace ftxui;
 
 namespace {
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 std::string formatTs(long long ms) {
@@ -148,9 +147,9 @@ Element HistoryTimelinePopup::render() {
     int h = std::min<int>(22, 10 + static_cast<int>(versions_.size()));
     h = responsiveHeight(h, 8);
 
-    return window(text(""), vbox(std::move(content))) |
-           size(WIDTH, EQUAL, responsiveWidth(72, 30)) | size(HEIGHT, EQUAL, h) |
-           bgcolor(colors.dialog_bg) | borderWithColor(colors.dialog_border);
+    return vbox(std::move(content)) | size(WIDTH, EQUAL, responsiveWidth(72, 30)) |
+           size(HEIGHT, EQUAL, h) | bgcolor(colors.background) |
+           borderWithColor(colors.dialog_border);
 }
 
 bool HistoryTimelinePopup::handleInput(ftxui::Event event) {

@@ -281,6 +281,13 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
         return dbox(dialog_elements);
     }
 
+    // 如果边框配置弹窗打开，叠加显示
+    if (is_border_config_popup_visible_callback_ && is_border_config_popup_visible_callback_() &&
+        render_border_config_popup_callback_) {
+        Elements popup_elements = {main_ui | dim, render_border_config_popup_callback_() | center};
+        return dbox(popup_elements);
+    }
+
     // 没有对话框打开，返回主UI
     return main_ui;
 }

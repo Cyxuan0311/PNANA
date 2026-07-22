@@ -62,7 +62,7 @@ Editor::Editor()
       welcome_screen_(theme_, config_manager_), split_welcome_screen_(theme_),
       new_file_prompt_(theme_), theme_menu_(theme_), logo_menu_(theme_), animation_menu_(theme_),
       create_folder_dialog_(theme_), save_as_dialog_(theme_), move_file_dialog_(theme_),
-      cursor_config_dialog_(theme_),
+      cursor_config_dialog_(theme_), border_config_popup_(theme_),
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
       image_protocol_dialog_(theme_),
 #endif
@@ -144,6 +144,16 @@ Editor::Editor()
     statusbar_style_menu_.setOnStyleConfirmed([this](const std::string& name) {
         config_manager_.getConfig().display.statusbar_style = name;
         config_manager_.saveConfig();
+    });
+
+    // 边框配置弹窗回调：持久化到配置并通知 BorderManager
+    border_config_popup_.setOnApply([this](const core::BorderConfig& cfg) {
+        config_manager_.getConfig().ui.border = cfg;
+        config_manager_.saveConfig();
+        core::ui::BorderManager::setBorderConfig(cfg);
+        setStatusMessage("Border style applied | Global: " + cfg.global_style +
+                         (cfg.active_style.empty() ? "" : ", Active: " + cfg.active_style) +
+                         (cfg.inactive_style.empty() ? "" : ", Inactive: " + cfg.inactive_style));
     });
 
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
@@ -788,6 +798,9 @@ void Editor::applyLoadedConfig() {
         pnana::ui::Toast::setDefaultBoldText(config.ui.toast_bold_text);
     }
 
+    // 应用边框配置
+    core::ui::BorderManager::setBorderConfig(config.ui.border);
+
     // 应用最近项目数量限制
     recent_files_manager_.max_recent_files =
         static_cast<size_t>(std::max(1, config.ui.max_recent_files));
@@ -843,6 +856,11 @@ void Editor::openCursorConfig() {
     cursor_config_dialog_.open();
     setStatusMessage(
         "Cursor Configuration | ↑↓: Navigate, ←→: Change Style, Enter: Apply, Esc: Cancel");
+}
+
+void Editor::openBorderConfigPopup() {
+    border_config_popup_.open(config_manager_.getConfig().ui.border);
+    setStatusMessage("Border Style | ↑↓: Navigate, ←→: Change Style, Enter: Apply, Esc: Cancel");
 }
 
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT

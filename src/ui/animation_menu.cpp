@@ -1,4 +1,5 @@
 #include "ui/animation_menu.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -10,9 +11,7 @@ namespace pnana {
 namespace ui {
 
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 AnimationMenu::AnimationMenu(Theme& theme) : theme_(theme) {

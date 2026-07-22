@@ -435,6 +435,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     overlay_manager_->setRenderCursorConfigCallback([this]() {
         return cursor_config_dialog_.render();
     });
+    overlay_manager_->setRenderBorderConfigPopupCallback([this]() {
+        return border_config_popup_.render();
+    });
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
     overlay_manager_->setRenderImageProtocolCallback([this]() {
         return image_protocol_dialog_.render();
@@ -607,6 +610,9 @@ Element Editor::overlayDialogs(Element main_ui) {
     });
     overlay_manager_->setIsCursorConfigVisibleCallback([this]() {
         return cursor_config_dialog_.isVisible();
+    });
+    overlay_manager_->setIsBorderConfigPopupVisibleCallback([this]() {
+        return border_config_popup_.isVisible();
     });
     overlay_manager_->setIsAIConfigVisibleCallback([this]() {
         return ai_config_dialog_.isVisible();

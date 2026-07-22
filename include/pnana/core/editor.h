@@ -18,6 +18,7 @@
 #include "ui/ai_config_dialog.h"
 #include "ui/animation_menu.h"
 #include "ui/binary_file_view.h"
+#include "ui/border_config_popup.h"
 #include "ui/clipboard_panel.h"
 #include "ui/create_folder_dialog.h"
 #include "ui/cursor_config_dialog.h"
@@ -446,6 +447,7 @@ class Editor {
     pnana::ui::SaveAsDialog save_as_dialog_;
     pnana::ui::MoveFileDialog move_file_dialog_;
     pnana::ui::CursorConfigDialog cursor_config_dialog_;
+    pnana::ui::BorderConfigPopup border_config_popup_;
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
     pnana::ui::ImageProtocolDialog image_protocol_dialog_;
 #endif
@@ -929,6 +931,7 @@ class Editor {
 
     // 光标配置
     void openCursorConfig();
+    void openBorderConfigPopup();
     void openEncodingDialog();
     void applyCursorConfig();
 

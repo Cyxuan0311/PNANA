@@ -1,4 +1,5 @@
 #include "ui/logo_menu.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "utils/match_highlight.h"
@@ -12,9 +13,7 @@ namespace pnana {
 namespace ui {
 
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 LogoMenu::LogoMenu(Theme& theme) : theme_(theme), selected_index_(0), search_cursor_pos_(0) {
@@ -230,13 +229,48 @@ Element LogoMenu::renderLogoPreview() const {
         gradient_colors = {colors.success, colors.success, colors.success,
                            colors.success, colors.success, colors.success};
     }
+    auto splitGlyphs = [](const std::string& s) {
+        std::vector<std::string> out;
+        for (size_t i = 0; i < s.size();) {
+            unsigned char c = s[i];
+            size_t len = 1;
+            if (c >= 0xF0)
+                len = 4;
+            else if (c >= 0xE0)
+                len = 3;
+            else if (c >= 0xC0)
+                len = 2;
+            out.push_back(s.substr(i, len));
+            i += len;
+        }
+        return out;
+    };
+
+    std::vector<std::vector<std::string>> glyphs_list;
+    size_t max_cols = 0;
+    for (const auto& line : lines) {
+        auto g = splitGlyphs(line);
+        if (g.size() > max_cols)
+            max_cols = g.size();
+        glyphs_list.push_back(std::move(g));
+    }
+
+    auto smooth_colors = features::LogoManager::generateSmoothGradient(
+        gradient_colors, glyphs_list.size(), max_cols);
+
     Elements preview_elements;
     preview_elements.push_back(hbox({text(" "), text(style_id) | bold | color(colors.foreground)}) |
                                bgcolor(colors.dialog_title_bg));
     preview_elements.push_back(separator());
-    for (size_t i = 0; i < lines.size(); ++i) {
-        size_t g = i % gradient_colors.size();
-        preview_elements.push_back(text("  " + lines[i]) | color(gradient_colors[g]) | bold);
+    for (size_t i = 0; i < glyphs_list.size(); ++i) {
+        Elements char_elems;
+        char_elems.push_back(text("  "));
+        for (size_t j = 0; j < glyphs_list[i].size(); ++j) {
+            size_t idx = i * max_cols + j;
+            Color ch_color = (idx < smooth_colors.size()) ? smooth_colors[idx] : gradient_colors[0];
+            char_elems.push_back(text(glyphs_list[i][j]) | color(ch_color));
+        }
+        preview_elements.push_back(hbox(std::move(char_elems)) | bold);
     }
     int dialog_w = responsiveWidth(75, 35);
     int preview_w = responsiveSubWidth(70, 75, dialog_w, 18);

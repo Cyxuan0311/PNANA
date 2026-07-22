@@ -1,4 +1,5 @@
 #include "ui/extract_progress_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <chrono>
@@ -9,9 +10,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -94,7 +93,7 @@ ftxui::Element ExtractProgressDialog::render() {
         hbox({text("  "), text("Please wait while extracting...") | color(colors.comment) | dim}) |
         center);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(70, 35)) |
+    return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(70, 35)) |
            size(HEIGHT, EQUAL, responsiveHeight(15, 8)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

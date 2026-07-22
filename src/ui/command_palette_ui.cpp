@@ -1,4 +1,5 @@
 #include "ui/command_palette_ui.h"
+#include "core/ui/border_manager.h"
 #include "features/command_palette.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
@@ -10,9 +11,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -64,9 +63,8 @@ ftxui::Element CommandPaletteUI::render() {
         std::min(22, int(15 + static_cast<int>(std::min(filtered_commands_.size(), size_t(15)))));
     height = responsiveHeight(height, 12);
     int w = responsiveWidth(70, 35);
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, w) |
-           size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
-           borderWithColor(colors.dialog_border);
+    return vbox(dialog_content) | size(WIDTH, EQUAL, w) | size(HEIGHT, EQUAL, height) |
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 Element CommandPaletteUI::renderTitle() const {

@@ -1,4 +1,5 @@
 #include "ui/history_diff_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -9,9 +10,7 @@ using namespace ftxui;
 
 namespace {
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 } // namespace
 
@@ -140,9 +139,8 @@ Element HistoryDiffPopup::render() const {
 
     int w = responsiveWidth(110, 40);
     int h = responsiveHeight(26, 10);
-    return window(text(""), vbox(std::move(content))) | size(WIDTH, EQUAL, w) |
-           size(HEIGHT, EQUAL, h) | bgcolor(colors.dialog_bg) |
-           borderWithColor(colors.dialog_border);
+    return vbox(std::move(content)) | size(WIDTH, EQUAL, w) | size(HEIGHT, EQUAL, h) |
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 bool HistoryDiffPopup::handleInput(ftxui::Event event) {

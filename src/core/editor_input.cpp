@@ -428,6 +428,13 @@ void Editor::handleInput(Event event) {
         }
     }
 
+    // 优先处理边框配置弹窗输入
+    if (border_config_popup_.isVisible()) {
+        if (border_config_popup_.handleInput(event)) {
+            return;
+        }
+    }
+
 #ifdef BUILD_IMAGE_PROTOCOL_SUPPORT
     // 图像协议设置弹窗
     if (image_protocol_dialog_.isVisible()) {

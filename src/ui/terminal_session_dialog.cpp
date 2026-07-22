@@ -1,4 +1,5 @@
 #include "ui/terminal_session_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <ftxui/dom/elements.hpp>
@@ -8,9 +9,7 @@
 using namespace ftxui;
 
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 static inline Element padded(Element e) {
@@ -298,13 +297,16 @@ ftxui::Element TerminalSessionDialog::render() {
 
     Element footer = hbox(footer_parts) | bgcolor(colors.helpbar_bg);
 
-    return window(text(" Terminal ") | color(colors.success) | bold, vbox({
-                                                                         header,
-                                                                         separator(),
-                                                                         body,
-                                                                         separator(),
-                                                                         footer,
-                                                                     })) |
+    return vbox({
+               hbox({text(" Terminal ") | color(colors.success) | bold, filler()}) |
+                   bgcolor(colors.menubar_bg),
+               separator(),
+               header,
+               separator(),
+               body,
+               separator(),
+               footer,
+           }) |
            size(WIDTH, GREATER_THAN, responsiveMinWidth(64)) |
            size(HEIGHT, GREATER_THAN, responsiveMinHeight(11)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border) | center;

@@ -96,7 +96,13 @@
   },
   "custom_logos": [],
   "ui": {
-    "_comment": "UI settings (Toast: enabled/style/duration/max_width/icon/bold)",
+    "_comment": "UI settings (Border/Toast)",
+    "_comment_border": "Border style: rounded | light | double | heavy | dashed | empty",
+    "border": {
+      "global_style": "rounded",
+      "active_style": "",
+      "inactive_style": "light"
+    },
     "_comment_toast_style": "Toast style: classic | minimal | solid | accent | outline",
     "_comment_toast_duration": "toast_duration_ms: 0 means stay until replaced/hidden",
     "toast_enabled": false,

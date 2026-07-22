@@ -1,4 +1,5 @@
 #include "ui/move_file_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <filesystem>
@@ -9,9 +10,7 @@ namespace fs = std::filesystem;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 static bool try_complete_path(const std::string& input, const std::string& base_dir,
@@ -142,7 +141,7 @@ Element MoveFileDialog::render() {
         hbox({text("  "), text("Tab") | color(colors.function) | bold, text(": Path completion")}) |
         dim);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(60, 35)) |
+    return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(60, 35)) |
            size(HEIGHT, EQUAL, responsiveHeight(14, 8)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

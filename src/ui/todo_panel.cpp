@@ -1,4 +1,5 @@
 #include "ui/todo_panel.h"
+#include "core/ui/border_manager.h"
 #include "features/todo/todo_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
@@ -14,9 +15,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -61,12 +60,15 @@ Element TodoPanel::render() {
     content.push_back(separator() | color(colors.dialog_border));
     content.push_back(renderHelpBar());
 
+    content.insert(content.begin(), separator());
+    content.insert(content.begin(),
+                   hbox({text(" " + std::string(icons::CHECKLIST) + " Todo List ") |
+                             color(colors.success) | bold,
+                         filler()}) |
+                       bgcolor(colors.menubar_bg));
     const int panel_min_width = 72;
     const int panel_min_height = 18;
-    return window(text(" " + std::string(icons::CHECKLIST) + " Todo List ") |
-                      color(colors.success) | bold,
-                  vbox(std::move(content))) |
-           size(WIDTH, GREATER_THAN, panel_min_width) |
+    return vbox(std::move(content)) | size(WIDTH, GREATER_THAN, panel_min_width) |
            size(HEIGHT, GREATER_THAN, panel_min_height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
@@ -462,12 +464,12 @@ Element TodoPanel::renderBody() const {
     auto left = vbox({
                     renderCalendar(),
                 }) |
-                size(WIDTH, EQUAL, responsiveWidth(26, 18)) | borderWithColor(colors.dialog_border);
+                size(WIDTH, EQUAL, responsiveWidth(26, 18)) | bgcolor(colors.background);
 
     auto right = vbox({
                      renderTodoList(),
                  }) |
-                 flex_grow | borderWithColor(colors.dialog_border);
+                 flex_grow | bgcolor(colors.background);
 
     return hbox({
                left,

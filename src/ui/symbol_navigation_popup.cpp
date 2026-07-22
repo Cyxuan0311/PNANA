@@ -1,4 +1,5 @@
 #include "ui/symbol_navigation_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "utils/logger.h"
@@ -11,9 +12,7 @@ using namespace ftxui;
 
 // 使用当前主题色的边框装饰器
 static inline Decorator borderWithColor(Color border_color) {
-    return [border_color](Element child) {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 using namespace pnana::ui::icons;
 
@@ -311,10 +310,13 @@ Element SymbolNavigationPopup::render() const {
     content.push_back(separator());
     content.push_back(text("Type to filter | ↑↓ Navigate | Enter Jump | Esc Close") | dim | center);
 
-    Element dialog_content = vbox(content);
+    content.insert(content.begin(), separator());
+    content.insert(content.begin(),
+                   hbox({text("Symbol Navigation") | color(colors.foreground), filler()}) |
+                       bgcolor(colors.menubar_bg));
+    Element dialog_content = vbox(std::move(content));
 
-    return window(text("Symbol Navigation") | color(colors.foreground), dialog_content) |
-           size(WIDTH, GREATER_THAN, responsiveMinWidth(70)) |
+    return dialog_content | size(WIDTH, GREATER_THAN, responsiveMinWidth(70)) |
            size(HEIGHT, GREATER_THAN, responsiveMinHeight(15)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

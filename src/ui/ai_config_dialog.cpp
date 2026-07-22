@@ -1,4 +1,5 @@
 #include "ui/ai_config_dialog.h"
+#include "core/ui/border_manager.h"
 #include "features/ai_config/ai_config.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
@@ -9,9 +10,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -141,8 +140,8 @@ Element AIConfigDialog::render() {
     content.push_back(separator());
     content.push_back(renderButtons());
 
-    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(90, 40)) |
-           size(HEIGHT, EQUAL, responsiveHeight(22, 10)) | bgcolor(colors.dialog_bg) |
+    return vbox(content) | size(WIDTH, EQUAL, responsiveWidth(90, 40)) |
+           size(HEIGHT, EQUAL, responsiveHeight(22, 10)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }
 

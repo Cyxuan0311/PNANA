@@ -189,6 +189,21 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
     size_t image_protocol_pos = cleaned.find("\"image_protocol\":{");
 
     // 辅助：从 section 内提取数字，section_end 为该段 "}" 位置
+    auto findMatchingBrace = [&cleaned](size_t start) -> size_t {
+        if (start >= cleaned.size() || cleaned[start] != '{')
+            return std::string::npos;
+        int depth = 1;
+        for (size_t i = start + 1; i < cleaned.size(); ++i) {
+            if (cleaned[i] == '{')
+                depth++;
+            else if (cleaned[i] == '}') {
+                depth--;
+                if (depth == 0)
+                    return i;
+            }
+        }
+        return std::string::npos;
+    };
     auto extractInt = [&cleaned](const std::string& key, size_t start, size_t section_end,
                                  int default_val) -> int {
         size_t pos = cleaned.find("\"" + key + "\":", start);
@@ -759,8 +774,31 @@ bool ConfigManager::parseJSON(const std::string& json_content) {
 
     // 解析 ui 配置
     if (ui_pos != std::string::npos) {
-        size_t ui_end = cleaned.find("}", ui_pos + 1);
+        size_t brace_start = cleaned.find("{", ui_pos);
+        size_t ui_end =
+            (brace_start != std::string::npos) ? findMatchingBrace(brace_start) : std::string::npos;
         if (ui_end != std::string::npos) {
+            // 解析 border 子对象
+            size_t border_pos = cleaned.find("\"border\":{", ui_pos);
+            if (border_pos != std::string::npos && border_pos < ui_end) {
+                size_t border_brace = border_pos + 10; // past "\"border\":{"
+                size_t border_end = findMatchingBrace(border_brace - 1);
+                if (border_end == std::string::npos || border_end > ui_end)
+                    border_end = ui_end;
+
+                std::string gs = extractStr("global_style", border_pos, border_end);
+                if (!gs.empty())
+                    config_.ui.border.global_style = gs;
+
+                std::string as = extractStr("active_style", border_pos, border_end);
+                if (!as.empty())
+                    config_.ui.border.active_style = as;
+
+                std::string is_ = extractStr("inactive_style", border_pos, border_end);
+                if (!is_.empty())
+                    config_.ui.border.inactive_style = is_;
+            }
+
             config_.ui.toast_enabled = extractBool("toast_enabled", ui_pos, ui_end, false);
 
             std::string toast_style = extractStr("toast_style", ui_pos, ui_end);
@@ -1084,8 +1122,14 @@ std::string ConfigManager::generateJSON() const {
     }
     oss << "  ],\n";
     oss << "  \"ui\": {\n";
-    oss << "    \"_comment\": \"UI settings (Toast: "
-           "enabled/style/duration/max_width/icon/bold)\",\n";
+    oss << "    \"_comment\": \"UI settings (Border/Toast)\",\n";
+    oss << "    \"_comment_border\": \"Border style: rounded | light | double | heavy | dashed | "
+           "empty\",\n";
+    oss << "    \"border\": {\n";
+    oss << "      \"global_style\": \"" << config_.ui.border.global_style << "\",\n";
+    oss << "      \"active_style\": \"" << config_.ui.border.active_style << "\",\n";
+    oss << "      \"inactive_style\": \"" << config_.ui.border.inactive_style << "\"\n";
+    oss << "    },\n";
     oss << "    \"_comment_toast_style\": \"Toast style: classic | minimal | solid | accent | "
            "outline\",\n";
     oss << "    \"_comment_toast_duration\": \"toast_duration_ms: 0 means stay until "

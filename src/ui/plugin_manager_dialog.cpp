@@ -1,4 +1,5 @@
 #include "ui/plugin_manager_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "ui/toast.h"
@@ -9,9 +10,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -122,7 +121,7 @@ Element PluginManagerDialog::render() {
               text("Esc") | color(colors.function) | bold, text(": Close"), filler()}) |
         bgcolor(colors.menubar_bg) | dim);
 
-    return window(text(""), vbox(content)) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
+    return vbox(content) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
            size(HEIGHT, EQUAL, responsiveHeight(25, 10)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border) | center;
 }

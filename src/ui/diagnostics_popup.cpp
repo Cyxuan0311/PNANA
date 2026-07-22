@@ -1,4 +1,5 @@
 #include "ui/diagnostics_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -8,9 +9,7 @@ using namespace ftxui;
 
 // 使用当前主题色的边框装饰器
 static inline Decorator borderWithColor(Color border_color) {
-    return [border_color](Element child) {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 using namespace pnana::ui::icons;
 
@@ -130,13 +129,16 @@ Element DiagnosticsPopup::render() const {
     content.push_back(text("↑↓ Navigate | Enter Jump | Ctrl+P Copy | Esc Close | Alt+E Close") |
                       dim | center);
 
-    Element dialog_content = vbox(content);
+    content.insert(content.begin(), separator());
+    content.insert(content.begin(),
+                   hbox({text("Diagnostics") | color(colors.foreground), filler()}) |
+                       bgcolor(colors.menubar_bg));
+    Element dialog_content = vbox(std::move(content));
 
     // 使用 window 样式，固定宽度与高度，边框与标题使用当前主题色
     int dialog_w = responsiveWidth(kDiagnosticContentWidth + 4, 34);
     int dialog_h = responsiveHeight(kListVisibleHeight + 8, 12);
-    return window(text("Diagnostics") | color(colors.foreground), dialog_content) |
-           size(WIDTH, EQUAL, dialog_w) | size(HEIGHT, EQUAL, dialog_h) |
+    return dialog_content | size(WIDTH, EQUAL, dialog_w) | size(HEIGHT, EQUAL, dialog_h) |
            bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 

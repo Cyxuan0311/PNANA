@@ -1,4 +1,5 @@
 #include "ui/create_folder_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <ftxui/dom/elements.hpp>
@@ -7,9 +8,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -70,7 +69,7 @@ Element CreateFolderDialog::render() {
                                    text(" to create folder") | dim}) |
                              dim);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(55, 30)) |
+    return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(55, 30)) |
            size(HEIGHT, EQUAL, responsiveHeight(13, 8)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

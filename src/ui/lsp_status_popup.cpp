@@ -1,4 +1,5 @@
 #include "ui/lsp_status_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -16,9 +17,7 @@ namespace pnana {
 namespace ui {
 
 static inline Decorator borderWithColor(Color c) {
-    return [=](Element child) {
-        return child | border | color(c);
-    };
+    return pnana::core::ui::makeBorderDecorator(c);
 }
 
 LspStatusPopup::LspStatusPopup(Theme& theme) : theme_(theme) {}
@@ -287,7 +286,11 @@ Element LspStatusPopup::render() {
     content.push_back(separator());
     content.push_back(renderHelpBar());
 
-    return window(text("LSP Connection Status"), vbox(content)) | size(WIDTH, EQUAL, dialog_w) |
+    content.insert(content.begin(), separator());
+    content.insert(content.begin(),
+                   hbox({text("LSP Connection Status") | bold | color(colors.keyword), filler()}) |
+                       bgcolor(colors.menubar_bg));
+    return vbox(std::move(content)) | size(WIDTH, EQUAL, dialog_w) |
            size(HEIGHT, EQUAL, responsiveHeight(28, 12)) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

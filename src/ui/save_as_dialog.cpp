@@ -1,4 +1,5 @@
 #include "ui/save_as_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <filesystem>
@@ -63,9 +64,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -144,7 +143,7 @@ Element SaveAsDialog::render() {
     int dialog_height = is_untitled ? 13 : 12;
     dialog_height = responsiveHeight(dialog_height, 8);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(65, 35)) |
+    return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(65, 35)) |
            size(HEIGHT, EQUAL, dialog_height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

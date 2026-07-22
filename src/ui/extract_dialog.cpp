@@ -1,4 +1,5 @@
 #include "ui/extract_dialog.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
@@ -8,9 +9,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -129,7 +128,7 @@ ftxui::Element ExtractDialog::render() {
             ? 10
             : std::min(20, int(8 + static_cast<int>(std::min(archive_files_.size(), size_t(10)))));
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, responsiveWidth(70, 35)) |
+    return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(70, 35)) |
            size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
            borderWithColor(colors.dialog_border);
 }

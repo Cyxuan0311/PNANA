@@ -1,4 +1,5 @@
 #include "ui/recent_files_popup.h"
+#include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include "ui/toast.h"
@@ -11,9 +12,7 @@ using namespace ftxui;
 
 // Custom border decorator with theme color
 static inline Decorator borderWithColor(Color border_color) {
-    return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
-    };
+    return pnana::core::ui::makeBorderDecorator(border_color);
 }
 
 namespace pnana {
@@ -62,9 +61,8 @@ ftxui::Element RecentFilesPopup::render() {
     height = responsiveHeight(height, 10);
     int w = responsiveWidth(80, 35);
 
-    return window(text(""), vbox(dialog_content)) | size(WIDTH, EQUAL, w) |
-           size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
-           borderWithColor(colors.dialog_border);
+    return vbox(dialog_content) | size(WIDTH, EQUAL, w) | size(HEIGHT, EQUAL, height) |
+           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
 bool RecentFilesPopup::handleInput(ftxui::Event event) {
