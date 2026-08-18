@@ -182,6 +182,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Cyxuan0311/PNANA&type=Date)](https://star-history.com/#Cyxuan0311/PNANA&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=Cyxuan0311/PNANA&type=Date)](https://star-history.dera.page/#Cyxuan0311/PNANA&Date)
 
 ---
