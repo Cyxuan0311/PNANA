@@ -43,16 +43,6 @@ inline bool isAsciiAlpha(unsigned char c) {
     size_t len = getUtf8CharLength(c);
     return std::min(pos + len, str.length());
 }
-
-// 创建UTF-8字符token（处理多字节字符）
-inline std::string getUtf8Char(const std::string& str, size_t pos) {
-    if (pos >= str.length())
-        return "";
-    unsigned char c = static_cast<unsigned char>(str[pos]);
-    size_t len = getUtf8CharLength(c);
-    len = std::min(len, str.length() - pos);
-    return str.substr(pos, len);
-}
 } // namespace
 
 namespace pnana {
@@ -1597,7 +1587,8 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizeLLVMIR(line);
     } else if (current_file_type_ == "asm" || current_file_type_ == "s" ||
                current_file_type_ == "riscv" || current_file_type_ == "mips" ||
-               current_file_type_ == "arm" || current_file_type_ == "x86") {
+               current_file_type_ == "arm" || current_file_type_ == "x86" ||
+               current_file_type_ == "assembly") {
         return tokenizeAssembly(line);
     } else if (current_file_type_ == "groovy") {
         return tokenizeGroovy(line);
@@ -1628,8 +1619,6 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizeCSharp(line);
     } else if (current_file_type_ == "vb") {
         return tokenizeVB(line);
-    } else if (current_file_type_ == "assembly") {
-        return tokenizeAssembly(line);
     } else if (current_file_type_ == "webassembly") {
         return tokenizeWebAssembly(line);
     } else if (current_file_type_ == "verilog") {
@@ -1644,8 +1633,6 @@ std::vector<Token> SyntaxHighlighter::tokenize(const std::string& line) {
         return tokenizeRacket(line);
     } else if (current_file_type_ == "scheme") {
         return tokenizeScheme(line);
-    } else if (current_file_type_ == "commonlisp") {
-        return tokenizeCommonLisp(line);
     } else if (current_file_type_ == "emacslisp") {
         return tokenizeEmacsLisp(line);
     } else if (current_file_type_ == "prolog") {
@@ -1771,9 +1758,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeCpp(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符，停止
-                    break;
                 } else {
                     break;
                 }
@@ -1879,11 +1863,7 @@ std::vector<Token> SyntaxHighlighter::tokenizeCpp(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
-                    break;
                 } else {
-                    // 其他ASCII字符，停止
                     break;
                 }
             }
@@ -2061,8 +2041,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeProto(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    break;
                 } else {
                     break;
                 }
@@ -2304,11 +2282,7 @@ std::vector<Token> SyntaxHighlighter::tokenizePython(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(L[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
-                    break;
                 } else {
-                    // 其他ASCII字符，停止
                     break;
                 }
             }
@@ -2486,11 +2460,7 @@ std::vector<Token> SyntaxHighlighter::tokenizeJavaScript(const std::string& line
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_' || ch == '$') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
-                    break;
                 } else {
-                    // 其他ASCII字符，停止
                     break;
                 }
             }
@@ -2815,11 +2785,7 @@ std::vector<Token> SyntaxHighlighter::tokenizeShell(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_' || ch == '-') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
-                    break;
                 } else {
-                    // 其他ASCII字符，停止
                     break;
                 }
             }
@@ -2940,11 +2906,7 @@ std::vector<Token> SyntaxHighlighter::tokenizeLua(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符（如中文），作为普通文本处理，停止标识符匹配
-                    break;
                 } else {
-                    // 其他ASCII字符，停止
                     break;
                 }
             }
@@ -3316,8 +3278,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeCMake(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    break;
                 } else {
                     break;
                 }
@@ -3434,8 +3394,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeTCL(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_' || ch == ':') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    break;
                 } else {
                     break;
                 }
@@ -3537,8 +3495,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeFortran(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    break;
                 } else {
                     break;
                 }
@@ -3663,8 +3619,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeHaskell(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_' || ch == '\'') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    break;
                 } else {
                     break;
                 }
@@ -3673,12 +3627,11 @@ std::vector<Token> SyntaxHighlighter::tokenizeHaskell(const std::string& line) {
             TokenType type = TokenType::NORMAL;
             if (isKeyword(word)) {
                 type = TokenType::KEYWORD;
-            } else if (isType(word)) {
+            } else if (isType(word) ||
+                       (!word.empty() && std::isupper(static_cast<unsigned char>(word[0])))) {
                 type = TokenType::TYPE;
             } else if (i < line.length() && line[i] == '(') {
                 type = TokenType::FUNCTION;
-            } else if (!word.empty() && std::isupper(static_cast<unsigned char>(word[0]))) {
-                type = TokenType::TYPE;
             }
             tokens.push_back({word, type, start, i});
             continue;
@@ -4164,12 +4117,10 @@ std::vector<Token> SyntaxHighlighter::tokenizeRuby(const std::string& line) {
             TokenType type = TokenType::NORMAL;
             if (isKeyword(word)) {
                 type = TokenType::KEYWORD;
-            } else if (isType(word)) {
+            } else if (isType(word) || word[0] == '@' || word[0] == '$') {
                 type = TokenType::TYPE;
             } else if (i < line.length() && line[i] == '(') {
                 type = TokenType::FUNCTION;
-            } else if (word[0] == '@' || word[0] == '$') {
-                type = TokenType::TYPE;
             }
             tokens.push_back({word, type, start, i});
             continue;
@@ -5076,24 +5027,13 @@ std::vector<Token> SyntaxHighlighter::tokenizeMakefile(const std::string& line) 
             TokenType type = TokenType::NORMAL;
 
             // 检查是否是指令关键字（基于tree-sitter-make）
-            if (isMakefileDirectiveKeyword(word)) {
+            if (isMakefileDirectiveKeyword(word) || isKeyword(word)) {
                 type = TokenType::KEYWORD;
             }
-            // 检查是否是常规关键字
-            else if (isKeyword(word)) {
-                type = TokenType::KEYWORD;
-            }
-            // 包含变量引用的标识符
-            else if (word.find('$') != std::string::npos) {
-                type = TokenType::TYPE;
-            }
-            // 文件路径相关的标识符
-            else if (word.find('/') != std::string::npos || word.find('.') != std::string::npos) {
-                type = TokenType::TYPE;
-            }
-            // 特殊makefile标识符（包含通配符等）
-            else if (word.find('%') != std::string::npos || word.find('*') != std::string::npos ||
-                     word.find('?') != std::string::npos) {
+            // 包含变量引用、文件路径或特殊通配符的标识符
+            else if (word.find('$') != std::string::npos || word.find('/') != std::string::npos ||
+                     word.find('.') != std::string::npos || word.find('%') != std::string::npos ||
+                     word.find('*') != std::string::npos || word.find('?') != std::string::npos) {
                 type = TokenType::TYPE;
             }
 
@@ -5542,10 +5482,8 @@ std::vector<Token> SyntaxHighlighter::tokenizeSML(const std::string& line) {
                 "val",       "with",    "withtype",  "while",   "sig",   "signature", "struct",
                 "structure", "functor", "include",   "sharing", "where"};
 
-            if (sml_keywords.count(word) > 0) {
-                type = TokenType::KEYWORD;
-            } else if (word == "true" || word == "false") {
-                type = TokenType::KEYWORD; // 布尔值
+            if (sml_keywords.count(word) > 0 || word == "true" || word == "false") {
+                type = TokenType::KEYWORD; // 关键字或布尔值
             } else if (std::isupper(word[0])) {
                 type = TokenType::TYPE; // 大写开头的通常是类型或构造函数
             }
@@ -6117,9 +6055,6 @@ std::vector<Token> SyntaxHighlighter::tokenizeCSharp(const std::string& line) {
                 unsigned char ch = static_cast<unsigned char>(line[i]);
                 if (isAsciiAlnum(ch) || ch == '_') {
                     i++;
-                } else if ((ch & 0x80) != 0) {
-                    // UTF-8多字节字符，停止
-                    break;
                 } else {
                     break;
                 }
@@ -6346,14 +6281,11 @@ std::vector<Token> SyntaxHighlighter::tokenizeAssembly(const std::string& line) 
                 ".ifdef",  ".ifndef",  ".endif",  ".else",    ".if",    ".rept", ".endr",
                 ".irp",    ".irpc",    ".exitm"};
 
-            if (asm_instructions.count(word) > 0) {
-                type = TokenType::KEYWORD; // 指令
+            if (asm_instructions.count(word) > 0 || asm_directives.count(word) > 0 ||
+                word[0] == '.') {
+                type = TokenType::KEYWORD; // 指令或伪指令（以点开头的通常是伪指令）
             } else if (asm_registers.count(word) > 0) {
                 type = TokenType::TYPE; // 寄存器
-            } else if (asm_directives.count(word) > 0) {
-                type = TokenType::KEYWORD; // 伪指令
-            } else if (word[0] == '.') {
-                type = TokenType::KEYWORD; // 以点开头的通常是伪指令
             }
 
             tokens.push_back({word, type, start, i});
@@ -6741,16 +6673,10 @@ std::vector<Token> SyntaxHighlighter::tokenizeLLVMIR(const std::string& line) {
                 "undef",
                 "poison"};
 
-            if (prefix == '%') {
-                type = TokenType::TYPE; // 局部变量
-            } else if (prefix == '@') {
-                type = TokenType::TYPE; // 全局变量/函数
-            } else if (llvm_types.count(word) > 0) {
-                type = TokenType::TYPE; // 类型
-            } else if (llvm_instructions.count(word) > 0) {
-                type = TokenType::KEYWORD; // 指令
-            } else if (llvm_keywords.count(word) > 0) {
-                type = TokenType::KEYWORD; // 关键字
+            if (prefix == '%' || prefix == '@' || llvm_types.count(word) > 0) {
+                type = TokenType::TYPE; // 局部/全局变量或类型
+            } else if (llvm_instructions.count(word) > 0 || llvm_keywords.count(word) > 0) {
+                type = TokenType::KEYWORD; // 指令或关键字
             }
 
             tokens.push_back({word, type, start, i});
@@ -7171,14 +7097,10 @@ std::vector<Token> SyntaxHighlighter::tokenizeCommonLisp(const std::string& line
                 "make-symbol",
                 "copy-symbol"};
 
-            if (lisp_keywords.count(word) > 0) {
-                type = TokenType::KEYWORD;
-            } else if (word == "t" || word == "nil") {
-                type = TokenType::KEYWORD; // Lisp的布尔值和空值
-            } else if (word[0] == ':') {
-                type = TokenType::TYPE; // 关键字符号
-            } else if (word[0] == '&') {
-                type = TokenType::TYPE; // lambda参数关键字
+            if (lisp_keywords.count(word) > 0 || word == "t" || word == "nil") {
+                type = TokenType::KEYWORD; // 关键字或Lisp的布尔值/空值
+            } else if (word[0] == ':' || word[0] == '&') {
+                type = TokenType::TYPE; // 关键字符号或lambda参数关键字
             }
 
             tokens.push_back({word, type, start, i});
@@ -7350,19 +7272,16 @@ std::vector<Token> SyntaxHighlighter::tokenizeMeson(const std::string& line) {
                 i++;
             std::string word = line.substr(start, i - start);
 
-            // 检查是否是关键字
+            // 检查是否是关键字或布尔值
             if (std::find(keywords_["meson"].begin(), keywords_["meson"].end(), word) !=
-                keywords_["meson"].end()) {
+                    keywords_["meson"].end() ||
+                word == "true" || word == "false") {
                 tokens.push_back({word, TokenType::KEYWORD, start, i});
             }
             // 检查是否是类型
             else if (std::find(types_["meson"].begin(), types_["meson"].end(), word) !=
                      types_["meson"].end()) {
                 tokens.push_back({word, TokenType::TYPE, start, i});
-            }
-            // 检查是否是布尔值
-            else if (word == "true" || word == "false") {
-                tokens.push_back({word, TokenType::KEYWORD, start, i});
             } else {
                 tokens.push_back({word, TokenType::NORMAL, start, i});
             }
