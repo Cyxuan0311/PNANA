@@ -25,3 +25,4 @@ test.zip
 test.txt
 json_1g_fast.log
 debug.log
+clang-tidy-report.txt

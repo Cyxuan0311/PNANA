@@ -1,0 +1,27 @@
+---
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  cert-*,
+  modernize-*,
+  readability-braces-around-statements,
+  readability-isolate-declaration,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-reserved-identifier,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -modernize-use-trailing-return-type,
+  -modernize-use-auto,
+  -modernize-pass-by-value,
+  -modernize-avoid-c-arrays,
+  -cert-err33-c,
+  -cert-dcl16-c,
+  -readability-qualified-auto,
+  -readability-redundant-access-specifiers,
+  -readability-string-compare,
+  -readability-magic-numbers,
+  -readability-braces-around-undefined
+WarningsAsErrors: ''
+HeaderFilterRegex: '(src/|include/pnana/|include/.*/pnana/)'
+FormatStyle: file
