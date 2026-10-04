@@ -45,6 +45,12 @@ if(PkgConfig_FOUND)
             set(TreeSitter_LIBRARIES ${PC_TREE_SITTER_LIBRARIES})
         endif()
         set(TreeSitter_INCLUDE_DIRS ${PC_TREE_SITTER_INCLUDE_DIRS})
+        # pkg-config omits -I/usr/include by default, so the list can be empty
+        # even though the headers are installed. Fall back to a real search.
+        if(NOT TreeSitter_INCLUDE_DIRS)
+            find_path(TreeSitter_INCLUDE_DIR NAMES tree_sitter/api.h)
+            set(TreeSitter_INCLUDE_DIRS ${TreeSitter_INCLUDE_DIR})
+        endif()
         set(TreeSitter_VERSION ${PC_TREE_SITTER_VERSION})
     endif()
 endif()
