@@ -726,7 +726,7 @@ void Editor::applyLoadedConfig() {
             tcfg.menubar_bg, tcfg.menubar_fg, tcfg.helpbar_bg, tcfg.helpbar_fg, tcfg.helpbar_key,
             tcfg.keyword, tcfg.string, tcfg.comment, tcfg.number, tcfg.function, tcfg.type,
             tcfg.operator_color, tcfg.error, tcfg.warning, tcfg.info, tcfg.success,
-            /*dialog_bg*/ tcfg.background,
+            /*dialog_bg*/ tcfg.current_line,
             /*dialog_fg*/ tcfg.foreground,
             /*dialog_title_bg*/ tcfg.statusbar_bg,
             /*dialog_title_fg*/ tcfg.statusbar_fg,

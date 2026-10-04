@@ -53,25 +53,25 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     // 如果移动文件对话框打开，叠加显示
     if (is_move_file_visible_callback_ && is_move_file_visible_callback_() &&
         render_move_file_callback_) {
-        return dbox({main_ui | dim, render_move_file_callback_() | center});
+        return dbox({main_ui, render_move_file_callback_() | center});
     }
 
     // 如果解压进度对话框打开，叠加显示（最高优先级）
     if (is_extract_progress_visible_callback_ && is_extract_progress_visible_callback_() &&
         render_extract_progress_callback_) {
-        return dbox({main_ui | dim, render_extract_progress_callback_() | center});
+        return dbox({main_ui, render_extract_progress_callback_() | center});
     }
 
     // 如果解压路径对话框打开，叠加显示（优先级高于解压对话框）
     if (is_extract_path_visible_callback_ && is_extract_path_visible_callback_() &&
         render_extract_path_callback_) {
-        return dbox({main_ui | dim, render_extract_path_callback_() | center});
+        return dbox({main_ui, render_extract_path_callback_() | center});
     }
 
     // 如果解压对话框打开，叠加显示
     if (is_extract_visible_callback_ && is_extract_visible_callback_() &&
         render_extract_callback_) {
-        return dbox({main_ui | dim, render_extract_callback_() | center});
+        return dbox({main_ui, render_extract_callback_() | center});
     }
 
     // 光标配置对话框
@@ -134,25 +134,25 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     // 如果 FZF 模糊文件查找弹窗打开，叠加显示
     if (is_fzf_popup_visible_callback_ && is_fzf_popup_visible_callback_() &&
         render_fzf_popup_callback_) {
-        return dbox({main_ui | dim, render_fzf_popup_callback_() | center});
+        return dbox({main_ui, render_fzf_popup_callback_() | center});
     }
 
     // 如果 History Diff 弹窗打开，叠加显示（优先级高于 timeline）
     if (is_history_diff_popup_visible_callback_ && is_history_diff_popup_visible_callback_() &&
         render_history_diff_popup_callback_) {
-        return dbox({main_ui | dim, render_history_diff_popup_callback_() | center});
+        return dbox({main_ui, render_history_diff_popup_callback_() | center});
     }
 
     // 如果 History 时间线弹窗打开，叠加显示
     if (is_history_timeline_popup_visible_callback_ &&
         is_history_timeline_popup_visible_callback_() && render_history_timeline_popup_callback_) {
-        return dbox({main_ui | dim, render_history_timeline_popup_callback_() | center});
+        return dbox({main_ui, render_history_timeline_popup_callback_() | center});
     }
 
     // 如果 LSP 连接状态弹窗打开，叠加显示
     if (is_lsp_status_popup_visible_callback_ && is_lsp_status_popup_visible_callback_() &&
         render_lsp_status_popup_callback_) {
-        return dbox({main_ui | dim, render_lsp_status_popup_callback_() | center});
+        return dbox({main_ui, render_lsp_status_popup_callback_() | center});
     }
 
     // 如果格式化对话框打开，叠加显示
@@ -163,22 +163,21 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     // 如果Git面板打开，叠加显示
     if (is_git_panel_visible_callback_ && is_git_panel_visible_callback_() &&
         render_git_panel_callback_) {
-        Elements dialog_elements = {main_ui | dim, render_git_panel_callback_() | center};
+        Elements dialog_elements = {main_ui, render_git_panel_callback_() | center};
         return dbox(dialog_elements);
     }
 
     // 如果Todo面板打开，叠加显示
     if (is_todo_panel_visible_callback_ && is_todo_panel_visible_callback_() &&
         render_todo_panel_callback_) {
-        Elements dialog_elements = {main_ui | dim, render_todo_panel_callback_() | center};
+        Elements dialog_elements = {main_ui, render_todo_panel_callback_() | center};
         return dbox(dialog_elements);
     }
 
     // 如果包管理器面板打开，叠加显示
     if (is_package_manager_panel_visible_callback_ &&
         is_package_manager_panel_visible_callback_() && render_package_manager_panel_callback_) {
-        Elements dialog_elements = {main_ui | dim,
-                                    render_package_manager_panel_callback_() | center};
+        Elements dialog_elements = {main_ui, render_package_manager_panel_callback_() | center};
         return dbox(dialog_elements);
     }
 
@@ -195,8 +194,7 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     // 如果诊断弹窗打开，叠加显示
     if (is_diagnostics_popup_visible_callback_ && is_diagnostics_popup_visible_callback_() &&
         render_diagnostics_popup_callback_) {
-        Elements diagnostics_elements = {main_ui | dim,
-                                         render_diagnostics_popup_callback_() | center};
+        Elements diagnostics_elements = {main_ui, render_diagnostics_popup_callback_() | center};
         return dbox(diagnostics_elements);
     }
 
@@ -204,7 +202,7 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     if (is_symbol_navigation_popup_visible_callback_ &&
         is_symbol_navigation_popup_visible_callback_() &&
         render_symbol_navigation_popup_callback_) {
-        Elements symbol_nav_elements = {main_ui | dim,
+        Elements symbol_nav_elements = {main_ui,
                                         render_symbol_navigation_popup_callback_() | center};
         return dbox(symbol_nav_elements);
     }
@@ -213,28 +211,28 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     // 如果文件选择器打开，叠加显示
     if (is_file_picker_visible_callback_ && is_file_picker_visible_callback_() &&
         render_file_picker_callback_) {
-        Elements picker_elements = {main_ui | dim, render_file_picker_callback_() | center};
+        Elements picker_elements = {main_ui, render_file_picker_callback_() | center};
         return dbox(picker_elements);
     }
 
     // 如果分屏对话框打开，叠加显示
     if (is_split_dialog_visible_callback_ && is_split_dialog_visible_callback_() &&
         render_split_dialog_callback_) {
-        Elements split_elements = {main_ui | dim, render_split_dialog_callback_() | center};
+        Elements split_elements = {main_ui, render_split_dialog_callback_() | center};
         return dbox(split_elements);
     }
 
     // 如果 SSH 传输对话框打开，叠加显示
     if (is_ssh_transfer_visible_callback_ && is_ssh_transfer_visible_callback_() &&
         render_ssh_transfer_callback_) {
-        Elements ssh_transfer_elements = {main_ui | dim, render_ssh_transfer_callback_() | center};
+        Elements ssh_transfer_elements = {main_ui, render_ssh_transfer_callback_() | center};
         return dbox(ssh_transfer_elements);
     }
 
     // 如果 SSH 对话框打开，叠加显示
     if (is_ssh_dialog_visible_callback_ && is_ssh_dialog_visible_callback_() &&
         render_ssh_dialog_callback_) {
-        Elements ssh_elements = {main_ui | dim, render_ssh_dialog_callback_() | center};
+        Elements ssh_elements = {main_ui, render_ssh_dialog_callback_() | center};
         return dbox(ssh_elements);
     }
 
@@ -242,29 +240,28 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     if (is_terminal_session_dialog_visible_callback_ &&
         is_terminal_session_dialog_visible_callback_() &&
         render_terminal_session_dialog_callback_) {
-        Elements dialog_elements = {main_ui | dim,
-                                    render_terminal_session_dialog_callback_() | center};
+        Elements dialog_elements = {main_ui, render_terminal_session_dialog_callback_() | center};
         return dbox(dialog_elements);
     }
 
     // 如果编码对话框打开，叠加显示
     if (is_encoding_dialog_visible_callback_ && is_encoding_dialog_visible_callback_() &&
         render_encoding_dialog_callback_) {
-        Elements encoding_elements = {main_ui | dim, render_encoding_dialog_callback_() | center};
+        Elements encoding_elements = {main_ui, render_encoding_dialog_callback_() | center};
         return dbox(encoding_elements);
     }
 
     // 如果最近文件弹窗打开，叠加显示
     if (is_recent_files_visible_callback_ && is_recent_files_visible_callback_() &&
         render_recent_files_callback_) {
-        Elements recent_files_elements = {main_ui | dim, render_recent_files_callback_() | center};
+        Elements recent_files_elements = {main_ui, render_recent_files_callback_() | center};
         return dbox(recent_files_elements);
     }
 
     // 如果TUI配置弹窗打开，叠加显示
     if (is_tui_config_visible_callback_ && is_tui_config_visible_callback_() &&
         render_tui_config_callback_) {
-        Elements tui_config_elements = {main_ui | dim, render_tui_config_callback_() | center};
+        Elements tui_config_elements = {main_ui, render_tui_config_callback_() | center};
         return dbox(tui_config_elements);
     }
 
@@ -272,19 +269,19 @@ ftxui::Element OverlayManager::renderOverlays(ftxui::Element main_ui) {
     if (is_dependency_status_popup_visible_callback_ &&
         is_dependency_status_popup_visible_callback_() &&
         render_dependency_status_popup_callback_) {
-        return dbox({main_ui | dim, render_dependency_status_popup_callback_() | center});
+        return dbox({main_ui, render_dependency_status_popup_callback_() | center});
     }
 
     // 如果通用对话框打开，叠加显示
     if (is_dialog_visible_callback_ && is_dialog_visible_callback_() && render_dialog_callback_) {
-        Elements dialog_elements = {main_ui | dim, render_dialog_callback_() | center};
+        Elements dialog_elements = {main_ui, render_dialog_callback_() | center};
         return dbox(dialog_elements);
     }
 
     // 如果边框配置弹窗打开，叠加显示
     if (is_border_config_popup_visible_callback_ && is_border_config_popup_visible_callback_() &&
         render_border_config_popup_callback_) {
-        Elements popup_elements = {main_ui | dim, render_border_config_popup_callback_() | center};
+        Elements popup_elements = {main_ui, render_border_config_popup_callback_() | center};
         return dbox(popup_elements);
     }
 

@@ -10,6 +10,7 @@
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 namespace pnana {
 namespace ui {
@@ -49,7 +50,7 @@ bool FormatDialog::isOpen() const {
     return is_open_;
 }
 
-bool FormatDialog::handleInput(Event event) {
+bool FormatDialog::handleInput(const Event& event) {
     if (!is_open_) {
         return false;
     }
@@ -262,11 +263,10 @@ Element FormatDialog::render() {
     }
 
     dialog_content.push_back(text(""));
-    dialog_content.push_back(
-        hbox({text("  Search: "),
-              text(search_display) |
-                  (search_focused_ ? color(Color::White) | bgcolor(Color::RGB(60, 60, 80))
-                                   : color(Color::GrayLight))}));
+    dialog_content.push_back(hbox(
+        {text("  Search: "), text(search_display) | (search_focused_ ? color(colors.foreground) |
+                                                                           bgcolor(colors.selection)
+                                                                     : color(colors.comment))}));
     dialog_content.push_back(text(""));
 
     dialog_content.push_back(separator());
@@ -274,7 +274,7 @@ Element FormatDialog::render() {
     // 目录信息
     dialog_content.push_back(text(""));
     dialog_content.push_back(
-        hbox({text("  Directory: "), text(directory_path_) | color(Color::Cyan) | dim}));
+        hbox({text("  Directory: "), text(directory_path_) | color(colors.function) | dim}));
     dialog_content.push_back(text(""));
     dialog_content.push_back(separator());
 
@@ -288,18 +288,18 @@ Element FormatDialog::render() {
         title += ", " + std::to_string(filtered_files.size()) + " filtered";
     }
     title += ")";
-    dialog_content.push_back(hbox({text("  "), text(title) | color(Color::White) | bold}));
+    dialog_content.push_back(hbox({text("  "), text(title) | color(colors.foreground) | bold}));
     dialog_content.push_back(text(""));
 
     // 文件列表
     if (files_.empty()) {
         dialog_content.push_back(
             hbox({text("  "), text("No supported files found in this directory") |
-                                  color(Color::GrayDark) | dim}));
+                                  color(colors.comment) | dim}));
     } else if (filtered_files.empty() && !search_query_.empty()) {
         dialog_content.push_back(
             hbox({text("  "), text("No files match search: \"" + search_query_ + "\"") |
-                                  color(Color::GrayDark) | dim}));
+                                  color(colors.comment) | dim}));
     } else {
         auto current_display_files = search_query_.empty() ? files_ : filtered_files;
 
@@ -351,8 +351,8 @@ Element FormatDialog::render() {
 
             // 文件图标和文件名颜色
             // 当前选中时使用白色，否则使用文件类型颜色
-            Color icon_color = is_current ? Color::White : file_type_color;
-            Color name_color = is_current ? Color::White : file_type_color;
+            Color icon_color = is_current ? colors.foreground : file_type_color;
+            Color name_color = is_current ? colors.foreground : file_type_color;
 
             // 文件图标
             if (!file_icon.empty()) {
@@ -384,7 +384,7 @@ Element FormatDialog::render() {
                                       " of " + std::to_string(current_display_files.size());
             dialog_content.push_back(text(""));
             dialog_content.push_back(
-                hbox({text("  "), text(scroll_info) | color(Color::GrayDark) | dim}));
+                hbox({text("  "), text(scroll_info) | color(colors.comment) | dim}));
         }
     }
 
@@ -410,16 +410,16 @@ Element FormatDialog::render() {
     height = responsiveHeight(height, 12);
 
     return vbox(dialog_content) | size(WIDTH, EQUAL, responsiveWidth(80, 35)) |
-           size(HEIGHT, EQUAL, height) | bgcolor(colors.background) |
+           size(HEIGHT, EQUAL, height) | bgcolor(colors.dialog_bg) |
            borderWithColor(colors.dialog_border);
 }
 
 void FormatDialog::setOnConfirm(std::function<void(const std::vector<std::string>&)> callback) {
-    on_confirm_ = callback;
+    on_confirm_ = std::move(callback);
 }
 
 void FormatDialog::setOnCancel(std::function<void()> callback) {
-    on_cancel_ = callback;
+    on_cancel_ = std::move(callback);
 }
 
 const std::vector<std::string>& FormatDialog::getFiles() const {

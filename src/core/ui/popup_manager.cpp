@@ -317,10 +317,11 @@ PopupHandle PopupManager::openPopup(const PopupSpec& spec, PopupCallbacks callba
     state.selected_index = 0;
     state.focus_index = 0;
 
+    PopupHandle handle = state.handle;
     popups_[state.handle] = std::move(state);
-    z_order_.push_back(state.handle);
-    rebuildFocusChain(popups_[state.handle]);
-    return state.handle;
+    z_order_.push_back(handle);
+    rebuildFocusChain(popups_[handle]);
+    return handle;
 }
 
 bool PopupManager::updatePopup(PopupHandle handle, const PopupSpec& patch) {
@@ -480,9 +481,8 @@ void PopupManager::rebuildFocusChain(PopupState& state) {
     }
 
     collectFocusableIds(root, state.focus_chain);
-    if (state.focus_chain.empty()) {
-        state.focus_index = 0;
-    } else if (state.focus_index >= static_cast<int>(state.focus_chain.size())) {
+    if (state.focus_chain.empty() ||
+        state.focus_index >= static_cast<int>(state.focus_chain.size())) {
         state.focus_index = 0;
     }
 }
@@ -507,7 +507,7 @@ bool PopupManager::dispatchAction(PopupState& state, const WidgetSpec* focused_w
 
     if (!state.spec.items.empty()) {
         return closePopup(state.handle, true, state.live_input_value,
-                          static_cast<std::size_t>(state.selected_index + 1));
+                          static_cast<std::size_t>(state.selected_index) + 1);
     }
     return closePopup(state.handle, true, state.live_input_value, 0);
 }
@@ -579,14 +579,17 @@ const WidgetSpec* PopupManager::findWidgetById(const WidgetSpec& root,
 Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode& node) const {
     Color fg = Color::White;
     Color bg = Color::Black;
-    Color border_color = Color::GrayDark;
-    Color focus_bg = Color::Blue;
+    Color border_color = Color::RGB(117, 113, 94);
+    Color focus_bg = Color::RGB(80, 80, 120);
+    Color selection_bg = Color::RGB(68, 71, 90);
 
     if (theme_) {
         const auto& c = theme_->getColors();
         fg = c.foreground;
-        bg = c.background;
+        bg = c.dialog_bg;
         border_color = c.dialog_border;
+        focus_bg = c.helpbar_key;
+        selection_bg = c.selection;
     }
 
     auto is_focused = [&state](const std::string& id) {
@@ -609,12 +612,11 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             return text(node.widget.label) | color(fg);
         case WidgetType::INPUT: {
             std::string value = state.live_input_value.empty() ? " " : state.live_input_value;
-            Element e =
-                vbox({text(node.widget.label) | color(fg), text(value) | color(Color::White)});
+            Element e = vbox({text(node.widget.label) | color(fg), text(value) | color(fg)});
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
             } else {
-                e = e | bgcolor(Color::GrayDark);
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -623,6 +625,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element e = text(caption) | color(fg);
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg) | bold;
+            } else {
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -635,7 +639,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
                 bool selected = i == state.selected_index;
                 Element row = text((selected ? "> " : "  ") + node.widget.items[i]);
                 if (selected) {
-                    row = row | bgcolor(Color::GrayDark) | color(Color::White);
+                    row = row | bgcolor(selection_bg) | color(fg);
                 } else {
                     row = row | color(fg);
                 }
@@ -644,6 +648,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element list_box = vbox(std::move(rows));
             if (is_focused(node.widget.id)) {
                 list_box = list_box | bgcolor(focus_bg);
+            } else {
+                list_box = list_box | bgcolor(bg);
             }
             return list_box;
         }
@@ -678,15 +684,15 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
         }
         case WidgetType::LINK: {
             // 超链接样式 - 使用下划线
-            return text(node.widget.label) | underlined | color(Color::Blue);
+            return text(node.widget.label) | underlined | color(fg);
         }
 
         // 基础交互组件
         case WidgetType::TEXTAREA: {
             // 多行文本输入 - 简化实现
             std::string value = node.widget.value.empty() ? " " : node.widget.value;
-            Element e = vbox({text(node.widget.label) | color(fg),
-                              text(value) | color(Color::White) | bgcolor(Color::GrayDark)});
+            Element e =
+                vbox({text(node.widget.label) | color(fg), text(value) | color(fg) | bgcolor(bg)});
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
             }
@@ -697,6 +703,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element e = text(check + " " + node.widget.label) | color(fg);
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
+            } else {
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -705,6 +713,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element e = text(radio + " " + node.widget.label) | color(fg);
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
+            } else {
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -713,6 +723,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element e = text(node.widget.label + ": " + toggle) | color(fg);
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
+            } else {
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -725,6 +737,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element e = text(node.widget.label + ": " + bar) | color(fg);
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
+            } else {
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -738,6 +752,8 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             Element e = text(node.widget.label + ": [" + selected + " ▼]") | color(fg);
             if (is_focused(node.widget.id)) {
                 e = e | bgcolor(focus_bg);
+            } else {
+                e = e | bgcolor(bg);
             }
             return e;
         }
@@ -752,13 +768,13 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
                 std::string prefix = selected ? "→ " : "  ";
                 Element row = text(prefix + node.widget.items[i]);
                 if (selected) {
-                    row = row | bgcolor(focus_bg) | color(Color::White) | bold;
+                    row = row | bgcolor(focus_bg) | color(fg) | bold;
                 } else {
                     row = row | color(fg);
                 }
                 rows.push_back(row);
             }
-            return vbox(std::move(rows));
+            return vbox(std::move(rows)) | bgcolor(bg);
         }
         case WidgetType::COLOR_PICKER: {
             // 颜色选择器 - 简化实现
@@ -785,7 +801,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | border | color(border_color);
+            return vbox(std::move(content)) | bgcolor(bg) | border | color(border_color);
         }
         case WidgetType::DBOX: {
             // 深度层叠容器 - 简化实现
@@ -793,7 +809,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return dbox(std::move(content)) | color(fg);
+            return dbox(std::move(content)) | bgcolor(bg) | color(fg);
         }
         case WidgetType::RESIZABLE_SPLIT: {
             // 可拖动分割面板 - 简化实现
@@ -801,7 +817,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return hbox(std::move(content)) | color(fg);
+            return hbox(std::move(content)) | bgcolor(bg) | color(fg);
         }
         case WidgetType::GRID: {
             // 网格布局 - 简化实现
@@ -809,42 +825,42 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | color(fg);
+            return vbox(std::move(content)) | bgcolor(bg) | color(fg);
         }
         case WidgetType::FRAME: {
             Elements content;
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | frame | color(fg);
+            return vbox(std::move(content)) | bgcolor(bg) | frame | color(fg);
         }
         case WidgetType::YFRAME: {
             Elements content;
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | yframe | color(fg);
+            return vbox(std::move(content)) | bgcolor(bg) | yframe | color(fg);
         }
         case WidgetType::XFRAME: {
             Elements content;
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return hbox(std::move(content)) | xframe | color(fg);
+            return hbox(std::move(content)) | bgcolor(bg) | xframe | color(fg);
         }
         case WidgetType::VSCROLL: {
             Elements content;
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | vscroll_indicator | color(fg);
+            return vbox(std::move(content)) | bgcolor(bg) | vscroll_indicator | color(fg);
         }
         case WidgetType::HSCROLL: {
             Elements content;
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return hbox(std::move(content)) | hscroll_indicator | color(fg);
+            return hbox(std::move(content)) | bgcolor(bg) | hscroll_indicator | color(fg);
         }
 
         // 弹窗/模态组件
@@ -860,17 +876,17 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | border | color(border_color);
+            return vbox(std::move(content)) | bgcolor(bg) | border | color(border_color);
         }
         case WidgetType::NOTIFICATION: {
-            return text("🔔 " + node.widget.label) | border | color(fg);
+            return text("🔔 " + node.widget.label) | bgcolor(bg) | border | color(fg);
         }
 
         // 原有组件兼容
         case WidgetType::SCROLL: {
             Elements rows;
             rows.push_back(text("[scroll]"));
-            return vbox(std::move(rows)) | color(fg);
+            return vbox(std::move(rows)) | bgcolor(bg) | color(fg);
         }
         // 新增布局容器类型
         case WidgetType::CONTAINER: {
@@ -882,7 +898,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             if (node.widget.border_style != "none") {
                 container = container | border;
             }
-            return container | color(fg);
+            return container | bgcolor(bg) | color(fg);
         }
         case WidgetType::HBOX: {
             Elements content;
@@ -896,7 +912,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             if (node.widget.border_style != "none") {
                 hbox_elem = hbox_elem | border;
             }
-            return hbox_elem | color(fg);
+            return hbox_elem | bgcolor(bg) | color(fg);
         }
         case WidgetType::VBOX: {
             Elements content;
@@ -907,7 +923,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             if (node.widget.border_style != "none") {
                 vbox_elem = vbox_elem | border;
             }
-            return vbox_elem | color(fg);
+            return vbox_elem | bgcolor(bg) | color(fg);
         }
         case WidgetType::SPLIT: {
             // 分割布局 - 简化实现
@@ -915,7 +931,7 @@ Element PopupManager::renderWidgetTree(const PopupState& state, const LayoutNode
             for (const auto& child : node.children) {
                 content.push_back(renderWidgetTree(state, child));
             }
-            return vbox(std::move(content)) | color(fg);
+            return vbox(std::move(content)) | bgcolor(bg) | color(fg);
         }
         case WidgetType::TABS: {
             // 标签页 - 简化实现，只显示第一个子元素
@@ -933,22 +949,22 @@ Element PopupManager::renderPopupLayer(const PopupState& state, int screen_w, in
     auto rect =
         layout_engine_.computeCenteredRect(screen_w, screen_h, state.spec.width, state.spec.height);
 
+    Color fg = Color::White;
+    Color bg = Color::Black;
+    Color border_color = Color::RGB(117, 113, 94);
+    Color selection_bg = Color::RGB(68, 71, 90);
+    Color help_fg = Color::RGB(136, 138, 133);
+
+    if (theme_) {
+        const auto& c = theme_->getColors();
+        fg = c.foreground;
+        bg = c.dialog_bg;
+        border_color = c.dialog_border;
+        selection_bg = c.selection;
+        help_fg = c.helpbar_fg;
+    }
+
     if (state.spec.component_mode) {
-        Color fg = Color::White;
-        Color bg = Color::Black;
-        Color border_color = Color::GrayDark;
-        Color selection_bg = Color::GrayDark;
-        Color help_fg = Color::GrayLight;
-
-        if (theme_) {
-            const auto& c = theme_->getColors();
-            fg = c.foreground;
-            bg = c.dialog_bg;
-            border_color = c.dialog_border;
-            selection_bg = c.selection;
-            help_fg = c.helpbar_fg;
-        }
-
         auto get_style = [&](const std::string& key) -> std::string {
             auto it = state.spec.style_tokens.find(key);
             return it == state.spec.style_tokens.end() ? std::string("") : it->second;
@@ -1152,7 +1168,7 @@ Element PopupManager::renderPopupLayer(const PopupState& state, int screen_w, in
 
     auto tree = layout_engine_.buildLayoutTree(root, rect);
     return renderWidgetTree(state, tree) | size(WIDTH, EQUAL, rect.width) |
-           size(HEIGHT, EQUAL, rect.height) | center;
+           size(HEIGHT, EQUAL, rect.height) | bgcolor(bg) | center;
 }
 
 bool PopupManager::handleInput(Event event) {

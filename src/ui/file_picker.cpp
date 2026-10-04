@@ -9,6 +9,7 @@
 #include <ctime>
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
+#include <utility>
 
 #if defined(__linux__) || defined(__APPLE__) || defined(__unix__)
 #include <pwd.h>
@@ -76,8 +77,8 @@ void FilePicker::show(const std::string& start_path, FilePickerType type,
         }
     }
 
-    on_select_ = on_select;
-    on_cancel_ = on_cancel;
+    on_select_ = std::move(on_select);
+    on_cancel_ = std::move(on_cancel);
     filter_input_ = "";
     path_input_ = "";
     show_filter_ = false;
@@ -90,7 +91,7 @@ void FilePicker::show(const std::string& start_path, FilePickerType type,
     loadDirectory();
 }
 
-bool FilePicker::handleInput(ftxui::Event event) {
+bool FilePicker::handleInput(const ftxui::Event& event) {
     if (!visible_)
         return false;
 
@@ -150,9 +151,7 @@ bool FilePicker::handleInput(ftxui::Event event) {
             // Enter 键切换到列表
             focus_in_search_ = false;
             // 确保选中索引有效
-            if (items_.empty()) {
-                selected_index_ = 0;
-            } else if (selected_index_ >= items_.size()) {
+            if (items_.empty() || selected_index_ >= items_.size()) {
                 selected_index_ = 0;
             }
             return true;
@@ -336,8 +335,8 @@ Element FilePicker::render() {
         bool is_dir = metadata.is_dir;
         if (is_dir)
             item_name += "/";
-        Color icon_color = (i == selected_index_) ? Color::White : item_color;
-        Color name_color = (i == selected_index_) ? Color::White : item_color;
+        Color icon_color = (i == selected_index_) ? colors.foreground : item_color;
+        Color name_color = (i == selected_index_) ? colors.foreground : item_color;
         Element name_el =
             pnana::utils::highlightMatch(item_name, filter_input_, name_color, colors.keyword) |
             ((i == selected_index_) ? bold : nothing);

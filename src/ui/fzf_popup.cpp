@@ -569,7 +569,7 @@ Element FzfPopup::render() {
     height = responsiveHeight(height, 12);
 
     return vbox(dialog_content) | size(WIDTH, EQUAL, dialog_w) | size(HEIGHT, EQUAL, height) |
-           bgcolor(colors.background) | borderWithColor(colors.dialog_border);
+           bgcolor(colors.dialog_bg) | borderWithColor(colors.dialog_border);
 }
 
 Element FzfPopup::renderTitle() const {
@@ -603,7 +603,7 @@ Element FzfPopup::renderFileList() const {
         list_elements.push_back(
             hbox({text("  "), text(pnana::ui::icons::REFRESH) | color(colors.function),
                   text(" Loading files... ") | color(colors.comment) | dim}));
-        return vbox(list_elements);
+        return vbox(list_elements) | bgcolor(colors.dialog_bg);
     }
 
     size_t max_display = std::min(filtered_files_.size(), list_display_count_);
@@ -657,7 +657,7 @@ Element FzfPopup::renderFileList() const {
         }
     }
 
-    return vbox(list_elements);
+    return vbox(list_elements) | bgcolor(colors.dialog_bg);
 }
 
 Element FzfPopup::renderPreview() const {
@@ -665,17 +665,17 @@ Element FzfPopup::renderPreview() const {
 
     if (is_loading_) {
         return hbox({text("  "), text("Loading...") | color(colors.comment) | dim}) |
-               bgcolor(colors.background);
+               bgcolor(colors.dialog_bg);
     }
 
     if (filtered_files_.empty()) {
         return hbox({text("  "), text("Type to filter files") | color(colors.comment) | dim}) |
-               bgcolor(colors.background);
+               bgcolor(colors.dialog_bg);
     }
 
     if (selected_index_ >= filtered_files_.size()) {
         return hbox({text("  "), text("No selection") | color(colors.comment) | dim}) |
-               bgcolor(colors.background);
+               bgcolor(colors.dialog_bg);
     }
 
     const std::string& filepath = filtered_files_[selected_index_];
@@ -690,14 +690,14 @@ Element FzfPopup::renderPreview() const {
                 Elements placeholder;
                 placeholder.push_back(
                     hbox({text(std::string(pnana::ui::icons::IMAGE) + " Image Preview: ") |
-                              color(Color::Blue) | bold,
-                          text(filepath) | color(Color::White)}));
+                              color(colors.foreground) | bold,
+                          text(filepath) | color(colors.foreground)}));
                 if (image_preview_.isLoaded()) {
                     placeholder.push_back(
-                        hbox({text("  Size: ") | color(Color::GrayDark),
+                        hbox({text("  Size: ") | color(colors.comment),
                               text(std::to_string(image_preview_.getImageWidth()) + "x" +
                                    std::to_string(image_preview_.getImageHeight())) |
-                                  color(Color::White)}));
+                                  color(colors.foreground)}));
                 }
                 placeholder.push_back(separator());
 
@@ -708,11 +708,12 @@ Element FzfPopup::renderPreview() const {
                 }
                 placeholder.push_back(vbox(spacer) | reflect(fzf_image_spacer_box_));
 
-                return vbox(placeholder) | flex | bgcolor(Color::Black) | reflect(fzf_preview_box_);
+                return vbox(placeholder) | flex | bgcolor(colors.dialog_bg) |
+                       reflect(fzf_preview_box_);
             } else {
                 return (hbox({text("  "),
                               text("Loading image preview...") | color(colors.comment) | dim}) |
-                        bgcolor(colors.background) | center) |
+                        bgcolor(colors.dialog_bg) | center) |
                        reflect(fzf_preview_box_);
             }
         }
@@ -723,7 +724,7 @@ Element FzfPopup::renderPreview() const {
             // 正在加载中或加载失败
             return hbox({text("  "),
                          text("Loading image preview...") | color(colors.comment) | dim}) |
-                   bgcolor(colors.background) | center;
+                   bgcolor(colors.dialog_bg) | center;
         }
     }
 
@@ -731,7 +732,7 @@ Element FzfPopup::renderPreview() const {
     if (isNonPreviewableFile(filepath)) {
         return hbox({text("  "),
                      text("This file cannot be previewed") | color(colors.comment) | dim}) |
-               bgcolor(colors.background) | center;
+               bgcolor(colors.dialog_bg) | center;
     }
 
     const size_t skip_lines = preview_page_ * PREVIEW_LINES_PER_PAGE;
@@ -770,7 +771,7 @@ Element FzfPopup::renderPreview() const {
         line_no++;
     }
 
-    return vbox(lines) | bgcolor(colors.background) | yflex;
+    return vbox(lines) | bgcolor(colors.dialog_bg) | yflex;
 }
 
 Element FzfPopup::renderFileInfoBar() const {
@@ -821,7 +822,7 @@ Element FzfPopup::renderHelpBar() const {
            bgcolor(colors.helpbar_bg) | color(colors.helpbar_fg) | dim;
 }
 
-bool FzfPopup::handleInput(ftxui::Event event) {
+bool FzfPopup::handleInput(const ftxui::Event& event) {
     if (!is_open_)
         return false;
 
@@ -982,9 +983,7 @@ bool FzfPopup::handleInput(ftxui::Event event) {
                 while (std::getline(iss, line)) {
                     max_len = std::max(max_len, line.size());
                 }
-                if (max_len <= preview_h_step_) {
-                    preview_h_offset_ = 0;
-                } else if (preview_h_offset_ + preview_h_step_ >= max_len) {
+                if (max_len <= preview_h_step_ || preview_h_offset_ + preview_h_step_ >= max_len) {
                     preview_h_offset_ = 0; // 到边界后回到起始
                 } else {
                     preview_h_offset_ += preview_h_step_;
