@@ -7105,10 +7105,8 @@ void Theme::setTheme(const std::string& name) {
         return;
     }
 
-    // 否则使用预设主题
-    if (name == "monokai") {
-        colors_ = Monokai();
-    } else if (name == "monokai-dark") {
+    // 否则使用预设主题（monokai 由末尾默认分支兜底）
+    if (name == "monokai-dark") {
         colors_ = MonokaiDark();
     } else if (name == "monokai-light") {
         colors_ = MonokaiLight();
@@ -7342,8 +7340,6 @@ void Theme::setTheme(const std::string& name) {
         colors_ = IntelliJDark();
     } else if (name == "doom-one") {
         colors_ = DoomOne();
-    } else if (name == "vscode-light") {
-        colors_ = VSCodeLight();
     } else if (name == "andromeda") {
         colors_ = Andromeda();
     } else if (name == "deep-space") {
