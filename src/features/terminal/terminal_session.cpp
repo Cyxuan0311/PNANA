@@ -93,22 +93,8 @@ class VTermStreamFilter {
                 break;
             }
 
-            uint32_t cp = 0;
-            if (seq_len == 2) {
-                cp = (b & 0x1F) << 6;
-                cp |= (static_cast<unsigned char>(data[i + 1]) & 0x3F);
-            } else if (seq_len == 3) {
-                cp = (b & 0x0F) << 12;
-                cp |= (static_cast<unsigned char>(data[i + 1]) & 0x3F) << 6;
-                cp |= (static_cast<unsigned char>(data[i + 2]) & 0x3F);
-            } else {
-                cp = (b & 0x07) << 18;
-                cp |= (static_cast<unsigned char>(data[i + 1]) & 0x3F) << 12;
-                cp |= (static_cast<unsigned char>(data[i + 2]) & 0x3F) << 6;
-                cp |= (static_cast<unsigned char>(data[i + 3]) & 0x3F);
-            }
-
             // Powerline/Nerd Font 图标使用私用区字符 (U+E000–U+F8FF)，需要正常显示
+            // （原始 UTF-8 字节按序复制，无需解码码点）
             for (size_t j = 0; j < seq_len; j++)
                 out += static_cast<char>(data[i + j]);
             i += seq_len;

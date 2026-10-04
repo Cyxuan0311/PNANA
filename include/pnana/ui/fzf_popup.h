@@ -37,7 +37,7 @@ class FzfPopup {
     ftxui::Element render();
 
     // 事件处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 设置文件打开回调（选中文件后调用，参数为文件路径）
     void setFileOpenCallback(std::function<void(const std::string&)> callback);

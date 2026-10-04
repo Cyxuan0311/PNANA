@@ -51,7 +51,7 @@ class LspServerManager {
 
     // 设置诊断回调（应用到所有客户端）
     void setDiagnosticsCallback(
-        std::function<void(const std::string&, const std::vector<Diagnostic>&)> callback);
+        const std::function<void(const std::string&, const std::vector<Diagnostic>&)>& callback);
 
     // 获取配置管理器
     LspServerConfigManager& getConfigManager() {

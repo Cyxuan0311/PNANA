@@ -41,7 +41,7 @@ void StatusbarStyleMenu::setSelectedIndex(size_t index) {
     }
 }
 
-bool StatusbarStyleMenu::handleInput(ftxui::Event event) {
+bool StatusbarStyleMenu::handleInput(const ftxui::Event& event) {
     if (event == Event::Escape) {
         if (!search_input_.empty()) {
             search_input_.clear();

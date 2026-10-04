@@ -84,12 +84,8 @@ bool RegionManager::navigateDown() {
             return false;
 
         case EditorRegion::TAB_AREA:
-            // 从标签区向下导航到代码区
-            setRegion(EditorRegion::CODE_AREA);
-            return true;
-
         case EditorRegion::FILE_BROWSER:
-            // 文件浏览器向下导航到代码区
+            // 从标签区或文件浏览器向下导航到代码区
             setRegion(EditorRegion::CODE_AREA);
             return true;
 
@@ -190,25 +186,9 @@ bool RegionManager::navigateRight() {
             return true;
 
         case EditorRegion::FILE_BROWSER:
-            // 从文件浏览器向右：优先 AI 面板，否则代码区
-            if (ai_panel_enabled_) {
-                setRegion(EditorRegion::AI_ASSISTANT_PANEL);
-                return true;
-            }
-            setRegion(EditorRegion::CODE_AREA);
-            return true;
-
         case EditorRegion::TERMINAL:
-            // 终端向右：优先 AI 面板，否则代码区
-            if (ai_panel_enabled_) {
-                setRegion(EditorRegion::AI_ASSISTANT_PANEL);
-                return true;
-            }
-            setRegion(EditorRegion::CODE_AREA);
-            return true;
-
         case EditorRegion::GIT_PANEL:
-            // 从 Git 面板向右：优先 AI 面板，否则代码区
+            // 从文件浏览器/终端/Git面板向右：优先 AI 面板，否则代码区
             if (ai_panel_enabled_) {
                 setRegion(EditorRegion::AI_ASSISTANT_PANEL);
                 return true;
@@ -217,11 +197,8 @@ bool RegionManager::navigateRight() {
             return true;
 
         case EditorRegion::AI_ASSISTANT_PANEL:
-            // AI 面板已在最右
-            return false;
-
         case EditorRegion::HELP_WINDOW:
-            // 帮助窗口是模态的，不导航
+            // AI 面板已在最右；帮助窗口是模态的，不导航
             return false;
     }
 

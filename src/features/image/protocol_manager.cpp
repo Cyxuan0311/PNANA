@@ -627,24 +627,19 @@ std::string ProtocolManager::detectTerminalByEnv() {
 TerminalInfo ProtocolManager::nameToCapabilities(const std::string& name) {
     TerminalInfo info{};
 
-    if (name == "kitty") {
+    if (name == "kitty" || name == "ghostty") {
         info.kitty = true;
         info.sixel = true;
     } else if (name == "wezterm") {
         info.kitty = true;
         info.sixel = true;
         info.iterm2 = true;
-    } else if (name == "ghostty") {
-        info.kitty = true;
-        info.sixel = true;
     } else if (name == "foot" || name == "contour" || name == "alacritty" || name == "xterm" ||
-               name == "windows-terminal") {
+               name == "windows-terminal" || name == "terminology" || name == "st" ||
+               name == "rio" || name == "blackbox" || name == "kmscon") {
         info.sixel = true;
     } else if (name == "iterm2") {
         info.iterm2 = true;
-    } else if (name == "terminology" || name == "st" || name == "rio" || name == "blackbox" ||
-               name == "kmscon") {
-        info.sixel = true;
     } else if (name == "gnome-terminal" || name == "konsole" || name == "mate-terminal" ||
                name == "lxterminal" || name == "qterminal" || name == "tilix" || name == "sakura" ||
                name == "guake" || name == "yakuake" || name == "mintty" || name == "rxvt" ||

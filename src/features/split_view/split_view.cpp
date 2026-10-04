@@ -392,7 +392,7 @@ bool SplitViewManager::handleMouseEvent(ftxui::Event& event, int screen_width, i
 }
 
 ftxui::Element SplitViewManager::renderRegions(
-    std::function<ftxui::Element(const ViewRegion&)> render_func, int screen_width,
+    const std::function<ftxui::Element(const ViewRegion&)>& render_func, int screen_width,
     int screen_height) {
     using namespace ftxui;
     Elements elements;
@@ -682,10 +682,10 @@ bool SplitViewManager::isPointOnSplitLine(int x, int y, const SplitLine& line) c
 }
 
 ftxui::Element SplitViewManager::renderSplitEditor(
-    std::function<void*(size_t)> get_document_func,
-    std::function<void(size_t)> switch_document_func,
-    std::function<size_t()> get_document_count_func,
-    std::function<ftxui::Element(const ViewRegion&, void*, size_t)> render_region_func,
+    const std::function<void*(size_t)>& get_document_func,
+    const std::function<void(size_t)>& switch_document_func,
+    const std::function<size_t()>& get_document_count_func,
+    const std::function<ftxui::Element(const ViewRegion&, void*, size_t)>& render_region_func,
     int screen_width, int screen_height, ftxui::Color separator_default,
     ftxui::Color separator_active) {
     // 更新分屏视图的尺寸

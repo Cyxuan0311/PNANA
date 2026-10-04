@@ -32,7 +32,7 @@ class LspStatusPopup {
     // 设置 pid 提供器：通过语言 ID 返回服务器进程 PID（或 -1）
     void setPidProvider(std::function<int(const std::string&)> provider);
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
   private:

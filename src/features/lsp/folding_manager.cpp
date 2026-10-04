@@ -4,11 +4,13 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <utility>
 
 namespace pnana {
 namespace features {
 
-FoldingManager::FoldingManager(std::shared_ptr<LspClient> lsp_client) : lsp_client_(lsp_client) {
+FoldingManager::FoldingManager(std::shared_ptr<LspClient> lsp_client)
+    : lsp_client_(std::move(lsp_client)) {
     (void)0;
 }
 
@@ -49,7 +51,6 @@ void FoldingManager::initializeFoldingRanges(const std::string& uri) {
         for (auto it = folded_lines_.begin(); it != folded_lines_.end();) {
             if (valid_lines.find(*it) == valid_lines.end()) {
                 it = folded_lines_.erase(it);
-                notify = true;
             } else {
                 ++it;
             }

@@ -40,7 +40,7 @@ class TerminalSessionDialog {
               std::function<void()> on_cancel, const std::string& ssh_host = "",
               const std::string& ssh_user = "", int ssh_port = 0,
               const std::string& ssh_key_path = "", const std::string& ssh_password = "");
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
     bool isVisible() const {

@@ -68,7 +68,7 @@ class GitPanel {
     void performClone();
 
     // Key handlers
-    bool onKeyPress(ftxui::Event event);
+    bool onKeyPress(const ftxui::Event& event);
 
   private:
     ui::Theme& theme_;
@@ -203,13 +203,13 @@ class GitPanel {
     ftxui::Component buildBranchListComponent();
 
     // Key handlers
-    bool handleStatusModeKey(ftxui::Event event);
-    bool handleCommitModeKey(ftxui::Event event);
-    bool handleBranchModeKey(ftxui::Event event);
-    bool handleRemoteModeKey(ftxui::Event event);
-    bool handleCloneModeKey(ftxui::Event event);
-    bool handleDiffModeKey(ftxui::Event event);
-    bool handleGraphModeKey(ftxui::Event event);
+    bool handleStatusModeKey(const ftxui::Event& event);
+    bool handleCommitModeKey(const ftxui::Event& event);
+    bool handleBranchModeKey(const ftxui::Event& event);
+    bool handleRemoteModeKey(const ftxui::Event& event);
+    bool handleCloneModeKey(const ftxui::Event& event);
+    bool handleDiffModeKey(const ftxui::Event& event);
+    bool handleGraphModeKey(const ftxui::Event& event);
 
     // Utility methods
     std::string getStatusIcon(GitFileStatus status) const;
@@ -219,7 +219,7 @@ class GitPanel {
     ftxui::Color getDiffLineColor(const std::string& line);
     bool hasStagedChanges() const;
     bool hasUnstagedChanges() const;
-    bool isNavigationKey(ftxui::Event event) const;
+    bool isNavigationKey(const ftxui::Event& event) const;
     std::string getCachedRepoPathDisplay();
     std::string getCachedCurrentBranch();
     GitBranchStatus getCachedBranchStatus();

@@ -108,8 +108,6 @@ ftxui::Element ExtractProgressDialog::renderProgressBar() {
     for (int i = 0; i < bar_width; ++i) {
         if (i < filled) {
             bar += "█";
-        } else if (i == filled && progress_ < 1.0f) {
-            bar += "░";
         } else {
             bar += "░";
         }

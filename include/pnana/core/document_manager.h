@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -19,7 +20,7 @@ class DocumentManager {
     using DocumentSwitchedCallback =
         std::function<void(size_t /*old_index*/, size_t /*new_index*/)>;
     void setDocumentSwitchedCallback(DocumentSwitchedCallback callback) {
-        document_switched_callback_ = callback;
+        document_switched_callback_ = std::move(callback);
     }
 
     // 文档操作

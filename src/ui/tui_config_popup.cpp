@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 using namespace ftxui;
 
@@ -71,7 +72,7 @@ ftxui::Element TUIConfigPopup::render() {
            bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
-bool TUIConfigPopup::handleInput(ftxui::Event event) {
+bool TUIConfigPopup::handleInput(const ftxui::Event& event) {
     if (!is_open_) {
         return false;
     }
@@ -169,7 +170,7 @@ void TUIConfigPopup::setCursorColorGetter(std::function<ftxui::Color()> getter) 
 
 void TUIConfigPopup::setConfigOpenCallback(
     std::function<void(const features::TUIConfig&)> callback) {
-    config_open_callback_ = callback;
+    config_open_callback_ = std::move(callback);
 }
 
 void TUIConfigPopup::updateFilteredConfigs() {

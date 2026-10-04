@@ -24,7 +24,7 @@ class HistoryDiffPopup {
     }
 
     ftxui::Element render() const;
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
   private:
     Theme& theme_;

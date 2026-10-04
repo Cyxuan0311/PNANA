@@ -19,7 +19,7 @@ class LogoMenu {
     // 设置当前选中的样式 id（打开菜单时同步）
     void setCurrentStyle(const std::string& style_id);
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
     std::string getSelectedStyleId() const;

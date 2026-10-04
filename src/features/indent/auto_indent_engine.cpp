@@ -497,7 +497,6 @@ int AutoIndentEngine::computeIndentFromTree(const std::vector<std::string>& line
                     TSPoint child_end = ts_node_end_point(child);
                     if (query_row >= child_start.row && query_row <= child_end.row) {
                         node = child;
-                        node_type = child_type;
                         break;
                     }
                 }

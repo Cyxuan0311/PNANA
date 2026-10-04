@@ -105,7 +105,6 @@ ftxui::Element AnsiColorParser::parse(const std::string& text) {
     ftxui::Color fg_color = ftxui::Color::Default;
     ftxui::Color bg_color = ftxui::Color::Default;
     bool bold = false;
-    bool italic = false;
     bool underline = false;
     bool blink = false;
     bool reverse = false;
@@ -185,13 +184,12 @@ ftxui::Element AnsiColorParser::parse(const std::string& text) {
                             case 0: // 重置所有样式
                                 fg_color = ftxui::Color::Default;
                                 bg_color = ftxui::Color::Default;
-                                bold = italic = underline = blink = reverse = strikethrough = false;
+                                bold = underline = blink = reverse = strikethrough = false;
                                 break;
                             case 1: // 粗体
                                 bold = true;
                                 break;
-                            case 3: // 斜体
-                                italic = true;
+                            case 3: // 斜体（FTXUI 不支持，忽略）
                                 break;
                             case 4: // 下划线
                                 underline = true;
@@ -207,13 +205,10 @@ ftxui::Element AnsiColorParser::parse(const std::string& text) {
                                 strikethrough = true;
                                 break;
                             case 21: // 关闭粗体
-                                bold = false;
-                                break;
                             case 22: // 关闭粗体/亮色
                                 bold = false;
                                 break;
                             case 23: // 关闭斜体
-                                italic = false;
                                 break;
                             case 24: // 关闭下划线
                                 underline = false;

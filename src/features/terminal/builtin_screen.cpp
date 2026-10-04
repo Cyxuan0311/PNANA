@@ -49,7 +49,7 @@ int builtinCharWidth(uint32_t cp) {
 bool BuiltinScreen::init(int cols, int rows) {
     cols_ = cols;
     rows_ = rows;
-    cells_.resize(static_cast<size_t>(rows * cols));
+    cells_.resize(static_cast<size_t>(rows) * static_cast<size_t>(cols));
     for (auto& c : cells_)
         c.clear();
 
@@ -77,15 +77,16 @@ void BuiltinScreen::resize(int new_cols, int new_rows) {
 
     auto resizeBuffer = [](std::vector<BuiltinCell>& buf, int old_cols, int old_rows, int new_cols,
                            int new_rows) {
-        std::vector<BuiltinCell> new_cells(static_cast<size_t>(new_rows * new_cols));
+        std::vector<BuiltinCell> new_cells(static_cast<size_t>(new_rows) *
+                                           static_cast<size_t>(new_cols));
         for (auto& c : new_cells)
             c.clear();
 
         int copy_rows = std::min(old_rows, new_rows);
         int copy_cols = std::min(old_cols, new_cols);
         for (int y = 0; y < copy_rows; y++) {
-            std::memcpy(&new_cells[static_cast<size_t>(y * new_cols)],
-                        &buf[static_cast<size_t>(y * old_cols)],
+            std::memcpy(&new_cells[static_cast<size_t>(y) * static_cast<size_t>(new_cols)],
+                        &buf[static_cast<size_t>(y) * static_cast<size_t>(old_cols)],
                         static_cast<size_t>(copy_cols) * sizeof(BuiltinCell));
         }
         buf = std::move(new_cells);
@@ -134,7 +135,7 @@ BuiltinCell* BuiltinScreen::cell(int x, int y) {
     auto& buf = use_alt_screen ? alt_cells_ : cells_;
     if (buf.empty())
         return nullptr;
-    return &buf[static_cast<size_t>(y * cols_ + x)];
+    return &buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)];
 }
 
 const BuiltinCell* BuiltinScreen::cell(int x, int y) const {
@@ -143,7 +144,7 @@ const BuiltinCell* BuiltinScreen::cell(int x, int y) const {
     const auto& buf = use_alt_screen ? alt_cells_ : cells_;
     if (buf.empty())
         return nullptr;
-    return &buf[static_cast<size_t>(y * cols_ + x)];
+    return &buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)];
 }
 
 void BuiltinScreen::markDirty(int y) {
@@ -185,13 +186,14 @@ void BuiltinScreen::scrollUp(int n) {
         return;
 
     for (int y = top; y <= bot - n; y++) {
-        std::memmove(&buf[static_cast<size_t>(y * cols_)],
-                     &buf[static_cast<size_t>((y + n) * cols_)],
+        std::memmove(&buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)],
+                     &buf[static_cast<size_t>(y + n) * static_cast<size_t>(cols_)],
                      static_cast<size_t>(cols_) * sizeof(BuiltinCell));
     }
     for (int y = bot - n + 1; y <= bot; y++) {
         for (int x = 0; x < cols_; x++) {
-            buf[static_cast<size_t>(y * cols_ + x)].erase(cur_fg, cur_bg, cur_flags);
+            buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)].erase(
+                cur_fg, cur_bg, cur_flags);
         }
     }
     markDirtyRange(top, bot);
@@ -211,13 +213,14 @@ void BuiltinScreen::scrollDown(int n) {
         return;
 
     for (int y = bot; y >= top + n; y--) {
-        std::memcpy(&buf[static_cast<size_t>(y * cols_)],
-                    &buf[static_cast<size_t>((y - n) * cols_)],
+        std::memcpy(&buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)],
+                    &buf[static_cast<size_t>(y - n) * static_cast<size_t>(cols_)],
                     static_cast<size_t>(cols_) * sizeof(BuiltinCell));
     }
     for (int y = top; y < top + n; y++) {
         for (int x = 0; x < cols_; x++) {
-            buf[static_cast<size_t>(y * cols_ + x)].erase(cur_fg, cur_bg, cur_flags);
+            buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)].erase(
+                cur_fg, cur_bg, cur_flags);
         }
     }
     markDirtyRange(top, bot);
@@ -226,7 +229,8 @@ void BuiltinScreen::scrollDown(int n) {
 void BuiltinScreen::lineFeed() {
     if (cursor_y == scroll_bottom) {
         if (scroll_top == 0) {
-            appendScrollbackLine(&cells_[static_cast<size_t>(cursor_y * cols_)], cols_);
+            appendScrollbackLine(
+                &cells_[static_cast<size_t>(cursor_y) * static_cast<size_t>(cols_)], cols_);
         }
         scrollUp(1);
     } else {
@@ -304,14 +308,17 @@ void BuiltinScreen::eraseCells(int x1, int y1, int x2, int y2) {
         for (int x = x1; x <= x2; x++) {
             if (x < 0 || x >= cols_ || y < 0 || y >= rows_)
                 continue;
-            BuiltinCell& c = buf[static_cast<size_t>(y * cols_ + x)];
+            BuiltinCell& c =
+                buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)];
             if (c.width > 1 && x + 1 < cols_) {
-                BuiltinCell& next = buf[static_cast<size_t>(y * cols_ + x + 1)];
+                BuiltinCell& next = buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) +
+                                        static_cast<size_t>(x) + 1];
                 if (next.width == 0)
                     next.erase(cur_fg, cur_bg, cur_flags);
             }
             if (c.width == 0 && x > 0) {
-                BuiltinCell& prev = buf[static_cast<size_t>(y * cols_ + x - 1)];
+                BuiltinCell& prev = buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) +
+                                        static_cast<size_t>(x) - 1];
                 if (prev.width > 1)
                     prev.erase(cur_fg, cur_bg, cur_flags);
             }
@@ -372,13 +379,14 @@ void BuiltinScreen::insertLines(int n) {
         return;
 
     for (int y = bot; y >= top + n; y--) {
-        std::memcpy(&buf[static_cast<size_t>(y * cols_)],
-                    &buf[static_cast<size_t>((y - n) * cols_)],
+        std::memcpy(&buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)],
+                    &buf[static_cast<size_t>(y - n) * static_cast<size_t>(cols_)],
                     static_cast<size_t>(cols_) * sizeof(BuiltinCell));
     }
     for (int y = top; y < top + n; y++) {
         for (int x = 0; x < cols_; x++) {
-            buf[static_cast<size_t>(y * cols_ + x)].erase(cur_fg, cur_bg, cur_flags);
+            buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)].erase(
+                cur_fg, cur_bg, cur_flags);
         }
     }
     markDirtyRange(top, bot);
@@ -400,13 +408,14 @@ void BuiltinScreen::deleteLines(int n) {
         return;
 
     for (int y = top; y <= bot - n; y++) {
-        std::memcpy(&buf[static_cast<size_t>(y * cols_)],
-                    &buf[static_cast<size_t>((y + n) * cols_)],
+        std::memcpy(&buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)],
+                    &buf[static_cast<size_t>(y + n) * static_cast<size_t>(cols_)],
                     static_cast<size_t>(cols_) * sizeof(BuiltinCell));
     }
     for (int y = bot - n + 1; y <= bot; y++) {
         for (int x = 0; x < cols_; x++) {
-            buf[static_cast<size_t>(y * cols_ + x)].erase(cur_fg, cur_bg, cur_flags);
+            buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)].erase(
+                cur_fg, cur_bg, cur_flags);
         }
     }
     markDirtyRange(top, bot);
@@ -423,7 +432,7 @@ void BuiltinScreen::deleteChars(int n) {
     if (buf.empty())
         return;
 
-    BuiltinCell* row = &buf[static_cast<size_t>(y * cols_)];
+    BuiltinCell* row = &buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)];
     if (cursor_x > 0 && row[cursor_x].width == 0) {
         row[cursor_x - 1].erase(cur_fg, cur_bg, cur_flags);
     }
@@ -449,7 +458,7 @@ void BuiltinScreen::insertChars(int n) {
     if (buf.empty())
         return;
 
-    BuiltinCell* row = &buf[static_cast<size_t>(y * cols_)];
+    BuiltinCell* row = &buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)];
     if (cursor_x > 0 && row[cursor_x].width == 0) {
         row[cursor_x - 1].erase(cur_fg, cur_bg, cur_flags);
     }
@@ -473,7 +482,7 @@ void BuiltinScreen::eraseChars(int n) {
     if (buf.empty())
         return;
 
-    BuiltinCell* row = &buf[static_cast<size_t>(y * cols_)];
+    BuiltinCell* row = &buf[static_cast<size_t>(y) * static_cast<size_t>(cols_)];
     if (cursor_x > 0 && row[cursor_x].width == 0) {
         row[cursor_x - 1].erase(cur_fg, cur_bg, cur_flags);
     }
@@ -508,7 +517,7 @@ void BuiltinScreen::switchAltScreen(bool enable) {
         saved_main_cursor_x_ = cursor_x;
         saved_main_cursor_y_ = cursor_y;
 
-        alt_cells_.resize(static_cast<size_t>(rows_ * cols_));
+        alt_cells_.resize(static_cast<size_t>(rows_) * static_cast<size_t>(cols_));
         for (auto& c : alt_cells_)
             c.clear();
         cursor_x = 0;
@@ -553,7 +562,7 @@ BuiltinScreenSnapshot BuiltinScreen::snapshot(int max_scrollback) const {
         snap.visible[static_cast<size_t>(y)].resize(static_cast<size_t>(cols_));
         for (int x = 0; x < cols_; x++) {
             snap.visible[static_cast<size_t>(y)][static_cast<size_t>(x)] =
-                buf[static_cast<size_t>(y * cols_ + x)];
+                buf[static_cast<size_t>(y) * static_cast<size_t>(cols_) + static_cast<size_t>(x)];
         }
     }
 
@@ -564,7 +573,8 @@ BuiltinScreenSnapshot BuiltinScreen::snapshot(int max_scrollback) const {
     int sb_start = static_cast<int>(scrollback_.size()) - sb_count;
     snap.scrollback.resize(static_cast<size_t>(sb_count));
     for (int i = 0; i < sb_count; i++) {
-        snap.scrollback[static_cast<size_t>(i)] = scrollback_[static_cast<size_t>(sb_start + i)];
+        snap.scrollback[static_cast<size_t>(i)] =
+            scrollback_[static_cast<size_t>(sb_start) + static_cast<size_t>(i)];
     }
 
     return snap;

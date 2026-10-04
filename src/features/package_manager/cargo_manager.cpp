@@ -118,9 +118,8 @@ std::vector<Package> CargoManager::parseCargoTreeOutput(const std::string& outpu
         while (start < line.length()) {
             if (line[start] == ' ') {
                 start++;
-            } else if (line.find("├──", start) == start || line.find("└──", start) == start) {
-                start += 3;
-            } else if (line.find("│", start) == start) {
+            } else if (line.find("├──", start) == start || line.find("└──", start) == start ||
+                       line.find("│", start) == start) {
                 start += 3;
             } else {
                 break;

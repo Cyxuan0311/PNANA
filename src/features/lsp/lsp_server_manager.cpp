@@ -182,7 +182,7 @@ bool LspServerManager::hasServerForLanguage(const std::string& language_id) cons
 }
 
 void LspServerManager::setDiagnosticsCallback(
-    std::function<void(const std::string&, const std::vector<Diagnostic>&)> callback) {
+    const std::function<void(const std::string&, const std::vector<Diagnostic>&)>& callback) {
     std::lock_guard<std::mutex> lock(clients_mutex_);
 
     // 为所有现有客户端设置回调

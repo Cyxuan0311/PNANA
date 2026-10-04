@@ -43,7 +43,6 @@ std::string AssemblyAnalyzer::getCompilerName(Compiler compiler) {
         case Compiler::ARMASM:
             return "armasm";
         case Compiler::UNKNOWN:
-            return "unknown";
         default:
             return "unknown";
     }

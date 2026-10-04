@@ -5,13 +5,14 @@
 #include <cmath>
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
+#include <utility>
 
 using namespace ftxui;
 
 // Neovim 风格：单线边框（无圆角），简洁
 static inline Decorator borderNeovim(Color border_color) {
     return [=](Element child) -> Element {
-        return child | border | ftxui::color(border_color);
+        return std::move(child) | border | ftxui::color(border_color);
     };
 }
 
@@ -194,10 +195,7 @@ void CompletionPopup::calculatePopupPosition() {
     // 高度：选中项占两行时需额外一行显示描述
     size_t display_count = std::min(items_.size(), max_items_);
     int new_height = static_cast<int>(display_count) + 1; // +1 为选中项的详情行
-    if (popup_height_ == 0) {
-        popup_height_ = new_height;
-        size_changed = true;
-    } else if (std::abs(new_height - popup_height_) > 5) {
+    if (popup_height_ == 0 || std::abs(new_height - popup_height_) > 5) {
         popup_height_ = new_height;
         size_changed = true;
     }
@@ -476,10 +474,9 @@ Color CompletionPopup::getKindColor(const std::string& kind) const {
             return Color::Default;
         case 7:
         case 8:
-        case 22: // Class, Interface, Struct
-            return Color::Blue;
         case 9:
-        case 19: // Module, Folder
+        case 19:
+        case 22: // Class, Interface, Struct, Module, Folder
             return Color::Blue;
         case 13:
         case 20: // Enum, EnumMember
@@ -490,12 +487,10 @@ Color CompletionPopup::getKindColor(const std::string& kind) const {
             return Color::Cyan;
         case 16: // Color
             return Color::Magenta;
-        case 17: // File
-            return Color::Yellow;
-        case 21: // Constant
+        case 17:
+        case 21: // File, Constant
             return Color::Yellow;
         case 24: // Operator
-            return Color::Default;
         default:
             return Color::Default;
     }

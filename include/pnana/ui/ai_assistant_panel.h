@@ -122,7 +122,7 @@ class AIAssistantPanel {
     void setOnGetCurrentFile(std::function<std::string()> callback);
 
     // 输入处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
   private:
     // UI组件
@@ -136,8 +136,7 @@ class AIAssistantPanel {
     bool visible_;
     std::vector<ChatMessage> messages_;
     std::string current_input_;
-    size_t cursor_pos_; // 光标位置
-    int selected_message_index_;
+    size_t cursor_pos_;         // 光标位置
     int scroll_offset_;         // 顶部跳过行数（按行滚动，不再按消息条数）
     int estimated_total_lines_; // 消息区预估总行数，用于限制滚动范围
     bool is_streaming_;

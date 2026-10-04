@@ -413,7 +413,6 @@ size_t Rope::positionToLineCol(size_t pos) const {
                     col++;
                 }
             }
-            current_pos += current->text.size();
             break;
         }
 

@@ -25,7 +25,7 @@ class StatusbarStyleMenu {
         on_style_confirmed_ = std::move(cb);
     }
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     Element render();
 
     std::string getSelectedStyle() const;

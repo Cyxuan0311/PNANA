@@ -19,7 +19,7 @@ class PackageManagerRegistry {
     static PackageManagerRegistry& getInstance();
 
     // 注册包管理器
-    void registerManager(std::shared_ptr<PackageManagerBase> manager);
+    void registerManager(const std::shared_ptr<PackageManagerBase>& manager);
 
     // 获取所有已注册的管理器
     std::vector<std::shared_ptr<PackageManagerBase>> getAllManagers() const;
@@ -34,7 +34,7 @@ class PackageManagerRegistry {
     void clearAllCaches();
 
     // SSH 远程支持：为所有管理器注入 / 清除 remote executor
-    void setRemoteExecutorForAll(PackageManagerBase::RemoteExecutor executor,
+    void setRemoteExecutorForAll(const PackageManagerBase::RemoteExecutor& executor,
                                  const std::string& remote_label);
     void clearRemoteContextForAll();
 

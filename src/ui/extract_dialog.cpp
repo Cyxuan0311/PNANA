@@ -4,6 +4,7 @@
 #include "ui/responsive_size.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 using namespace ftxui;
 
@@ -24,8 +25,8 @@ void ExtractDialog::show(const std::string& /* current_directory */,
     visible_ = true;
     selected_index_ = 0;
     scroll_offset_ = 0;
-    on_select_ = on_select;
-    on_cancel_ = on_cancel;
+    on_select_ = std::move(on_select);
+    on_cancel_ = std::move(on_cancel);
 }
 
 void ExtractDialog::hide() {
@@ -39,7 +40,7 @@ void ExtractDialog::setArchiveFiles(const std::vector<features::ArchiveFile>& fi
     }
 }
 
-bool ExtractDialog::handleInput(ftxui::Event event) {
+bool ExtractDialog::handleInput(const ftxui::Event& event) {
     if (!visible_) {
         return false;
     }

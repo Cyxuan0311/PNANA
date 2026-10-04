@@ -34,7 +34,7 @@ void DependencyStatusPopup::setData(const std::vector<DependencyEntry>& entries)
         selected_index_ = entries_.size() - 1;
 }
 
-bool DependencyStatusPopup::handleInput(Event event) {
+bool DependencyStatusPopup::handleInput(const Event& event) {
     if (!is_open_)
         return false;
     if (event == Event::Escape) {

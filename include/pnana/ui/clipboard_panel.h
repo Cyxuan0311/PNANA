@@ -8,6 +8,7 @@
 #include <ftxui/dom/elements.hpp>
 #include <functional>
 #include <string>
+#include <utility>
 
 namespace pnana {
 namespace ui {
@@ -31,10 +32,10 @@ class ClipboardPanel {
         return history_;
     }
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     void setOnInsertText(std::function<void(const std::string&)> callback) {
-        on_insert_text_ = callback;
+        on_insert_text_ = std::move(callback);
     }
 
   private:

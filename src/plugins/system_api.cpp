@@ -381,19 +381,12 @@ int SystemAPI::lua_fn_systemlist_async(lua_State* L) {
 
     // 解析 opts
     std::string cwd = ".";
-    int timeout_ms = 800;
     size_t max_output_bytes = 1024 * 1024;
 
     if (lua_istable(L, 2)) {
         lua_getfield(L, 2, "cwd");
         if (lua_isstring(L, -1)) {
             cwd = lua_tostring(L, -1);
-        }
-        lua_pop(L, 1);
-
-        lua_getfield(L, 2, "timeout_ms");
-        if (lua_isnumber(L, -1)) {
-            timeout_ms = static_cast<int>(lua_tointeger(L, -1));
         }
         lua_pop(L, 1);
 
@@ -416,7 +409,7 @@ int SystemAPI::lua_fn_systemlist_async(lua_State* L) {
     int request_id = ++s_request_counter;
 
     // 在后台线程执行
-    std::thread([argv, cwd, timeout_ms, max_output_bytes, callback_ref, request_id, lua_api]() {
+    std::thread([argv, cwd, max_output_bytes, callback_ref, request_id, lua_api]() {
         // 构建命令
         auto shell_escape = [](const std::string& s) {
             std::string out;
@@ -465,7 +458,7 @@ int SystemAPI::lua_fn_systemlist_async(lua_State* L) {
         if (!editor)
             return;
 
-        editor->postToMainThread([callback_ref, output, request_id, lua_api]() {
+        editor->postToMainThread([callback_ref, output, lua_api]() {
             lua_State* L = lua_api->getEngine()->getState();
             if (!L)
                 return;

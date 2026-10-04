@@ -46,7 +46,7 @@ class DiagnosticsPopup {
     void jumpToSelectedDiagnostic();
 
     // 输入处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 设置复制回调
     void setCopyCallback(std::function<void(const std::string&)> callback);

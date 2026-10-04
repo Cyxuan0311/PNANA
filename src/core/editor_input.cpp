@@ -843,14 +843,9 @@ void Editor::handleNormalMode(Event event) {
                     }
                 }
                 moveCursorUp();
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-                // 终端：向上切换到代码区
-                if (region_manager_.navigateUp()) {
-                    setStatusMessage("Region: " + region_manager_.getRegionName());
-                    return;
-                }
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-                // 文件浏览器：向上切换到标签区
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL ||
+                       region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 终端/文件浏览器：向上切换到标签区/代码区
                 if (region_manager_.navigateUp()) {
                     setStatusMessage("Region: " + region_manager_.getRegionName());
                     return;
@@ -924,14 +919,8 @@ void Editor::handleNormalMode(Event event) {
                     size_t last_visible_row = view_offset_row_ + screen_height - 1;
 
                     if (cursor_row_ >= total_lines - 1 || cursor_row_ >= last_visible_row) {
-                        if (terminal_.isVisible()) {
-                            if (region_manager_.navigateDown()) {
-                                setStatusMessage("Region: " + region_manager_.getRegionName() +
-                                                 " | ↑: Return to split view");
-                                return;
-                            }
-                        } else if (file_browser_.isVisible()) {
-                            // 如果终端不可见，尝试切换到文件浏览器
+                        if (terminal_.isVisible() || file_browser_.isVisible()) {
+                            // 尝试切换到终端或文件浏览器
                             if (region_manager_.navigateDown()) {
                                 setStatusMessage("Region: " + region_manager_.getRegionName() +
                                                  " | ↑: Return to split view");
@@ -946,8 +935,9 @@ void Editor::handleNormalMode(Event event) {
             }
         } else {
             // 非分屏模式下的传统导航
-            if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA) {
-                // 标签区：向下切换到代码区
+            if (region_manager_.getCurrentRegion() == EditorRegion::TAB_AREA ||
+                region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
+                // 标签区/文件浏览器：向下切换到代码区
                 if (region_manager_.navigateDown()) {
                     setStatusMessage("Region: " + region_manager_.getRegionName());
                     return;
@@ -971,12 +961,6 @@ void Editor::handleNormalMode(Event event) {
             } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
                 // 终端已经在最下方，不移动
                 return;
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-                // 文件浏览器：向下切换到代码区
-                if (region_manager_.navigateDown()) {
-                    setStatusMessage("Region: " + region_manager_.getRegionName());
-                    return;
-                }
             }
         }
     } else if (event == Event::ArrowLeft) {
@@ -1161,14 +1145,9 @@ void Editor::handleNormalMode(Event event) {
                 // 分屏导航失败，在当前区域内移动光标
                 moveCursorRight();
                 return;
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-                // 文件浏览器：向右切换到代码区
-                if (region_manager_.navigateRight()) {
-                    setStatusMessage("Region: " + region_manager_.getRegionName());
-                    return;
-                }
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-                // 终端：向右切换到代码区
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER ||
+                       region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 文件浏览器/终端：向右切换到代码区
                 if (region_manager_.navigateRight()) {
                     setStatusMessage("Region: " + region_manager_.getRegionName());
                     return;
@@ -1208,14 +1187,9 @@ void Editor::handleNormalMode(Event event) {
             } else if (region_manager_.getCurrentRegion() == EditorRegion::CODE_AREA) {
                 // 代码区：向右没有其他区域，移动光标
                 moveCursorRight();
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER) {
-                // 文件浏览器：向右切换到代码区
-                if (region_manager_.navigateRight()) {
-                    setStatusMessage("Region: " + region_manager_.getRegionName());
-                    return;
-                }
-            } else if (region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
-                // 终端：向右切换到代码区
+            } else if (region_manager_.getCurrentRegion() == EditorRegion::FILE_BROWSER ||
+                       region_manager_.getCurrentRegion() == EditorRegion::TERMINAL) {
+                // 文件浏览器/终端：向右切换到代码区
                 if (region_manager_.navigateRight()) {
                     setStatusMessage("Region: " + region_manager_.getRegionName());
                     return;

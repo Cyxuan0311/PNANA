@@ -6,6 +6,7 @@
 #include <ftxui/dom/elements.hpp>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -28,19 +29,19 @@ class EncodingDialog {
     }
 
     // 处理输入
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染对话框
     ftxui::Element render();
 
     // 设置确认回调
     void setOnConfirm(std::function<void(const std::string&)> callback) {
-        on_confirm_ = callback;
+        on_confirm_ = std::move(callback);
     }
 
     // 设置取消回调
     void setOnCancel(std::function<void()> callback) {
-        on_cancel_ = callback;
+        on_cancel_ = std::move(callback);
     }
 
     // 获取当前选中的编码

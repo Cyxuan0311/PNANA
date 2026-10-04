@@ -4,6 +4,7 @@
 #include <chrono>
 #include <future>
 #include <stdexcept>
+#include <utility>
 
 namespace pnana {
 namespace features {
@@ -26,7 +27,8 @@ LspAsyncManager::~LspAsyncManager() {
 
 void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::string& uri,
                                              const LspPosition& position,
-                                             CompletionCallback on_success, ErrorCallback on_error,
+                                             CompletionCallback on_success,
+                                             const ErrorCallback& on_error,
                                              const std::string& trigger_character,
                                              int completion_timeout_ms) {
     if (!client || !running_) {
@@ -43,7 +45,7 @@ void LspAsyncManager::requestCompletionAsync(LspClient* client, const std::strin
     task.position = position;
     task.trigger_character = trigger_character;
     task.completion_timeout_ms = completion_timeout_ms;
-    task.completion_callback = on_success;
+    task.completion_callback = std::move(on_success);
     task.error_callback = on_error;
 
     {
@@ -91,7 +93,8 @@ void LspAsyncManager::requestDocumentChangeAsync(LspClient* client, const std::s
 }
 
 void LspAsyncManager::requestResolveAsync(LspClient* client, const CompletionItem& item,
-                                          ResolveCallback on_success, ErrorCallback on_error) {
+                                          ResolveCallback on_success,
+                                          const ErrorCallback& on_error) {
     if (!client || !running_) {
         if (on_error) {
             on_error("Client is null or manager is stopped");
@@ -103,7 +106,7 @@ void LspAsyncManager::requestResolveAsync(LspClient* client, const CompletionIte
     task.type = RequestTask::RESOLVE;
     task.client = client;
     task.resolve_item = item;
-    task.resolve_callback = on_success;
+    task.resolve_callback = std::move(on_success);
     task.error_callback = on_error;
 
     {

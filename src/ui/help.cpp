@@ -228,7 +228,7 @@ Element Help::renderCategory(const std::string& category, const std::vector<Help
     return vbox(items);
 }
 
-bool Help::handleInput(ftxui::Event event) {
+bool Help::handleInput(const ftxui::Event& event) {
     auto categories = getCategories();
 
     // Tab键切换tab

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
 #include <sstream>
+#include <utility>
 
 using namespace ftxui;
 
@@ -26,8 +27,8 @@ void SSHTransferDialog::show(
     visible_ = true;
     current_field_ = 0;
     cursor_position_ = 0;
-    on_start_transfer_ = on_start_transfer;
-    on_cancel_ = on_cancel;
+    on_start_transfer_ = std::move(on_start_transfer);
+    on_cancel_ = std::move(on_cancel);
 
     // 重置输入字段
     local_path_input_.clear();
@@ -40,7 +41,7 @@ void SSHTransferDialog::hide() {
     visible_ = false;
 }
 
-bool SSHTransferDialog::handleInput(Event event) {
+bool SSHTransferDialog::handleInput(const Event& event) {
     if (!visible_) {
         return false;
     }
@@ -342,9 +343,8 @@ std::string* SSHTransferDialog::getCurrentField() {
         case 1:
             return &remote_path_input_;
         case 2:
-            return nullptr; // 方向字段特殊处理
         default:
-            return nullptr;
+            return nullptr; // 方向字段特殊处理
     }
 }
 

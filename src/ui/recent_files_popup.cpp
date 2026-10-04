@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 using namespace ftxui;
 
@@ -65,7 +66,7 @@ ftxui::Element RecentFilesPopup::render() {
            bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
-bool RecentFilesPopup::handleInput(ftxui::Event event) {
+bool RecentFilesPopup::handleInput(const ftxui::Event& event) {
     if (!is_open_) {
         return false;
     }
@@ -147,11 +148,11 @@ void RecentFilesPopup::close() {
 }
 
 void RecentFilesPopup::setFileOpenCallback(std::function<void(const std::string&)> callback) {
-    file_open_callback_ = callback;
+    file_open_callback_ = std::move(callback);
 }
 
 void RecentFilesPopup::setFolderOpenCallback(std::function<void(const std::string&)> callback) {
-    folder_open_callback_ = callback;
+    folder_open_callback_ = std::move(callback);
 }
 
 Element RecentFilesPopup::renderTitle() const {

@@ -29,7 +29,7 @@ class ExtractPathDialog {
     }
 
     // 处理输入事件
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染对话框
     ftxui::Element render();

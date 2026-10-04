@@ -37,7 +37,7 @@ class MoveFileDialog {
     ftxui::Element render();
 
     // 处理输入事件
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
   private:
     Theme& theme_;

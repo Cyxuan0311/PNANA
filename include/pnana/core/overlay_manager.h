@@ -4,6 +4,7 @@
 #include <ftxui/dom/elements.hpp>
 #include <functional>
 #include <memory>
+#include <utility>
 
 namespace pnana {
 namespace core {
@@ -20,246 +21,246 @@ class OverlayManager {
 
     // 设置各种对话框的渲染回调
     void setRenderHelpCallback(std::function<ftxui::Element()> callback) {
-        render_help_callback_ = callback;
+        render_help_callback_ = std::move(callback);
     }
     void setRenderThemeMenuCallback(std::function<ftxui::Element()> callback) {
-        render_theme_menu_callback_ = callback;
+        render_theme_menu_callback_ = std::move(callback);
     }
     void setRenderLogoMenuCallback(std::function<ftxui::Element()> callback) {
-        render_logo_menu_callback_ = callback;
+        render_logo_menu_callback_ = std::move(callback);
     }
     void setRenderAnimationMenuCallback(std::function<ftxui::Element()> callback) {
-        render_animation_menu_callback_ = callback;
+        render_animation_menu_callback_ = std::move(callback);
     }
     void setRenderStatusbarStyleMenuCallback(std::function<ftxui::Element()> callback) {
-        render_statusbar_style_menu_callback_ = callback;
+        render_statusbar_style_menu_callback_ = std::move(callback);
     }
     void setRenderCreateFolderCallback(std::function<ftxui::Element()> callback) {
-        render_create_folder_callback_ = callback;
+        render_create_folder_callback_ = std::move(callback);
     }
     void setRenderSaveAsCallback(std::function<ftxui::Element()> callback) {
-        render_save_as_callback_ = callback;
+        render_save_as_callback_ = std::move(callback);
     }
     void setRenderMoveFileCallback(std::function<ftxui::Element()> callback) {
-        render_move_file_callback_ = callback;
+        render_move_file_callback_ = std::move(callback);
     }
     void setRenderExtractCallback(std::function<ftxui::Element()> callback) {
-        render_extract_callback_ = callback;
+        render_extract_callback_ = std::move(callback);
     }
     void setRenderExtractPathCallback(std::function<ftxui::Element()> callback) {
-        render_extract_path_callback_ = callback;
+        render_extract_path_callback_ = std::move(callback);
     }
     void setRenderExtractProgressCallback(std::function<ftxui::Element()> callback) {
-        render_extract_progress_callback_ = callback;
+        render_extract_progress_callback_ = std::move(callback);
     }
     void setRenderCursorConfigCallback(std::function<ftxui::Element()> callback) {
-        render_cursor_config_callback_ = callback;
+        render_cursor_config_callback_ = std::move(callback);
     }
     void setRenderAIConfigCallback(std::function<ftxui::Element()> callback) {
-        render_ai_config_callback_ = callback;
+        render_ai_config_callback_ = std::move(callback);
     }
     void setRenderAIAssistantCallback(std::function<ftxui::Element()> callback) {
-        render_ai_assistant_callback_ = callback;
+        render_ai_assistant_callback_ = std::move(callback);
     }
     void setRenderClipboardPanelCallback(std::function<ftxui::Element()> callback) {
-        render_clipboard_panel_callback_ = callback;
+        render_clipboard_panel_callback_ = std::move(callback);
     }
     void setRenderPluginManagerCallback(std::function<ftxui::Element()> callback) {
-        render_plugin_manager_callback_ = callback;
+        render_plugin_manager_callback_ = std::move(callback);
     }
     void setRenderCommandPaletteCallback(std::function<ftxui::Element()> callback) {
-        render_command_palette_callback_ = callback;
+        render_command_palette_callback_ = std::move(callback);
     }
     void setRenderFormatCallback(std::function<ftxui::Element()> callback) {
-        render_format_callback_ = callback;
+        render_format_callback_ = std::move(callback);
     }
     void setRenderGitPanelCallback(std::function<ftxui::Element()> callback) {
-        render_git_panel_callback_ = callback;
+        render_git_panel_callback_ = std::move(callback);
     }
     void setRenderTodoPanelCallback(std::function<ftxui::Element()> callback) {
-        render_todo_panel_callback_ = callback;
+        render_todo_panel_callback_ = std::move(callback);
     }
     void setRenderPackageManagerPanelCallback(std::function<ftxui::Element()> callback) {
-        render_package_manager_panel_callback_ = callback;
+        render_package_manager_panel_callback_ = std::move(callback);
     }
     void setRenderCompletionPopupCallback(std::function<ftxui::Element()> callback) {
-        render_completion_popup_callback_ = callback;
+        render_completion_popup_callback_ = std::move(callback);
     }
     void setRenderDiagnosticsPopupCallback(std::function<ftxui::Element()> callback) {
-        render_diagnostics_popup_callback_ = callback;
+        render_diagnostics_popup_callback_ = std::move(callback);
     }
     void setRenderSymbolNavigationPopupCallback(std::function<ftxui::Element()> callback) {
-        render_symbol_navigation_popup_callback_ = callback;
+        render_symbol_navigation_popup_callback_ = std::move(callback);
     }
     void setRenderFilePickerCallback(std::function<ftxui::Element()> callback) {
-        render_file_picker_callback_ = callback;
+        render_file_picker_callback_ = std::move(callback);
     }
     void setRenderSplitDialogCallback(std::function<ftxui::Element()> callback) {
-        render_split_dialog_callback_ = callback;
+        render_split_dialog_callback_ = std::move(callback);
     }
     void setRenderSSHTansferCallback(std::function<ftxui::Element()> callback) {
-        render_ssh_transfer_callback_ = callback;
+        render_ssh_transfer_callback_ = std::move(callback);
     }
     void setRenderSSHDialogCallback(std::function<ftxui::Element()> callback) {
-        render_ssh_dialog_callback_ = callback;
+        render_ssh_dialog_callback_ = std::move(callback);
     }
     void setRenderTerminalSessionDialogCallback(std::function<ftxui::Element()> callback) {
-        render_terminal_session_dialog_callback_ = callback;
+        render_terminal_session_dialog_callback_ = std::move(callback);
     }
     void setRenderEncodingDialogCallback(std::function<ftxui::Element()> callback) {
-        render_encoding_dialog_callback_ = callback;
+        render_encoding_dialog_callback_ = std::move(callback);
     }
     void setRenderRecentFilesCallback(std::function<ftxui::Element()> callback) {
-        render_recent_files_callback_ = callback;
+        render_recent_files_callback_ = std::move(callback);
     }
     void setRenderFzfPopupCallback(std::function<ftxui::Element()> callback) {
-        render_fzf_popup_callback_ = callback;
+        render_fzf_popup_callback_ = std::move(callback);
     }
     void setRenderHistoryTimelinePopupCallback(std::function<ftxui::Element()> callback) {
-        render_history_timeline_popup_callback_ = callback;
+        render_history_timeline_popup_callback_ = std::move(callback);
     }
     void setRenderHistoryDiffPopupCallback(std::function<ftxui::Element()> callback) {
-        render_history_diff_popup_callback_ = callback;
+        render_history_diff_popup_callback_ = std::move(callback);
     }
     void setRenderLspStatusPopupCallback(std::function<ftxui::Element()> callback) {
-        render_lsp_status_popup_callback_ = callback;
+        render_lsp_status_popup_callback_ = std::move(callback);
     }
     void setRenderTUIConfigCallback(std::function<ftxui::Element()> callback) {
-        render_tui_config_callback_ = callback;
+        render_tui_config_callback_ = std::move(callback);
     }
     void setRenderDependencyStatusPopupCallback(std::function<ftxui::Element()> callback) {
-        render_dependency_status_popup_callback_ = callback;
+        render_dependency_status_popup_callback_ = std::move(callback);
     }
     void setRenderDialogCallback(std::function<ftxui::Element()> callback) {
-        render_dialog_callback_ = callback;
+        render_dialog_callback_ = std::move(callback);
     }
     void setRenderBorderConfigPopupCallback(std::function<ftxui::Element()> callback) {
-        render_border_config_popup_callback_ = callback;
+        render_border_config_popup_callback_ = std::move(callback);
     }
     void setRenderImageProtocolCallback(std::function<ftxui::Element()> callback) {
-        render_image_protocol_callback_ = callback;
+        render_image_protocol_callback_ = std::move(callback);
     }
 
     // 设置可见性检查回调
     void setIsHelpVisibleCallback(std::function<bool()> callback) {
-        is_help_visible_callback_ = callback;
+        is_help_visible_callback_ = std::move(callback);
     }
     void setIsThemeMenuVisibleCallback(std::function<bool()> callback) {
-        is_theme_menu_visible_callback_ = callback;
+        is_theme_menu_visible_callback_ = std::move(callback);
     }
     void setIsLogoMenuVisibleCallback(std::function<bool()> callback) {
-        is_logo_menu_visible_callback_ = callback;
+        is_logo_menu_visible_callback_ = std::move(callback);
     }
     void setIsAnimationMenuVisibleCallback(std::function<bool()> callback) {
-        is_animation_menu_visible_callback_ = callback;
+        is_animation_menu_visible_callback_ = std::move(callback);
     }
     void setIsStatusbarStyleMenuVisibleCallback(std::function<bool()> callback) {
-        is_statusbar_style_menu_visible_callback_ = callback;
+        is_statusbar_style_menu_visible_callback_ = std::move(callback);
     }
     void setIsCreateFolderVisibleCallback(std::function<bool()> callback) {
-        is_create_folder_visible_callback_ = callback;
+        is_create_folder_visible_callback_ = std::move(callback);
     }
     void setIsSaveAsVisibleCallback(std::function<bool()> callback) {
-        is_save_as_visible_callback_ = callback;
+        is_save_as_visible_callback_ = std::move(callback);
     }
     void setIsMoveFileVisibleCallback(std::function<bool()> callback) {
-        is_move_file_visible_callback_ = callback;
+        is_move_file_visible_callback_ = std::move(callback);
     }
     void setIsExtractVisibleCallback(std::function<bool()> callback) {
-        is_extract_visible_callback_ = callback;
+        is_extract_visible_callback_ = std::move(callback);
     }
     void setIsExtractPathVisibleCallback(std::function<bool()> callback) {
-        is_extract_path_visible_callback_ = callback;
+        is_extract_path_visible_callback_ = std::move(callback);
     }
     void setIsExtractProgressVisibleCallback(std::function<bool()> callback) {
-        is_extract_progress_visible_callback_ = callback;
+        is_extract_progress_visible_callback_ = std::move(callback);
     }
     void setIsCursorConfigVisibleCallback(std::function<bool()> callback) {
-        is_cursor_config_visible_callback_ = callback;
+        is_cursor_config_visible_callback_ = std::move(callback);
     }
     void setIsAIConfigVisibleCallback(std::function<bool()> callback) {
-        is_ai_config_visible_callback_ = callback;
+        is_ai_config_visible_callback_ = std::move(callback);
     }
     void setIsAIAssistantVisibleCallback(std::function<bool()> callback) {
-        is_ai_assistant_visible_callback_ = callback;
+        is_ai_assistant_visible_callback_ = std::move(callback);
     }
     void setIsClipboardPanelVisibleCallback(std::function<bool()> callback) {
-        is_clipboard_panel_visible_callback_ = callback;
+        is_clipboard_panel_visible_callback_ = std::move(callback);
     }
     void setIsPluginManagerVisibleCallback(std::function<bool()> callback) {
-        is_plugin_manager_visible_callback_ = callback;
+        is_plugin_manager_visible_callback_ = std::move(callback);
     }
     void setIsCommandPaletteVisibleCallback(std::function<bool()> callback) {
-        is_command_palette_visible_callback_ = callback;
+        is_command_palette_visible_callback_ = std::move(callback);
     }
     void setIsFormatVisibleCallback(std::function<bool()> callback) {
-        is_format_visible_callback_ = callback;
+        is_format_visible_callback_ = std::move(callback);
     }
     void setIsGitPanelVisibleCallback(std::function<bool()> callback) {
-        is_git_panel_visible_callback_ = callback;
+        is_git_panel_visible_callback_ = std::move(callback);
     }
     void setIsTodoPanelVisibleCallback(std::function<bool()> callback) {
-        is_todo_panel_visible_callback_ = callback;
+        is_todo_panel_visible_callback_ = std::move(callback);
     }
     void setIsPackageManagerPanelVisibleCallback(std::function<bool()> callback) {
-        is_package_manager_panel_visible_callback_ = callback;
+        is_package_manager_panel_visible_callback_ = std::move(callback);
     }
     void setIsCompletionPopupVisibleCallback(std::function<bool()> callback) {
-        is_completion_popup_visible_callback_ = callback;
+        is_completion_popup_visible_callback_ = std::move(callback);
     }
     void setIsDiagnosticsPopupVisibleCallback(std::function<bool()> callback) {
-        is_diagnostics_popup_visible_callback_ = callback;
+        is_diagnostics_popup_visible_callback_ = std::move(callback);
     }
     void setIsSymbolNavigationPopupVisibleCallback(std::function<bool()> callback) {
-        is_symbol_navigation_popup_visible_callback_ = callback;
+        is_symbol_navigation_popup_visible_callback_ = std::move(callback);
     }
     void setIsFilePickerVisibleCallback(std::function<bool()> callback) {
-        is_file_picker_visible_callback_ = callback;
+        is_file_picker_visible_callback_ = std::move(callback);
     }
     void setIsSplitDialogVisibleCallback(std::function<bool()> callback) {
-        is_split_dialog_visible_callback_ = callback;
+        is_split_dialog_visible_callback_ = std::move(callback);
     }
     void setIsSSHTansferVisibleCallback(std::function<bool()> callback) {
-        is_ssh_transfer_visible_callback_ = callback;
+        is_ssh_transfer_visible_callback_ = std::move(callback);
     }
     void setIsSSHDialogVisibleCallback(std::function<bool()> callback) {
-        is_ssh_dialog_visible_callback_ = callback;
+        is_ssh_dialog_visible_callback_ = std::move(callback);
     }
     void setIsTerminalSessionDialogVisibleCallback(std::function<bool()> callback) {
-        is_terminal_session_dialog_visible_callback_ = callback;
+        is_terminal_session_dialog_visible_callback_ = std::move(callback);
     }
     void setIsEncodingDialogVisibleCallback(std::function<bool()> callback) {
-        is_encoding_dialog_visible_callback_ = callback;
+        is_encoding_dialog_visible_callback_ = std::move(callback);
     }
     void setIsRecentFilesVisibleCallback(std::function<bool()> callback) {
-        is_recent_files_visible_callback_ = callback;
+        is_recent_files_visible_callback_ = std::move(callback);
     }
     void setIsFzfPopupVisibleCallback(std::function<bool()> callback) {
-        is_fzf_popup_visible_callback_ = callback;
+        is_fzf_popup_visible_callback_ = std::move(callback);
     }
     void setIsHistoryTimelinePopupVisibleCallback(std::function<bool()> callback) {
-        is_history_timeline_popup_visible_callback_ = callback;
+        is_history_timeline_popup_visible_callback_ = std::move(callback);
     }
     void setIsHistoryDiffPopupVisibleCallback(std::function<bool()> callback) {
-        is_history_diff_popup_visible_callback_ = callback;
+        is_history_diff_popup_visible_callback_ = std::move(callback);
     }
     void setIsLspStatusPopupVisibleCallback(std::function<bool()> callback) {
-        is_lsp_status_popup_visible_callback_ = callback;
+        is_lsp_status_popup_visible_callback_ = std::move(callback);
     }
     void setIsTUIConfigVisibleCallback(std::function<bool()> callback) {
-        is_tui_config_visible_callback_ = callback;
+        is_tui_config_visible_callback_ = std::move(callback);
     }
     void setIsDependencyStatusPopupVisibleCallback(std::function<bool()> callback) {
-        is_dependency_status_popup_visible_callback_ = callback;
+        is_dependency_status_popup_visible_callback_ = std::move(callback);
     }
     void setIsDialogVisibleCallback(std::function<bool()> callback) {
-        is_dialog_visible_callback_ = callback;
+        is_dialog_visible_callback_ = std::move(callback);
     }
     void setIsBorderConfigPopupVisibleCallback(std::function<bool()> callback) {
-        is_border_config_popup_visible_callback_ = callback;
+        is_border_config_popup_visible_callback_ = std::move(callback);
     }
     void setIsImageProtocolVisibleCallback(std::function<bool()> callback) {
-        is_image_protocol_visible_callback_ = callback;
+        is_image_protocol_visible_callback_ = std::move(callback);
     }
 
     // 主渲染方法

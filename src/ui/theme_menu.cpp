@@ -47,7 +47,7 @@ void ThemeMenu::setCursorColorGetter(std::function<ftxui::Color()> getter) {
     cursor_color_getter_ = std::move(getter);
 }
 
-bool ThemeMenu::handleInput(ftxui::Event event) {
+bool ThemeMenu::handleInput(const ftxui::Event& event) {
     if (event == Event::Escape) {
         if (!search_input_.empty()) {
             search_input_.clear();
@@ -297,7 +297,7 @@ Element ThemeMenu::renderColorPreview() const {
         {"Line Number", tc.line_number},
     };
 
-    auto makeColorCell = [&tc, LABEL_WIDTH](const ColorItem& item) -> Element {
+    auto makeColorCell = [&tc](const ColorItem& item) -> Element {
         std::string label = item.label;
         if (label.size() < LABEL_WIDTH)
             label += std::string(LABEL_WIDTH - label.size(), ' ');

@@ -13,18 +13,14 @@
 #include <ftxui/dom/elements.hpp>
 #include <regex>
 #include <sstream>
+#include <utility>
 
 using namespace ftxui;
-
-// Custom border decorator with theme color
-static inline Decorator borderWithColor(Color border_color) {
-    return pnana::core::ui::makeBorderDecorator(border_color);
-}
 
 // Custom borderRounded decorator with theme color
 static inline Decorator borderRoundedWithColor(Color border_color) {
     return [=](Element child) -> Element {
-        return child | borderRounded | ftxui::color(border_color);
+        return std::move(child) | borderRounded | ftxui::color(border_color);
     };
 }
 
@@ -39,9 +35,9 @@ namespace pnana {
 namespace ui {
 
 AIAssistantPanel::AIAssistantPanel(Theme& theme)
-    : theme_(theme), visible_(false), cursor_pos_(0), selected_message_index_(0), scroll_offset_(0),
-      estimated_total_lines_(0), is_streaming_(false), current_focus_(FocusArea::INPUT),
-      selected_button_index_(0), panel_width_(40) {
+    : theme_(theme), visible_(false), cursor_pos_(0), scroll_offset_(0), estimated_total_lines_(0),
+      is_streaming_(false), current_focus_(FocusArea::INPUT), selected_button_index_(0),
+      panel_width_(40) {
     // 初始化组件
     input_component_ = Input(&current_input_, "Ask me anything about your code...");
     messages_component_ = Renderer([this] {
@@ -67,7 +63,7 @@ AIAssistantPanel::AIAssistantPanel(Theme& theme)
 
     // 设置输入组件的回调
     // 注意：ESC 键在 handleInput 中统一处理，这里只处理 Return
-    input_component_ |= CatchEvent([this](Event event) {
+    input_component_ |= CatchEvent([this](const Event& event) {
         if (event == Event::Return) {
             submitMessage();
             return true;
@@ -422,7 +418,7 @@ Element AIAssistantPanel::renderInput() {
 
     // 计算光标所在的行和列
     size_t cursor_line = 0;
-    size_t cursor_col = cursor_pos_;
+    size_t cursor_col;
     size_t line_start = 0;
 
     for (size_t i = 0; i < cursor_pos_; ++i) {
@@ -1256,7 +1252,7 @@ void AIAssistantPanel::analyzeDirectoryStructure(const std::string& path,
 }
 #endif // BUILD_AI_CLIENT_SUPPORT
 
-bool AIAssistantPanel::handleInput(Event event) {
+bool AIAssistantPanel::handleInput(const Event& event) {
     if (!visible_)
         return false;
 
@@ -1712,23 +1708,23 @@ std::string AIAssistantPanel::getCurrentFileContent() const {
 
 // 回调设置
 void AIAssistantPanel::setOnSendMessage(std::function<void(const std::string&)> callback) {
-    on_send_message_ = callback;
+    on_send_message_ = std::move(callback);
 }
 
 void AIAssistantPanel::setOnInsertCode(std::function<void(const std::string&)> callback) {
-    on_insert_code_ = callback;
+    on_insert_code_ = std::move(callback);
 }
 
 void AIAssistantPanel::setOnReplaceCode(std::function<void(const std::string&)> callback) {
-    on_replace_code_ = callback;
+    on_replace_code_ = std::move(callback);
 }
 
 void AIAssistantPanel::setOnGetSelectedCode(std::function<std::string()> callback) {
-    on_get_selected_code_ = callback;
+    on_get_selected_code_ = std::move(callback);
 }
 
 void AIAssistantPanel::setOnGetCurrentFile(std::function<std::string()> callback) {
-    on_get_current_file_ = callback;
+    on_get_current_file_ = std::move(callback);
 }
 
 void AIAssistantPanel::scrollUp() {

@@ -36,7 +36,7 @@ void ImageProtocolDialog::refreshProtocolStatus() {
     };
 }
 
-bool ImageProtocolDialog::handleInput(Event event) {
+bool ImageProtocolDialog::handleInput(const Event& event) {
     if (!visible_)
         return false;
 
@@ -62,12 +62,10 @@ bool ImageProtocolDialog::handleInput(Event event) {
 
     if (event == Event::Character(' ') || event == Event::Tab) {
         // Space toggles enabled or preferred
-        if (selected_option_ == 0) {
-            // Terminal info line - skip
+        if (selected_option_ == 0 || selected_option_ == 2) {
+            // Terminal info line or protocol list - skip
         } else if (selected_option_ == 1) {
             protocol_enabled_ = !protocol_enabled_;
-        } else if (selected_option_ == 2) {
-            // Protocol list - do nothing
         } else if (selected_option_ >= 3 && selected_option_ <= 5) {
             // Protocol items - cycle preferred
             std::vector<std::string> prefs = {"auto", "kitty", "iterm2", "sixel", "block"};

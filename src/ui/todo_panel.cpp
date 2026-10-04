@@ -95,7 +95,7 @@ void TodoPanel::hide() {
     edit_todo_priority_input_.clear();
 }
 
-bool TodoPanel::handleInput(Event event) {
+bool TodoPanel::handleInput(const Event& event) {
     if (!visible_) {
         return false;
     }
@@ -744,9 +744,7 @@ Element TodoPanel::renderHelpBar() const {
     const auto& colors = theme_.getColors();
     Elements help;
 
-    if (is_creating_todo_) {
-        help.push_back(text("  ↑↓: Switch Field  Tab: Next  Enter: Next/Confirm  Esc: Cancel"));
-    } else if (is_editing_todo_) {
+    if (is_creating_todo_ || is_editing_todo_) {
         help.push_back(text("  ↑↓: Switch Field  Tab: Next  Enter: Next/Confirm  Esc: Cancel"));
     } else {
         help.push_back(text("  Tab: Focus  Space: Create  ↑↓: Navigate  e: Edit  x: Toggle Done  "

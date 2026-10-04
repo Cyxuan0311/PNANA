@@ -291,18 +291,16 @@ void BuiltinVtParser::dispatchCSI(int cmd) {
                     s->cur_flags &= ~BUILTIN_FLAG_BOLD;
                 } else if (v == 3) {
                     s->cur_flags |= BUILTIN_FLAG_ITALIC;
-                } else if (v == 4) {
+                } else if (v == 4 || v == 21) {
                     s->cur_flags |= BUILTIN_FLAG_UNDERLINE;
                 } else if (v == 5) {
                     s->cur_flags |= BUILTIN_FLAG_BLINK;
                 } else if (v == 7) {
                     s->cur_flags |= BUILTIN_FLAG_REVERSE;
-                } else if (v == 8) {
-                    // concealed
+                } else if (v == 8 || v == 28) {
+                    // concealed (8) / concealed off (28)
                 } else if (v == 9) {
                     s->cur_flags |= BUILTIN_FLAG_STRIKE;
-                } else if (v == 21) {
-                    s->cur_flags |= BUILTIN_FLAG_UNDERLINE;
                 } else if (v == 22) {
                     s->cur_flags &= ~(BUILTIN_FLAG_BOLD | BUILTIN_FLAG_DIM);
                 } else if (v == 23) {
@@ -313,8 +311,6 @@ void BuiltinVtParser::dispatchCSI(int cmd) {
                     s->cur_flags &= ~BUILTIN_FLAG_BLINK;
                 } else if (v == 27) {
                     s->cur_flags &= ~BUILTIN_FLAG_REVERSE;
-                } else if (v == 28) {
-                    // concealed off
                 } else if (v == 29) {
                     s->cur_flags &= ~BUILTIN_FLAG_STRIKE;
                 } else if (v == 53) {
@@ -396,18 +392,16 @@ void BuiltinVtParser::dispatchCSI(int cmd) {
             if (pm == '?') {
                 for (int i = 0; i < param_count_; i++) {
                     int v = params_[i];
-                    if (v == 1) {        /* DECCKM */
-                    } else if (v == 3) { /* DECCOLM */
-                    } else if (v == 5) { /* DECSCNM */
+                    if (v == 1 || v == 3 || v == 5 || v == 12 || v == 1000 || v == 1002 ||
+                        v == 1003 || v == 1004 || v == 1005 || v == 1006 || v == 1015 ||
+                        v == 2004) {
+                        /* DEC mode: recognized but no-op */
                     } else if (v == 6) {
                         s->origin_mode = set;
                     } else if (v == 7) {
                         s->auto_wrap = set;
-                    } else if (v == 12) { /* att610 */
                     } else if (v == 25) {
                         s->cursor_visible = set;
-                    } else if (v == 1000 || v == 1002 || v == 1003 || v == 1004 || v == 1005 ||
-                               v == 1006 || v == 1015) { /* mouse */
                     } else if (v == 1047) {
                         s->switchAltScreen(set != 0);
                     } else if (v == 1048) {
@@ -430,14 +424,13 @@ void BuiltinVtParser::dispatchCSI(int cmd) {
                             s->cursor_x = s->cursor_saved_x;
                             s->cursor_y = s->cursor_saved_y;
                         }
-                    } else if (v == 2004) { /* bracketed paste */
                     }
                 }
             } else {
                 for (int i = 0; i < param_count_; i++) {
                     int v = params_[i];
-                    if (v == 4) {         /* IRM */
-                    } else if (v == 20) { /* LNM */
+                    if (v == 4 || v == 20) {
+                        /* IRM (4) / LNM (20): recognized but no-op */
                     }
                 }
             }
@@ -542,7 +535,6 @@ void BuiltinVtParser::feedByte(uint8_t b) {
                         s->reverseIndex();
                         break;
                     case 0x8E:
-                        break;
                     case 0x8F:
                         break;
                     case 0x90:
@@ -563,8 +555,6 @@ void BuiltinVtParser::feedByte(uint8_t b) {
                         state_ = BuiltinParserState::OscString;
                         break;
                     case 0x9E:
-                        state_ = BuiltinParserState::SosPmApc;
-                        break;
                     case 0x9F:
                         state_ = BuiltinParserState::SosPmApc;
                         break;
@@ -574,9 +564,7 @@ void BuiltinVtParser::feedByte(uint8_t b) {
             } else if (b <= 0x1F || b == 0x7F) {
                 switch (b) {
                     case 0x00:
-                        break;
                     case 0x05:
-                        break;
                     case 0x07:
                         break;
                     case 0x08:
@@ -610,8 +598,6 @@ void BuiltinVtParser::feedByte(uint8_t b) {
                     case 0x0F:
                         s->charset_active = 0;
                         break;
-                    case 0x7F:
-                        break;
                     default:
                         break;
                 }
@@ -634,16 +620,10 @@ void BuiltinVtParser::feedByte(uint8_t b) {
             if (charset_designate_ >= 0) {
                 int g = charset_designate_;
                 charset_designate_ = -1;
-                if (b == 'B')
+                if (b == 'B' || b == 'A' || b == '1' || b == '2')
                     s->charset_G[g] = 0;
                 else if (b == '0')
                     s->charset_G[g] = 1;
-                else if (b == 'A')
-                    s->charset_G[g] = 0;
-                else if (b == '1')
-                    s->charset_G[g] = 0;
-                else if (b == '2')
-                    s->charset_G[g] = 0;
                 state_ = BuiltinParserState::Ground;
             } else if (decaln_pending_) {
                 decaln_pending_ = 0;
@@ -653,7 +633,9 @@ void BuiltinVtParser::feedByte(uint8_t b) {
                         int stride = s->cols();
                         for (int y = 0; y < s->rows(); y++) {
                             for (int x = 0; x < s->cols(); x++) {
-                                BuiltinCell& c = buf[static_cast<size_t>(y * stride + x)];
+                                BuiltinCell& c =
+                                    buf[static_cast<size_t>(y) * static_cast<size_t>(stride) +
+                                        static_cast<size_t>(x)];
                                 c.codepoint = 'E';
                                 c.fg_color = BUILTIN_COLOR_DEFAULT;
                                 c.bg_color = BUILTIN_COLOR_DEFAULT;

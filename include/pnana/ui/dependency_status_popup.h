@@ -30,7 +30,7 @@ class DependencyStatusPopup {
 
     void setData(const std::vector<DependencyEntry>& entries);
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
   private:

@@ -27,12 +27,12 @@ DiagnosticsPopup::DiagnosticsPopup(Theme& theme)
 
 void DiagnosticsPopup::setDiagnostics(const std::vector<pnana::features::Diagnostic>& diagnostics) {
     diagnostics_ = diagnostics;
-    selected_index_ = diagnostics_.empty() ? 0 : 0;
+    selected_index_ = 0;
 }
 
 void DiagnosticsPopup::show() {
     visible_ = true;
-    selected_index_ = diagnostics_.empty() ? 0 : 0;
+    selected_index_ = 0;
 }
 
 void DiagnosticsPopup::hide() {
@@ -56,7 +56,7 @@ void DiagnosticsPopup::selectPrevious() {
 }
 
 void DiagnosticsPopup::selectFirst() {
-    selected_index_ = diagnostics_.empty() ? 0 : 0;
+    selected_index_ = 0;
 }
 
 void DiagnosticsPopup::selectLast() {
@@ -289,7 +289,7 @@ void DiagnosticsPopup::jumpToSelectedDiagnostic() {
     }
 }
 
-bool DiagnosticsPopup::handleInput(Event event) {
+bool DiagnosticsPopup::handleInput(const Event& event) {
     if (!visible_) {
         return false;
     }

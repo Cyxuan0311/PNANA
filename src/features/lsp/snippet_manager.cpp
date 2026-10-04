@@ -279,7 +279,9 @@ void SnippetManager::expandSnippet(const Snippet& snippet, core::Editor& editor)
     }
 
     // 2) 插入展开后的文本
-    doc->insertText(cursor_row, cursor_col, expanded);
+    if (doc) {
+        doc->insertText(cursor_row, cursor_col, expanded);
+    }
 
     // 3) 将 out_offset 转换为 (row,col)，按 index 排序并启动 snippet session
     if (!occs.empty()) {

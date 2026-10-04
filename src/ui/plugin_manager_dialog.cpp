@@ -52,7 +52,7 @@ void PluginManagerDialog::setPluginManager(plugins::PluginManager* plugin_manage
     visible_ = false;
 }
 
-bool PluginManagerDialog::handleInput(ftxui::Event event) {
+bool PluginManagerDialog::handleInput(const ftxui::Event& event) {
     if (!visible_ || !plugin_manager_)
         return false;
 

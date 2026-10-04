@@ -1,14 +1,16 @@
 #include "ui/border_config_popup.h"
+
 #include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
+#include <utility>
 
 using namespace ftxui;
 
 static inline Decorator borderWithColor(Color border_color) {
     return [=](Element child) -> Element {
         auto style = pnana::core::ui::BorderManager::getCurrentStyle();
-        return child | ftxui::borderStyled(style) | ftxui::color(border_color);
+        return std::move(child) | ftxui::borderStyled(style) | ftxui::color(border_color);
     };
 }
 
@@ -56,7 +58,7 @@ void BorderConfigPopup::close() {
     visible_ = false;
 }
 
-bool BorderConfigPopup::handleInput(ftxui::Event event) {
+bool BorderConfigPopup::handleInput(const ftxui::Event& event) {
     if (!visible_)
         return false;
 

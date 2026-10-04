@@ -890,7 +890,6 @@ std::vector<std::string> GitManager::executeGitCommandLines(const std::string& c
 GitFileStatus GitManager::parseStatusChar(char status_char) const {
     switch (status_char) {
         case ' ':
-            return GitFileStatus::UNMODIFIED;
         case '.':
             return GitFileStatus::UNMODIFIED;
         case 'M':

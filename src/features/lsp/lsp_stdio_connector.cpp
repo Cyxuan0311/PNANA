@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 #ifdef USE_BOOST_PROCESS
@@ -1051,7 +1052,7 @@ std::string LspStdioConnector::popNotification() {
 }
 
 void LspStdioConnector::setNotificationCallback(NotificationCallback callback) {
-    notification_callback_ = callback;
+    notification_callback_ = std::move(callback);
 }
 
 } // namespace features

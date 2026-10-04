@@ -12,7 +12,7 @@ bool TextAnalyzer::hasChineseContent(const std::vector<std::string>& lines,
     size_t total_chars = 0;
     bool in_multiline_comment = false;
     bool in_string = false;
-    char string_quote = 0;
+    unsigned char string_quote = 0;
 
     for (size_t i = 0; i < lines.size() && total_chars < check_limit; ++i) {
         const std::string& line = lines[i];

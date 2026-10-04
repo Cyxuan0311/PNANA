@@ -20,7 +20,7 @@ class AnimationMenu {
         return pending_config_;
     }
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
   private:

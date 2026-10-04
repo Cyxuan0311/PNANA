@@ -979,22 +979,10 @@ void Editor::performSmartStaticUndo(size_t change_row, size_t change_col,
 
     // 根据操作类型智能定位光标
     switch (change_type) {
-        case DocumentChange::Type::INSERT: {
-            // 撤销插入操作：光标应该在插入内容的开始位置
-            cursor_row_ = change_row;
-            cursor_col_ = change_col;
-            break;
-        }
-
-        case DocumentChange::Type::DELETE: {
-            // 撤销删除操作：光标应该在删除内容的开始位置
-            cursor_row_ = change_row;
-            cursor_col_ = change_col;
-            break;
-        }
-
+        case DocumentChange::Type::INSERT:
+        case DocumentChange::Type::DELETE:
         case DocumentChange::Type::REPLACE: {
-            // 撤销替换操作：光标应该在替换内容的开始位置
+            // 撤销插入/删除/替换操作：光标应该在内容的开始位置
             cursor_row_ = change_row;
             cursor_col_ = change_col;
             break;

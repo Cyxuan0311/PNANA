@@ -283,8 +283,6 @@ int LayoutEngine::estimateWidgetHeight(const WidgetSpec& widget) const {
             return std::max(3, static_cast<int>(widget.items.size()));
         case WidgetType::COLOR_PICKER:
         case WidgetType::FILE_PICKER:
-            return 3;
-
         // 容器组件
         case WidgetType::WINDOW:
         case WidgetType::CONTAINER:
@@ -301,13 +299,11 @@ int LayoutEngine::estimateWidgetHeight(const WidgetSpec& widget) const {
         case WidgetType::XFRAME:
         case WidgetType::VSCROLL:
         case WidgetType::HSCROLL:
-            return 3; // 容器默认最小高度
-
         // 弹窗/模态组件
         case WidgetType::MODAL:
         case WidgetType::POPUP:
         case WidgetType::NOTIFICATION:
-            return 3;
+            return 3; // 颜色选择器/容器/弹窗默认3行
 
         default:
             return 1;

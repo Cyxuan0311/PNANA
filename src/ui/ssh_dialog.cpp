@@ -168,7 +168,7 @@ void SSHDialog::pushHistory(const SSHConfig& config) {
 // handleInput 分发
 // ─────────────────────────────────────────────────────────────────────────────
 
-bool SSHDialog::handleInput(Event event) {
+bool SSHDialog::handleInput(const Event& event) {
     if (!visible_)
         return false;
     switch (mode_) {
@@ -188,7 +188,7 @@ bool SSHDialog::handleInput(Event event) {
 
 // ── HISTORY ──────────────────────────────────────────────────────────────────
 
-bool SSHDialog::handleHistoryInput(Event event) {
+bool SSHDialog::handleHistoryInput(const Event& event) {
     if (event == Event::Escape) {
         visible_ = false;
         if (on_cancel_)
@@ -261,7 +261,7 @@ bool SSHDialog::handleHistoryInput(Event event) {
 
 // ── NEW_FORM ──────────────────────────────────────────────────────────────────
 
-bool SSHDialog::handleNewFormInput(Event event) {
+bool SSHDialog::handleNewFormInput(const Event& event) {
     if (event == Event::Escape) {
         // 有历史时退回到历史列表，否则直接关闭
         if (!history_.empty()) {
@@ -345,7 +345,7 @@ bool SSHDialog::handleNewFormInput(Event event) {
 
 // ── PASSWORD ──────────────────────────────────────────────────────────────────
 
-bool SSHDialog::handlePasswordInput(Event event) {
+bool SSHDialog::handlePasswordInput(const Event& event) {
     if (event == Event::Escape) {
         // 退回历史列表
         mode_ = SSHDialogMode::HISTORY;
@@ -414,7 +414,7 @@ bool SSHDialog::handlePasswordInput(Event event) {
 
 // ── CONNECTED ────────────────────────────────────────────────────────────────
 
-bool SSHDialog::handleConnectedInput(Event event) {
+bool SSHDialog::handleConnectedInput(const Event& event) {
     if (event == Event::Escape) {
         visible_ = false;
         if (on_cancel_)
@@ -675,7 +675,7 @@ Element SSHDialog::renderConnectedView() {
 
 // ── EDIT ─────────────────────────────────────────────────────────────────────
 
-bool SSHDialog::handleEditInput(Event event) {
+bool SSHDialog::handleEditInput(const Event& event) {
     if (event == Event::Escape) {
         mode_ = SSHDialogMode::HISTORY;
         edit_entry_index_ = -1;

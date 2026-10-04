@@ -41,7 +41,7 @@ class SymbolNavigationPopup {
     void setJumpCallback(std::function<void(const pnana::features::DocumentSymbol&)> callback);
 
     // 输入处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染
     ftxui::Element render() const;

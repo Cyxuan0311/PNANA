@@ -5,6 +5,7 @@
 #include "core/region_manager.h"
 #include "ui/theme.h"
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 namespace pnana {
 namespace core {
@@ -66,7 +67,8 @@ inline ftxui::BorderStyle stringToBorderStyle(const std::string& style) {
 // 共享边框装饰器：供各 popup/dialog 统一使用
 inline ftxui::Decorator makeBorderDecorator(ftxui::Color color) {
     return [color](ftxui::Element child) -> ftxui::Element {
-        return child | ftxui::borderStyled(BorderManager::getCurrentStyle()) | ftxui::color(color);
+        return std::move(child) | ftxui::borderStyled(BorderManager::getCurrentStyle()) |
+               ftxui::color(color);
     };
 }
 

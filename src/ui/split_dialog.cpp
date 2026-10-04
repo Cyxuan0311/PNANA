@@ -1,7 +1,9 @@
 #include "ui/split_dialog.h"
+
 #include "core/ui/border_manager.h"
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
+#include <utility>
 
 using namespace ftxui;
 
@@ -21,8 +23,8 @@ void SplitDialog::showCreate(std::function<void(features::SplitDirection)> on_se
     visible_ = true;
     mode_ = DialogMode::CREATE;
     selected_index_ = 0;
-    on_create_select_ = on_select;
-    on_create_cancel_ = on_cancel;
+    on_create_select_ = std::move(on_select);
+    on_create_cancel_ = std::move(on_cancel);
 }
 
 void SplitDialog::showClose(const std::vector<SplitInfo>& splits,
@@ -31,11 +33,11 @@ void SplitDialog::showClose(const std::vector<SplitInfo>& splits,
     mode_ = DialogMode::CLOSE;
     selected_index_ = 0;
     splits_ = splits;
-    on_close_ = on_close;
-    on_close_cancel_ = on_cancel;
+    on_close_ = std::move(on_close);
+    on_close_cancel_ = std::move(on_cancel);
 }
 
-bool SplitDialog::handleInput(ftxui::Event event) {
+bool SplitDialog::handleInput(const ftxui::Event& event) {
     if (!visible_) {
         return false;
     }

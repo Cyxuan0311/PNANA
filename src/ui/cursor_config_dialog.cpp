@@ -39,7 +39,7 @@ void CursorConfigDialog::close() {
     visible_ = false;
 }
 
-bool CursorConfigDialog::handleInput(ftxui::Event event) {
+bool CursorConfigDialog::handleInput(const ftxui::Event& event) {
     if (!visible_)
         return false;
 

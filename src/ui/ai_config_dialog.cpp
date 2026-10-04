@@ -31,7 +31,7 @@ void AIConfigDialog::close() {
     visible_ = false;
 }
 
-bool AIConfigDialog::handleInput(Event event) {
+bool AIConfigDialog::handleInput(const Event& event) {
     if (!visible_)
         return false;
 

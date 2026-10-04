@@ -31,7 +31,7 @@ class PackageDetailDialog {
     }
 
     // 处理输入
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染弹窗
     ftxui::Element render() const;

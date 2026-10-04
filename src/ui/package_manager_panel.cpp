@@ -120,7 +120,7 @@ void PackageManagerPanel::hide() {
     search_filter_.clear();
 }
 
-bool PackageManagerPanel::handleInput(Event event) {
+bool PackageManagerPanel::handleInput(const Event& event) {
     if (!visible_) {
         return false;
     }
@@ -378,7 +378,7 @@ Element PackageManagerPanel::renderCurrentTab() const {
 }
 
 Element PackageManagerPanel::renderPackageList(
-    std::shared_ptr<features::package_manager::PackageManagerBase> manager) const {
+    const std::shared_ptr<features::package_manager::PackageManagerBase>& manager) const {
     auto& colors = theme_.getColors();
     Elements list_elements;
 
@@ -407,15 +407,12 @@ Element PackageManagerPanel::renderPackageList(
         auto all_packages = manager->getInstalledPackages();
 
         std::string message;
-        if (all_packages.empty()) {
-            // 真的没有包
+        if (all_packages.empty() || search_filter_.empty()) {
+            // 真的没有包，或没有搜索过滤但仍无结果
             message = "No package now";
-        } else if (!search_filter_.empty()) {
+        } else {
             // 有包但搜索过滤后没有结果
             message = "No packages found matching \"" + search_filter_ + "\"";
-        } else {
-            // 其他情况（理论上不应该发生，但为了安全）
-            message = "No package now";
         }
 
         list_elements.push_back(hbox({text("  "), text(message) | color(colors.comment) | dim}) |
@@ -468,19 +465,13 @@ Element PackageManagerPanel::renderPackageItem(const features::package_manager::
 
     // 包图标（根据管理器类型选择）
     std::string icon = icons::PACKAGE;
-    if (current_manager_name_ == "pip") {
+    if (current_manager_name_ == "pip" || current_manager_name_ == "conda") {
         icon = icons::PYTHON;
-    } else if (current_manager_name_ == "apt") {
+    } else if (current_manager_name_ == "apt" || current_manager_name_ == "pacman" ||
+               current_manager_name_ == "yum") {
         icon = icons::LINUX;
-    } else if (current_manager_name_ == "cargo") {
-        icon = icons::PACKAGE;
-    } else if (current_manager_name_ == "npm" || current_manager_name_ == "yarn") {
-        icon = icons::PACKAGE;
-    } else if (current_manager_name_ == "conda") {
-        icon = icons::PYTHON;
-    } else if (current_manager_name_ == "pacman" || current_manager_name_ == "yum") {
-        icon = icons::LINUX;
-    } else if (current_manager_name_ == "brew") {
+    } else {
+        // cargo/npm/yarn/brew 及默认均使用通用包图标
         icon = icons::PACKAGE;
     }
     item_elements.push_back(text(icon) | color(colors.function));
@@ -652,7 +643,7 @@ void PackageManagerPanel::navigatePageDown() {
 }
 
 std::vector<features::package_manager::Package> PackageManagerPanel::getFilteredPackages(
-    std::shared_ptr<features::package_manager::PackageManagerBase> manager) const {
+    const std::shared_ptr<features::package_manager::PackageManagerBase>& manager) const {
     if (!manager) {
         return {};
     }

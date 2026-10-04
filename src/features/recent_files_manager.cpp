@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <utility>
 
 namespace pnana {
 namespace features {
@@ -134,11 +135,11 @@ size_t RecentFilesManager::getRecentFilesCount() const {
 }
 
 void RecentFilesManager::setFileOpenCallback(std::function<void(const std::string&)> callback) {
-    file_open_callback_ = callback;
+    file_open_callback_ = std::move(callback);
 }
 
 void RecentFilesManager::setFolderOpenCallback(std::function<void(const std::string&)> callback) {
-    folder_open_callback_ = callback;
+    folder_open_callback_ = std::move(callback);
 }
 
 void RecentFilesManager::openProject(size_t index) {

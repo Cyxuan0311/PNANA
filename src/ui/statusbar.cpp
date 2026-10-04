@@ -390,12 +390,6 @@ Element Statusbar::render(const std::string& filename, bool is_modified, bool is
     } else if (style == "classic") {
         // Classic：在底部加下划线，类似传统编辑器
         styled = core | underlined;
-    } else if (style == "default") {
-        // Default：使用主题内置样式，不添加额外装饰
-        styled = core;
-    } else if (style == "highlight") {
-        // Highlight：每项已用 hl() 加背景，无需额外包装
-        styled = core;
     } else if (style == "rounded" || beautify_config_.rounded_corners) {
         // 圆角主题：使用 borderRounded 包裹整条状态栏
         styled = core | borderRounded | color(colors.line_number);
@@ -524,9 +518,8 @@ std::string Statusbar::getPlatformIcon() {
         found_icon = icons::NETBSD;
     } else if (os_name.find("Solaris") != std::string::npos) {
         found_icon = icons::SOLARIS;
-    } else if (os_name.find("Linux") != std::string::npos) {
-        found_icon = icons::LINUX;
     } else {
+        // Linux 或未识别系统：使用 Linux 图标
         found_icon = icons::LINUX;
     }
 

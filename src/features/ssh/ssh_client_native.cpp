@@ -8,6 +8,7 @@
 #include <libssh2_sftp.h>
 #include <sstream>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -15,10 +16,8 @@ namespace features {
 namespace ssh {
 
 // 优化配置常量
-constexpr size_t SFTP_BUFFER_SIZE = 32768;       // 32KB 缓冲区 (原 4KB)
-constexpr size_t BATCH_WRITE_SIZE = 8;           // 批量写入：累积 8 个缓冲区后写入
-constexpr size_t PARALLEL_CHUNK_SIZE = 10485760; // 并行传输分片大小：10MB
-constexpr int MAX_PARALLEL_CONNECTIONS = 4;      // 最大并行连接数
+constexpr size_t SFTP_BUFFER_SIZE = 32768; // 32KB 缓冲区 (原 4KB)
+constexpr size_t BATCH_WRITE_SIZE = 8;     // 批量写入：累积 8 个缓冲区后写入
 
 std::once_flag SSHClientNative::init_flag_;
 
@@ -70,7 +69,8 @@ SSHResult SSHClientNative::writeFile(const SSHConfig& config, const std::string&
 }
 
 SSHResult SSHClientNative::uploadFile(const SSHConfig& config, const std::string& local_path,
-                                      const std::string& remote_path, ProgressCallback callback) {
+                                      const std::string& remote_path,
+                                      const ProgressCallback& callback) {
     auto conn = SSHPool::getInstance().acquire(config);
     if (!conn || !conn->isConnected()) {
         return SSHResult::fail("Failed to connect to SSH server");
@@ -79,11 +79,12 @@ SSHResult SSHClientNative::uploadFile(const SSHConfig& config, const std::string
     SSHConnectionGuard guard(conn);
 
     LIBSSH2_SESSION* session = conn->getSession();
-    return sftpUploadFile(session, local_path, remote_path, callback);
+    return sftpUploadFile(session, local_path, remote_path, std::move(callback));
 }
 
 SSHResult SSHClientNative::downloadFile(const SSHConfig& config, const std::string& remote_path,
-                                        const std::string& local_path, ProgressCallback callback) {
+                                        const std::string& local_path,
+                                        const ProgressCallback& callback) {
     auto conn = SSHPool::getInstance().acquire(config);
     if (!conn || !conn->isConnected()) {
         return SSHResult::fail("Failed to connect to SSH server");
@@ -92,7 +93,7 @@ SSHResult SSHClientNative::downloadFile(const SSHConfig& config, const std::stri
     SSHConnectionGuard guard(conn);
 
     LIBSSH2_SESSION* session = conn->getSession();
-    return sftpDownloadFile(session, remote_path, local_path, callback);
+    return sftpDownloadFile(session, remote_path, local_path, std::move(callback));
 }
 
 // ==================== 目录操作 ====================
@@ -458,8 +459,9 @@ SSHResult SSHClientNative::runCommand(const SSHConfig& config, const std::string
 
 SSHResult SSHClientNative::runCommandStreaming(
     const SSHConfig& config, const std::string& command,
-    std::function<void(const std::string&)> stdout_callback,
-    std::function<void(const std::string&)> stderr_callback, const std::string& working_dir) {
+    const std::function<void(const std::string&)>& stdout_callback,
+    const std::function<void(const std::string&)>& stderr_callback,
+    const std::string& working_dir) {
     auto conn = SSHPool::getInstance().acquire(config);
     if (!conn || !conn->isConnected()) {
         return SSHResult::fail("Failed to connect to SSH server");
@@ -655,7 +657,7 @@ SSHResult SSHClientNative::sftpWriteFile(LIBSSH2_SESSION* session, const std::st
 
 SSHResult SSHClientNative::sftpUploadFile(LIBSSH2_SESSION* session, const std::string& local_path,
                                           const std::string& remote_path,
-                                          ProgressCallback callback) {
+                                          const ProgressCallback& callback) {
     auto start_time = std::chrono::steady_clock::now();
 
     utils::Logger::getInstance().log("Starting file upload: " + local_path + " -> " + remote_path);
@@ -767,7 +769,7 @@ SSHResult SSHClientNative::sftpUploadFile(LIBSSH2_SESSION* session, const std::s
 SSHResult SSHClientNative::sftpDownloadFile(LIBSSH2_SESSION* session,
                                             const std::string& remote_path,
                                             const std::string& local_path,
-                                            ProgressCallback callback) {
+                                            const ProgressCallback& callback) {
     auto start_time = std::chrono::steady_clock::now();
 
     utils::Logger::getInstance().log("Starting file download: " + remote_path + " -> " +

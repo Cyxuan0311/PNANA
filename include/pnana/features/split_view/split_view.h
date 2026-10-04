@@ -88,16 +88,17 @@ class SplitViewManager {
                           int x_offset = 0, int y_offset = 0);
 
     // 渲染
-    ftxui::Element renderRegions(std::function<ftxui::Element(const ViewRegion&)> render_func,
-                                 int screen_width, int screen_height);
+    ftxui::Element renderRegions(
+        const std::function<ftxui::Element(const ViewRegion&)>& render_func, int screen_width,
+        int screen_height);
 
     // 渲染分屏编辑器
     // separator_default: 分隔线默认颜色；separator_active: 激活侧分隔线高亮色（tmux 风格）
     ftxui::Element renderSplitEditor(
-        std::function<void*(size_t)> get_document_func, // 返回文档指针（void* 用于类型擦除）
-        std::function<void(size_t)> switch_document_func,
-        std::function<size_t()> get_document_count_func,
-        std::function<ftxui::Element(const ViewRegion&, void*, size_t)> render_region_func,
+        const std::function<void*(size_t)>& get_document_func, // 返回文档指针（void* 用于类型擦除）
+        const std::function<void(size_t)>& switch_document_func,
+        const std::function<size_t()>& get_document_count_func,
+        const std::function<ftxui::Element(const ViewRegion&, void*, size_t)>& render_region_func,
         int screen_width, int screen_height,
         ftxui::Color separator_default = ftxui::Color::GrayDark,
         ftxui::Color separator_active = ftxui::Color::Cyan);

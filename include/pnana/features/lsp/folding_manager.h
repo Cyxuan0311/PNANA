@@ -7,6 +7,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -45,14 +46,14 @@ class FoldingManager {
     // 折叠状态变化回调
     using FoldingStateChangedCallback = std::function<void()>;
     void setFoldingStateChangedCallback(FoldingStateChangedCallback callback) {
-        state_changed_callback_ = callback;
+        state_changed_callback_ = std::move(callback);
     }
 
     // 设置文档同步回调（uri 为当前处理的文件 URI，用于多文件共享 FoldingManager）
     using DocumentSyncCallback = std::function<void(
         const std::string& uri, const std::vector<FoldingRange>&, const std::set<int>&)>;
     void setDocumentSyncCallback(DocumentSyncCallback callback) {
-        document_sync_callback_ = callback;
+        document_sync_callback_ = std::move(callback);
     }
 
     // 清空折叠状态

@@ -5,6 +5,7 @@
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -18,7 +19,7 @@ class ImageProtocolDialog {
     bool isVisible() const {
         return visible_;
     }
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
     bool isProtocolEnabled() const {
@@ -36,7 +37,7 @@ class ImageProtocolDialog {
     }
 
     void setOnApply(std::function<void()> callback) {
-        on_apply_ = callback;
+        on_apply_ = std::move(callback);
     }
 
   private:

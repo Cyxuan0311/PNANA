@@ -385,8 +385,8 @@ bool ExtractManager::commandExists(const std::string& command) {
 
 void ExtractManager::extractArchiveAsync(
     const std::string& archive_path, const std::string& extract_path,
-    std::function<void(float)> on_progress,
-    std::function<void(bool, const std::string&)> on_complete) {
+    const std::function<void(float)>& on_progress,
+    const std::function<void(bool, const std::string&)>& on_complete) {
     // 如果正在解压，先取消
     if (extracting_.load()) {
         cancelExtraction();

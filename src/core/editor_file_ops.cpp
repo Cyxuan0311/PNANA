@@ -174,13 +174,7 @@ bool Editor::openFileInternal(const std::string& filepath) {
         }
 
         try {
-            if (is_large_file) {
-                syntax_highlighting_ = false;
-                syntax_highlighter_.setFileType("text");
-#ifdef BUILD_TREE_SITTER_SUPPORT
-                auto_indent_engine_.setFileType("text");
-#endif
-            } else if (has_chinese && file_type != "markdown") {
+            if (is_large_file || (has_chinese && file_type != "markdown")) {
                 syntax_highlighting_ = false;
                 syntax_highlighter_.setFileType("text");
 #ifdef BUILD_TREE_SITTER_SUPPORT

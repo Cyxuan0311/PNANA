@@ -53,8 +53,6 @@ static int camelCaseMatchScore(const std::string& pattern, const std::string& la
             consecutive++;
             max_consecutive = std::max(max_consecutive, consecutive);
             pi++;
-        } else if (std::isupper(static_cast<unsigned char>(label[li]))) {
-            consecutive = 0;
         } else {
             consecutive = 0;
         }
@@ -337,11 +335,6 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
 
                     int score = 0;
 
-                    // filterText 显式匹配加分：LSP 服务器明确指定该符号应在此前缀下出现
-                    if (!item.filterText.empty() && item.filterText == new_prefix) {
-                        score += 500;
-                    }
-
                     if (new_prefix.empty()) {
                         score = getTypePriority(item.kind) * 100;
                     } else {
@@ -467,6 +460,11 @@ std::vector<CompletionItem> LspCompletionCache::filterByPrefix(const CacheKey& k
                         else {
                             continue;
                         }
+                    }
+
+                    // filterText 显式匹配加分：LSP 服务器明确指定该符号应在此前缀下出现
+                    if (!item.filterText.empty() && item.filterText == new_prefix) {
+                        score += 500;
                     }
 
                     scored_items.push_back({item, score});

@@ -7,6 +7,7 @@
 #include <ftxui/dom/elements.hpp>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -22,11 +23,11 @@ class BorderConfigPopup {
         return visible_;
     }
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
     ftxui::Element render();
 
     void setOnApply(std::function<void(const core::BorderConfig&)> callback) {
-        on_apply_ = callback;
+        on_apply_ = std::move(callback);
     }
 
   private:

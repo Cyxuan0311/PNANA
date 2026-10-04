@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pnana {
@@ -22,7 +23,7 @@ struct Command {
     // 构造函数：接受 shared_ptr
     Command(const std::string& i, const std::string& n, const std::string& d,
             const std::vector<std::string>& keys, std::shared_ptr<std::function<void()>> exec)
-        : id(i), name(n), description(d), keywords(keys), execute(exec) {}
+        : id(i), name(n), description(d), keywords(keys), execute(std::move(exec)) {}
 
     // 辅助构造函数：自动包装 function 为 shared_ptr
     Command(const std::string& i, const std::string& n, const std::string& d,

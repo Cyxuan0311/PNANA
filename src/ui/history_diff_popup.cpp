@@ -143,7 +143,7 @@ Element HistoryDiffPopup::render() const {
            bgcolor(colors.background) | borderWithColor(colors.dialog_border);
 }
 
-bool HistoryDiffPopup::handleInput(ftxui::Event event) {
+bool HistoryDiffPopup::handleInput(const ftxui::Event& event) {
     if (!is_open_) {
         return false;
     }

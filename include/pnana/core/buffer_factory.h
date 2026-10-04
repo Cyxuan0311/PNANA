@@ -106,8 +106,6 @@ class SmartBufferFactory {
                 return std::make_unique<Rope>();
 
             case BufferBackendType::PIECE_TABLE:
-                return std::make_unique<PieceTable>();
-
             default:
                 return std::make_unique<PieceTable>();
         }
@@ -126,8 +124,6 @@ class SmartBufferFactory {
                 return std::make_unique<Rope>();
 
             case BufferBackendType::PIECE_TABLE:
-                return std::make_unique<PieceTable>();
-
             default:
                 return std::make_unique<PieceTable>();
         }

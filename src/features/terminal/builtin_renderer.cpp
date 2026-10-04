@@ -218,7 +218,6 @@ ftxui::Element renderBuiltinScreen(const BuiltinScreenSnapshot& snap, int height
     };
 
     auto renderRowSimple = [&](const std::vector<BuiltinCell>& line, Elements& cells) {
-        int col = 0;
         for (size_t c = 0; c < line.size(); c++) {
             const BuiltinCell& cell = line[c];
             if (cell.width == 0)
@@ -236,8 +235,6 @@ ftxui::Element renderBuiltinScreen(const BuiltinScreenSnapshot& snap, int height
             }
             std::memcpy(run_buf + run_len, glyph_buf, static_cast<size_t>(glen));
             run_len += glen;
-
-            col += cell.width;
         }
         flushRun(cells);
     };
@@ -301,7 +298,8 @@ ftxui::Element renderBuiltinScreen(const BuiltinScreenSnapshot& snap, int height
         Elements cells;
         run_len = 0;
         run_style = CellStyle{0, BUILTIN_COLOR_DEFAULT, BUILTIN_COLOR_DEFAULT};
-        renderRowSimple(snap.scrollback[static_cast<size_t>(sb_start + i)], cells);
+        renderRowSimple(snap.scrollback[static_cast<size_t>(sb_start) + static_cast<size_t>(i)],
+                        cells);
         rows.push_back(!cells.empty() ? hbox(std::move(cells)) : text(" "));
     }
 

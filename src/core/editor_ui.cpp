@@ -2028,7 +2028,7 @@ Element Editor::renderLineNumber(Document* doc, size_t line_num, bool is_current
                 if (!show_actual_for_fold) {
                     auto folded_ranges = folding_manager_->getFoldedRanges();
                     for (const auto& fr : folded_ranges) {
-                        if (static_cast<size_t>(fr.endLine + 1) == line_num) {
+                        if (static_cast<size_t>(fr.endLine) + 1 == line_num) {
                             show_actual_for_fold = true;
                             break;
                         }

@@ -30,7 +30,7 @@ class TodoPanel {
     }
 
     // 输入处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 获取 TodoManager 引用
     features::todo::TodoManager& getTodoManager() {

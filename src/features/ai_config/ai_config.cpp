@@ -443,45 +443,26 @@ bool AIConfig::validateApiKey(const std::string& provider, const std::string& ap
     if (api_key.empty())
         return false;
 
-    if (provider == "openai") {
-        // OpenAI API key format: sk-...
+    if (provider == "openai" || provider == "mistral" || provider == "deepseek") {
+        // OpenAI/Mistral/DeepSeek API key format: sk-...
         return api_key.length() > 20 && api_key.substr(0, 3) == "sk-";
     } else if (provider == "anthropic") {
         // Anthropic API key format: sk-ant-...
         return api_key.length() > 30 && api_key.substr(0, 7) == "sk-ant-";
-    } else if (provider == "google") {
-        // Google API key is typically a long alphanumeric string
+    } else if (provider == "google" || provider == "together" || provider == "fireworks" ||
+               provider == "cohere" || provider == "zeroone" || provider == "meta" ||
+               provider == "azure") {
+        // 这些提供商的 key 为长字母数字字符串
         return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
-    } else if (provider == "mistral") {
-        // Mistral API key format: similar to OpenAI
-        return api_key.length() > 20 && api_key.substr(0, 3) == "sk-";
     } else if (provider == "groq") {
         // Groq API key format: gsk_...
         return api_key.length() > 20 && api_key.substr(0, 4) == "gsk_";
-    } else if (provider == "together") {
-        // Together API key format: alphanumeric
-        return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
-    } else if (provider == "fireworks") {
-        // Fireworks API key format: alphanumeric
-        return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
-    } else if (provider == "cohere") {
-        // Cohere API key format: alphanumeric
-        return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
     } else if (provider == "huggingface") {
         // Hugging Face API key format: hf_...
         return api_key.length() > 20 && api_key.substr(0, 3) == "hf_";
     } else if (provider == "perplexity") {
         // Perplexity API key format: pplx-...
         return api_key.length() > 20 && api_key.substr(0, 5) == "pplx-";
-    } else if (provider == "deepseek") {
-        // DeepSeek API key format: sk-...
-        return api_key.length() > 20 && api_key.substr(0, 3) == "sk-";
-    } else if (provider == "zeroone") {
-        // 01.AI API key format: alphanumeric
-        return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
-    } else if (provider == "meta") {
-        // Meta API key format: alphanumeric
-        return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
     } else if (provider == "xai") {
         // xAI API key format: xai-...
         return api_key.length() > 20 && api_key.substr(0, 4) == "xai-";
@@ -494,14 +475,8 @@ bool AIConfig::validateApiKey(const std::string& provider, const std::string& ap
     } else if (provider == "bedrock") {
         // AWS Bedrock uses AWS credentials, format varies
         return api_key.length() >= 20;
-    } else if (provider == "azure") {
-        // Azure OpenAI uses API key format: alphanumeric
-        return api_key.length() >= 20 && std::regex_match(api_key, std::regex("^[A-Za-z0-9_-]+$"));
-    } else if (provider == "ollama") {
-        // Ollama typically doesn't require API key for local use
-        return true;
-    } else if (provider == "vllm") {
-        // vLLM typically doesn't require API key for local use
+    } else if (provider == "ollama" || provider == "vllm") {
+        // 本地服务通常不需要 API key
         return true;
     }
 

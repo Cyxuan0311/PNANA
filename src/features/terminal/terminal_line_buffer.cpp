@@ -153,11 +153,9 @@ void PendingLineBuffer::feedCSI(unsigned char c) {
                     break;
                 }
             }
-            if (param == 0) {
+            if (param == 0 || param == 1) {
                 // \x1b[K 在光标移动时也会被发送，若直接截断会导致后面的字符消失且无法还原。
                 // 仅在 param==2（整行清除，历史切换）时修改 line_，param 0/1 仅作显示用，不删内容
-            } else if (param == 1) {
-                // 从行首到光标：也不修改 line_，避免光标移动时误删
             } else if (param == 2) {
                 line_.clear();
                 cursor_pos_ = 0;

@@ -157,7 +157,7 @@ void TerminalSessionDialog::show(std::function<void(const TerminalSessionChoice&
     on_cancel_ = std::move(on_cancel);
 }
 
-bool TerminalSessionDialog::handleInput(ftxui::Event event) {
+bool TerminalSessionDialog::handleInput(const ftxui::Event& event) {
     if (!visible_) {
         return false;
     }

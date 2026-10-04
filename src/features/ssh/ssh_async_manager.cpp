@@ -165,7 +165,7 @@ SSHAsyncManager::~SSHAsyncManager() {
     }
 }
 
-size_t SSHAsyncManager::submitTask(std::shared_ptr<SSHTask> task) {
+size_t SSHAsyncManager::submitTask(const std::shared_ptr<SSHTask>& task) {
     std::lock_guard<std::mutex> lock(tasks_mutex_);
     size_t task_id = task->getId();
     tasks_[task_id] = task;

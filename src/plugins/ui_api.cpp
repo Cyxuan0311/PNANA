@@ -1073,7 +1073,7 @@ int UIAPI::lua_fn_multiselect(lua_State* L) {
                     int idx = 1;
                     for (size_t i = 0; i < st->selected.size(); ++i) {
                         if (st->selected[i]) {
-                            lua_pushinteger(lua_state, static_cast<lua_Integer>(i + 1));
+                            lua_pushinteger(lua_state, static_cast<lua_Integer>(i) + 1);
                             lua_rawseti(lua_state, -2, idx++);
                         }
                     }
@@ -1251,8 +1251,6 @@ int UIAPI::lua_fn_form(lua_State* L) {
             std::string value_text;
             if (f.type == "checkbox") {
                 value_text = f.checked ? "[x]" : "[ ]";
-            } else if (f.type == "radio" || f.type == "select") {
-                value_text = f.text;
             } else {
                 value_text = f.text;
             }
@@ -1646,8 +1644,6 @@ int UIAPI::lua_fn_create_layout(lua_State* L) {
             lua_pushstring(L, "vbox");
             break;
         case pnana::core::ui::WidgetType::CONTAINER:
-            lua_pushstring(L, "container");
-            break;
         default:
             lua_pushstring(L, "container");
             break;

@@ -65,7 +65,7 @@ std::shared_ptr<SSHConnection> SSHPool::acquire(const SSHConfig& config) {
     return conn;
 }
 
-void SSHPool::release(std::shared_ptr<SSHConnection> conn) {
+void SSHPool::release(const std::shared_ptr<SSHConnection>& conn) {
     if (!conn)
         return;
 

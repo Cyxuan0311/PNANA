@@ -47,7 +47,7 @@ class FormatDialog {
      * @param event 输入事件
      * @return 是否处理了事件
      */
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     /**
      * 渲染对话框

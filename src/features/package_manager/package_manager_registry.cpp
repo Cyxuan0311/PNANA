@@ -10,7 +10,7 @@ PackageManagerRegistry& PackageManagerRegistry::getInstance() {
     return instance;
 }
 
-void PackageManagerRegistry::registerManager(std::shared_ptr<PackageManagerBase> manager) {
+void PackageManagerRegistry::registerManager(const std::shared_ptr<PackageManagerBase>& manager) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (manager) {
         managers_[manager->getName()] = manager;
@@ -85,8 +85,8 @@ void PackageManagerRegistry::clearAllCaches() {
     }
 }
 
-void PackageManagerRegistry::setRemoteExecutorForAll(PackageManagerBase::RemoteExecutor executor,
-                                                     const std::string& remote_label) {
+void PackageManagerRegistry::setRemoteExecutorForAll(
+    const PackageManagerBase::RemoteExecutor& executor, const std::string& remote_label) {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& [name, manager] : managers_) {
         if (manager)

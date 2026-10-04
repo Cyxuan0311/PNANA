@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <utility>
 
 namespace pnana {
 namespace features {
@@ -30,7 +31,7 @@ class SSHPool {
     std::shared_ptr<SSHConnection> acquire(const SSHConfig& config);
 
     // 释放连接（归还到池中）
-    void release(std::shared_ptr<SSHConnection> conn);
+    void release(const std::shared_ptr<SSHConnection>& conn);
 
     // 关闭指定主机的所有连接
     void closeConnections(const std::string& host_key);
@@ -81,7 +82,8 @@ class SSHPool {
 // RAII 连接守卫（自动归还连接到池中）
 class SSHConnectionGuard {
   public:
-    SSHConnectionGuard(std::shared_ptr<SSHConnection> conn) : conn_(conn), released_(false) {}
+    SSHConnectionGuard(std::shared_ptr<SSHConnection> conn)
+        : conn_(std::move(conn)), released_(false) {}
 
     ~SSHConnectionGuard() {
         if (!released_ && conn_) {

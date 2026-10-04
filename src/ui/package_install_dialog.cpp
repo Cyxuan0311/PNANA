@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <utility>
 
 using namespace ftxui;
 
@@ -22,7 +23,7 @@ PackageInstallDialog::PackageInstallDialog(Theme& theme)
 
 void PackageInstallDialog::show(
     std::shared_ptr<features::package_manager::PackageManagerBase> manager) {
-    manager_ = manager;
+    manager_ = std::move(manager);
     visible_ = true;
     package_name_input_.clear();
     cursor_position_ = 0;
@@ -38,7 +39,7 @@ void PackageInstallDialog::hide() {
     cursor_position_ = 0;
 }
 
-bool PackageInstallDialog::handleInput(Event event) {
+bool PackageInstallDialog::handleInput(const Event& event) {
     if (!visible_) {
         return false;
     }

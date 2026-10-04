@@ -4,6 +4,7 @@
 #include "ui/responsive_size.h"
 #include <filesystem>
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 using namespace ftxui;
 
@@ -36,15 +37,15 @@ void ExtractPathDialog::show(const std::string& archive_name, const std::string&
     filename_cursor_position_ = filename_input_.length();
 
     active_field_ = InputField::FILENAME; // 默认从文件名字段开始
-    on_confirm_ = on_confirm;
-    on_cancel_ = on_cancel;
+    on_confirm_ = std::move(on_confirm);
+    on_cancel_ = std::move(on_cancel);
 }
 
 void ExtractPathDialog::hide() {
     visible_ = false;
 }
 
-bool ExtractPathDialog::handleInput(ftxui::Event event) {
+bool ExtractPathDialog::handleInput(const ftxui::Event& event) {
     if (!visible_) {
         return false;
     }

@@ -34,7 +34,7 @@ class SSHTransferDialog {
         return visible_;
     }
 
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     ftxui::Element render();
 

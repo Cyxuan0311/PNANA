@@ -161,7 +161,7 @@ void SymbolNavigationPopup::setJumpCallback(
     jump_callback_ = std::move(callback);
 }
 
-bool SymbolNavigationPopup::handleInput(ftxui::Event event) {
+bool SymbolNavigationPopup::handleInput(const ftxui::Event& event) {
     if (!visible_) {
         return false;
     }
@@ -453,16 +453,12 @@ Color SymbolNavigationPopup::getKindColor(const std::string& kind) const {
     if (kind == "Function" || kind == "12" || kind == "Method" || kind == "6") {
         return colors.function; // 函数和方法用函数色
     } else if (kind == "Class" || kind == "5" || kind == "Struct" || kind == "23" ||
-               kind == "Interface" || kind == "11") {
-        return colors.info; // 类、结构体、接口用信息色
+               kind == "Interface" || kind == "11" || kind == "Enum" || kind == "10") {
+        return colors.info; // 类、结构体、接口、枚举用信息色
     } else if (kind == "Namespace" || kind == "3") {
         return colors.warning; // 命名空间用警告色
-    } else if (kind == "Variable" || kind == "13") {
-        return colors.success; // 变量用成功色
-    } else if (kind == "Enum" || kind == "10") {
-        return colors.info; // 枚举用信息色
-    } else if (kind == "Constant" || kind == "14") {
-        return colors.success; // 常量用成功色
+    } else if (kind == "Variable" || kind == "13" || kind == "Constant" || kind == "14") {
+        return colors.success; // 变量、常量用成功色
     } else {
         return colors.foreground; // 默认用前景色
     }

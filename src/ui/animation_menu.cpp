@@ -140,7 +140,7 @@ void AnimationMenu::adjustCurrentParam(int delta) {
     clampConfig();
 }
 
-bool AnimationMenu::handleInput(ftxui::Event event) {
+bool AnimationMenu::handleInput(const ftxui::Event& event) {
     if (event == Event::Escape || event == Event::Return) {
         return false;
     }

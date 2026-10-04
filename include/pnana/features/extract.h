@@ -35,8 +35,8 @@ class ExtractManager {
 
     // 异步解压文件（带进度回调）
     void extractArchiveAsync(const std::string& archive_path, const std::string& extract_path,
-                             std::function<void(float)> on_progress,
-                             std::function<void(bool, const std::string&)> on_complete);
+                             const std::function<void(float)>& on_progress,
+                             const std::function<void(bool, const std::string&)>& on_complete);
 
     // 检查是否正在解压
     bool isExtracting() const {

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <exception>
 #include <thread>
+#include <utility>
 
 using namespace ftxui;
 
@@ -24,7 +25,7 @@ void PackageDetailDialog::show(
     const features::package_manager::Package& package,
     std::shared_ptr<features::package_manager::PackageManagerBase> manager) {
     package_ = package;
-    manager_ = manager;
+    manager_ = std::move(manager);
     visible_ = true;
     std::lock_guard<std::mutex> lock(operation_mutex_);
     operation_status_.clear();
@@ -36,7 +37,7 @@ void PackageDetailDialog::hide() {
     visible_ = false;
 }
 
-bool PackageDetailDialog::handleInput(Event event) {
+bool PackageDetailDialog::handleInput(const Event& event) {
     if (!visible_) {
         return false;
     }

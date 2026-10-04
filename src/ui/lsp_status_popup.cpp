@@ -232,7 +232,7 @@ void LspStatusPopup::refreshEntries() {
     }
 }
 
-bool LspStatusPopup::handleInput(Event event) {
+bool LspStatusPopup::handleInput(const Event& event) {
     if (!is_open_)
         return false;
     if (event == Event::Escape) {
@@ -347,9 +347,7 @@ Element LspStatusPopup::renderRightDetail() const {
     features::LspStatusEntry local_entry;
     {
         std::lock_guard<std::mutex> g(entries_mutex_);
-        if (entries_.empty()) {
-            local_empty = true;
-        } else if (selected_index_ >= entries_.size()) {
+        if (entries_.empty() || selected_index_ >= entries_.size()) {
             local_empty = true;
         } else {
             local_selected = selected_index_;

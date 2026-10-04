@@ -48,7 +48,7 @@ void LogoMenu::setCurrentStyle(const std::string& style_id) {
     selected_index_ = 0;
 }
 
-bool LogoMenu::handleInput(ftxui::Event event) {
+bool LogoMenu::handleInput(const ftxui::Event& event) {
     if (event == Event::Escape) {
         return false;
     }

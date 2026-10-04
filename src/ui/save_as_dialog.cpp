@@ -148,7 +148,7 @@ Element SaveAsDialog::render() {
            borderWithColor(colors.dialog_border);
 }
 
-bool SaveAsDialog::handleInput(ftxui::Event event) {
+bool SaveAsDialog::handleInput(const ftxui::Event& event) {
     // Escape -> cancel
     if (event == ftxui::Event::Escape) {
         if (on_cancel_)

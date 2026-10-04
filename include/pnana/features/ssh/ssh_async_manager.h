@@ -125,7 +125,7 @@ class SSHAsyncManager {
     ~SSHAsyncManager();
 
     // 提交异步任务
-    size_t submitTask(std::shared_ptr<SSHTask> task);
+    size_t submitTask(const std::shared_ptr<SSHTask>& task);
 
     // 获取任务状态
     SSHTaskStatus getTaskStatus(size_t task_id);

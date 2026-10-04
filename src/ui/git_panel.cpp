@@ -102,7 +102,7 @@ void GitPanel::onHide() {
     // Cleanup if needed
 }
 
-bool GitPanel::onKeyPress(Event event) {
+bool GitPanel::onKeyPress(const Event& event) {
     if (!visible_) {
         return false;
     }
@@ -273,7 +273,6 @@ GitPanelMode GitPanel::getNextMode(GitPanelMode current) {
         case GitPanelMode::DIFF:
             return GitPanelMode::GRAPH;
         case GitPanelMode::GRAPH:
-            return GitPanelMode::STATUS;
         default:
             return GitPanelMode::STATUS;
     }
@@ -1267,10 +1266,7 @@ Element GitPanel::renderFileItem(const GitFile& file, size_t /*index*/, bool is_
     item_text = hbox(text(selection_marker) | color(is_selected ? colors.success : colors.comment),
                      item_text);
 
-    if (is_highlighted && is_selected) {
-        // Show selection background and bold, but DO NOT override child element colors
-        item_text = item_text | bgcolor(colors.selection) | bold;
-    } else if (is_highlighted) {
+    if (is_highlighted) {
         // Highlighted (cursor) - show selection background but preserve element colors.
         item_text = item_text | bgcolor(colors.selection) | bold;
     } else if (is_selected) {
@@ -1449,7 +1445,7 @@ Element GitPanel::renderClonePanel() {
     return vbox(std::move(elements));
 }
 
-bool GitPanel::handleCloneModeKey(Event event) {
+bool GitPanel::handleCloneModeKey(const Event& event) {
     // Tab navigation between modes
     if (event == Event::Tab) {
         switchMode(getNextMode(current_mode_));
@@ -1768,16 +1764,12 @@ Color GitPanel::getDiffLineColor(const std::string& line) {
         return colors.foreground;
     }
 
-    if (line[0] == '+') {
+    if (line[0] == '+' || line.substr(0, 3) == "+++") {
         return colors.success; // Green for additions
-    } else if (line[0] == '-') {
+    } else if (line[0] == '-' || line.substr(0, 3) == "---") {
         return colors.error; // Red for deletions
     } else if (line[0] == '@') {
         return colors.keyword; // Blue for hunk headers
-    } else if (line.substr(0, 3) == "+++") {
-        return colors.success;
-    } else if (line.substr(0, 3) == "---") {
-        return colors.error;
     }
 
     return colors.comment; // Gray for context lines
@@ -1979,7 +1971,7 @@ Component GitPanel::buildMainComponent() {
 
                return main_panel;
            }) |
-           CatchEvent([this](Event event) {
+           CatchEvent([this](const Event& event) {
                // Handle diff viewer events first if visible
                if (diff_viewer_visible_) {
                    if (event == Event::Escape) {
@@ -2021,10 +2013,9 @@ Component GitPanel::buildMainComponent() {
                                max_len = std::max(max_len, line.size());
                            }
 
-                           if (max_len <= DIFF_H_SCROLL_STEP) {
+                           if (max_len <= DIFF_H_SCROLL_STEP ||
+                               diff_h_offset_ + DIFF_H_SCROLL_STEP >= max_len) {
                                diff_h_offset_ = 0;
-                           } else if (diff_h_offset_ + DIFF_H_SCROLL_STEP >= max_len) {
-                               diff_h_offset_ = 0; // Reset to beginning when reaching end
                            } else {
                                diff_h_offset_ += DIFF_H_SCROLL_STEP;
                            }
@@ -2061,7 +2052,7 @@ Component GitPanel::buildMainComponent() {
 
 // Key handlers
 
-bool GitPanel::handleStatusModeKey(Event event) {
+bool GitPanel::handleStatusModeKey(const Event& event) {
     const size_t MAX_VISIBLE_FILES = 25; // Must match renderStatusPanel
 
     // Tab navigation between modes (must be first)
@@ -2226,7 +2217,7 @@ bool GitPanel::handleStatusModeKey(Event event) {
     return false;
 }
 
-bool GitPanel::handleCommitModeKey(Event event) {
+bool GitPanel::handleCommitModeKey(const Event& event) {
     // Tab navigation between modes
     if (event == Event::Tab) {
         switchMode(getNextMode(current_mode_));
@@ -2310,7 +2301,7 @@ bool GitPanel::handleCommitModeKey(Event event) {
     return false;
 }
 
-bool GitPanel::handleBranchModeKey(Event event) {
+bool GitPanel::handleBranchModeKey(const Event& event) {
     // Tab navigation between modes
     if (event == Event::Tab) {
         switchMode(getNextMode(current_mode_));
@@ -2423,7 +2414,7 @@ bool GitPanel::handleBranchModeKey(Event event) {
     return false;
 }
 
-bool GitPanel::handleRemoteModeKey(Event event) {
+bool GitPanel::handleRemoteModeKey(const Event& event) {
     // Tab navigation between modes
     if (event == Event::Tab) {
         switchMode(getNextMode(current_mode_));
@@ -2464,7 +2455,7 @@ bool GitPanel::handleRemoteModeKey(Event event) {
     return false;
 }
 
-bool GitPanel::handleDiffModeKey(Event event) {
+bool GitPanel::handleDiffModeKey(const Event& event) {
     // 如果 diff viewer 打开，Tab 键用于水平滚动，不切换模式
     if (diff_viewer_visible_ && event == Event::Tab) {
         if (!diff_content_.empty()) {
@@ -2474,10 +2465,8 @@ bool GitPanel::handleDiffModeKey(Event event) {
                 max_len = std::max(max_len, line.size());
             }
 
-            if (max_len <= DIFF_H_SCROLL_STEP) {
+            if (max_len <= DIFF_H_SCROLL_STEP || diff_h_offset_ + DIFF_H_SCROLL_STEP >= max_len) {
                 diff_h_offset_ = 0;
-            } else if (diff_h_offset_ + DIFF_H_SCROLL_STEP >= max_len) {
-                diff_h_offset_ = 0; // Reset to beginning when reaching end
             } else {
                 diff_h_offset_ += DIFF_H_SCROLL_STEP;
             }
@@ -2674,10 +2663,7 @@ Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*
 
         // Determine color based on character type and column
         Color char_color = colors.foreground;
-        if (c == '*' || c == '+') {
-            // Commit nodes and merge points use current column color
-            char_color = branch_colors[column_index % branch_colors.size()];
-        } else if (c == '|' || c == '/' || c == '\\') {
+        if (c == '|' || c == '/' || c == '\\') {
             // Branch lines use column-specific color
             char_color = branch_colors[column_index % branch_colors.size()];
             // Advance column index after vertical lines
@@ -2688,7 +2674,7 @@ Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*
             // Spaces don't advance column
             char_color = colors.foreground;
         } else {
-            // Other characters (like '-')
+            // Other characters (like '-' or commit nodes '*')
             char_color = branch_colors[column_index % branch_colors.size()];
         }
 
@@ -2715,7 +2701,7 @@ Element GitPanel::renderGraphCommitItem(const GitCommit& commit, size_t /*index*
     return item_text;
 }
 
-bool GitPanel::handleGraphModeKey(Event event) {
+bool GitPanel::handleGraphModeKey(const Event& event) {
     // Tab navigation between modes
     if (event == Event::Tab) {
         switchMode(getNextMode(current_mode_));
@@ -2895,9 +2881,8 @@ ftxui::Color GitPanel::getStatusColor(GitFileStatus status) const {
         case GitFileStatus::UPDATED_BUT_UNMERGED:
             return colors.error; // Red for conflicts
         case GitFileStatus::UNTRACKED:
-            return colors.comment; // Gray for untracked
         case GitFileStatus::IGNORED:
-            return colors.comment; // Gray for ignored
+            return colors.comment; // Gray for untracked/ignored
         default:
             return colors.foreground;
     }
@@ -2938,7 +2923,7 @@ void GitPanel::updateCachedStats() {
     stats_cache_valid_ = true;
 }
 
-bool GitPanel::isNavigationKey(Event event) const {
+bool GitPanel::isNavigationKey(const Event& event) const {
     return event == Event::ArrowUp || event == Event::ArrowDown || event == Event::PageUp ||
            event == Event::PageDown || event == Event::Home || event == Event::End;
 }

@@ -65,7 +65,7 @@ class SSHDialog {
               std::function<void()> on_disconnect = nullptr);
 
     // 处理输入
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染对话框
     ftxui::Element render();
@@ -149,11 +149,11 @@ class SSHDialog {
     ftxui::Element renderEditView();
 
     // ── 输入子处理 ────────────────────────────────────────
-    bool handleHistoryInput(ftxui::Event event);
-    bool handleNewFormInput(ftxui::Event event);
-    bool handlePasswordInput(ftxui::Event event);
-    bool handleConnectedInput(ftxui::Event event);
-    bool handleEditInput(ftxui::Event event);
+    bool handleHistoryInput(const ftxui::Event& event);
+    bool handleNewFormInput(const ftxui::Event& event);
+    bool handlePasswordInput(const ftxui::Event& event);
+    bool handleConnectedInput(const ftxui::Event& event);
+    bool handleEditInput(const ftxui::Event& event);
 };
 
 } // namespace ui

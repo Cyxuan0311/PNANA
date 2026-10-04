@@ -13,12 +13,10 @@ KeyEvent ftxuiKeyToKeyEvent(const std::string& key) {
         ev.type = KeyEvent::Type::Enter;
     else if (key == "Tab" || key == "tab")
         ev.type = KeyEvent::Type::Tab;
-    else if (key == "Backspace")
+    else if (key == "Backspace" || (key.size() == 1 && static_cast<unsigned char>(key[0]) == 0x7f))
         ev.type = KeyEvent::Type::Backspace;
     else if (key == "ctrl_h")
         ev.type = KeyEvent::Type::CtrlH;
-    else if (key.size() == 1 && static_cast<unsigned char>(key[0]) == 0x7f)
-        ev.type = KeyEvent::Type::Backspace;
     else if (key == "ArrowUp" || key == "arrow_up")
         ev.type = KeyEvent::Type::KeyUp;
     else if (key == "ArrowDown" || key == "arrow_down")

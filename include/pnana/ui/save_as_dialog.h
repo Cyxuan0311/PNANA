@@ -31,7 +31,7 @@ class SaveAsDialog {
     ftxui::Element render();
 
     // 处理输入事件，返回是否被处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 设置当前目录（用于相对路径解析与补全）
     void setCurrentDirectory(const std::string& dir) {

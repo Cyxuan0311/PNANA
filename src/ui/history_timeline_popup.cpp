@@ -152,7 +152,7 @@ Element HistoryTimelinePopup::render() {
            borderWithColor(colors.dialog_border);
 }
 
-bool HistoryTimelinePopup::handleInput(ftxui::Event event) {
+bool HistoryTimelinePopup::handleInput(const ftxui::Event& event) {
     if (!is_open_) {
         return false;
     }

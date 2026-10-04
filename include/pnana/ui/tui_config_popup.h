@@ -26,7 +26,7 @@ class TUIConfigPopup {
     ftxui::Element render();
 
     // 事件处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 获取当前选中的索引
     size_t getSelectedIndex() const {

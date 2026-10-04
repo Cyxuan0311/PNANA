@@ -1571,13 +1571,8 @@ void Document::pushChangeInternal(const DocumentChange& change) {
             if (change.type == DocumentChange::Type::INSERT &&
                 last_change.type == DocumentChange::Type::INSERT) {
                 if (last_change.old_content.empty() && last_change.col == 0) {
-                } else if (change.col == last_change.col + last_change.new_content.length()) {
-                    last_change.new_content += change.new_content;
-                    last_change.timestamp = change.timestamp;
-                    last_change.content_size =
-                        last_change.old_content.size() + last_change.new_content.size();
-                    return;
-                } else if (change.col == last_change.col && change.new_content.length() == 1) {
+                } else if (change.col == last_change.col + last_change.new_content.length() ||
+                           (change.col == last_change.col && change.new_content.length() == 1)) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     last_change.content_size =

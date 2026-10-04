@@ -97,7 +97,6 @@ class BuiltinVtParser {
     char osc_buf_[BUILTIN_OSC_BUF_SIZE] = {};
     int osc_len_ = 0;
 
-    char dcs_collect_[8] = {};
     int dcs_collect_len_ = 0;
 
     int charset_designate_ = -1;

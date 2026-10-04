@@ -2,6 +2,7 @@
 #include "ui/icons.h"
 #include "ui/responsive_size.h"
 #include <algorithm>
+#include <utility>
 
 using namespace ftxui;
 
@@ -46,7 +47,7 @@ void EncodingDialog::close() {
     visible_ = false;
 }
 
-bool EncodingDialog::handleInput(ftxui::Event event) {
+bool EncodingDialog::handleInput(const ftxui::Event& event) {
     if (!visible_)
         return false;
 
@@ -180,7 +181,7 @@ Element EncodingDialog::render() {
 
     // 应用边框颜色装饰器
     auto applyBorderColor = [&colors](ftxui::Element child) {
-        return child | borderRounded | ftxui::color(colors.dialog_border);
+        return std::move(child) | borderRounded | ftxui::color(colors.dialog_border);
     };
 
     return applyBorderColor(vbox(content) | size(WIDTH, EQUAL, responsiveWidth(55, 30)) |

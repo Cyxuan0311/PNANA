@@ -24,7 +24,7 @@ class HistoryTimelinePopup {
     }
 
     ftxui::Element render();
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     void setOnPreview(std::function<void(int)> callback);
     void setOnRollback(std::function<void(int)> callback);

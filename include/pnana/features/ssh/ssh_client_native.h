@@ -30,11 +30,13 @@ class SSHClientNative {
 
     // 上传文件到远程服务器
     SSHResult uploadFile(const SSHConfig& config, const std::string& local_path,
-                         const std::string& remote_path, ProgressCallback callback = nullptr);
+                         const std::string& remote_path,
+                         const ProgressCallback& callback = nullptr);
 
     // 从远程服务器下载文件
     SSHResult downloadFile(const SSHConfig& config, const std::string& remote_path,
-                           const std::string& local_path, ProgressCallback callback = nullptr);
+                           const std::string& local_path,
+                           const ProgressCallback& callback = nullptr);
 
     // ==================== 目录操作 ====================
 
@@ -73,10 +75,11 @@ class SSHClientNative {
                          const std::string& working_dir = "", bool pty = false);
 
     // 执行命令并流式输出（适合长时间运行的命令）
-    SSHResult runCommandStreaming(const SSHConfig& config, const std::string& command,
-                                  std::function<void(const std::string&)> stdout_callback,
-                                  std::function<void(const std::string&)> stderr_callback = nullptr,
-                                  const std::string& working_dir = "");
+    SSHResult runCommandStreaming(
+        const SSHConfig& config, const std::string& command,
+        const std::function<void(const std::string&)>& stdout_callback,
+        const std::function<void(const std::string&)>& stderr_callback = nullptr,
+        const std::string& working_dir = "");
 
   private:
     // SFTP 相关文件操作
@@ -85,9 +88,9 @@ class SSHClientNative {
     SSHResult sftpWriteFile(LIBSSH2_SESSION* session, const std::string& remote_path,
                             const std::string& content);
     SSHResult sftpUploadFile(LIBSSH2_SESSION* session, const std::string& local_path,
-                             const std::string& remote_path, ProgressCallback callback);
+                             const std::string& remote_path, const ProgressCallback& callback);
     SSHResult sftpDownloadFile(LIBSSH2_SESSION* session, const std::string& remote_path,
-                               const std::string& local_path, ProgressCallback callback);
+                               const std::string& local_path, const ProgressCallback& callback);
 
     // 辅助函数
     std::string escapeShellPath(const std::string& path);

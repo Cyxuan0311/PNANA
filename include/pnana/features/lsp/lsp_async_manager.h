@@ -32,13 +32,13 @@ class LspAsyncManager {
     // completion_timeout_ms: 超时毫秒数，非 C/C++ LSP 可传 800 以放宽
     void requestCompletionAsync(LspClient* client, const std::string& uri,
                                 const LspPosition& position, CompletionCallback on_success,
-                                ErrorCallback on_error = nullptr,
+                                const ErrorCallback& on_error = nullptr,
                                 const std::string& trigger_character = "",
                                 int completion_timeout_ms = 500);
 
     // 异步 resolve 补全项（获取 detail/documentation）
     void requestResolveAsync(LspClient* client, const CompletionItem& item,
-                             ResolveCallback on_success, ErrorCallback on_error = nullptr);
+                             ResolveCallback on_success, const ErrorCallback& on_error = nullptr);
 
     // 异步发送文档打开/变更到 LSP（在 worker 中执行 didOpen/didChange，避免主线程阻塞）
     void requestDocumentOpenAsync(LspClient* client, const std::string& uri,

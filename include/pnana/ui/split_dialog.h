@@ -38,7 +38,7 @@ class SplitDialog {
                    std::function<void()> on_cancel = nullptr);
 
     // 处理输入
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染对话框
     ftxui::Element render();

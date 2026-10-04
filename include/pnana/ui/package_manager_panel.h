@@ -36,7 +36,7 @@ class PackageManagerPanel {
     }
 
     // 输入处理
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
   private:
     Theme& theme_;
@@ -71,7 +71,7 @@ class PackageManagerPanel {
     ftxui::Element renderSearchBox() const;
     ftxui::Element renderCurrentTab() const;
     ftxui::Element renderPackageList(
-        std::shared_ptr<features::package_manager::PackageManagerBase> manager) const;
+        const std::shared_ptr<features::package_manager::PackageManagerBase>& manager) const;
     ftxui::Element renderPackageItem(const features::package_manager::Package& pkg, size_t index,
                                      bool is_selected) const;
     ftxui::Element renderFooter() const;
@@ -85,7 +85,7 @@ class PackageManagerPanel {
     void navigatePageUp();   // Page Up 快速向上滚动
     void navigatePageDown(); // Page Down 快速向下滚动
     std::vector<features::package_manager::Package> getFilteredPackages(
-        std::shared_ptr<features::package_manager::PackageManagerBase> manager) const;
+        const std::shared_ptr<features::package_manager::PackageManagerBase>& manager) const;
     std::shared_ptr<features::package_manager::PackageManagerBase> getCurrentManager() const;
 
     // 性能优化辅助方法

@@ -26,7 +26,7 @@ class Help {
     ftxui::Element render(int width, int height);
 
     // 处理输入事件（翻页等）
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 获取所有帮助条目
     static std::vector<HelpEntry> getAllHelp();

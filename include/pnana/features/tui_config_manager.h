@@ -45,7 +45,7 @@ class TUIConfigManager {
     // SSH 批量预检测：一次 SSH 调用检测所有已注册路径是否存在，结果缓存供 configExists 使用
     // executor: cmd -> {success, stdout}
     using RemoteExecutor = std::function<std::pair<bool, std::string>(const std::string&)>;
-    void prefetchAvailableRemoteConfigs(RemoteExecutor executor);
+    void prefetchAvailableRemoteConfigs(const RemoteExecutor& executor);
     bool isRemote() const {
         return remote_path_checker_ != nullptr;
     }

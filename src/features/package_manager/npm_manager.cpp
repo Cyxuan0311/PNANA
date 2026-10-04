@@ -116,9 +116,8 @@ std::vector<Package> NpmManager::parseNpmListOutput(const std::string& output) {
             if (line[name_start] == ' ') {
                 name_start++;
             } else if (line.find("├──", name_start) == name_start ||
-                       line.find("└──", name_start) == name_start) {
-                name_start += 3;
-            } else if (line.find("│", name_start) == name_start) {
+                       line.find("└──", name_start) == name_start ||
+                       line.find("│", name_start) == name_start) {
                 name_start += 3;
             } else {
                 break;

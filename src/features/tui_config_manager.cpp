@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <utility>
 
 namespace pnana {
 namespace features {
@@ -91,7 +92,7 @@ void TUIConfigManager::clearRemoteContext() {
     remote_cache_populated_ = false;
 }
 
-void TUIConfigManager::prefetchAvailableRemoteConfigs(RemoteExecutor executor) {
+void TUIConfigManager::prefetchAvailableRemoteConfigs(const RemoteExecutor& executor) {
     if (!executor)
         return;
 
@@ -152,7 +153,7 @@ void TUIConfigManager::prefetchAvailableRemoteConfigs(RemoteExecutor executor) {
 }
 
 void TUIConfigManager::setConfigOpenCallback(std::function<void(const std::string&)> callback) {
-    config_open_callback_ = callback;
+    config_open_callback_ = std::move(callback);
 }
 
 void TUIConfigManager::openConfig(const TUIConfig& config) {

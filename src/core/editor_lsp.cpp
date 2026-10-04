@@ -321,7 +321,8 @@ void Editor::cleanupLocalCacheFiles() {
     }
 
     // 获取配置的缓存目录
-    std::string config_cache_dir = std::string(getenv("HOME")) + "/.config/pnana/.cache";
+    const char* home_dir = getenv("HOME");
+    std::string config_cache_dir = std::string(home_dir ? home_dir : "") + "/.config/pnana/.cache";
 
     try {
         // 确保配置的缓存目录存在

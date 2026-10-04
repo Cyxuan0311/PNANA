@@ -146,7 +146,7 @@ Element MoveFileDialog::render() {
            borderWithColor(colors.dialog_border);
 }
 
-bool MoveFileDialog::handleInput(Event event) {
+bool MoveFileDialog::handleInput(const Event& event) {
     if (event == Event::Escape) {
         return true;
     }

@@ -11,8 +11,6 @@ using namespace ftxui;
 namespace pnana {
 namespace ui {
 
-constexpr int kClipboardContentWidth = 66;
-
 ClipboardPanel::ClipboardPanel(Theme& theme)
     : theme_(theme), visible_(false), selected_index_(0), scroll_offset_(0), panel_width_(40) {}
 
@@ -110,7 +108,7 @@ Element ClipboardPanel::renderEntry(const utils::ClipboardEntry& entry, bool is_
     if (idx.size() < 2)
         idx = " " + idx;
 
-    std::string indicator = is_selected ? "  " : "  ";
+    std::string indicator = "  ";
     std::string select_mark = entry.selected ? "*" : " ";
 
     std::string preview = entry.preview;
@@ -158,7 +156,7 @@ Element ClipboardPanel::renderFooter() {
     });
 }
 
-bool ClipboardPanel::handleInput(Event event) {
+bool ClipboardPanel::handleInput(const Event& event) {
     if (!visible_)
         return false;
 

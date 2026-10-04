@@ -271,20 +271,16 @@ std::string EncodingConverter::detectFileEncoding(const std::string& filepath) {
     // 改进的UTF-8验证：检查更多字节以提高准确性
     bool is_valid_utf8 = true;
     size_t check_size = std::min(bytes.size(), size_t(4096)); // 检查前4KB
-    size_t utf8_char_count = 0;
-    size_t non_ascii_count = 0;
 
     for (size_t i = 0; i < check_size; ++i) {
         uint8_t byte = bytes[i];
         if (byte > 0x7F) { // 非ASCII字符
-            non_ascii_count++;
             // 检查UTF-8序列
             if ((byte & 0xE0) == 0xC0) { // 2字节序列
                 if (i + 1 >= bytes.size() || (bytes[i + 1] & 0xC0) != 0x80) {
                     is_valid_utf8 = false;
                     break;
                 }
-                utf8_char_count++;
                 i++;
             } else if ((byte & 0xF0) == 0xE0) { // 3字节序列
                 if (i + 2 >= bytes.size() || (bytes[i + 1] & 0xC0) != 0x80 ||
@@ -292,7 +288,6 @@ std::string EncodingConverter::detectFileEncoding(const std::string& filepath) {
                     is_valid_utf8 = false;
                     break;
                 }
-                utf8_char_count++;
                 i += 2;
             } else if ((byte & 0xF8) == 0xF0) { // 4字节序列
                 if (i + 3 >= bytes.size() || (bytes[i + 1] & 0xC0) != 0x80 ||
@@ -300,19 +295,16 @@ std::string EncodingConverter::detectFileEncoding(const std::string& filepath) {
                     is_valid_utf8 = false;
                     break;
                 }
-                utf8_char_count++;
                 i += 3;
             } else if ((byte & 0x80) != 0) { // 无效的UTF-8字节
                 is_valid_utf8 = false;
                 break;
             }
-        } else {
-            utf8_char_count++; // ASCII字符
         }
     }
 
-    // 如果所有检查的字节都是有效的UTF-8，且有一定数量的非ASCII字符，很可能是UTF-8
-    if (is_valid_utf8 && (non_ascii_count == 0 || non_ascii_count > 0)) {
+    // 如果检查的字节都是有效的UTF-8，很可能是UTF-8
+    if (is_valid_utf8) {
         return "UTF-8";
     }
 

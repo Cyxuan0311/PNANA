@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+#include <utility>
 
 namespace pnana {
 namespace features {
@@ -740,7 +741,7 @@ std::map<std::string, std::vector<LspRange>> LspClient::rename(const std::string
 }
 
 void LspClient::setDiagnosticsCallback(DiagnosticsCallback callback) {
-    diagnostics_callback_ = callback;
+    diagnostics_callback_ = std::move(callback);
 }
 
 bool LspClient::isConnected() const {
@@ -863,14 +864,13 @@ CompletionItem LspClient::jsonToCompletionItem(const jsonrpccxx::json& json) {
         if (json["documentation"].is_string()) {
             item.documentation = json["documentation"].get<std::string>();
         } else if (json["documentation"].is_object()) {
-            if (json["documentation"].contains("value") &&
-                json["documentation"]["value"].is_string()) {
-                item.documentation = json["documentation"]["value"].get<std::string>();
-            } else if (json["documentation"].contains("kind") &&
-                       json["documentation"]["kind"].is_string() &&
-                       json["documentation"]["kind"].get<std::string>() == "markdown" &&
-                       json["documentation"].contains("value") &&
-                       json["documentation"]["value"].is_string()) {
+            if ((json["documentation"].contains("value") &&
+                 json["documentation"]["value"].is_string()) ||
+                (json["documentation"].contains("kind") &&
+                 json["documentation"]["kind"].is_string() &&
+                 json["documentation"]["kind"].get<std::string>() == "markdown" &&
+                 json["documentation"].contains("value") &&
+                 json["documentation"]["value"].is_string())) {
                 item.documentation = json["documentation"]["value"].get<std::string>();
             }
         }

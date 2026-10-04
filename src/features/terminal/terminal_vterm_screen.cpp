@@ -254,7 +254,7 @@ void VTermScreenModel::sync_cell_from_vterm(int row, int col, TerminalCell& out)
     if (vterm_screen_get_cell(static_cast<VTermScreen*>(screen_), pos, &vcell) != 1)
         return;
 
-    out.width = vcell.width;
+    out.width = static_cast<unsigned char>(vcell.width);
     for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && vcell.chars[i]; i++) {
         utf32_to_utf8(vcell.chars[i], out.text);
     }
@@ -325,7 +325,7 @@ void VTermScreenModel::append_scrollback_line(int cols, const void* vterm_cells)
         }
         if (tc.text.empty())
             tc.text = " ";
-        tc.width = vc.width;
+        tc.width = static_cast<unsigned char>(vc.width);
         tc.bold = !!(vc.attrs.bold);
         tc.underline = (vc.attrs.underline != VTERM_UNDERLINE_OFF);
         tc.italic = !!(vc.attrs.italic);
@@ -355,8 +355,6 @@ void VTermScreenModel::append_scrollback_line(int cols, const void* vterm_cells)
 }
 
 ScreenSnapshot VTermScreenModel::snapshot(int max_scrollback) const {
-    static int snap_count = 0;
-    ++snap_count;
     ScreenSnapshot snap;
     {
         std::lock_guard<std::mutex> lock(vterm_mutex_);

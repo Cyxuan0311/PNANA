@@ -42,11 +42,12 @@ bool ActionExecutor::execute(KeyAction action) {
         case KeyAction::TOGGLE_COMMENT:
         case KeyAction::UNDO:
         case KeyAction::REDO:
-            return executeEditOperation(action);
 #ifdef BUILD_LSP_SUPPORT
         case KeyAction::TRIGGER_COMPLETION:
         case KeyAction::SHOW_DIAGNOSTICS:
+#endif
             return executeEditOperation(action);
+#ifdef BUILD_LSP_SUPPORT
         case KeyAction::TOGGLE_FOLD:
         case KeyAction::FOLD_ALL:
         case KeyAction::UNFOLD_ALL:

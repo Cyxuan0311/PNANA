@@ -3,6 +3,7 @@
 #include "ui/icons.h"
 #include <algorithm>
 #include <ftxui/dom/elements.hpp>
+#include <utility>
 
 using namespace ftxui;
 
@@ -27,9 +28,9 @@ void Dialog::showInput(const std::string& title, const std::string& prompt,
     input_value_ = initial_value;
     cursor_position_ = input_value_.length();
     type_ = DialogType::INPUT;
-    on_input_confirm_ = on_confirm;
+    on_input_confirm_ = std::move(on_confirm);
     on_confirm_ = nullptr;
-    on_cancel_ = on_cancel;
+    on_cancel_ = std::move(on_cancel);
     visible_ = true;
 }
 
@@ -42,12 +43,12 @@ void Dialog::showConfirm(const std::string& title, const std::string& message,
     cursor_position_ = 0;
     type_ = DialogType::CONFIRM;
     on_input_confirm_ = nullptr;
-    on_confirm_ = on_confirm;
-    on_cancel_ = on_cancel;
+    on_confirm_ = std::move(on_confirm);
+    on_cancel_ = std::move(on_cancel);
     visible_ = true;
 }
 
-bool Dialog::handleInput(ftxui::Event event) {
+bool Dialog::handleInput(const ftxui::Event& event) {
     if (!visible_)
         return false;
 

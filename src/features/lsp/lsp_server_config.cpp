@@ -17,7 +17,8 @@ std::vector<LspServerConfig> LspServerConfigManager::getDefaultConfigs() {
     std::vector<LspServerConfig> configs;
 
     // 获取缓存目录路径
-    std::string cache_dir = std::string(getenv("HOME")) + "/.config/pnana/.cache";
+    const char* home_dir = getenv("HOME");
+    std::string cache_dir = std::string(home_dir ? home_dir : "") + "/.config/pnana/.cache";
 
     // C++ - clangd（.cpp/.hpp 等使用 C++ 标准库补全：vector、string 等）
     configs.emplace_back(

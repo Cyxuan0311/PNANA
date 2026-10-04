@@ -5,6 +5,7 @@
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <string>
+#include <utility>
 
 namespace pnana {
 namespace ui {
@@ -34,7 +35,7 @@ class CursorConfigDialog {
     }
 
     // 处理输入
-    bool handleInput(ftxui::Event event);
+    bool handleInput(const ftxui::Event& event);
 
     // 渲染对话框
     ftxui::Element render();
@@ -75,7 +76,7 @@ class CursorConfigDialog {
 
     // 应用配置回调
     void setOnApply(std::function<void()> callback) {
-        on_apply_ = callback;
+        on_apply_ = std::move(callback);
     }
 
     // 重置为默认值
