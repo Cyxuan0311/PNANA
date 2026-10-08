@@ -6,8 +6,8 @@
 #include <cstdlib>
 #include <ftxui/dom/elements.hpp>
 #include <signal.h>
-#include <unistd.h>
 #include <thread>
+#include <unistd.h>
 
 using namespace ftxui;
 

@@ -1,6 +1,7 @@
 #include "ui/welcome_screen.h"
 #include "features/logo_manager.h"
 #include "ui/icons.h"
+#include <algorithm>
 #include <cmath>
 #include <ftxui/dom/elements.hpp>
 
