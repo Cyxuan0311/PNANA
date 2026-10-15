@@ -100,6 +100,7 @@
 #include "plugins/plugin_manager.h"
 #endif
 #include <chrono>
+#include <deque>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <map>
@@ -164,6 +165,7 @@ class Editor {
 
     // 文件操作
     bool openFile(const std::string& filepath);
+    void openFiles(const std::vector<std::string>& filepaths);
     bool saveFile();
     bool saveFileAs(const std::string& filepath);
     void startSaveAs();   // 启动另存为对话框
@@ -403,6 +405,8 @@ class Editor {
   private:
     // 实际执行打开文件（供 openFile 与“大文件确认”回调调用）
     bool openFileInternal(const std::string& filepath);
+    void openNextFile();
+    std::deque<std::string> pending_files_;
 
     // 文档管理
     DocumentManager document_manager_;

@@ -462,9 +462,7 @@ Editor::Editor(const std::string& filepath) : Editor() {
 }
 
 Editor::Editor(const std::vector<std::string>& filepaths) : Editor() {
-    if (!filepaths.empty()) {
-        openFile(filepaths[0]);
-    }
+    openFiles(filepaths);
 }
 
 Editor::~Editor() {

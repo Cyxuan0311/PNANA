@@ -195,9 +195,7 @@ int main(int argc, char* argv[]) {
             editor.setTheme(theme);
         }
 
-        if (!files.empty()) {
-            editor.openFile(files[0]);
-        }
+        editor.openFiles(files);
 
         editor.run();
 

@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 
 // 前向声明辅助函数（在editor_ssh.cpp中定义）
 namespace pnana {
@@ -45,6 +46,23 @@ namespace pnana {
 namespace core {
 
 // 文件操作
+void Editor::openFiles(const std::vector<std::string>& filepaths) {
+    pending_files_.insert(pending_files_.end(), filepaths.begin(), filepaths.end());
+    openNextFile();
+}
+
+void Editor::openNextFile() {
+    while (!pending_files_.empty()) {
+        std::string filepath = std::move(pending_files_.front());
+        pending_files_.pop_front();
+        openFile(filepath);
+        // Wait for the large-file decision before opening the remaining arguments.
+        if (dialog_.isVisible()) {
+            return;
+        }
+    }
+}
+
 bool Editor::openFile(const std::string& filepath) {
     if (filepath.size() >= 6 && filepath.compare(0, 6, "ssh://") == 0) {
         pnana::ui::SSHConfig config;
@@ -112,9 +130,11 @@ bool Editor::openFile(const std::string& filepath) {
                 openFileInternal(filepath);
                 file_browser_.setVisible(false);
                 region_manager_.setRegion(EditorRegion::CODE_AREA);
+                screen_.Post([this]() { openNextFile(); });
             },
             [this]() {
                 setStatusMessage("Canceled opening large file");
+                screen_.Post([this]() { openNextFile(); });
             });
         return true;
     }
