@@ -23,7 +23,9 @@ enum class LineEnding { LF, CRLF, CR };
 
 // 文档修改记录（用于撤销/重做）
 struct DocumentChange {
-    enum class Type { INSERT, DELETE, REPLACE, NEWLINE, COMPLETION, MOVE_LINE, COMMENT_TOGGLE };
+    enum class Type {
+        INSERT, DELETE, REPLACE, NEWLINE, COMPLETION, MOVE_LINE, COMMENT_TOGGLE, INSERT_LINE
+    };
 
     struct MoveTag {};
     static constexpr MoveTag MOVE_TAG = MoveTag{};

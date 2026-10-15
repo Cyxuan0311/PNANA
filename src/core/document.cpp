@@ -1014,7 +1014,8 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
     // 每个撤销点都是完整的、不可分割的操作
     bool success = false;
     switch (change.type) {
-        case DocumentChange::Type::INSERT: {
+        case DocumentChange::Type::INSERT:
+        case DocumentChange::Type::INSERT_LINE: {
             if (change.row < lines_.size()) {
                 std::string& current_line = lines_[change.row];
                 size_t line_len = current_line.length();
@@ -1024,18 +1025,7 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                           " new_content_len=" + std::to_string(change.new_content.length()) +
                           " current_line=[" + current_line + "]");
 
-                bool is_whole_line_insert = false;
-                if (change.old_content.empty() && change.col == 0 &&
-                    current_line == change.new_content && change.new_content.length() > 1) {
-                    bool has_non_whitespace = false;
-                    for (char c : change.new_content) {
-                        if (c != ' ' && c != '\t') {
-                            has_non_whitespace = true;
-                            break;
-                        }
-                    }
-                    is_whole_line_insert = has_non_whitespace;
-                }
+                bool is_whole_line_insert = change.type == DocumentChange::Type::INSERT_LINE;
 
                 LOG_DEBUG("[UNDO-INSERT] is_whole_line_insert=" +
                           std::to_string(is_whole_line_insert));
@@ -1074,8 +1064,7 @@ bool Document::undo(size_t* out_row, size_t* out_col, DocumentChange::Type* out_
                     }
                 }
 
-                LOG_DEBUG("[UNDO-INSERT] END: success=" + std::to_string(success) +
-                          " line_after=[" + lines_[change.row] + "]");
+                LOG_DEBUG("[UNDO-INSERT] END: success=" + std::to_string(success));
             }
 
             if (out_row)
@@ -1346,7 +1335,8 @@ bool Document::redo(size_t* out_row, size_t* out_col) {
 
     switch (change.type) {
         case DocumentChange::Type::INSERT:
-            if (change.old_content.empty() && change.col == 0) {
+        case DocumentChange::Type::INSERT_LINE:
+            if (change.type == DocumentChange::Type::INSERT_LINE) {
                 if (change.row <= lines_.size()) {
                     buffer_backend_->insertLine(change.row, change.new_content);
                     lines_.insert(lines_.begin() + change.row, change.new_content);
@@ -1570,9 +1560,8 @@ void Document::pushChangeInternal(const DocumentChange& change) {
             change.type == last_change.type) {
             if (change.type == DocumentChange::Type::INSERT &&
                 last_change.type == DocumentChange::Type::INSERT) {
-                if (last_change.old_content.empty() && last_change.col == 0) {
-                } else if (change.col == last_change.col + last_change.new_content.length() ||
-                           (change.col == last_change.col && change.new_content.length() == 1)) {
+                if (change.col == last_change.col + last_change.new_content.length() ||
+                    (change.col == last_change.col && change.new_content.length() == 1)) {
                     last_change.new_content += change.new_content;
                     last_change.timestamp = change.timestamp;
                     last_change.content_size =
