@@ -55,7 +55,7 @@ This document matches the in-editor help (F1), based on `src/ui/help.cpp` and `s
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+X` | Cut |
-| `Ctrl+P` | Copy |
+| `Ctrl+C` | Copy |
 | `Ctrl+V` | Paste |
 | `Ctrl+A` | Select all |
 | `Alt+D` | Select word |

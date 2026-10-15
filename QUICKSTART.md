@@ -49,7 +49,7 @@ chmod +x ./install.sh
 ```bash
 # 获取源代码 / Get source code
 git clone https://github.com/Cyxuan0311/PNANA.git
-cd pnana
+cd PNANA
 
 # 创建构建目录 / Create build directory
 mkdir build && cd build

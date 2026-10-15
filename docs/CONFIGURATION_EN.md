@@ -580,13 +580,9 @@ Priority (highest to lowest):
 
 ## Hot Reload
 
-The current version does not support hot reload. Changes to the configuration file require restarting pnana.
+pnana watches the active configuration file (the default path or the file selected with `--config`). When the file changes, it reloads the configuration and reapplies editor and display settings, showing "Config hot-reloaded from disk" in the status bar.
 
-Planned features:
-
-- Config file change detection
-- Automatic reload
-- Real-time updates for some options
+Settings that initialize external services, such as LSP server connections, may still require restarting pnana.
 
 ---
 
