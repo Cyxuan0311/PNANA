@@ -130,11 +130,15 @@ bool Editor::openFile(const std::string& filepath) {
                 openFileInternal(filepath);
                 file_browser_.setVisible(false);
                 region_manager_.setRegion(EditorRegion::CODE_AREA);
-                screen_.Post([this]() { openNextFile(); });
+                screen_.Post([this]() {
+                    openNextFile();
+                });
             },
             [this]() {
                 setStatusMessage("Canceled opening large file");
-                screen_.Post([this]() { openNextFile(); });
+                screen_.Post([this]() {
+                    openNextFile();
+                });
             });
         return true;
     }
