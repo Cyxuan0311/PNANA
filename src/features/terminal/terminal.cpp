@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include "features/terminal.h"
 #include "features/terminal/terminal_color.h"
 #include "features/terminal/terminal_key_map.h"
