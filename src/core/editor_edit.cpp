@@ -621,7 +621,8 @@ void Editor::duplicateLine() {
     doc->insertLine(cursor_row_ + 1);
     doc->getLines()[cursor_row_ + 1] = line;
 
-    doc->pushChange(DocumentChange(DocumentChange::Type::INSERT, cursor_row_ + 1, 0, "", line));
+    doc->pushChange(
+        DocumentChange(DocumentChange::Type::INSERT_LINE, cursor_row_ + 1, 0, "", line));
 
     doc->setModified(true);
     cursor_row_++;
